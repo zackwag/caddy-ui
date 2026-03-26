@@ -15,7 +15,8 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 - **Dashboard** — Live server status, TLS state, and server block summary with custom display names
 - **Caddyfile Editor** — Edit your Caddyfile in the browser with live validation, `caddy fmt` formatting, and automatic site block sorting on save
-- **Route Manager** — View all reverse proxy routes across all server blocks, add new routes and delete existing ones with automatic Caddyfile sync
+- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, clickable domain and upstream links with automatic http/https scheme detection
+- **TLS Certificates** — View cert status, expiry dates, and days remaining for all managed domains. Detect and delete orphaned certs
 - **Access Logs** — Tail live log output with SSE streaming, color-coded by severity level
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
@@ -30,12 +31,15 @@ graph LR
     CF[("Caddyfile\n/etc/caddy/Caddyfile")]
     LG[("Access Logs\n/var/log/caddy")]
     SN[("Server Names\n/etc/caddy-ui")]
+    TLS[("Certificates\n/data/caddy/caddy")]
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
+    BE -->|"TCP healthcheck"| CA
     BE <-->|"read / write"| CF
     BE <-->|"read / stream"| LG
     BE <-->|"read / write"| SN
+    BE <-->|"read / delete"| TLS
     CA <-->|"reload from"| CF
 ```
 
@@ -56,7 +60,7 @@ Add `CADDY_ADMIN=0.0.0.0:2019` to your Caddy container's environment variables. 
 }
 ```
 
-### 2. Create the log directory
+### 2. Create required directories
 
 ```bash
 mkdir -p /docker/caddy/logs
@@ -64,8 +68,6 @@ mkdir -p /docker/caddy-ui
 ```
 
 ### 3. Update your compose file
-
-Add the following services and update your existing `caddy` service:
 
 ```yaml
 services:
@@ -92,10 +94,12 @@ services:
       - CADDYFILE_PATH=/etc/caddy/Caddyfile
       - CADDY_LOG_PATH=/var/log/caddy/access.log
       - SERVER_NAMES_PATH=/etc/caddy-ui/server-names.json
+      - CADDY_DATA_PATH=/data/caddy/caddy
     volumes:
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /docker/caddy/logs:/var/log/caddy
       - /docker/caddy-ui:/etc/caddy-ui
+      - /docker/caddy/data:/data/caddy
     networks:
       - caddy-ui
     depends_on:
@@ -127,8 +131,6 @@ Open `http://your-server:9877` in your browser.
 
 ## Building from Source
 
-See the [backend README](./backend/README.md) and [frontend README](./frontend/README.md) for individual build instructions.
-
 ```bash
 # Build backend
 cd backend
@@ -139,40 +141,53 @@ cd frontend
 docker build -t caddy-ui-frontend .
 ```
 
+See the [backend README](./backend/README.md) and [frontend README](./frontend/README.md) for development instructions.
+
 ## Project Structure
 
 ```text
 caddy-ui/
-├── backend/                  # Node.js/Express API server
+├── backend/
 │   ├── src/
-│   │   ├── index.js          # Entry point
-│   │   ├── caddy.js          # Caddy admin API client
+│   │   ├── index.js
+│   │   ├── caddy.js
 │   │   └── routes/
-│   │       ├── caddyfile.js  # Caddyfile read/write/validate/reload
-│   │       ├── routes.js     # Reverse proxy route management
-│   │       ├── status.js     # Server status
-│   │       ├── logs.js       # Log tailing and configuration
-│   │       └── servernames.js # Server block display names
+│   │       ├── caddyfile.js
+│   │       ├── routes.js
+│   │       ├── status.js
+│   │       ├── logs.js
+│   │       ├── tls.js
+│   │       ├── health.js
+│   │       └── servernames.js
 │   ├── Dockerfile
 │   └── package.json
-├── frontend/                 # React application
+├── frontend/
 │   ├── src/
-│   │   ├── main.jsx          # Entry point
-│   │   └── App.jsx           # Full application
+│   │   ├── main.jsx
+│   │   └── App.jsx
 │   ├── Dockerfile
-│   ├── nginx.conf            # Nginx config with /api proxy
+│   ├── nginx.conf
 │   ├── vite.config.js
 │   ├── index.html
 │   └── package.json
-└── docker-compose.additions.yml
+└── README.md
 ```
 
 ## Docker Hub
 
-| Image    | Link                                                                            |
-|----------|---------------------------------------------------------------------------------|
+| Image | Link |
+|-------|------|
 | Frontend | [zackwag/caddy-ui-frontend](https://hub.docker.com/r/zackwag/caddy-ui-frontend) |
-| Backend  | [zackwag/caddy-ui-backend](https://hub.docker.com/r/zackwag/caddy-ui-backend)   |
+| Backend | [zackwag/caddy-ui-backend](https://hub.docker.com/r/zackwag/caddy-ui-backend) |
+
+## Changelog
+
+| Version | Description |
+|---------|-------------|
+| `v1.3` | Upstream healthchecks, clickable domain/upstream links, http/https scheme detection |
+| `v1.2` | TLS certificate tab, orphaned cert cleanup, all server routes visible, mobile layout |
+| `v1.1` | Mobile responsive layout, hamburger menu |
+| `v1.0` | Initial release |
 
 ## License
 

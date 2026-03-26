@@ -352,6 +352,20 @@ const css = `
 
   .mono { font-family: var(--mono); font-size: 12px; }
 
+  a.route-link {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dashed var(--border2);
+    transition: color 0.15s, border-color 0.15s;
+  }
+  a.route-link:hover {
+    color: var(--accent) !important;
+    border-color: var(--accent);
+  }
+  a.route-link.upstream {
+    color: var(--accent2);
+  }
+
   .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.7);
@@ -440,11 +454,6 @@ const css = `
 
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-
-  /* ── expiry bar ── */
   .expiry-bar {
     height: 3px;
     border-radius: 2px;
@@ -458,6 +467,10 @@ const css = `
     border-radius: 2px;
     transition: width 0.3s;
   }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
   @media (max-width: 768px) {
     .hamburger { display: flex; }
@@ -791,7 +804,10 @@ function RouteModal({ route, onSave, onClose }) {
 
 function RoutesManager({ toast }) {
     const [routes, setRoutes] = useState([]);
+    const [health, setHealth] = useState({});
+    const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [healthLoading, setHealthLoading] = useState(false);
     const [modal, setModal] = useState(null);
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
@@ -801,9 +817,29 @@ function RoutesManager({ toast }) {
             .then(setRoutes)
             .catch(e => toast.error(e.message))
             .finally(() => setLoading(false));
+        apiFetch("/tls")
+            .then(setCerts)
+            .catch(() => { });
     };
 
-    useEffect(load, []);
+    const loadHealth = () => {
+        setHealthLoading(true);
+        apiFetch("/health")
+            .then(results => {
+                const map = {};
+                for (const r of results) map[r.upstream] = r.online;
+                setHealth(map);
+            })
+            .catch(() => { })
+            .finally(() => setHealthLoading(false));
+    };
+
+    useEffect(() => {
+        load();
+        loadHealth();
+        const t = setInterval(loadHealth, 30000);
+        return () => clearInterval(t);
+    }, []);
 
     const addRoute = async (form) => {
         try {
@@ -815,6 +851,7 @@ function RoutesManager({ toast }) {
             toast.success(`Route for ${form.domain} added`);
             setModal(null);
             load();
+            loadHealth();
         } catch (e) {
             toast.error(e.message);
         }
@@ -826,6 +863,7 @@ function RoutesManager({ toast }) {
             await apiFetch(`/routes/${id}`, { method: "DELETE" });
             toast.success("Route removed");
             load();
+            loadHealth();
         } catch (e) {
             toast.error(e.message);
         }
@@ -845,6 +883,50 @@ function RoutesManager({ toast }) {
         }
         const flat = route.handle?.find(h => h.handler === "reverse_proxy");
         return flat?.upstreams?.map(u => u.dial).join(", ") || "—";
+    };
+
+    const getDomainScheme = (domain) => {
+        if (domain.startsWith("http://")) return "http";
+        const hasCert = certs.some(c => c.domain === domain && c.status !== "orphaned");
+        return hasCert ? "https" : "http";
+    };
+
+    const domainLink = (domain) => {
+        if (domain === "—") return null;
+        const clean = domain.replace(/^https?:\/\//, "");
+        const scheme = getDomainScheme(clean);
+        return `${scheme}://${clean}`;
+    };
+
+    const upstreamLink = (upstream) => {
+        if (upstream === "—") return null;
+        return `http://${upstream}`;
+    };
+
+    const getHealthDot = (route) => {
+        const upstream = getUpstream(route);
+        if (upstream === "—") {
+            return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--border2)", marginRight: 8, flexShrink: 0 }} title="No upstream" />;
+        }
+        const upstreams = upstream.split(", ");
+        const allOnline = upstreams.every(u => health[u] === true);
+        const anyOnline = upstreams.some(u => health[u] === true);
+        const checked = upstreams.some(u => u in health);
+
+        if (!checked) {
+            return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted)", marginRight: 8, flexShrink: 0 }} title="Checking..." />;
+        }
+
+        const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
+        const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
+        const label = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
+
+        return (
+            <span
+                style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: shadow, marginRight: 8, flexShrink: 0 }}
+                title={label}
+            />
+        );
     };
 
     const handleSort = (col) => {
@@ -875,8 +957,18 @@ function RoutesManager({ toast }) {
     return (
         <>
             <div className="gap-16">
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button className="btn btn-primary" onClick={() => setModal("new")}>+ Add Route</button>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                        {healthLoading
+                            ? "Checking upstreams..."
+                            : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} upstreams online`}
+                    </div>
+                    <div className="btn-row">
+                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading} style={{ fontSize: 11 }}>
+                            ↺ Check health
+                        </button>
+                        <button className="btn btn-primary" onClick={() => setModal("new")}>+ Add Route</button>
+                    </div>
                 </div>
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                     {routes.length === 0 ? (
@@ -902,19 +994,45 @@ function RoutesManager({ toast }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {sorted.map((r, i) => (
-                                        <tr key={r["@id"] || i}>
-                                            <td className="mono">{getHost(r)}</td>
-                                            <td className="mono" style={{ color: "var(--accent2)" }}>{getUpstream(r)}</td>
-                                            <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r._server || "—"}</td>
-                                            <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
-                                            <td style={{ width: 80, textAlign: "right" }}>
-                                                {r["@id"] && (
-                                                    <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {sorted.map((r, i) => {
+                                        const domain = getHost(r);
+                                        const upstream = getUpstream(r);
+                                        const dLink = domainLink(domain);
+                                        const uLink = upstreamLink(upstream);
+
+                                        return (
+                                            <tr key={r["@id"] || i}>
+                                                <td>
+                                                    <div style={{ display: "flex", alignItems: "center" }}>
+                                                        {getHealthDot(r)}
+                                                        {dLink ? (
+                                                            <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">
+                                                                {domain}
+                                                            </a>
+                                                        ) : (
+                                                            <span className="mono">{domain}</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    {uLink ? (
+                                                        <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">
+                                                            {upstream}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>
+                                                    )}
+                                                </td>
+                                                <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r._server || "—"}</td>
+                                                <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
+                                                <td style={{ width: 80, textAlign: "right" }}>
+                                                    {r["@id"] && (
+                                                        <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -968,7 +1086,9 @@ function TLSViewer({ toast }) {
         orphaned: certs.filter(c => c.status === 'orphaned').length,
     };
 
-    const filtered = filter === "all" ? certs.filter(c => c.status !== 'orphaned') : certs.filter(c => c.status === filter);
+    const filtered = filter === "all"
+        ? certs.filter(c => c.status !== 'orphaned')
+        : certs.filter(c => c.status === filter);
 
     const statusBadge = (cert) => {
         if (cert.status === 'expired') return <span className="badge badge-red">EXPIRED</span>;
@@ -1003,8 +1123,6 @@ function TLSViewer({ toast }) {
 
     return (
         <div className="gap-16">
-
-            {/* Summary cards */}
             <div className="grid-4">
                 <div className="card" style={{ cursor: "pointer", borderColor: filter === "all" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("all")}>
                     <div className="card-title">Total</div>
@@ -1028,7 +1146,6 @@ function TLSViewer({ toast }) {
                 </div>
             </div>
 
-            {/* Cert table */}
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
@@ -1086,13 +1203,7 @@ function TLSViewer({ toast }) {
                                         <td>{statusBadge(cert)}</td>
                                         <td style={{ width: 60, textAlign: "right" }}>
                                             {cert.status === 'orphaned' && (
-                                                <button
-                                                    className="btn btn-danger"
-                                                    style={{ padding: "4px 10px" }}
-                                                    onClick={() => deleteCert(cert)}
-                                                >
-                                                    ✕
-                                                </button>
+                                                <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteCert(cert)}>✕</button>
                                             )}
                                         </td>
                                     </tr>

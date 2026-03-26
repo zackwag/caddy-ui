@@ -3,6 +3,7 @@ import express from 'express';
 import 'express-async-errors';
 
 import caddyfileRouter from './routes/caddyfile.js';
+import healthRouter from './routes/health.js';
 import logsRouter from './routes/logs.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
@@ -22,6 +23,7 @@ app.use('/api/status', statusRouter);
 app.use('/api/logs', logsRouter);
 app.use('/api/server-names', servernamesRouter);
 app.use('/api/tls', tlsRouter);
+app.use('/api/health', healthRouter);
 
 app.use((err, req, res, next) => {
     console.error(err);
