@@ -7,6 +7,7 @@ import logsRouter from './routes/logs.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
+import tlsRouter from './routes/tls.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +21,7 @@ app.use('/api/routes', routesRouter);
 app.use('/api/status', statusRouter);
 app.use('/api/logs', logsRouter);
 app.use('/api/server-names', servernamesRouter);
+app.use('/api/tls', tlsRouter);
 
 app.use((err, req, res, next) => {
     console.error(err);

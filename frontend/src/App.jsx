@@ -41,6 +41,8 @@ const css = `
     display: flex;
     flex-direction: column;
     padding: 0;
+    transition: transform 0.2s ease;
+    z-index: 200;
   }
 
   .sidebar-logo {
@@ -112,6 +114,7 @@ const css = `
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   .topbar {
@@ -122,6 +125,14 @@ const css = `
     justify-content: space-between;
     background: var(--surface);
     flex-shrink: 0;
+    gap: 12px;
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
   }
 
   .page-title {
@@ -130,12 +141,34 @@ const css = `
     font-weight: 500;
     color: var(--text);
     letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  .hamburger {
+    display: none;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 6px 8px;
+    font-size: 14px;
+    flex-shrink: 0;
+    line-height: 1;
   }
 
   .content {
     flex: 1;
     overflow-y: auto;
     padding: 28px;
+  }
+
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 150;
   }
 
   .card {
@@ -155,8 +188,8 @@ const css = `
     margin-bottom: 16px;
   }
 
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
   .gap-16 { display: flex; flex-direction: column; gap: 16px; }
 
   .stat-val {
@@ -179,6 +212,8 @@ const css = `
     justify-content: space-between;
     padding: 10px 0;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .server-row:last-child { border-bottom: none; }
 
@@ -196,10 +231,13 @@ const css = `
     padding: 2px 8px;
     border-radius: 3px;
     font-weight: 500;
+    white-space: nowrap;
   }
-  .badge-green { background: rgba(0,229,160,0.1); color: var(--accent); border: 1px solid rgba(0,229,160,0.2); }
-  .badge-blue  { background: rgba(0,153,255,0.1); color: var(--accent2); border: 1px solid rgba(0,153,255,0.2); }
-  .badge-red   { background: rgba(255,77,106,0.1); color: var(--danger); border: 1px solid rgba(255,77,106,0.2); }
+  .badge-green  { background: rgba(0,229,160,0.1);  color: var(--accent);  border: 1px solid rgba(0,229,160,0.2); }
+  .badge-blue   { background: rgba(0,153,255,0.1);  color: var(--accent2); border: 1px solid rgba(0,153,255,0.2); }
+  .badge-red    { background: rgba(255,77,106,0.1);  color: var(--danger);  border: 1px solid rgba(255,77,106,0.2); }
+  .badge-yellow { background: rgba(255,184,48,0.1); color: var(--warn);    border: 1px solid rgba(255,184,48,0.2); }
+  .badge-muted  { background: rgba(88,98,117,0.1);  color: var(--muted);   border: 1px solid rgba(88,98,117,0.2); }
 
   .editor-wrap {
     position: relative;
@@ -230,6 +268,8 @@ const css = `
     padding: 8px 12px;
     background: #0a0c0f;
     border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .editor-hint { font-family: var(--mono); font-size: 10px; color: var(--muted); }
@@ -247,37 +287,25 @@ const css = `
     border: none;
     transition: all 0.15s;
     letter-spacing: 0.3px;
+    white-space: nowrap;
   }
 
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
   .btn-primary { background: var(--accent); color: #000; }
   .btn-primary:hover:not(:disabled) { background: #00ffb3; }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--border2);
-  }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
   .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
-
-  .btn-danger {
-    background: transparent;
-    color: var(--danger);
-    border: 1px solid rgba(255,77,106,0.3);
-  }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(255,77,106,0.3); }
   .btn-danger:hover:not(:disabled) { background: rgba(255,77,106,0.1); }
 
-  .btn-row { display: flex; gap: 8px; align-items: center; }
+  .btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
   .toast-wrap {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    z-index: 1000;
+    bottom: 24px; right: 24px;
+    display: flex; flex-direction: column;
+    gap: 8px; z-index: 1000;
+    max-width: calc(100vw - 48px);
   }
 
   .toast {
@@ -299,7 +327,9 @@ const css = `
     to   { transform: translateX(0);    opacity: 1; }
   }
 
-  .table { width: 100%; border-collapse: collapse; }
+  .table-wrap { overflow-x: auto; }
+
+  .table { width: 100%; border-collapse: collapse; min-width: 500px; }
   .table th {
     text-align: left;
     font-family: var(--mono);
@@ -309,6 +339,7 @@ const css = `
     color: var(--muted);
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
   }
   .table td {
     padding: 11px 12px;
@@ -327,6 +358,7 @@ const css = `
     display: flex; align-items: center; justify-content: center;
     z-index: 500;
     animation: fadeIn 0.15s ease;
+    padding: 16px;
   }
 
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -337,7 +369,7 @@ const css = `
     border-radius: 8px;
     padding: 24px;
     width: 460px;
-    max-width: 90vw;
+    max-width: 100%;
   }
 
   .modal-title {
@@ -376,7 +408,7 @@ const css = `
     background: #0a0c0f;
     border: 1px solid var(--border);
     border-radius: 6px;
-    height: 520px;
+    height: 420px;
     overflow-y: auto;
     padding: 12px;
     font-family: var(--mono);
@@ -384,7 +416,7 @@ const css = `
     line-height: 1.6;
   }
 
-  .log-line { padding: 1px 0; color: var(--muted); }
+  .log-line { padding: 1px 0; color: var(--muted); word-break: break-all; }
   .log-line:hover { color: var(--text); background: rgba(255,255,255,0.02); }
   .log-line.err { color: #ff6b6b; }
   .log-line.warn { color: var(--warn); }
@@ -394,6 +426,8 @@ const css = `
     align-items: center;
     justify-content: space-between;
     margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .live-dot {
@@ -404,14 +438,44 @@ const css = `
     animation: pulse 1.5s infinite;
   }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ── expiry bar ── */
+  .expiry-bar {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    margin-top: 4px;
+    overflow: hidden;
+    width: 80px;
+  }
+  .expiry-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  @media (max-width: 768px) {
+    .hamburger { display: flex; }
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      transform: translateX(-100%);
+    }
+    .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.4); }
+    .sidebar-overlay.open { display: block; }
+    .content { padding: 16px; }
+    .topbar { padding: 12px 16px; }
+    .grid-3 { grid-template-columns: 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+    .editor-wrap textarea { min-height: 300px; font-size: 12px; }
+    .editor-toolbar { flex-direction: column; align-items: flex-start; }
+    .log-wrap { height: 340px; }
+  }
 `;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -441,8 +505,6 @@ async function apiFetch(path, opts = {}) {
     return ct.includes("application/json") ? res.json() : res.text();
 }
 
-// ── Toasts ────────────────────────────────────────────────────────────────────
-
 function Toasts({ toasts }) {
     return (
         <div className="toast-wrap">
@@ -461,9 +523,7 @@ function Dashboard({ status, toast }) {
     const [editName, setEditName] = useState("");
 
     useEffect(() => {
-        apiFetch("/server-names")
-            .then(setNames)
-            .catch(() => { });
+        apiFetch("/server-names").then(setNames).catch(() => { });
     }, []);
 
     const openEdit = (server) => {
@@ -525,14 +585,9 @@ function Dashboard({ status, toast }) {
                     <div className="card">
                         <div className="card-title">Server Blocks</div>
                         {status.servers.map(s => (
-                            <div
-                                className="server-row"
-                                key={s.name}
-                                onClick={() => openEdit(s)}
-                                style={{ cursor: "pointer" }}
-                            >
+                            <div className="server-row" key={s.name} onClick={() => openEdit(s)} style={{ cursor: "pointer" }}>
                                 <div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <div className="server-name">{s.name}</div>
                                         {names[s.name] && (
                                             <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--text)" }}>
@@ -542,7 +597,7 @@ function Dashboard({ status, toast }) {
                                     </div>
                                     <div className="server-meta">{s.listen?.join(", ") || "no listeners"}</div>
                                 </div>
-                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                     <span className="badge badge-blue">{s.routeCount} routes</span>
                                     <span className="badge badge-green">active</span>
                                     <span style={{ color: "var(--muted)", fontSize: 11, fontFamily: "var(--mono)" }}>✎</span>
@@ -565,7 +620,7 @@ function Dashboard({ status, toast }) {
                     <div className="modal" onClick={e => e.stopPropagation()}>
                         <div className="modal-title">Edit Server Block</div>
                         <div style={{ marginBottom: 16 }}>
-                            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                                 <span className="badge badge-blue">{editingServer.name}</span>
                                 <span className="badge badge-green">{editingServer.listen?.join(", ")}</span>
                                 <span className="badge badge-blue">{editingServer.routeCount} routes</span>
@@ -677,36 +732,22 @@ function CaddyfileEditor({ toast }) {
                 <div className="editor-toolbar">
                     <div className="btn-row">
                         <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
-                            <input
-                                type="checkbox"
-                                checked={runFmt}
-                                onChange={e => setRunFmt(e.target.checked)}
-                                style={{ accentColor: "var(--accent)" }}
-                            />
+                            <input type="checkbox" checked={runFmt} onChange={e => setRunFmt(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
                             caddy fmt
                         </label>
                         <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
-                            <input
-                                type="checkbox"
-                                checked={runSort}
-                                onChange={e => setRunSort(e.target.checked)}
-                                style={{ accentColor: "var(--accent)" }}
-                            />
+                            <input type="checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
                             sort entries
                         </label>
                     </div>
                     <div className="btn-row">
-                        <span className="editor-hint">
-                            {isDirty ? "● unsaved changes" : "✓ up to date"}
-                        </span>
+                        <span className="editor-hint">{isDirty ? "● unsaved changes" : "✓ up to date"}</span>
                         <button className="btn btn-ghost" onClick={validate} disabled={validating}>
                             {validating ? "Validating..." : "✓ Validate"}
                         </button>
-                        <button className="btn btn-ghost" onClick={reload}>
-                            ↺ Reload from disk
-                        </button>
+                        <button className="btn btn-ghost" onClick={reload}>↺ Reload</button>
                         <button className="btn btn-primary" onClick={save} disabled={saving || !isDirty}>
-                            {saving ? "Saving..." : "↑ Save & Reload"}
+                            {saving ? "Saving..." : "↑ Save"}
                         </button>
                     </div>
                 </div>
@@ -739,11 +780,7 @@ function RouteModal({ route, onSave, onClose }) {
                 </div>
                 <div className="btn-row" style={{ marginTop: 20, justifyContent: "flex-end" }}>
                     <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => onSave(form)}
-                        disabled={!form.domain || !form.upstream}
-                    >
+                    <button className="btn btn-primary" onClick={() => onSave(form)} disabled={!form.domain || !form.upstream}>
                         {route ? "Update" : "Add Route"}
                     </button>
                 </div>
@@ -847,40 +884,40 @@ function RoutesManager({ toast }) {
                             No routes configured
                         </div>
                     ) : (
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th onClick={() => handleSort("domain")} style={{ cursor: "pointer", userSelect: "none" }}>
-                                        Domain <SortIcon col="domain" />
-                                    </th>
-                                    <th onClick={() => handleSort("upstream")} style={{ cursor: "pointer", userSelect: "none" }}>
-                                        Upstream <SortIcon col="upstream" />
-                                    </th>
-                                    <th onClick={() => handleSort("server")} style={{ cursor: "pointer", userSelect: "none" }}>
-                                        Server <SortIcon col="server" />
-                                    </th>
-                                    <th>ID</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sorted.map((r, i) => (
-                                    <tr key={r["@id"] || i}>
-                                        <td className="mono">{getHost(r)}</td>
-                                        <td className="mono" style={{ color: "var(--accent2)" }}>{getUpstream(r)}</td>
-                                        <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r._server || "—"}</td>
-                                        <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
-                                        <td style={{ width: 80, textAlign: "right" }}>
-                                            {r["@id"] && (
-                                                <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>
-                                                    ✕
-                                                </button>
-                                            )}
-                                        </td>
+                        <div className="table-wrap">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th onClick={() => handleSort("domain")} style={{ cursor: "pointer", userSelect: "none" }}>
+                                            Domain <SortIcon col="domain" />
+                                        </th>
+                                        <th onClick={() => handleSort("upstream")} style={{ cursor: "pointer", userSelect: "none" }}>
+                                            Upstream <SortIcon col="upstream" />
+                                        </th>
+                                        <th onClick={() => handleSort("server")} style={{ cursor: "pointer", userSelect: "none" }}>
+                                            Server <SortIcon col="server" />
+                                        </th>
+                                        <th>ID</th>
+                                        <th></th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {sorted.map((r, i) => (
+                                        <tr key={r["@id"] || i}>
+                                            <td className="mono">{getHost(r)}</td>
+                                            <td className="mono" style={{ color: "var(--accent2)" }}>{getUpstream(r)}</td>
+                                            <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r._server || "—"}</td>
+                                            <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
+                                            <td style={{ width: 80, textAlign: "right" }}>
+                                                {r["@id"] && (
+                                                    <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </div>
             </div>
@@ -892,6 +929,187 @@ function RoutesManager({ toast }) {
                 />
             )}
         </>
+    );
+}
+
+// ── TLS ───────────────────────────────────────────────────────────────────────
+
+function TLSViewer({ toast }) {
+    const [certs, setCerts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState("all");
+
+    const load = () => {
+        setLoading(true);
+        apiFetch("/tls")
+            .then(setCerts)
+            .catch(e => toast.error(e.message))
+            .finally(() => setLoading(false));
+    };
+
+    useEffect(load, []);
+
+    const deleteCert = async (cert) => {
+        if (!confirm(`Delete orphaned cert for ${cert.domain}?`)) return;
+        try {
+            await apiFetch(`/tls/${cert.issuerDir}/${cert.domain}`, { method: "DELETE" });
+            toast.success(`Deleted cert for ${cert.domain}`);
+            load();
+        } catch (e) {
+            toast.error(e.message);
+        }
+    };
+
+    const summary = {
+        total: certs.filter(c => c.status !== 'orphaned').length,
+        valid: certs.filter(c => c.status === 'valid').length,
+        expiring: certs.filter(c => c.status === 'expiring').length,
+        expired: certs.filter(c => c.status === 'expired').length,
+        orphaned: certs.filter(c => c.status === 'orphaned').length,
+    };
+
+    const filtered = filter === "all" ? certs.filter(c => c.status !== 'orphaned') : certs.filter(c => c.status === filter);
+
+    const statusBadge = (cert) => {
+        if (cert.status === 'expired') return <span className="badge badge-red">EXPIRED</span>;
+        if (cert.status === 'expiring') return <span className="badge badge-yellow">EXPIRING</span>;
+        if (cert.status === 'orphaned') return <span className="badge badge-muted">ORPHANED</span>;
+        return <span className="badge badge-green">VALID</span>;
+    };
+
+    const expiryBar = (cert) => {
+        if (cert.isInternal) return null;
+        const max = 90;
+        const pct = Math.max(0, Math.min(100, (cert.daysRemaining / max) * 100));
+        const color = cert.daysRemaining < 0 ? 'var(--danger)'
+            : cert.daysRemaining < 14 ? 'var(--warn)'
+                : 'var(--accent)';
+        return (
+            <div className="expiry-bar">
+                <div className="expiry-bar-fill" style={{ width: `${pct}%`, background: color }} />
+            </div>
+        );
+    };
+
+    const formatDate = (dateStr) => {
+        try {
+            return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch {
+            return dateStr;
+        }
+    };
+
+    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading certificates...</div>;
+
+    return (
+        <div className="gap-16">
+
+            {/* Summary cards */}
+            <div className="grid-4">
+                <div className="card" style={{ cursor: "pointer", borderColor: filter === "all" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("all")}>
+                    <div className="card-title">Total</div>
+                    <div className="stat-val">{summary.total}</div>
+                    <div className="stat-label">Managed certs</div>
+                </div>
+                <div className="card" style={{ cursor: "pointer", borderColor: filter === "valid" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("valid")}>
+                    <div className="card-title">Valid</div>
+                    <div className="stat-val" style={{ color: "var(--accent)" }}>{summary.valid}</div>
+                    <div className="stat-label">Healthy</div>
+                </div>
+                <div className="card" style={{ cursor: "pointer", borderColor: filter === "expiring" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("expiring")}>
+                    <div className="card-title">Expiring</div>
+                    <div className="stat-val" style={{ color: summary.expiring > 0 ? "var(--warn)" : "var(--text)" }}>{summary.expiring}</div>
+                    <div className="stat-label">Within 14 days</div>
+                </div>
+                <div className="card" style={{ cursor: "pointer", borderColor: filter === "expired" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("expired")}>
+                    <div className="card-title">Expired</div>
+                    <div className="stat-val" style={{ color: summary.expired > 0 ? "var(--danger)" : "var(--text)" }}>{summary.expired}</div>
+                    <div className="stat-label">Needs renewal</div>
+                </div>
+            </div>
+
+            {/* Cert table */}
+            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
+                        Certificates {filter !== "all" && `— ${filter}`}
+                    </span>
+                    <div className="btn-row">
+                        {summary.orphaned > 0 && (
+                            <span
+                                style={{ fontFamily: "var(--mono)", fontSize: 11, color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }}
+                                onClick={() => setFilter(filter === "orphaned" ? "all" : "orphaned")}
+                            >
+                                {summary.orphaned} orphaned
+                            </span>
+                        )}
+                        <button className="btn btn-ghost" onClick={load} style={{ fontSize: 11 }}>↺ Refresh</button>
+                    </div>
+                </div>
+                {filtered.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>
+                        No certificates in this category
+                    </div>
+                ) : (
+                    <div className="table-wrap">
+                        <table className="table">
+                            <thead>
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>Issuer</th>
+                                    <th>Expires</th>
+                                    <th>Days</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.map((cert, i) => (
+                                    <tr key={i} style={{ opacity: cert.status === 'orphaned' ? 0.6 : 1 }}>
+                                        <td className="mono">{cert.domain}</td>
+                                        <td>
+                                            <span className={`badge ${cert.issuer === 'acme' ? 'badge-blue' : 'badge-muted'}`}>
+                                                {cert.issuer === 'acme' ? "Let's Encrypt" : "Internal"}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{formatDate(cert.validTo)}</div>
+                                            {expiryBar(cert)}
+                                        </td>
+                                        <td className="mono" style={{
+                                            color: cert.daysRemaining < 0 ? "var(--danger)"
+                                                : cert.daysRemaining < 14 ? "var(--warn)"
+                                                    : "var(--muted)"
+                                        }}>
+                                            {cert.isInternal ? "auto" : `${cert.daysRemaining}d`}
+                                        </td>
+                                        <td>{statusBadge(cert)}</td>
+                                        <td style={{ width: 60, textAlign: "right" }}>
+                                            {cert.status === 'orphaned' && (
+                                                <button
+                                                    className="btn btn-danger"
+                                                    style={{ padding: "4px 10px" }}
+                                                    onClick={() => deleteCert(cert)}
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {summary.orphaned > 0 && filter !== "orphaned" && (
+                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", textAlign: "center" }}>
+                    {summary.orphaned} orphaned cert{summary.orphaned > 1 ? "s" : ""} hidden — stale certs for domains no longer in your Caddyfile.
+                    <span style={{ color: "var(--accent2)", cursor: "pointer", marginLeft: 6 }} onClick={() => setFilter("orphaned")}>Show</span>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -908,18 +1126,12 @@ function LogsViewer({ toast }) {
     const esRef = useRef(null);
 
     useEffect(() => {
-        apiFetch("/logs")
-            .then(data => setLines(data.lines || []))
-            .catch(e => toast.error(e.message));
-        apiFetch("/logs/config")
-            .then(cfg => setLogConfig(cfg))
-            .catch(e => toast.error(e.message));
+        apiFetch("/logs").then(data => setLines(data.lines || [])).catch(e => toast.error(e.message));
+        apiFetch("/logs/config").then(cfg => setLogConfig(cfg)).catch(e => toast.error(e.message));
     }, []);
 
     useEffect(() => {
-        if (bottomRef.current) {
-            bottomRef.current.scrollIntoView({ behavior: "smooth" });
-        }
+        if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: "smooth" });
     }, [lines]);
 
     const toggleLive = () => {
@@ -931,9 +1143,7 @@ function LogsViewer({ toast }) {
             const es = new EventSource(`${API}/logs/stream`);
             es.onmessage = e => {
                 const data = JSON.parse(e.data);
-                if (data.line) {
-                    setLines(l => [...l.slice(-500), data.line]);
-                }
+                if (data.line) setLines(l => [...l.slice(-500), data.line]);
             };
             esRef.current = es;
             setLive(true);
@@ -972,37 +1182,20 @@ function LogsViewer({ toast }) {
     };
 
     const selectStyle = {
-        background: "#0a0c0f",
-        border: "1px solid var(--border2)",
-        borderRadius: 4,
-        padding: "6px 10px",
-        color: "var(--text)",
-        fontFamily: "var(--mono)",
-        fontSize: 12,
-        outline: "none",
-        cursor: "pointer",
+        background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4,
+        padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)",
+        fontSize: 12, outline: "none", cursor: "pointer", width: "100%",
     };
 
     const inputStyle = {
-        background: "#0a0c0f",
-        border: "1px solid var(--border2)",
-        borderRadius: 4,
-        padding: "6px 10px",
-        color: "var(--text)",
-        fontFamily: "var(--mono)",
-        fontSize: 12,
-        outline: "none",
-        width: "100%",
+        background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4,
+        padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)",
+        fontSize: 12, outline: "none", width: "100%",
     };
 
     const labelStyle = {
-        fontFamily: "var(--mono)",
-        fontSize: 10,
-        letterSpacing: "1.2px",
-        textTransform: "uppercase",
-        color: "var(--muted)",
-        marginBottom: 5,
-        display: "block",
+        fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "1.2px",
+        textTransform: "uppercase", color: "var(--muted)", marginBottom: 5, display: "block",
     };
 
     return (
@@ -1010,15 +1203,7 @@ function LogsViewer({ toast }) {
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <div
                     onClick={() => setConfigOpen(o => !o)}
-                    style={{
-                        padding: "12px 16px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        cursor: "pointer",
-                        userSelect: "none",
-                        borderBottom: configOpen ? "1px solid var(--border)" : "none",
-                    }}
+                    style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: configOpen ? "1px solid var(--border)" : "none" }}
                 >
                     <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
                         Log Configuration
@@ -1035,89 +1220,45 @@ function LogsViewer({ toast }) {
 
                 {configOpen && logConfig && (
                     <div style={{ padding: 16 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 16 }}>
                             <div>
                                 <span style={labelStyle}>Logging</span>
                                 <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "var(--mono)", fontSize: 12, color: "var(--text)" }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={logConfig.enabled}
-                                        onChange={e => updateConfig("enabled", e.target.checked)}
-                                        style={{ accentColor: "var(--accent)", width: 14, height: 14 }}
-                                    />
+                                    <input type="checkbox" checked={logConfig.enabled} onChange={e => updateConfig("enabled", e.target.checked)} style={{ accentColor: "var(--accent)", width: 14, height: 14 }} />
                                     {logConfig.enabled ? "Enabled" : "Disabled"}
                                 </label>
                             </div>
-
                             <div>
                                 <span style={labelStyle}>Format</span>
-                                <select
-                                    value={logConfig.format}
-                                    onChange={e => updateConfig("format", e.target.value)}
-                                    style={selectStyle}
-                                    disabled={!logConfig.enabled}
-                                >
+                                <select value={logConfig.format} onChange={e => updateConfig("format", e.target.value)} style={selectStyle} disabled={!logConfig.enabled}>
                                     <option value="json">json</option>
                                     <option value="console">console</option>
                                 </select>
                             </div>
-
                             <div>
                                 <span style={labelStyle}>Level</span>
-                                <select
-                                    value={logConfig.level}
-                                    onChange={e => updateConfig("level", e.target.value)}
-                                    style={selectStyle}
-                                    disabled={!logConfig.enabled}
-                                >
+                                <select value={logConfig.level} onChange={e => updateConfig("level", e.target.value)} style={selectStyle} disabled={!logConfig.enabled}>
                                     <option value="DEBUG">DEBUG</option>
                                     <option value="INFO">INFO</option>
                                     <option value="WARN">WARN</option>
                                     <option value="ERROR">ERROR</option>
                                 </select>
                             </div>
-
-                            <div style={{ gridColumn: "span 3" }}>
+                            <div style={{ gridColumn: "1 / -1" }}>
                                 <span style={labelStyle}>Log File Path</span>
-                                <input
-                                    value={logConfig.path}
-                                    onChange={e => updateConfig("path", e.target.value)}
-                                    style={inputStyle}
-                                    disabled={!logConfig.enabled}
-                                />
+                                <input value={logConfig.path} onChange={e => updateConfig("path", e.target.value)} style={inputStyle} disabled={!logConfig.enabled} />
                             </div>
-
                             <div>
                                 <span style={labelStyle}>Roll Size</span>
-                                <input
-                                    value={logConfig.rollSize}
-                                    onChange={e => updateConfig("rollSize", e.target.value)}
-                                    style={inputStyle}
-                                    placeholder="50mb"
-                                    disabled={!logConfig.enabled}
-                                />
+                                <input value={logConfig.rollSize} onChange={e => updateConfig("rollSize", e.target.value)} style={inputStyle} placeholder="50mb" disabled={!logConfig.enabled} />
                             </div>
-
                             <div>
                                 <span style={labelStyle}>Roll Keep</span>
-                                <input
-                                    type="number"
-                                    value={logConfig.rollKeep}
-                                    onChange={e => updateConfig("rollKeep", parseInt(e.target.value))}
-                                    style={inputStyle}
-                                    min={1}
-                                    max={20}
-                                    disabled={!logConfig.enabled}
-                                />
+                                <input type="number" value={logConfig.rollKeep} onChange={e => updateConfig("rollKeep", parseInt(e.target.value))} style={inputStyle} min={1} max={20} disabled={!logConfig.enabled} />
                             </div>
                         </div>
-
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                            <button
-                                className="btn btn-primary"
-                                onClick={saveConfig}
-                                disabled={savingConfig || !configDirty}
-                            >
+                            <button className="btn btn-primary" onClick={saveConfig} disabled={savingConfig || !configDirty}>
                                 {savingConfig ? "Saving..." : "↑ Save Config"}
                             </button>
                         </div>
@@ -1126,13 +1267,11 @@ function LogsViewer({ toast }) {
             </div>
 
             <div className="log-toolbar">
-                <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-                    {lines.length} lines loaded
-                </span>
+                <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>{lines.length} lines loaded</span>
                 <div className="btn-row">
                     {live && <div className="live-dot" />}
                     <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>
-                        {live ? "■ Stop stream" : "▶ Live stream"}
+                        {live ? "■ Stop" : "▶ Live"}
                     </button>
                     <button className="btn btn-ghost" onClick={() => apiFetch("/logs").then(d => setLines(d.lines || []))}>
                         ↺ Refresh
@@ -1155,6 +1294,7 @@ const NAV = [
     { id: "dashboard", label: "Dashboard", icon: "◈" },
     { id: "caddyfile", label: "Caddyfile", icon: "⌗" },
     { id: "routes", label: "Routes", icon: "⇌" },
+    { id: "tls", label: "TLS", icon: "⊕" },
     { id: "logs", label: "Logs", icon: "≡" },
 ];
 
@@ -1163,6 +1303,7 @@ const NAV = [
 export default function App() {
     const [tab, setTab] = useState("dashboard");
     const [status, setStatus] = useState(null);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const toast = useToast();
 
     const fetchStatus = useCallback(() => {
@@ -1177,13 +1318,26 @@ export default function App() {
         return () => clearInterval(t);
     }, [fetchStatus]);
 
-    const titles = { dashboard: "Dashboard", caddyfile: "Caddyfile Editor", routes: "Route Manager", logs: "Access Logs" };
+    const titles = {
+        dashboard: "Dashboard",
+        caddyfile: "Caddyfile Editor",
+        routes: "Route Manager",
+        tls: "TLS Certificates",
+        logs: "Access Logs",
+    };
+
+    const handleNavClick = (id) => {
+        setTab(id);
+        setSidebarOpen(false);
+    };
 
     return (
         <>
             <style>{css}</style>
             <div className="shell">
-                <aside className="sidebar">
+                <div className={`sidebar-overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
+
+                <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
                     <div className="sidebar-logo">
                         <div className="logo-mark">caddy/ui</div>
                         <div className="logo-sub">Server Manager</div>
@@ -1196,11 +1350,7 @@ export default function App() {
                     </div>
                     <nav className="nav">
                         {NAV.map(n => (
-                            <div
-                                key={n.id}
-                                className={`nav-item ${tab === n.id ? "active" : ""}`}
-                                onClick={() => setTab(n.id)}
-                            >
+                            <div key={n.id} className={`nav-item ${tab === n.id ? "active" : ""}`} onClick={() => handleNavClick(n.id)}>
                                 <span className="nav-icon">{n.icon}</span>
                                 {n.label}
                             </div>
@@ -1210,15 +1360,17 @@ export default function App() {
 
                 <div className="main">
                     <div className="topbar">
-                        <span className="page-title">{titles[tab]}</span>
-                        <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>
-                            ↺ Refresh
-                        </button>
+                        <div className="topbar-left">
+                            <button className="hamburger" onClick={() => setSidebarOpen(o => !o)}>☰</button>
+                            <span className="page-title">{titles[tab]}</span>
+                        </div>
+                        <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>↺ Refresh</button>
                     </div>
                     <div className="content">
                         {tab === "dashboard" && <Dashboard status={status} toast={toast} />}
                         {tab === "caddyfile" && <CaddyfileEditor toast={toast} />}
                         {tab === "routes" && <RoutesManager toast={toast} />}
+                        {tab === "tls" && <TLSViewer toast={toast} />}
                         {tab === "logs" && <LogsViewer toast={toast} />}
                     </div>
                 </div>
