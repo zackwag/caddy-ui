@@ -14,10 +14,10 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 ## Features
 
 - **Dashboard** — Live server status, TLS state, server block summary with custom display names, and upstream health overview
-- **Caddyfile Editor** — Edit your Caddyfile in the browser with live validation, `caddy fmt` formatting, automatic site block sorting, and one-click backup and restore
+- **Caddyfile Editor** — Edit your Caddyfile in the browser with live validation, `caddy fmt` formatting, automatic site block sorting, backup/restore, and full version history with inline preview and one-click rollback
 - **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, search/filter, and clickable domain and upstream links with automatic http/https scheme detection
 - **TLS Certificates** — View cert status, expiry dates, and days remaining for all managed domains. Detect and delete orphaned certs
-- **Access Logs** — Tail live log output with SSE streaming, color-coded by severity level
+- **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, and ERROR/WARN/INFO level filters
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
@@ -32,6 +32,7 @@ graph LR
     LG[("Access Logs\n/var/log/caddy")]
     SN[("Server Names\n/etc/caddy-ui")]
     TLS[("Certificates\n/data/caddy/caddy")]
+    HX[("History\n/etc/caddy-ui/history")]
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
@@ -40,6 +41,7 @@ graph LR
     BE <-->|"read / stream"| LG
     BE <-->|"read / write"| SN
     BE <-->|"read / delete"| TLS
+    BE <-->|"snapshot / restore"| HX
     CA <-->|"reload from"| CF
 ```
 
@@ -95,6 +97,7 @@ services:
       - CADDY_LOG_PATH=/var/log/caddy/access.log
       - SERVER_NAMES_PATH=/etc/caddy-ui/server-names.json
       - CADDY_DATA_PATH=/data/caddy/caddy
+      - HISTORY_PATH=/etc/caddy-ui/history
     volumes:
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /docker/caddy/logs:/var/log/caddy
@@ -184,6 +187,7 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
+| `v1.5` | Caddyfile version history with snapshots, log search and level filters |
 | `v1.4` | Dashboard health summary, route search/filter, Caddyfile backup and restore |
 | `v1.3` | Upstream healthchecks, clickable domain/upstream links, http/https scheme detection |
 | `v1.2` | TLS certificate tab, orphaned cert cleanup, all server routes visible, mobile layout |

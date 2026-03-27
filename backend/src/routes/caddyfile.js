@@ -1,13 +1,48 @@
 import { exec } from 'child_process';
 import { Router } from 'express';
 import { createReadStream } from 'fs';
-import { readFile, unlink, writeFile } from 'fs/promises';
+import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
+import { join } from 'path';
 import { promisify } from 'util';
 import { caddyLoad } from '../caddy.js';
 
 const execAsync = promisify(exec);
 const router = Router();
 const CADDYFILE_PATH = process.env.CADDYFILE_PATH || '/etc/caddy/Caddyfile';
+const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
+const MAX_HISTORY = 20;
+
+async function ensureHistoryDir() {
+    try {
+        await mkdir(HISTORY_PATH, { recursive: true });
+    } catch { }
+}
+
+async function snapshotCaddyfile() {
+    try {
+        await ensureHistoryDir();
+        const content = await readFile(CADDYFILE_PATH, 'utf8');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `Caddyfile-${timestamp}`;
+        await writeFile(join(HISTORY_PATH, filename), content, 'utf8');
+        await pruneHistory();
+    } catch (err) {
+        console.warn('Failed to snapshot Caddyfile:', err.message);
+    }
+}
+
+async function pruneHistory() {
+    try {
+        const files = await readdir(HISTORY_PATH);
+        const sorted = files
+            .filter(f => f.startsWith('Caddyfile-'))
+            .sort()
+            .reverse();
+        for (const file of sorted.slice(MAX_HISTORY)) {
+            await unlink(join(HISTORY_PATH, file)).catch(() => { });
+        }
+    } catch { }
+}
 
 async function fmtCaddyfile() {
     try {
@@ -69,9 +104,7 @@ function sortCaddyfile(content) {
                 if (ch === '{') depth++;
                 if (ch === '}') depth--;
             }
-            if (depth === 0) {
-                inGlobal = false; globalDone = true;
-            }
+            if (depth === 0) { inGlobal = false; globalDone = true; }
             continue;
         }
         rest.push(line);
@@ -102,13 +135,11 @@ function sortCaddyfile(content) {
     return parts.join('\n\n').trimEnd() + '\n';
 }
 
-// GET /api/caddyfile
 router.get('/', async (req, res) => {
     const content = await readFile(CADDYFILE_PATH, 'utf8');
     res.type('text/plain').send(content);
 });
 
-// GET /api/caddyfile/download
 router.get('/download', async (req, res) => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);
@@ -116,7 +147,44 @@ router.get('/download', async (req, res) => {
     createReadStream(CADDYFILE_PATH).pipe(res);
 });
 
-// POST /api/caddyfile/validate
+router.get('/history', async (req, res) => {
+    await ensureHistoryDir();
+    try {
+        const files = await readdir(HISTORY_PATH);
+        const snapshots = files
+            .filter(f => f.startsWith('Caddyfile-'))
+            .sort()
+            .reverse()
+            .map(filename => {
+                const ts = filename
+                    .replace('Caddyfile-', '')
+                    .replace(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/, '$1T$2:$3:$4');
+                return { filename, timestamp: ts };
+            });
+        res.json(snapshots);
+    } catch {
+        res.json([]);
+    }
+});
+
+router.get('/history/:filename', async (req, res) => {
+    const { filename } = req.params;
+    if (filename.includes('..') || filename.includes('/')) {
+        return res.status(400).json({ error: 'Invalid filename' });
+    }
+    const content = await readFile(join(HISTORY_PATH, filename), 'utf8');
+    res.type('text/plain').send(content);
+});
+
+router.delete('/history/:filename', async (req, res) => {
+    const { filename } = req.params;
+    if (filename.includes('..') || filename.includes('/')) {
+        return res.status(400).json({ error: 'Invalid filename' });
+    }
+    await unlink(join(HISTORY_PATH, filename));
+    res.json({ ok: true });
+});
+
 router.post('/validate', async (req, res) => {
     const content = req.body;
     if (!content || typeof content !== 'string') {
@@ -144,14 +212,12 @@ router.post('/validate', async (req, res) => {
     }
 });
 
-// POST /api/caddyfile/reload
 router.post('/reload', async (req, res) => {
     const content = await readFile(CADDYFILE_PATH, 'utf8');
     await caddyLoad(content);
     res.json({ ok: true, message: 'Caddy reloaded from disk' });
 });
 
-// POST /api/caddyfile/restore
 router.post('/restore', async (req, res) => {
     const content = req.body;
     if (!content || typeof content !== 'string') {
@@ -172,12 +238,12 @@ router.post('/restore', async (req, res) => {
         unlink(tmpPath).catch(() => { });
     }
 
+    await snapshotCaddyfile();
     await caddyLoad(content);
     await writeFile(CADDYFILE_PATH, content, 'utf8');
     res.json({ ok: true, message: 'Caddyfile restored and reloaded' });
 });
 
-// PUT /api/caddyfile
 router.put('/', async (req, res) => {
     const content = req.body;
     if (!content || typeof content !== 'string') {
@@ -201,6 +267,7 @@ router.put('/', async (req, res) => {
         unlink(tmpPath).catch(() => { });
     }
 
+    await snapshotCaddyfile();
     await caddyLoad(content);
     await writeFile(CADDYFILE_PATH, content, 'utf8');
 

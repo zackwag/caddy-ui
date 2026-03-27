@@ -443,6 +443,7 @@ const css = `
   .log-line:hover { color: var(--text); background: rgba(255,255,255,0.02); }
   .log-line.err { color: #ff6b6b; }
   .log-line.warn { color: var(--warn); }
+  .log-line.highlight { background: rgba(0,229,160,0.06); color: var(--text); }
 
   .log-toolbar {
     display: flex;
@@ -475,6 +476,32 @@ const css = `
     height: 100%;
     border-radius: 2px;
     transition: width 0.3s;
+  }
+
+  .history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+  .history-row:last-child { border-bottom: none; }
+  .history-row:hover { background: rgba(255,255,255,0.02); }
+
+  .history-preview {
+    background: #0a0c0f;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #a8d8a8;
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 12px;
+    white-space: pre;
   }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -525,6 +552,15 @@ async function apiFetch(path, opts = {}) {
     }
     const ct = res.headers.get("content-type") || "";
     return ct.includes("application/json") ? res.json() : res.text();
+}
+
+function formatTs(timestamp) {
+    // Ensure timestamp is treated as UTC before converting to local time
+    const ts = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
+    return new Date(ts).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true,
+    });
 }
 
 function Toasts({ toasts }) {
@@ -697,6 +733,11 @@ function CaddyfileEditor({ toast }) {
     const [validating, setValidating] = useState(false);
     const [runFmt, setRunFmt] = useState(true);
     const [runSort, setRunSort] = useState(true);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [history, setHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [previewEntry, setPreviewEntry] = useState(null);
+    const [previewContent, setPreviewContent] = useState("");
     const fileInputRef = useRef(null);
 
     useEffect(() => {
@@ -705,6 +746,72 @@ function CaddyfileEditor({ toast }) {
             .catch(e => toast.error(e.message))
             .finally(() => setLoading(false));
     }, []);
+
+    const loadHistory = () => {
+        setHistoryLoading(true);
+        apiFetch("/caddyfile/history")
+            .then(setHistory)
+            .catch(() => setHistory([]))
+            .finally(() => setHistoryLoading(false));
+    };
+
+    const toggleHistory = () => {
+        if (!historyOpen) loadHistory();
+        setHistoryOpen(o => !o);
+        setPreviewEntry(null);
+        setPreviewContent("");
+    };
+
+    const previewSnapshot = async (entry) => {
+        if (previewEntry?.filename === entry.filename) {
+            setPreviewEntry(null);
+            setPreviewContent("");
+            return;
+        }
+        try {
+            const text = await apiFetch(`/caddyfile/history/${entry.filename}`);
+            setPreviewEntry(entry);
+            setPreviewContent(text);
+        } catch (e) {
+            toast.error(e.message);
+        }
+    };
+
+    const restoreSnapshot = async (entry) => {
+        if (!confirm(`Restore Caddyfile from ${formatTs(entry.timestamp)}? The current file will be snapshotted first.`)) return;
+        try {
+            const text = await apiFetch(`/caddyfile/history/${entry.filename}`);
+            await apiFetch("/caddyfile/restore", {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: text,
+            });
+            const fresh = await apiFetch("/caddyfile");
+            setContent(fresh);
+            setOriginal(fresh);
+            setHistoryOpen(false);
+            setPreviewEntry(null);
+            toast.success(`Restored from ${formatTs(entry.timestamp)}`);
+            loadHistory();
+        } catch (e) {
+            toast.error(e.message);
+        }
+    };
+
+    const deleteSnapshot = async (entry) => {
+        if (!confirm(`Delete snapshot from ${formatTs(entry.timestamp)}?`)) return;
+        try {
+            await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" });
+            toast.success("Snapshot deleted");
+            if (previewEntry?.filename === entry.filename) {
+                setPreviewEntry(null);
+                setPreviewContent("");
+            }
+            loadHistory();
+        } catch (e) {
+            toast.error(e.message);
+        }
+    };
 
     const validate = async () => {
         setValidating(true);
@@ -738,6 +845,7 @@ function CaddyfileEditor({ toast }) {
             setContent(fresh);
             setOriginal(fresh);
             toast.success("Caddyfile saved and reloaded");
+            if (historyOpen) loadHistory();
         } catch (e) {
             toast.error(e.message);
         } finally {
@@ -775,6 +883,7 @@ function CaddyfileEditor({ toast }) {
                 setContent(fresh);
                 setOriginal(fresh);
                 toast.success("Caddyfile restored and reloaded");
+                if (historyOpen) loadHistory();
             } catch (err) {
                 toast.error(err.message);
             }
@@ -812,12 +921,11 @@ function CaddyfileEditor({ toast }) {
                         <button className="btn btn-ghost" onClick={validate} disabled={validating}>
                             {validating ? "Validating..." : "✓ Validate"}
                         </button>
-                        <button className="btn btn-ghost" onClick={download} title="Download Caddyfile">
-                            ↓ Backup
+                        <button className="btn btn-ghost" onClick={toggleHistory}>
+                            ⊙ History{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}
                         </button>
-                        <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()} title="Restore Caddyfile from file">
-                            ↑ Restore
-                        </button>
+                        <button className="btn btn-ghost" onClick={download}>↓ Backup</button>
+                        <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()}>↑ Restore</button>
                         <input ref={fileInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={restore} />
                         <button className="btn btn-ghost" onClick={reload}>↺ Reload</button>
                         <button className="btn btn-primary" onClick={save} disabled={saving || !isDirty}>
@@ -826,6 +934,53 @@ function CaddyfileEditor({ toast }) {
                     </div>
                 </div>
             </div>
+
+            {historyOpen && (
+                <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
+                            Version History
+                        </span>
+                        <button className="btn btn-ghost" onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 11 }}>
+                            ↺ Refresh
+                        </button>
+                    </div>
+                    {historyLoading ? (
+                        <div style={{ padding: 16, fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
+                    ) : history.length === 0 ? (
+                        <div style={{ padding: 24, textAlign: "center", fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>
+                            No snapshots yet — save your Caddyfile to create one
+                        </div>
+                    ) : (
+                        <div style={{ padding: "0 16px" }}>
+                            {history.map((entry, i) => (
+                                <div key={entry.filename}>
+                                    <div className="history-row">
+                                        <div
+                                            style={{ fontFamily: "var(--mono)", fontSize: 12, color: previewEntry?.filename === entry.filename ? "var(--accent)" : "var(--text)", cursor: "pointer", flex: 1 }}
+                                            onClick={() => previewSnapshot(entry)}
+                                        >
+                                            {formatTs(entry.timestamp)}
+                                            {i === 0 && <span style={{ marginLeft: 8, fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)" }}>latest</span>}
+                                        </div>
+                                        <div className="btn-row">
+                                            <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => restoreSnapshot(entry)}>
+                                                ↺ Restore
+                                            </button>
+                                            <button className="btn btn-danger" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => deleteSnapshot(entry)}>
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {previewEntry?.filename === entry.filename && (
+                                        <div className="history-preview">{previewContent}</div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -1305,6 +1460,8 @@ function LogsViewer({ toast }) {
     const [logConfig, setLogConfig] = useState(null);
     const [configDirty, setConfigDirty] = useState(false);
     const [savingConfig, setSavingConfig] = useState(false);
+    const [logSearch, setLogSearch] = useState("");
+    const [levelFilter, setLevelFilter] = useState("all");
     const bottomRef = useRef(null);
     const esRef = useRef(null);
 
@@ -1314,7 +1471,9 @@ function LogsViewer({ toast }) {
     }, []);
 
     useEffect(() => {
-        if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: "smooth" });
+        if (!logSearch && levelFilter === "all") {
+            if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: "smooth" });
+        }
     }, [lines]);
 
     const toggleLive = () => {
@@ -1341,6 +1500,19 @@ function LogsViewer({ toast }) {
         if (l.includes('"level":"warn"') || l.includes('warn')) return 'warn';
         return '';
     };
+
+    const matchesLevel = (line) => {
+        if (levelFilter === "all") return true;
+        if (levelFilter === "error") return line.toLowerCase().includes('"level":"error"');
+        if (levelFilter === "warn") return line.toLowerCase().includes('"level":"warn"');
+        if (levelFilter === "info") return line.toLowerCase().includes('"level":"info"');
+        return true;
+    };
+
+    const filteredLines = lines.filter(line => {
+        const matchesSearch = !logSearch || line.toLowerCase().includes(logSearch.toLowerCase());
+        return matchesSearch && matchesLevel(line);
+    });
 
     const updateConfig = (key, value) => {
         setLogConfig(c => ({ ...c, [key]: value }));
@@ -1380,6 +1552,21 @@ function LogsViewer({ toast }) {
         fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "1.2px",
         textTransform: "uppercase", color: "var(--muted)", marginBottom: 5, display: "block",
     };
+
+    const levelBtn = (level, label, color) => (
+        <button
+            className="btn btn-ghost"
+            style={{
+                fontSize: 10,
+                padding: "4px 10px",
+                borderColor: levelFilter === level ? color : "var(--border2)",
+                color: levelFilter === level ? color : "var(--muted)",
+            }}
+            onClick={() => setLevelFilter(levelFilter === level ? "all" : level)}
+        >
+            {label}
+        </button>
+    );
 
     return (
         <div className="gap-16">
@@ -1450,8 +1637,21 @@ function LogsViewer({ toast }) {
             </div>
 
             <div className="log-toolbar">
-                <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>{lines.length} lines loaded</span>
                 <div className="btn-row">
+                    <input
+                        className="search-input"
+                        placeholder="Search logs..."
+                        value={logSearch}
+                        onChange={e => setLogSearch(e.target.value)}
+                    />
+                    {levelBtn("error", "ERROR", "var(--danger)")}
+                    {levelBtn("warn", "WARN", "var(--warn)")}
+                    {levelBtn("info", "INFO", "var(--accent2)")}
+                </div>
+                <div className="btn-row">
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                        {filteredLines.length}{logSearch || levelFilter !== "all" ? ` / ${lines.length}` : ""} lines
+                    </span>
                     {live && <div className="live-dot" />}
                     <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>
                         {live ? "■ Stop" : "▶ Live"}
@@ -1462,9 +1662,17 @@ function LogsViewer({ toast }) {
                 </div>
             </div>
             <div className="log-wrap">
-                {lines.map((line, i) => (
-                    <div key={i} className={`log-line ${classify(line)}`}>{line}</div>
-                ))}
+                {filteredLines.length === 0 ? (
+                    <div style={{ color: "var(--muted)", padding: "8px 0" }}>
+                        {logSearch || levelFilter !== "all" ? "No lines match the current filter" : "No log lines loaded"}
+                    </div>
+                ) : (
+                    filteredLines.map((line, i) => (
+                        <div key={i} className={`log-line ${classify(line)} ${logSearch && line.toLowerCase().includes(logSearch.toLowerCase()) ? "highlight" : ""}`}>
+                            {line}
+                        </div>
+                    ))
+                )}
                 <div ref={bottomRef} />
             </div>
         </div>
