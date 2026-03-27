@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { Router } from 'express';
+import { createReadStream } from 'fs';
 import { readFile, unlink, writeFile } from 'fs/promises';
 import { promisify } from 'util';
 import { caddyLoad } from '../caddy.js';
@@ -24,7 +25,6 @@ function parseSiteBlocks(content) {
 
     for (const line of lines) {
         const trimmed = line.trim();
-
         if (current === null) {
             if (trimmed === '' || trimmed.startsWith('#')) continue;
             if (trimmed.endsWith('{')) {
@@ -49,7 +49,6 @@ function parseSiteBlocks(content) {
 
 function sortCaddyfile(content) {
     const lines = content.split('\n');
-
     let globalBlock = [];
     let rest = [];
     let inGlobal = false;
@@ -58,14 +57,12 @@ function sortCaddyfile(content) {
 
     for (const line of lines) {
         const trimmed = line.trim();
-
         if (!globalDone && !inGlobal && trimmed === '{') {
             inGlobal = true;
             depth = 1;
             globalBlock.push(line);
             continue;
         }
-
         if (inGlobal) {
             globalBlock.push(line);
             for (const ch of line) {
@@ -73,30 +70,23 @@ function sortCaddyfile(content) {
                 if (ch === '}') depth--;
             }
             if (depth === 0) {
-                inGlobal = false;
-                globalDone = true;
+                inGlobal = false; globalDone = true;
             }
             continue;
         }
-
         rest.push(line);
     }
 
     const blocks = parseSiteBlocks(rest.join('\n'));
-
     const httpBlocks = [];
     const internalBlocks = [];
     const publicBlocks = [];
 
     for (const block of blocks) {
         const h = block.header.toLowerCase();
-        if (h.startsWith('http://')) {
-            httpBlocks.push(block);
-        } else if (h.includes('.internal')) {
-            internalBlocks.push(block);
-        } else {
-            publicBlocks.push(block);
-        }
+        if (h.startsWith('http://')) httpBlocks.push(block);
+        else if (h.includes('.internal')) internalBlocks.push(block);
+        else publicBlocks.push(block);
     }
 
     const sortByHeader = (a, b) => a.header.localeCompare(b.header);
@@ -105,7 +95,6 @@ function sortCaddyfile(content) {
     httpBlocks.sort(sortByHeader);
 
     const sorted = [...publicBlocks, ...internalBlocks, ...httpBlocks];
-
     const parts = [];
     if (globalBlock.length) parts.push(globalBlock.join('\n'));
     for (const block of sorted) parts.push(block.lines.join('\n'));
@@ -113,11 +102,21 @@ function sortCaddyfile(content) {
     return parts.join('\n\n').trimEnd() + '\n';
 }
 
+// GET /api/caddyfile
 router.get('/', async (req, res) => {
     const content = await readFile(CADDYFILE_PATH, 'utf8');
     res.type('text/plain').send(content);
 });
 
+// GET /api/caddyfile/download
+router.get('/download', async (req, res) => {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);
+    res.setHeader('Content-Type', 'text/plain');
+    createReadStream(CADDYFILE_PATH).pipe(res);
+});
+
+// POST /api/caddyfile/validate
 router.post('/validate', async (req, res) => {
     const content = req.body;
     if (!content || typeof content !== 'string') {
@@ -132,16 +131,12 @@ router.post('/validate', async (req, res) => {
         const lines = output.split('\n').filter(Boolean);
         const warnings = lines.filter(l => l.toLowerCase().includes('warn'));
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
-
-        if (errors.length) {
-            return res.status(422).json({ valid: false, errors, warnings });
-        }
-
+        if (errors.length) return res.status(422).json({ valid: false, errors, warnings });
         res.json({ valid: true, warnings, output });
     } catch (err) {
-        const output = ((err.stdout || '') + (err.stderr || '')).trim();
+        const output = (err.stdout + err.stderr).trim();
         const lines = output.split('\n').filter(Boolean);
-        const errors = lines.filter(l => l.toLowerCase().includes('error'));
+        const errors = lines.filter(l => l.toLowerCase().includes('error') || l.includes('Error'));
         const warnings = lines.filter(l => l.toLowerCase().includes('warn'));
         res.status(422).json({ valid: false, errors: errors.length ? errors : lines, warnings });
     } finally {
@@ -149,6 +144,40 @@ router.post('/validate', async (req, res) => {
     }
 });
 
+// POST /api/caddyfile/reload
+router.post('/reload', async (req, res) => {
+    const content = await readFile(CADDYFILE_PATH, 'utf8');
+    await caddyLoad(content);
+    res.json({ ok: true, message: 'Caddy reloaded from disk' });
+});
+
+// POST /api/caddyfile/restore
+router.post('/restore', async (req, res) => {
+    const content = req.body;
+    if (!content || typeof content !== 'string') {
+        return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
+    }
+
+    const tmpPath = `/tmp/Caddyfile.restore.${Date.now()}`;
+    try {
+        await writeFile(tmpPath, content, 'utf8');
+        await execAsync(`caddy validate --config ${tmpPath} --adapter caddyfile 2>&1`);
+    } catch (err) {
+        const output = (err.stdout + err.stderr).trim();
+        const lines = output.split('\n').filter(Boolean);
+        const errors = lines.filter(l => l.toLowerCase().includes('error'));
+        unlink(tmpPath).catch(() => { });
+        return res.status(422).json({ errors: errors.length ? errors : lines });
+    } finally {
+        unlink(tmpPath).catch(() => { });
+    }
+
+    await caddyLoad(content);
+    await writeFile(CADDYFILE_PATH, content, 'utf8');
+    res.json({ ok: true, message: 'Caddyfile restored and reloaded' });
+});
+
+// PUT /api/caddyfile
 router.put('/', async (req, res) => {
     const content = req.body;
     if (!content || typeof content !== 'string') {
@@ -158,28 +187,21 @@ router.put('/', async (req, res) => {
     const fmt = req.query.fmt !== 'false';
     const sort = req.query.sort !== 'false';
 
-    // Validate first for clean error messages
     const tmpPath = `/tmp/Caddyfile.save.${Date.now()}`;
     try {
         await writeFile(tmpPath, content, 'utf8');
         await execAsync(`caddy validate --config ${tmpPath} --adapter caddyfile 2>&1`);
     } catch (err) {
-        const output = ((err.stdout || '') + (err.stderr || '')).trim();
+        const output = (err.stdout + err.stderr).trim();
         const lines = output.split('\n').filter(Boolean);
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        await unlink(tmpPath).catch(() => { });
-        return res.status(422).json({
-            valid: false,
-            errors: errors.length ? errors : lines,
-        });
+        unlink(tmpPath).catch(() => { });
+        return res.status(422).json({ valid: false, errors: errors.length ? errors : lines });
     } finally {
-        await unlink(tmpPath).catch(() => { });
+        unlink(tmpPath).catch(() => { });
     }
 
-    // Load into Caddy
     await caddyLoad(content);
-
-    // Write to disk
     await writeFile(CADDYFILE_PATH, content, 'utf8');
 
     if (fmt) await fmtCaddyfile();
@@ -191,12 +213,6 @@ router.put('/', async (req, res) => {
     }
 
     res.json({ ok: true, message: 'Caddyfile saved and reloaded' });
-});
-
-router.post('/reload', async (req, res) => {
-    const content = await readFile(CADDYFILE_PATH, 'utf8');
-    await caddyLoad(content);
-    res.json({ ok: true, message: 'Caddy reloaded from disk' });
 });
 
 export default router;

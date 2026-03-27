@@ -188,7 +188,6 @@ const css = `
     margin-bottom: 16px;
   }
 
-  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
   .gap-16 { display: flex; flex-direction: column; gap: 16px; }
 
@@ -358,13 +357,23 @@ const css = `
     border-bottom: 1px dashed var(--border2);
     transition: color 0.15s, border-color 0.15s;
   }
-  a.route-link:hover {
-    color: var(--accent) !important;
-    border-color: var(--accent);
+  a.route-link:hover { color: var(--accent) !important; border-color: var(--accent); }
+  a.route-link.upstream { color: var(--accent2); }
+
+  .search-input {
+    background: #0a0c0f;
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 7px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+    width: 220px;
+    transition: border-color 0.15s;
   }
-  a.route-link.upstream {
-    color: var(--accent2);
-  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
 
   .modal-overlay {
     position: fixed; inset: 0;
@@ -483,11 +492,11 @@ const css = `
     .sidebar-overlay.open { display: block; }
     .content { padding: 16px; }
     .topbar { padding: 12px 16px; }
-    .grid-3 { grid-template-columns: 1fr; }
     .grid-4 { grid-template-columns: 1fr 1fr; }
     .editor-wrap textarea { min-height: 300px; font-size: 12px; }
     .editor-toolbar { flex-direction: column; align-items: flex-start; }
     .log-wrap { height: 340px; }
+    .search-input { width: 100%; }
   }
 `;
 
@@ -534,9 +543,15 @@ function Dashboard({ status, toast }) {
     const [names, setNames] = useState({});
     const [editingServer, setEditingServer] = useState(null);
     const [editName, setEditName] = useState("");
+    const [health, setHealth] = useState(null);
 
     useEffect(() => {
         apiFetch("/server-names").then(setNames).catch(() => { });
+        apiFetch("/health").then(results => {
+            const total = results.length;
+            const online = results.filter(r => r.online).length;
+            setHealth({ total, online, offline: total - online });
+        }).catch(() => { });
     }, []);
 
     const openEdit = (server) => {
@@ -570,7 +585,7 @@ function Dashboard({ status, toast }) {
     return (
         <>
             <div className="gap-16">
-                <div className="grid-3">
+                <div className="grid-4">
                     <div className="card">
                         <div className="card-title">Status</div>
                         <div className="stat-val" style={{ color: status.online ? "var(--accent)" : "var(--danger)" }}>
@@ -591,6 +606,15 @@ function Dashboard({ status, toast }) {
                                 : "—"}
                         </div>
                         <div className="stat-label">Certificate management</div>
+                    </div>
+                    <div className="card">
+                        <div className="card-title">Upstreams</div>
+                        <div className="stat-val" style={{ color: !health ? "var(--text)" : health.offline > 0 ? "var(--danger)" : "var(--accent)" }}>
+                            {health ? `${health.online}/${health.total}` : "—"}
+                        </div>
+                        <div className="stat-label">
+                            {!health ? "Checking..." : health.offline > 0 ? `${health.offline} offline` : "All online"}
+                        </div>
                     </div>
                 </div>
 
@@ -673,6 +697,7 @@ function CaddyfileEditor({ toast }) {
     const [validating, setValidating] = useState(false);
     const [runFmt, setRunFmt] = useState(true);
     const [runSort, setRunSort] = useState(true);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         apiFetch("/caddyfile")
@@ -729,6 +754,35 @@ function CaddyfileEditor({ toast }) {
         }
     };
 
+    const download = () => {
+        window.open(`${API}/caddyfile/download`, '_blank');
+    };
+
+    const restore = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const text = ev.target.result;
+            if (!confirm("Restore this Caddyfile? This will validate, reload Caddy, and overwrite the current file.")) return;
+            try {
+                await apiFetch("/caddyfile/restore", {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain" },
+                    body: text,
+                });
+                const fresh = await apiFetch("/caddyfile");
+                setContent(fresh);
+                setOriginal(fresh);
+                toast.success("Caddyfile restored and reloaded");
+            } catch (err) {
+                toast.error(err.message);
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = "";
+    };
+
     const isDirty = content !== original;
 
     if (loading) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading Caddyfile...</div>;
@@ -758,6 +812,13 @@ function CaddyfileEditor({ toast }) {
                         <button className="btn btn-ghost" onClick={validate} disabled={validating}>
                             {validating ? "Validating..." : "✓ Validate"}
                         </button>
+                        <button className="btn btn-ghost" onClick={download} title="Download Caddyfile">
+                            ↓ Backup
+                        </button>
+                        <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()} title="Restore Caddyfile from file">
+                            ↑ Restore
+                        </button>
+                        <input ref={fileInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={restore} />
                         <button className="btn btn-ghost" onClick={reload}>↺ Reload</button>
                         <button className="btn btn-primary" onClick={save} disabled={saving || !isDirty}>
                             {saving ? "Saving..." : "↑ Save"}
@@ -811,15 +872,14 @@ function RoutesManager({ toast }) {
     const [modal, setModal] = useState(null);
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
+    const [search, setSearch] = useState("");
 
     const load = () => {
         apiFetch("/routes")
             .then(setRoutes)
             .catch(e => toast.error(e.message))
             .finally(() => setLoading(false));
-        apiFetch("/tls")
-            .then(setCerts)
-            .catch(() => { });
+        apiFetch("/tls").then(setCerts).catch(() => { });
     };
 
     const loadHealth = () => {
@@ -938,7 +998,13 @@ function RoutesManager({ toast }) {
         }
     };
 
-    const sorted = [...routes].sort((a, b) => {
+    const filtered = routes.filter(r => {
+        if (!search) return true;
+        const q = search.toLowerCase();
+        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q);
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
         let valA, valB;
         if (sortCol === "domain") { valA = getHost(a); valB = getHost(b); }
         else if (sortCol === "upstream") { valA = getUpstream(a); valB = getUpstream(b); }
@@ -957,11 +1023,17 @@ function RoutesManager({ toast }) {
     return (
         <>
             <div className="gap-16">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-                        {healthLoading
-                            ? "Checking upstreams..."
-                            : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} upstreams online`}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                        <input
+                            className="search-input"
+                            placeholder="Filter by domain or upstream..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                        />
+                        <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                            {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} online`}
+                        </span>
                     </div>
                     <div className="btn-row">
                         <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading} style={{ fontSize: 11 }}>
@@ -971,9 +1043,9 @@ function RoutesManager({ toast }) {
                     </div>
                 </div>
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                    {routes.length === 0 ? (
+                    {sorted.length === 0 ? (
                         <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>
-                            No routes configured
+                            {search ? `No routes matching "${search}"` : "No routes configured"}
                         </div>
                     ) : (
                         <div className="table-wrap">

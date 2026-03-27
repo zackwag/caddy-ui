@@ -13,9 +13,9 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 ## Features
 
-- **Dashboard** — Live server status, TLS state, and server block summary with custom display names
-- **Caddyfile Editor** — Edit your Caddyfile in the browser with live validation, `caddy fmt` formatting, and automatic site block sorting on save
-- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, clickable domain and upstream links with automatic http/https scheme detection
+- **Dashboard** — Live server status, TLS state, server block summary with custom display names, and upstream health overview
+- **Caddyfile Editor** — Edit your Caddyfile in the browser with live validation, `caddy fmt` formatting, automatic site block sorting, and one-click backup and restore
+- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, search/filter, and clickable domain and upstream links with automatic http/https scheme detection
 - **TLS Certificates** — View cert status, expiry dates, and days remaining for all managed domains. Detect and delete orphaned certs
 - **Access Logs** — Tail live log output with SSE streaming, color-coded by severity level
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
@@ -36,7 +36,7 @@ graph LR
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
     BE -->|"TCP healthcheck"| CA
-    BE <-->|"read / write"| CF
+    BE <-->|"read / write / backup"| CF
     BE <-->|"read / stream"| LG
     BE <-->|"read / write"| SN
     BE <-->|"read / delete"| TLS
@@ -184,6 +184,7 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
+| `v1.4` | Dashboard health summary, route search/filter, Caddyfile backup and restore |
 | `v1.3` | Upstream healthchecks, clickable domain/upstream links, http/https scheme detection |
 | `v1.2` | TLS certificate tab, orphaned cert cleanup, all server routes visible, mobile layout |
 | `v1.1` | Mobile responsive layout, hamburger menu |
