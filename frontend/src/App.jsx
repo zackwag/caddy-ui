@@ -245,21 +245,6 @@ const css = `
     overflow: hidden;
   }
 
-  .editor-wrap textarea {
-    width: 100%;
-    min-height: 420px;
-    background: #0a0c0f;
-    color: #a8d8a8;
-    font-family: var(--mono);
-    font-size: 13px;
-    line-height: 1.7;
-    padding: 16px;
-    border: none;
-    resize: vertical;
-    outline: none;
-    caret-color: var(--accent);
-  }
-
   .editor-toolbar {
     display: flex;
     align-items: center;
@@ -272,6 +257,13 @@ const css = `
   }
 
   .editor-hint { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+  .cm-editor {
+    min-height: 420px;
+    font-family: var(--mono) !important;
+  }
+
+  .cm-editor.cm-focused { outline: none; }
 
   .btn {
     display: inline-flex;
@@ -426,6 +418,7 @@ const css = `
     transition: border-color 0.15s;
   }
   .field input:focus { border-color: var(--accent); }
+  .field input:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .log-wrap {
     background: #0a0c0f;
@@ -520,7 +513,7 @@ const css = `
     .content { padding: 16px; }
     .topbar { padding: 12px 16px; }
     .grid-4 { grid-template-columns: 1fr 1fr; }
-    .editor-wrap textarea { min-height: 300px; font-size: 12px; }
+    .cm-editor { min-height: 300px; }
     .editor-toolbar { flex-direction: column; align-items: flex-start; }
     .log-wrap { height: 340px; }
     .search-input { width: 100%; }
@@ -555,7 +548,6 @@ async function apiFetch(path, opts = {}) {
 }
 
 function formatTs(timestamp) {
-    // Ensure timestamp is treated as UTC before converting to local time
     const ts = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
     return new Date(ts).toLocaleString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric',
@@ -570,6 +562,110 @@ function Toasts({ toasts }) {
                 <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>
             ))}
         </div>
+    );
+}
+
+// ── CodeMirror Editor ─────────────────────────────────────────────────────────
+
+function CaddyfileCodeMirror({ value, onChange }) {
+    const containerRef = useRef(null);
+    const viewRef = useRef(null);
+    const onChangeRef = useRef(onChange);
+
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+        let view;
+
+        async function init() {
+            const { EditorView, keymap, lineNumbers, highlightActiveLineGutter, drawSelection, highlightSpecialChars } = await import("@codemirror/view");
+            const { EditorState } = await import("@codemirror/state");
+            const { defaultKeymap, historyKeymap, history } = await import("@codemirror/commands");
+            const { StreamLanguage, syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching } = await import("@codemirror/language");
+            const { nginx } = await import("@codemirror/legacy-modes/mode/nginx");
+
+            const theme = EditorView.theme({
+                "&": {
+                    background: "#0a0c0f",
+                    color: "#c9d1e0",
+                    fontSize: "13px",
+                    fontFamily: "'IBM Plex Mono', monospace",
+                },
+                ".cm-content": {
+                    padding: "16px",
+                    caretColor: "#00e5a0",
+                    lineHeight: "1.7",
+                },
+                ".cm-gutters": {
+                    background: "#0d0f12",
+                    color: "#586275",
+                    border: "none",
+                    borderRight: "1px solid #1e2329",
+                    paddingRight: "8px",
+                },
+                ".cm-activeLineGutter": { background: "rgba(0,229,160,0.05)" },
+                ".cm-activeLine": { background: "rgba(0,229,160,0.03)" },
+                ".cm-cursor": { borderLeftColor: "#00e5a0" },
+                ".cm-selectionBackground, ::selection": { background: "rgba(0,153,255,0.2) !important" },
+                ".cm-line": { padding: "0 4px" },
+                ".tok-keyword": { color: "#00e5a0" },
+                ".tok-string": { color: "#ffb830" },
+                ".tok-comment": { color: "#586275", fontStyle: "italic" },
+                ".tok-number": { color: "#0099ff" },
+                ".tok-operator": { color: "#c9d1e0" },
+                ".tok-variableName": { color: "#ff4d6a" },
+                ".tok-typeName": { color: "#00e5a0" },
+                ".tok-atom": { color: "#ffb830" },
+                ".tok-def": { color: "#00e5a0" },
+                ".tok-property": { color: "#0099ff" },
+                "& .cm-scroller": { overflow: "auto" },
+            }, { dark: true });
+
+            const startState = EditorState.create({
+                doc: value,
+                extensions: [
+                    lineNumbers(),
+                    highlightActiveLineGutter(),
+                    highlightSpecialChars(),
+                    history(),
+                    drawSelection(),
+                    indentOnInput(),
+                    bracketMatching(),
+                    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+                    StreamLanguage.define(nginx),
+                    theme,
+                    keymap.of([...defaultKeymap, ...historyKeymap]),
+                    EditorView.updateListener.of(update => {
+                        if (update.docChanged) {
+                            onChangeRef.current(update.state.doc.toString());
+                        }
+                    }),
+                    EditorView.lineWrapping,
+                ],
+            });
+
+            view = new EditorView({ state: startState, parent: containerRef.current });
+            viewRef.current = view;
+        }
+
+        init();
+        return () => { view?.destroy(); viewRef.current = null; };
+    }, []);
+
+    useEffect(() => {
+        const view = viewRef.current;
+        if (!view) return;
+        const current = view.state.doc.toString();
+        if (current !== value) {
+            view.dispatch({
+                changes: { from: 0, to: current.length, insert: value },
+            });
+        }
+    }, [value]);
+
+    return (
+        <div ref={containerRef} style={{ minHeight: 420, background: "#0a0c0f" }} />
     );
 }
 
@@ -899,12 +995,7 @@ function CaddyfileEditor({ toast }) {
     return (
         <div className="gap-16">
             <div className="editor-wrap">
-                <textarea
-                    value={content}
-                    onChange={e => setContent(e.target.value)}
-                    spellCheck={false}
-                    placeholder="# Caddyfile"
-                />
+                <CaddyfileCodeMirror value={content} onChange={setContent} />
                 <div className="editor-toolbar">
                     <div className="btn-row">
                         <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
@@ -987,17 +1078,34 @@ function CaddyfileEditor({ toast }) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-function RouteModal({ route, onSave, onClose }) {
-    const [form, setForm] = useState(route || { domain: "", upstream: "", stripPrefix: "" });
+function RouteModal({ mode, initial, onSave, onClose }) {
+    const isEdit = mode === "edit";
+    const [form, setForm] = useState({
+        domain: initial?.domain || "",
+        upstream: initial?.upstream || "",
+        stripPrefix: initial?.stripPrefix || "",
+        _id: initial?._id || null,
+        _originalDomain: initial?._originalDomain || null,
+    });
     const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-title">{route ? "Edit Route" : "New Reverse Proxy Route"}</div>
+                <div className="modal-title">{isEdit ? "Edit Route" : "New Reverse Proxy Route"}</div>
                 <div className="field">
                     <label>Domain</label>
-                    <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" />
+                    <input
+                        value={form.domain}
+                        onChange={set("domain")}
+                        placeholder="app.example.com"
+                        disabled={isEdit && !form._id}
+                    />
+                    {isEdit && !form._id && (
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
+                            Domain cannot be changed for Caddyfile-managed routes
+                        </div>
+                    )}
                 </div>
                 <div className="field">
                     <label>Upstream</label>
@@ -1009,8 +1117,12 @@ function RouteModal({ route, onSave, onClose }) {
                 </div>
                 <div className="btn-row" style={{ marginTop: 20, justifyContent: "flex-end" }}>
                     <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => onSave(form)} disabled={!form.domain || !form.upstream}>
-                        {route ? "Update" : "Add Route"}
+                    <button
+                        className="btn btn-primary"
+                        onClick={() => onSave(form)}
+                        disabled={!form.upstream || (!isEdit && !form.domain)}
+                    >
+                        {isEdit ? "Save Changes" : "Add Route"}
                     </button>
                 </div>
             </div>
@@ -1018,7 +1130,7 @@ function RouteModal({ route, onSave, onClose }) {
     );
 }
 
-function RoutesManager({ toast }) {
+function RoutesManager({ toast, setTab }) {
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
     const [certs, setCerts] = useState([]);
@@ -1072,6 +1184,37 @@ function RoutesManager({ toast }) {
         }
     };
 
+    const editRoute = async (form) => {
+        try {
+            if (form._id) {
+                await apiFetch(`/routes/${form._id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        domain: form.domain,
+                        upstream: form.upstream,
+                        stripPrefix: form.stripPrefix,
+                    }),
+                });
+            } else {
+                await apiFetch(`/routes/caddyfile/${encodeURIComponent(form._originalDomain)}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        upstream: form.upstream,
+                        stripPrefix: form.stripPrefix,
+                    }),
+                });
+            }
+            toast.success("Route updated");
+            setModal(null);
+            load();
+            loadHealth();
+        } catch (e) {
+            toast.error(e.message);
+        }
+    };
+
     const deleteRoute = async (id) => {
         if (!confirm("Delete this route?")) return;
         try {
@@ -1098,6 +1241,28 @@ function RoutesManager({ toast }) {
         }
         const flat = route.handle?.find(h => h.handler === "reverse_proxy");
         return flat?.upstreams?.map(u => u.dial).join(", ") || "—";
+    };
+
+    const getStripPrefix = (route) => {
+        const pathMatcher = route.match?.find(m => m.path);
+        if (!pathMatcher) return "";
+        const path = pathMatcher.path?.[0] || "";
+        return path.replace("/*", "");
+    };
+
+    const openEdit = (route) => {
+        const domain = getHost(route);
+        const upstream = getUpstream(route);
+        const stripPrefix = getStripPrefix(route);
+        const id = route["@id"] || null;
+        setModal({
+            mode: "edit",
+            _id: id,
+            _originalDomain: domain,
+            domain,
+            upstream,
+            stripPrefix,
+        });
     };
 
     const getDomainScheme = (domain) => {
@@ -1194,7 +1359,7 @@ function RoutesManager({ toast }) {
                         <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading} style={{ fontSize: 11 }}>
                             ↺ Check health
                         </button>
-                        <button className="btn btn-primary" onClick={() => setModal("new")}>+ Add Route</button>
+                        <button className="btn btn-primary" onClick={() => setModal({ mode: "new" })}>+ Add Route</button>
                     </div>
                 </div>
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -1226,6 +1391,9 @@ function RoutesManager({ toast }) {
                                         const upstream = getUpstream(r);
                                         const dLink = domainLink(domain);
                                         const uLink = upstreamLink(upstream);
+                                        const hasId = !!r["@id"];
+                                        const isSimple = r._simpleProxy;
+                                        const canEdit = hasId || isSimple;
 
                                         return (
                                             <tr key={r["@id"] || i}>
@@ -1252,10 +1420,37 @@ function RoutesManager({ toast }) {
                                                 </td>
                                                 <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r._server || "—"}</td>
                                                 <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
-                                                <td style={{ width: 80, textAlign: "right" }}>
-                                                    {r["@id"] && (
-                                                        <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>
-                                                    )}
+                                                <td style={{ width: 120, textAlign: "right" }}>
+                                                    <div className="btn-row" style={{ justifyContent: "flex-end" }}>
+                                                        {canEdit ? (
+                                                            <button
+                                                                className="btn btn-ghost"
+                                                                style={{ padding: "4px 10px" }}
+                                                                onClick={() => openEdit(r)}
+                                                                title="Edit route"
+                                                            >
+                                                                ✎
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                className="btn btn-ghost"
+                                                                style={{ padding: "4px 10px", fontSize: 10 }}
+                                                                onClick={() => setTab("caddyfile")}
+                                                                title="Complex route — edit in Caddyfile"
+                                                            >
+                                                                ⌗
+                                                            </button>
+                                                        )}
+                                                        {hasId && (
+                                                            <button
+                                                                className="btn btn-danger"
+                                                                style={{ padding: "4px 10px" }}
+                                                                onClick={() => deleteRoute(r["@id"])}
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -1268,8 +1463,9 @@ function RoutesManager({ toast }) {
             </div>
             {modal && (
                 <RouteModal
-                    route={modal === "new" ? null : modal}
-                    onSave={addRoute}
+                    mode={modal.mode}
+                    initial={modal}
+                    onSave={modal.mode === "edit" ? editRoute : addRoute}
                     onClose={() => setModal(null)}
                 />
             )}
@@ -1760,7 +1956,7 @@ export default function App() {
                     <div className="content">
                         {tab === "dashboard" && <Dashboard status={status} toast={toast} />}
                         {tab === "caddyfile" && <CaddyfileEditor toast={toast} />}
-                        {tab === "routes" && <RoutesManager toast={toast} />}
+                        {tab === "routes" && <RoutesManager toast={toast} setTab={setTab} />}
                         {tab === "tls" && <TLSViewer toast={toast} />}
                         {tab === "logs" && <LogsViewer toast={toast} />}
                     </div>

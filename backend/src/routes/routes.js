@@ -89,6 +89,22 @@ function removeSiteBlock(caddyfile, domain) {
     return result.join('\n').trimEnd() + '\n';
 }
 
+function replaceSiteBlock(caddyfile, oldDomain, newBlock) {
+    const cleaned = removeSiteBlock(caddyfile, oldDomain);
+    return `${cleaned.trimEnd()}\n\n${newBlock}\n`;
+}
+
+function isSimpleReverseProxy(route) {
+    // Check if route is a simple reverse_proxy with no complex matchers
+    const subroute = route.handle?.find(h => h.handler === 'subroute');
+    if (!subroute) return false;
+    const innerRoutes = subroute.routes ?? [];
+    if (innerRoutes.length !== 1) return false;
+    const handles = innerRoutes[0].handle ?? [];
+    if (handles.length !== 1) return false;
+    return handles[0].handler === 'reverse_proxy';
+}
+
 async function getAllServers() {
     try {
         const config = await caddyGet('/config/apps/http/servers');
@@ -98,7 +114,7 @@ async function getAllServers() {
     }
 }
 
-// GET /api/routes - list routes from all servers, tagged with server name
+// GET /api/routes
 router.get('/', async (req, res) => {
     try {
         const servers = await getAllServers();
@@ -107,7 +123,11 @@ router.get('/', async (req, res) => {
         for (const [serverName, server] of Object.entries(servers)) {
             const routes = server.routes || [];
             for (const route of routes) {
-                allRoutes.push({ ...route, _server: serverName });
+                allRoutes.push({
+                    ...route,
+                    _server: serverName,
+                    _simpleProxy: isSimpleReverseProxy(route),
+                });
             }
         }
 
@@ -117,7 +137,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// POST /api/routes - add a new reverse proxy route to the primary server
+// POST /api/routes
 router.post('/', async (req, res) => {
     const { domain, upstream, stripPrefix } = req.body;
     if (!domain || !upstream) {
@@ -139,19 +159,58 @@ router.post('/', async (req, res) => {
     res.status(201).json({ ok: true, id, route });
 });
 
-// PATCH /api/routes/:id - update a route by @id
+// PATCH /api/routes/:id -- update a UI-managed route (@id exists)
 router.patch('/:id', async (req, res) => {
     const { id } = req.params;
     const { domain, upstream, stripPrefix } = req.body;
     if (!domain || !upstream) {
         return res.status(400).json({ error: 'domain and upstream are required' });
     }
+
+    // Get old route to find old domain for Caddyfile update
+    let oldDomain = null;
+    try {
+        const oldRoute = await caddyGet(`/id/${id}`);
+        oldDomain = oldRoute?.match?.[0]?.host?.[0] || null;
+    } catch {
+        // Continue anyway
+    }
+
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
     await caddyPatch(`/id/${id}`, route);
+
+    // Update Caddyfile block
+    if (oldDomain) {
+        const caddyfile = await readFile(CADDYFILE_PATH, 'utf8');
+        const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
+        const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock);
+        await writeFile(CADDYFILE_PATH, updated, 'utf8');
+    }
+
     res.json({ ok: true, id, route });
 });
 
-// DELETE /api/routes/:id - remove a route by @id
+// PATCH /api/routes/caddyfile -- update a Caddyfile-managed simple route
+router.patch('/caddyfile/:domain', async (req, res) => {
+    const { domain } = req.params;
+    const { upstream, stripPrefix } = req.body;
+    if (!upstream) {
+        return res.status(400).json({ error: 'upstream is required' });
+    }
+
+    const caddyfile = await readFile(CADDYFILE_PATH, 'utf8');
+    const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
+    const updated = replaceSiteBlock(caddyfile, domain, newBlock);
+    await writeFile(CADDYFILE_PATH, updated, 'utf8');
+
+    // Reload Caddy with new config
+    const { caddyLoad } = await import('../caddy.js');
+    await caddyLoad(updated);
+
+    res.json({ ok: true, domain });
+});
+
+// DELETE /api/routes/:id
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
 

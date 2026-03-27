@@ -9,7 +9,13 @@
     },
     "dependencies": {
         "react": "^18.2.0",
-        "react-dom": "^18.2.0"
+        "react-dom": "^18.2.0",
+        "@codemirror/view": "^6.0.0",
+        "@codemirror/state": "^6.0.0",
+        "@codemirror/legacy-modes": "^6.0.0",
+        "@codemirror/theme-one-dark": "^6.0.0",
+        "@codemirror/commands": "^6.0.0",
+        "@codemirror/language": "^6.0.0"
     },
     "devDependencies": {
         "@vitejs/plugin-react": "^4.2.1",
