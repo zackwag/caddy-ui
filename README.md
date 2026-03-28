@@ -13,12 +13,13 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 ## Features
 
-- **Dashboard** — Live server status, TLS state, server block summary with custom display names, and upstream health overview
+- **Dashboard** — Live server status, TLS state, server block summary with custom display names, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
 - **Caddyfile Editor** — Edit your Caddyfile with syntax highlighting, live validation, `caddy fmt` formatting, automatic site block sorting, backup/restore, and full version history with inline preview and one-click rollback
 - **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, search/filter, clickable domain and upstream links, edit routes in-place, and per-route notes
 - **TLS Certificates** — View cert status, expiry dates, and days remaining for all managed domains. Detect and delete orphaned certs
 - **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, and ERROR/WARN/INFO level filters
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
+- **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
 ## Architecture
@@ -38,6 +39,7 @@ graph LR
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
     BE -->|"TCP healthcheck"| CA
+    BE -->|"Prometheus metrics"| CA
     BE <-->|"read / write / backup"| CF
     BE <-->|"read / stream"| LG
     BE <-->|"read / write"| SN
@@ -56,13 +58,7 @@ graph LR
 
 ### 1. Enable Caddy's admin API
 
-Add `CADDY_ADMIN=0.0.0.0:2019` to your Caddy container's environment variables. Your Caddyfile global block just needs your email:
-
-```json
-{
-    email you@example.com
-}
-```
+Add `CADDY_ADMIN=0.0.0.0:2019` to your Caddy container's environment variables.
 
 ### 2. Create required directories
 
@@ -71,7 +67,13 @@ mkdir -p /docker/caddy/logs
 mkdir -p /docker/caddy-ui
 ```
 
-### 3. Update your compose file
+### 3. Generate a JWT secret
+
+```bash
+openssl rand -base64 32
+```
+
+### 4. Update your compose file
 
 ```yaml
 services:
@@ -81,7 +83,6 @@ services:
     environment:
       - CADDY_ADMIN=0.0.0.0:2019
     volumes:
-      # ... your existing volumes, plus:
       - /docker/caddy/logs:/var/log/caddy
     networks:
       - caddy-ui
@@ -101,6 +102,10 @@ services:
       - CADDY_DATA_PATH=/data/caddy/caddy
       - HISTORY_PATH=/etc/caddy-ui/history
       - ROUTE_NOTES_PATH=/etc/caddy-ui/route-notes.json
+      - CADDY_UI_USER=admin
+      - CADDY_UI_PASSWORD=yourpassword
+      - JWT_SECRET=your-long-random-secret
+      - CADDY_UI_PUBLIC_METRICS=false
     volumes:
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /docker/caddy/logs:/var/log/caddy
@@ -127,7 +132,7 @@ networks:
     driver: bridge
 ```
 
-### 4. Deploy
+### 5. Deploy
 
 ```bash
 docker compose up -d
@@ -135,16 +140,19 @@ docker compose up -d
 
 Open `http://your-server:9877` in your browser.
 
+## Authentication
+
+Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. All API endpoints are protected and the login screen appears automatically.
+
+## Prometheus Metrics
+
+Enable Caddy's metrics endpoint from the dashboard Process panel, or add `metrics` to your Caddyfile global block manually. Set `CADDY_UI_PUBLIC_METRICS=true` to expose `/api/metrics` without auth for Prometheus scraping.
+
 ## Building from Source
 
 ```bash
-# Build backend
-cd backend
-docker build -t caddy-ui-backend .
-
-# Build frontend
-cd frontend
-docker build -t caddy-ui-frontend .
+cd backend && docker build -t caddy-ui-backend .
+cd frontend && docker build -t caddy-ui-frontend .
 ```
 
 ## Project Structure
@@ -155,7 +163,10 @@ caddy-ui/
 │   ├── src/
 │   │   ├── index.js
 │   │   ├── caddy.js
+│   │   ├── middleware/
+│   │   │   └── auth.js
 │   │   └── routes/
+│   │       ├── auth.js
 │   │       ├── caddyfile.js
 │   │       ├── routes.js
 │   │       ├── status.js
@@ -189,6 +200,7 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
+| `v1.7` | JWT auth, Caddy process info, metrics toggle, public metrics endpoint |
 | `v1.6` | Edit routes in-place, route notes, Caddyfile syntax highlighting |
 | `v1.5` | Caddyfile version history with snapshots, log search and level filters |
 | `v1.4` | Dashboard health summary, route search/filter, Caddyfile backup and restore |

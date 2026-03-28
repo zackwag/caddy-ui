@@ -794,6 +794,11 @@ function Dashboard({ status, toast, onUnauth }) {
     const [editingServer, setEditingServer] = useState(null);
     const [editName, setEditName] = useState("");
     const [health, setHealth] = useState(null);
+    const [process, setProcess] = useState(null);
+    const [processOpen, setProcessOpen] = useState(false);
+    const [metricsConfig, setMetricsConfig] = useState(null);
+    const [savingMetrics, setSavingMetrics] = useState(false);
+    const [publicMetrics, setPublicMetrics] = useState(false);
 
     useEffect(() => {
         apiFetch("/server-names", {}, onUnauth).then(setNames).catch(() => { });
@@ -802,7 +807,29 @@ function Dashboard({ status, toast, onUnauth }) {
             const online = results.filter(r => r.online).length;
             setHealth({ total, online, offline: total - online });
         }).catch(() => { });
+        apiFetch("/status/process", {}, onUnauth).then(setProcess).catch(() => { });
+        apiFetch("/status/metrics-config", {}, onUnauth).then(setMetricsConfig).catch(() => { });
+        fetch(`${API}/auth/status`).then(r => r.json()).then(d => setPublicMetrics(d.publicMetrics || false)).catch(() => { });
     }, []);
+
+    const toggleMetrics = async (enabled) => {
+        setSavingMetrics(true);
+        try {
+            await apiFetch("/status/metrics-config", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled }),
+            }, onUnauth);
+            setMetricsConfig({ enabled });
+            toast.success(enabled ? "Metrics enabled" : "Metrics disabled");
+            // Refresh process info
+            apiFetch("/status/process", {}, onUnauth).then(setProcess).catch(() => { });
+        } catch (e) {
+            toast.error(e.message);
+        } finally {
+            setSavingMetrics(false);
+        }
+    };
 
     const openEdit = (server) => {
         setEditingServer(server);
@@ -828,6 +855,19 @@ function Dashboard({ status, toast, onUnauth }) {
         } catch (e) {
             toast.error(e.message);
         }
+    };
+
+    const formatLastReload = (iso) => {
+        if (!iso) return "—";
+        return new Date(iso).toLocaleString('en-US', {
+            month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true,
+        });
+    };
+
+    const labelStyle = {
+        fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)",
+        letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block",
     };
 
     if (!status) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading...</div>;
@@ -866,6 +906,108 @@ function Dashboard({ status, toast, onUnauth }) {
                             {!health ? "Checking..." : health.offline > 0 ? `${health.offline} offline` : "All online"}
                         </div>
                     </div>
+                </div>
+
+                {/* Process card */}
+                <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                    <div
+                        onClick={() => setProcessOpen(o => !o)}
+                        style={{ padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: processOpen ? "1px solid var(--border)" : "none" }}
+                    >
+                        <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
+                            Process
+                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            {process?.ok && (
+                                <span className="badge badge-green">{process.uptime}</span>
+                            )}
+                            {metricsConfig && (
+                                <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>
+                                    {metricsConfig.enabled ? "METRICS ON" : "METRICS OFF"}
+                                </span>
+                            )}
+                            <span style={{ color: "var(--muted)", fontSize: 12 }}>{processOpen ? "▲" : "▼"}</span>
+                        </div>
+                    </div>
+
+                    {processOpen && (
+                        <div style={{ padding: 20 }}>
+                            {/* Process stats */}
+                            {!process ? (
+                                <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>Loading...</div>
+                            ) : !process.ok ? (
+                                <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>
+                                    Metrics unavailable — enable below to see process info
+                                </div>
+                            ) : (
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 20 }}>
+                                    <div>
+                                        <span style={labelStyle}>Version</span>
+                                        <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--text)" }}>{process.version}</div>
+                                    </div>
+                                    <div>
+                                        <span style={labelStyle}>Uptime</span>
+                                        <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--accent)" }}>{process.uptime || "—"}</div>
+                                    </div>
+                                    <div>
+                                        <span style={labelStyle}>Heap</span>
+                                        <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--text)" }}>
+                                            {process.memAlloc !== null ? `${process.memAlloc} MB` : "—"}
+                                            {process.memSys !== null && (
+                                                <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 4 }}>/ {process.memSys} MB sys</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span style={labelStyle}>Last Reload</span>
+                                        <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: process.lastReloadSuccess ? "var(--text)" : "var(--danger)" }}>
+                                            {formatLastReload(process.lastReload)}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Divider */}
+                            <div style={{ borderTop: "1px solid var(--border)", marginBottom: 16 }} />
+
+                            {/* Metrics toggle */}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                                <div>
+                                    <span style={labelStyle}>Caddy Metrics</span>
+                                    <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                                        Enables the Prometheus metrics endpoint on Caddy's admin API
+                                    </div>
+                                </div>
+                                <div className="btn-row">
+                                    <button
+                                        className={`btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`}
+                                        onClick={() => toggleMetrics(!metricsConfig?.enabled)}
+                                        disabled={savingMetrics}
+                                    >
+                                        {savingMetrics ? "Saving..." : metricsConfig?.enabled ? "Disable" : "Enable"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Public metrics */}
+                            <div style={{ borderTop: "1px solid var(--border)", marginTop: 16, paddingTop: 16 }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                                    <div>
+                                        <span style={labelStyle}>Public Metrics Endpoint</span>
+                                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                                            {publicMetrics
+                                                ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics</span></>
+                                                : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"
+                                            }
+                                        </div>
+                                    </div>
+                                    <span className={`badge ${publicMetrics ? "badge-green" : "badge-muted"}`}>
+                                        {publicMetrics ? "ENABLED" : "DISABLED"}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {status.online && status.servers?.length > 0 && (
