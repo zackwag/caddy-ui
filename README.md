@@ -14,8 +14,8 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 ## Features
 
 - **Dashboard** — Live server status, TLS state, server block summary with custom display names, and upstream health overview
-- **Caddyfile Editor** — Edit your Caddyfile in the browser with live validation, `caddy fmt` formatting, automatic site block sorting, backup/restore, and full version history with inline preview and one-click rollback
-- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, search/filter, and clickable domain and upstream links with automatic http/https scheme detection
+- **Caddyfile Editor** — Edit your Caddyfile with syntax highlighting, live validation, `caddy fmt` formatting, automatic site block sorting, backup/restore, and full version history with inline preview and one-click rollback
+- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, search/filter, clickable domain and upstream links, edit routes in-place, and per-route notes
 - **TLS Certificates** — View cert status, expiry dates, and days remaining for all managed domains. Detect and delete orphaned certs
 - **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, and ERROR/WARN/INFO level filters
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
@@ -33,6 +33,7 @@ graph LR
     SN[("Server Names\n/etc/caddy-ui")]
     TLS[("Certificates\n/data/caddy/caddy")]
     HX[("History\n/etc/caddy-ui/history")]
+    RN[("Route Notes\n/etc/caddy-ui")]
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
@@ -42,6 +43,7 @@ graph LR
     BE <-->|"read / write"| SN
     BE <-->|"read / delete"| TLS
     BE <-->|"snapshot / restore"| HX
+    BE <-->|"read / write"| RN
     CA <-->|"reload from"| CF
 ```
 
@@ -98,6 +100,7 @@ services:
       - SERVER_NAMES_PATH=/etc/caddy-ui/server-names.json
       - CADDY_DATA_PATH=/data/caddy/caddy
       - HISTORY_PATH=/etc/caddy-ui/history
+      - ROUTE_NOTES_PATH=/etc/caddy-ui/route-notes.json
     volumes:
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /docker/caddy/logs:/var/log/caddy
@@ -144,8 +147,6 @@ cd frontend
 docker build -t caddy-ui-frontend .
 ```
 
-See the [backend README](./backend/README.md) and [frontend README](./frontend/README.md) for development instructions.
-
 ## Project Structure
 
 ```text
@@ -161,7 +162,8 @@ caddy-ui/
 │   │       ├── logs.js
 │   │       ├── tls.js
 │   │       ├── health.js
-│   │       └── servernames.js
+│   │       ├── servernames.js
+│   │       └── routenotes.js
 │   ├── Dockerfile
 │   └── package.json
 ├── frontend/
@@ -187,6 +189,7 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
+| `v1.6` | Edit routes in-place, route notes, Caddyfile syntax highlighting |
 | `v1.5` | Caddyfile version history with snapshots, log search and level filters |
 | `v1.4` | Dashboard health summary, route search/filter, Caddyfile backup and restore |
 | `v1.3` | Upstream healthchecks, clickable domain/upstream links, http/https scheme detection |

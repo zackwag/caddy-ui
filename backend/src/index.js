@@ -5,6 +5,7 @@ import 'express-async-errors';
 import caddyfileRouter from './routes/caddyfile.js';
 import healthRouter from './routes/health.js';
 import logsRouter from './routes/logs.js';
+import routenotesRouter from './routes/routenotes.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
@@ -24,6 +25,7 @@ app.use('/api/logs', logsRouter);
 app.use('/api/server-names', servernamesRouter);
 app.use('/api/tls', tlsRouter);
 app.use('/api/health', healthRouter);
+app.use('/api/route-notes', routenotesRouter);
 
 app.use((err, req, res, next) => {
     console.error(err);

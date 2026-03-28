@@ -1130,13 +1130,47 @@ function RouteModal({ mode, initial, onSave, onClose }) {
     );
 }
 
+function NoteModal({ domain, initialNote, onSave, onClose }) {
+    const [note, setNote] = useState(initialNote || "");
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" onClick={e => e.stopPropagation()}>
+                <div className="modal-title">Route Note</div>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>
+                    {domain}
+                </div>
+                <div className="field">
+                    <label>Note</label>
+                    <input
+                        value={note}
+                        onChange={e => setNote(e.target.value)}
+                        placeholder="e.g. Home Assistant, media server, internal dashboard..."
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && onSave(domain, note)}
+                    />
+                </div>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>
+                    Leave blank to clear the note.
+                </div>
+                <div className="btn-row" style={{ justifyContent: "flex-end" }}>
+                    <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-primary" onClick={() => onSave(domain, note)}>Save</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function RoutesManager({ toast, setTab }) {
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
     const [certs, setCerts] = useState([]);
+    const [notes, setNotes] = useState({});
     const [loading, setLoading] = useState(true);
     const [healthLoading, setHealthLoading] = useState(false);
     const [modal, setModal] = useState(null);
+    const [noteModal, setNoteModal] = useState(null);
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
     const [search, setSearch] = useState("");
@@ -1147,6 +1181,7 @@ function RoutesManager({ toast, setTab }) {
             .catch(e => toast.error(e.message))
             .finally(() => setLoading(false));
         apiFetch("/tls").then(setCerts).catch(() => { });
+        apiFetch("/route-notes").then(setNotes).catch(() => { });
     };
 
     const loadHealth = () => {
@@ -1222,6 +1257,29 @@ function RoutesManager({ toast, setTab }) {
             toast.success("Route removed");
             load();
             loadHealth();
+        } catch (e) {
+            toast.error(e.message);
+        }
+    };
+
+    const saveNote = async (domain, note) => {
+        try {
+            await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ note }),
+            });
+            setNotes(n => {
+                const updated = { ...n };
+                if (note.trim()) {
+                    updated[domain] = note.trim();
+                } else {
+                    delete updated[domain];
+                }
+                return updated;
+            });
+            toast.success(note.trim() ? "Note saved" : "Note cleared");
+            setNoteModal(null);
         } catch (e) {
             toast.error(e.message);
         }
@@ -1321,7 +1379,10 @@ function RoutesManager({ toast, setTab }) {
     const filtered = routes.filter(r => {
         if (!search) return true;
         const q = search.toLowerCase();
-        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q);
+        const domain = getHost(r).toLowerCase();
+        const upstream = getUpstream(r).toLowerCase();
+        const note = (notes[getHost(r)] || "").toLowerCase();
+        return domain.includes(q) || upstream.includes(q) || note.includes(q);
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -1347,7 +1408,7 @@ function RoutesManager({ toast, setTab }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                         <input
                             className="search-input"
-                            placeholder="Filter by domain or upstream..."
+                            placeholder="Filter by domain, upstream, or note..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
@@ -1394,19 +1455,27 @@ function RoutesManager({ toast, setTab }) {
                                         const hasId = !!r["@id"];
                                         const isSimple = r._simpleProxy;
                                         const canEdit = hasId || isSimple;
+                                        const note = notes[domain];
 
                                         return (
                                             <tr key={r["@id"] || i}>
                                                 <td>
                                                     <div style={{ display: "flex", alignItems: "center" }}>
                                                         {getHealthDot(r)}
-                                                        {dLink ? (
-                                                            <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">
-                                                                {domain}
-                                                            </a>
-                                                        ) : (
-                                                            <span className="mono">{domain}</span>
-                                                        )}
+                                                        <div>
+                                                            {dLink ? (
+                                                                <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">
+                                                                    {domain}
+                                                                </a>
+                                                            ) : (
+                                                                <span className="mono">{domain}</span>
+                                                            )}
+                                                            {note && (
+                                                                <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                                                                    {note}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td>
@@ -1420,8 +1489,16 @@ function RoutesManager({ toast, setTab }) {
                                                 </td>
                                                 <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r._server || "—"}</td>
                                                 <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
-                                                <td style={{ width: 120, textAlign: "right" }}>
+                                                <td style={{ width: 140, textAlign: "right" }}>
                                                     <div className="btn-row" style={{ justifyContent: "flex-end" }}>
+                                                        <button
+                                                            className="btn btn-ghost"
+                                                            style={{ padding: "4px 10px", color: note ? "var(--accent2)" : "var(--muted)" }}
+                                                            onClick={() => setNoteModal({ domain, note: note || "" })}
+                                                            title={note || "Add note"}
+                                                        >
+                                                            ✎
+                                                        </button>
                                                         {canEdit ? (
                                                             <button
                                                                 className="btn btn-ghost"
@@ -1429,7 +1506,7 @@ function RoutesManager({ toast, setTab }) {
                                                                 onClick={() => openEdit(r)}
                                                                 title="Edit route"
                                                             >
-                                                                ✎
+                                                                ⚙
                                                             </button>
                                                         ) : (
                                                             <button
@@ -1461,12 +1538,22 @@ function RoutesManager({ toast, setTab }) {
                     )}
                 </div>
             </div>
+
             {modal && (
                 <RouteModal
                     mode={modal.mode}
                     initial={modal}
                     onSave={modal.mode === "edit" ? editRoute : addRoute}
                     onClose={() => setModal(null)}
+                />
+            )}
+
+            {noteModal && (
+                <NoteModal
+                    domain={noteModal.domain}
+                    initialNote={noteModal.note}
+                    onSave={saveNote}
+                    onClose={() => setNoteModal(null)}
                 />
             )}
         </>
