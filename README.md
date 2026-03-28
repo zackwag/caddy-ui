@@ -15,10 +15,11 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 - **Dashboard** — Live server status, TLS state, server block summary with custom display names, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
 - **Caddyfile Editor** — Edit your Caddyfile with syntax highlighting, live validation, `caddy fmt` formatting, automatic site block sorting, backup/restore, and full version history with inline preview and one-click rollback
-- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, search/filter, clickable domain and upstream links, edit routes in-place, and per-route notes
+- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, uptime percentages, search/filter, clickable domain and upstream links, edit routes in-place, and per-route notes
 - **TLS Certificates** — View cert status, expiry dates, and days remaining for all managed domains. Detect and delete orphaned certs
 - **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, and ERROR/WARN/INFO level filters
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
+- **Metrics** — Request count, RPS, avg response time, status code breakdown, and p50/p95/p99 percentiles powered by Caddy's built-in Prometheus endpoint
 - **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
@@ -38,7 +39,7 @@ graph LR
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
-    BE -->|"TCP healthcheck"| CA
+    BE -->|"TCP healthcheck + uptime"| CA
     BE -->|"Prometheus metrics"| CA
     BE <-->|"read / write / backup"| CF
     BE <-->|"read / stream"| LG
@@ -146,7 +147,7 @@ Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`,
 
 ## Prometheus Metrics
 
-Enable Caddy's metrics endpoint from the dashboard Process panel, or add `metrics` to your Caddyfile global block manually. Set `CADDY_UI_PUBLIC_METRICS=true` to expose `/api/metrics` without auth for Prometheus scraping.
+Enable Caddy's metrics endpoint from the Metrics tab, or add `metrics` to your Caddyfile global block manually. Set `CADDY_UI_PUBLIC_METRICS=true` to expose `/api/metrics` without auth for Prometheus scraping.
 
 ## Building from Source
 
@@ -200,6 +201,7 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
+| `v1.8` | Metrics tab, upstream uptime tracking, simplified dashboard process card |
 | `v1.7` | JWT auth, Caddy process info, metrics toggle, public metrics endpoint |
 | `v1.6` | Edit routes in-place, route notes, Caddyfile syntax highlighting |
 | `v1.5` | Caddyfile version history with snapshots, log search and level filters |
