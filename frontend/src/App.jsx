@@ -194,6 +194,7 @@ const css = `
   }
 
   .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .gap-16 { display: flex; flex-direction: column; gap: 16px; }
 
   .stat-val {
@@ -498,6 +499,45 @@ const css = `
     white-space: pre;
   }
 
+  /* Metrics bar chart */
+  .metrics-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .metrics-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .metrics-bar-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    width: 32px;
+    flex-shrink: 0;
+  }
+  .metrics-bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .metrics-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+  }
+  .metrics-bar-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    width: 40px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
   /* Login screen */
   .login-shell {
     display: flex;
@@ -559,6 +599,7 @@ const css = `
     .content { padding: 16px; }
     .topbar { padding: 12px 16px; }
     .grid-4 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
     .cm-editor { min-height: 300px; }
     .editor-toolbar { flex-direction: column; align-items: flex-start; }
     .log-wrap { height: 340px; }
@@ -568,10 +609,7 @@ const css = `
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getToken() {
-    return localStorage.getItem('caddy_ui_token');
-}
-
+function getToken() { return localStorage.getItem('caddy_ui_token'); }
 function setToken(token) {
     if (token) localStorage.setItem('caddy_ui_token', token);
     else localStorage.removeItem('caddy_ui_token');
@@ -591,15 +629,12 @@ async function apiFetch(path, opts = {}, onUnauth) {
     const token = getToken();
     const headers = { ...(opts.headers || {}) };
     if (token) headers['Authorization'] = `Bearer ${token}`;
-
     const res = await fetch(`${API}${path}`, { ...opts, headers });
-
     if (res.status === 401) {
         setToken(null);
         if (onUnauth) onUnauth();
         throw new Error('Session expired — please log in again');
     }
-
     if (!res.ok) {
         const ct = res.headers.get("content-type") || "";
         if (ct.includes("application/json")) {
@@ -609,7 +644,6 @@ async function apiFetch(path, opts = {}, onUnauth) {
         }
         throw new Error(res.statusText);
     }
-
     const ct = res.headers.get("content-type") || "";
     return ct.includes("application/json") ? res.json() : res.text();
 }
@@ -651,10 +685,7 @@ function LoginScreen({ onLogin }) {
                 body: JSON.stringify({ username, password }),
             });
             const data = await res.json();
-            if (!res.ok) {
-                setError(data.error || "Login failed");
-                return;
-            }
+            if (!res.ok) { setError(data.error || "Login failed"); return; }
             setToken(data.token);
             onLogin();
         } catch {
@@ -673,30 +704,13 @@ function LoginScreen({ onLogin }) {
                 {error && <div className="login-error">{error}</div>}
                 <div className="field">
                     <label>Username</label>
-                    <input
-                        value={username}
-                        onChange={e => setUsername(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && login()}
-                        autoFocus
-                        autoComplete="username"
-                    />
+                    <input value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} autoFocus autoComplete="username" />
                 </div>
                 <div className="field">
                     <label>Password</label>
-                    <input
-                        type="password"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && login()}
-                        autoComplete="current-password"
-                    />
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} autoComplete="current-password" />
                 </div>
-                <button
-                    className="btn btn-primary"
-                    style={{ width: "100%", marginTop: 8, justifyContent: "center" }}
-                    onClick={login}
-                    disabled={loading || !username || !password}
-                >
+                <button className="btn btn-primary" style={{ width: "100%", marginTop: 8, justifyContent: "center" }} onClick={login} disabled={loading || !username || !password}>
                     {loading ? "Signing in..." : "Sign in"}
                 </button>
             </div>
@@ -749,16 +763,10 @@ function CaddyfileCodeMirror({ value, onChange }) {
             const startState = EditorState.create({
                 doc: value,
                 extensions: [
-                    lineNumbers(),
-                    highlightActiveLineGutter(),
-                    highlightSpecialChars(),
-                    history(),
-                    drawSelection(),
-                    indentOnInput(),
-                    bracketMatching(),
+                    lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
+                    history(), drawSelection(), indentOnInput(), bracketMatching(),
                     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-                    StreamLanguage.define(nginx),
-                    theme,
+                    StreamLanguage.define(nginx), theme,
                     keymap.of([...defaultKeymap, ...historyKeymap]),
                     EditorView.updateListener.of(update => {
                         if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -779,9 +787,7 @@ function CaddyfileCodeMirror({ value, onChange }) {
         const view = viewRef.current;
         if (!view) return;
         const current = view.state.doc.toString();
-        if (current !== value) {
-            view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
-        }
+        if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
     }, [value]);
 
     return <div ref={containerRef} style={{ minHeight: 420, background: "#0a0c0f" }} />;
@@ -789,16 +795,16 @@ function CaddyfileCodeMirror({ value, onChange }) {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-function Dashboard({ status, toast, onUnauth }) {
+function Dashboard({ status, toast, onUnauth, setTab }) {
     const [names, setNames] = useState({});
     const [editingServer, setEditingServer] = useState(null);
     const [editName, setEditName] = useState("");
     const [health, setHealth] = useState(null);
     const [process, setProcess] = useState(null);
-    const [processOpen, setProcessOpen] = useState(false);
-    const [metricsConfig, setMetricsConfig] = useState(null);
-    const [savingMetrics, setSavingMetrics] = useState(false);
-    const [publicMetrics, setPublicMetrics] = useState(false);
+
+    const loadProcess = useCallback(() => {
+        apiFetch("/status/process", {}, onUnauth).then(setProcess).catch(() => { });
+    }, [onUnauth]);
 
     useEffect(() => {
         apiFetch("/server-names", {}, onUnauth).then(setNames).catch(() => { });
@@ -807,41 +813,18 @@ function Dashboard({ status, toast, onUnauth }) {
             const online = results.filter(r => r.online).length;
             setHealth({ total, online, offline: total - online });
         }).catch(() => { });
-        apiFetch("/status/process", {}, onUnauth).then(setProcess).catch(() => { });
-        apiFetch("/status/metrics-config", {}, onUnauth).then(setMetricsConfig).catch(() => { });
-        fetch(`${API}/auth/status`).then(r => r.json()).then(d => setPublicMetrics(d.publicMetrics || false)).catch(() => { });
-    }, []);
+        loadProcess();
+        const t = setInterval(loadProcess, 30000);
+        return () => clearInterval(t);
+    }, [loadProcess]);
 
-    const toggleMetrics = async (enabled) => {
-        setSavingMetrics(true);
-        try {
-            await apiFetch("/status/metrics-config", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enabled }),
-            }, onUnauth);
-            setMetricsConfig({ enabled });
-            toast.success(enabled ? "Metrics enabled" : "Metrics disabled");
-            // Refresh process info
-            apiFetch("/status/process", {}, onUnauth).then(setProcess).catch(() => { });
-        } catch (e) {
-            toast.error(e.message);
-        } finally {
-            setSavingMetrics(false);
-        }
-    };
-
-    const openEdit = (server) => {
-        setEditingServer(server);
-        setEditName(names[server.name] || "");
-    };
+    const openEdit = (server) => { setEditingServer(server); setEditName(names[server.name] || ""); };
 
     const saveName = async () => {
         try {
             if (editName.trim()) {
                 await apiFetch(`/server-names/${editingServer.name}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
+                    method: "PUT", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name: editName }),
                 }, onUnauth);
                 setNames(n => ({ ...n, [editingServer.name]: editName.trim() }));
@@ -852,23 +835,15 @@ function Dashboard({ status, toast, onUnauth }) {
                 toast.success("Server name cleared");
             }
             setEditingServer(null);
-        } catch (e) {
-            toast.error(e.message);
-        }
+        } catch (e) { toast.error(e.message); }
     };
 
     const formatLastReload = (iso) => {
         if (!iso) return "—";
-        return new Date(iso).toLocaleString('en-US', {
-            month: 'short', day: 'numeric',
-            hour: 'numeric', minute: '2-digit', hour12: true,
-        });
+        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
     };
 
-    const labelStyle = {
-        fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)",
-        letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block",
-    };
+    const labelStyle = { fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block" };
 
     if (!status) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading...</div>;
 
@@ -878,9 +853,7 @@ function Dashboard({ status, toast, onUnauth }) {
                 <div className="grid-4">
                     <div className="card">
                         <div className="card-title">Status</div>
-                        <div className="stat-val" style={{ color: status.online ? "var(--accent)" : "var(--danger)" }}>
-                            {status.online ? "ONLINE" : "OFFLINE"}
-                        </div>
+                        <div className="stat-val" style={{ color: status.online ? "var(--accent)" : "var(--danger)" }}>{status.online ? "ONLINE" : "OFFLINE"}</div>
                         <div className="stat-label">Caddy server</div>
                     </div>
                     <div className="card">
@@ -891,9 +864,7 @@ function Dashboard({ status, toast, onUnauth }) {
                     <div className="card">
                         <div className="card-title">TLS</div>
                         <div className="stat-val" style={{ fontSize: 20, paddingTop: 6 }}>
-                            {status.online
-                                ? <span className={`badge ${status.tlsEnabled ? "badge-green" : "badge-red"}`}>{status.tlsEnabled ? "ENABLED" : "DISABLED"}</span>
-                                : "—"}
+                            {status.online ? <span className={`badge ${status.tlsEnabled ? "badge-green" : "badge-red"}`}>{status.tlsEnabled ? "ENABLED" : "DISABLED"}</span> : "—"}
                         </div>
                         <div className="stat-label">Certificate management</div>
                     </div>
@@ -902,108 +873,43 @@ function Dashboard({ status, toast, onUnauth }) {
                         <div className="stat-val" style={{ color: !health ? "var(--text)" : health.offline > 0 ? "var(--danger)" : "var(--accent)" }}>
                             {health ? `${health.online}/${health.total}` : "—"}
                         </div>
-                        <div className="stat-label">
-                            {!health ? "Checking..." : health.offline > 0 ? `${health.offline} offline` : "All online"}
-                        </div>
+                        <div className="stat-label">{!health ? "Checking..." : health.offline > 0 ? `${health.offline} offline` : "All online"}</div>
                     </div>
                 </div>
 
-                {/* Process card */}
-                <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                    <div
-                        onClick={() => setProcessOpen(o => !o)}
-                        style={{ padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: processOpen ? "1px solid var(--border)" : "none" }}
-                    >
-                        <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
-                            Process
-                        </span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            {process?.ok && (
-                                <span className="badge badge-green">{process.uptime}</span>
-                            )}
-                            {metricsConfig && (
-                                <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>
-                                    {metricsConfig.enabled ? "METRICS ON" : "METRICS OFF"}
-                                </span>
-                            )}
-                            <span style={{ color: "var(--muted)", fontSize: 12 }}>{processOpen ? "▲" : "▼"}</span>
+                {/* Process card -- always visible, no expander */}
+                <div className="card">
+                    <div className="card-title">Process</div>
+                    {!process ? (
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
+                    ) : !process.ok ? (
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                            <span>Metrics not enabled</span>
+                            <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setTab("metrics")}>
+                                Enable in Metrics →
+                            </button>
                         </div>
-                    </div>
-
-                    {processOpen && (
-                        <div style={{ padding: 20 }}>
-                            {/* Process stats */}
-                            {!process ? (
-                                <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>Loading...</div>
-                            ) : !process.ok ? (
-                                <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>
-                                    Metrics unavailable — enable below to see process info
-                                </div>
-                            ) : (
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 20 }}>
-                                    <div>
-                                        <span style={labelStyle}>Version</span>
-                                        <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--text)" }}>{process.version}</div>
-                                    </div>
-                                    <div>
-                                        <span style={labelStyle}>Uptime</span>
-                                        <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--accent)" }}>{process.uptime || "—"}</div>
-                                    </div>
-                                    <div>
-                                        <span style={labelStyle}>Heap</span>
-                                        <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--text)" }}>
-                                            {process.memAlloc !== null ? `${process.memAlloc} MB` : "—"}
-                                            {process.memSys !== null && (
-                                                <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 4 }}>/ {process.memSys} MB sys</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span style={labelStyle}>Last Reload</span>
-                                        <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: process.lastReloadSuccess ? "var(--text)" : "var(--danger)" }}>
-                                            {formatLastReload(process.lastReload)}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Divider */}
-                            <div style={{ borderTop: "1px solid var(--border)", marginBottom: 16 }} />
-
-                            {/* Metrics toggle */}
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-                                <div>
-                                    <span style={labelStyle}>Caddy Metrics</span>
-                                    <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-                                        Enables the Prometheus metrics endpoint on Caddy's admin API
-                                    </div>
-                                </div>
-                                <div className="btn-row">
-                                    <button
-                                        className={`btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`}
-                                        onClick={() => toggleMetrics(!metricsConfig?.enabled)}
-                                        disabled={savingMetrics}
-                                    >
-                                        {savingMetrics ? "Saving..." : metricsConfig?.enabled ? "Disable" : "Enable"}
-                                    </button>
+                    ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
+                            <div>
+                                <span style={labelStyle}>Version</span>
+                                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--text)" }}>{process.version}</div>
+                            </div>
+                            <div>
+                                <span style={labelStyle}>Uptime</span>
+                                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--accent)" }}>{process.uptime || "—"}</div>
+                            </div>
+                            <div>
+                                <span style={labelStyle}>Heap</span>
+                                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--text)" }}>
+                                    {process.memAlloc !== null ? `${process.memAlloc} MB` : "—"}
+                                    {process.memSys !== null && <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 4 }}>/ {process.memSys} MB sys</span>}
                                 </div>
                             </div>
-
-                            {/* Public metrics */}
-                            <div style={{ borderTop: "1px solid var(--border)", marginTop: 16, paddingTop: 16 }}>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-                                    <div>
-                                        <span style={labelStyle}>Public Metrics Endpoint</span>
-                                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-                                            {publicMetrics
-                                                ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics</span></>
-                                                : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"
-                                            }
-                                        </div>
-                                    </div>
-                                    <span className={`badge ${publicMetrics ? "badge-green" : "badge-muted"}`}>
-                                        {publicMetrics ? "ENABLED" : "DISABLED"}
-                                    </span>
+                            <div>
+                                <span style={labelStyle}>Last Reload</span>
+                                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: process.lastReloadSuccess ? "var(--text)" : "var(--danger)" }}>
+                                    {formatLastReload(process.lastReload)}
                                 </div>
                             </div>
                         </div>
@@ -1018,11 +924,7 @@ function Dashboard({ status, toast, onUnauth }) {
                                 <div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <div className="server-name">{s.name}</div>
-                                        {names[s.name] && (
-                                            <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--text)" }}>
-                                                — {names[s.name]}
-                                            </span>
-                                        )}
+                                        {names[s.name] && <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--text)" }}>— {names[s.name]}</span>}
                                     </div>
                                     <div className="server-meta">{s.listen?.join(", ") || "no listeners"}</div>
                                 </div>
@@ -1057,17 +959,9 @@ function Dashboard({ status, toast, onUnauth }) {
                         </div>
                         <div className="field">
                             <label>Display Name</label>
-                            <input
-                                value={editName}
-                                onChange={e => setEditName(e.target.value)}
-                                placeholder={`e.g. "Main Sites" or "Internal Services"`}
-                                autoFocus
-                                onKeyDown={e => e.key === 'Enter' && saveName()}
-                            />
+                            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={`e.g. "Main Sites" or "Internal Services"`} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                         </div>
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>
-                            Leave blank to clear the name.
-                        </div>
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the name.</div>
                         <div className="btn-row" style={{ justifyContent: "flex-end" }}>
                             <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>Cancel</button>
                             <button className="btn btn-primary" onClick={saveName}>Save</button>
@@ -1105,10 +999,7 @@ function CaddyfileEditor({ toast, onUnauth }) {
 
     const loadHistory = () => {
         setHistoryLoading(true);
-        apiFetch("/caddyfile/history", {}, onUnauth)
-            .then(setHistory)
-            .catch(() => setHistory([]))
-            .finally(() => setHistoryLoading(false));
+        apiFetch("/caddyfile/history", {}, onUnauth).then(setHistory).catch(() => setHistory([])).finally(() => setHistoryLoading(false));
     };
 
     const toggleHistory = () => {
@@ -1119,39 +1010,24 @@ function CaddyfileEditor({ toast, onUnauth }) {
     };
 
     const previewSnapshot = async (entry) => {
-        if (previewEntry?.filename === entry.filename) {
-            setPreviewEntry(null);
-            setPreviewContent("");
-            return;
-        }
+        if (previewEntry?.filename === entry.filename) { setPreviewEntry(null); setPreviewContent(""); return; }
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             setPreviewEntry(entry);
             setPreviewContent(text);
-        } catch (e) {
-            toast.error(e.message);
-        }
+        } catch (e) { toast.error(e.message); }
     };
 
     const restoreSnapshot = async (entry) => {
         if (!confirm(`Restore Caddyfile from ${formatTs(entry.timestamp)}? The current file will be snapshotted first.`)) return;
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
-            await apiFetch("/caddyfile/restore", {
-                method: "POST",
-                headers: { "Content-Type": "text/plain" },
-                body: text,
-            }, onUnauth);
+            await apiFetch("/caddyfile/restore", { method: "POST", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
-            setContent(fresh);
-            setOriginal(fresh);
-            setHistoryOpen(false);
-            setPreviewEntry(null);
+            setContent(fresh); setOriginal(fresh); setHistoryOpen(false); setPreviewEntry(null);
             toast.success(`Restored from ${formatTs(entry.timestamp)}`);
             loadHistory();
-        } catch (e) {
-            toast.error(e.message);
-        }
+        } catch (e) { toast.error(e.message); }
     };
 
     const deleteSnapshot = async (entry) => {
@@ -1159,71 +1035,41 @@ function CaddyfileEditor({ toast, onUnauth }) {
         try {
             await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
             toast.success("Snapshot deleted");
-            if (previewEntry?.filename === entry.filename) {
-                setPreviewEntry(null);
-                setPreviewContent("");
-            }
+            if (previewEntry?.filename === entry.filename) { setPreviewEntry(null); setPreviewContent(""); }
             loadHistory();
-        } catch (e) {
-            toast.error(e.message);
-        }
+        } catch (e) { toast.error(e.message); }
     };
 
     const validate = async () => {
         setValidating(true);
         try {
-            const result = await apiFetch("/caddyfile/validate", {
-                method: "POST",
-                headers: { "Content-Type": "text/plain" },
-                body: content,
-            }, onUnauth);
-            if (result.warnings?.length) {
-                result.warnings.forEach(w => toast.info(w));
-            } else {
-                toast.success("Caddyfile is valid");
-            }
-        } catch (e) {
-            toast.error(e.message);
-        } finally {
-            setValidating(false);
-        }
+            const result = await apiFetch("/caddyfile/validate", { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
+            if (result.warnings?.length) result.warnings.forEach(w => toast.info(w));
+            else toast.success("Caddyfile is valid");
+        } catch (e) { toast.error(e.message); }
+        finally { setValidating(false); }
     };
 
     const save = async () => {
         setSaving(true);
         try {
-            await apiFetch(`/caddyfile?fmt=${runFmt}&sort=${runSort}`, {
-                method: "PUT",
-                headers: { "Content-Type": "text/plain" },
-                body: content,
-            }, onUnauth);
+            await apiFetch(`/caddyfile?fmt=${runFmt}&sort=${runSort}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
-            setContent(fresh);
-            setOriginal(fresh);
+            setContent(fresh); setOriginal(fresh);
             toast.success("Caddyfile saved and reloaded");
             if (historyOpen) loadHistory();
-        } catch (e) {
-            toast.error(e.message);
-        } finally {
-            setSaving(false);
-        }
+        } catch (e) { toast.error(e.message); }
+        finally { setSaving(false); }
     };
 
     const reload = async () => {
-        try {
-            await apiFetch("/caddyfile/reload", { method: "POST" }, onUnauth);
-            toast.success("Caddy reloaded from disk");
-        } catch (e) {
-            toast.error(e.message);
-        }
+        try { await apiFetch("/caddyfile/reload", { method: "POST" }, onUnauth); toast.success("Caddy reloaded from disk"); }
+        catch (e) { toast.error(e.message); }
     };
 
     const download = () => {
         const token = getToken();
-        const url = token
-            ? `${API}/caddyfile/download?token=${token}`
-            : `${API}/caddyfile/download`;
-        window.open(url, '_blank');
+        window.open(token ? `${API}/caddyfile/download?token=${token}` : `${API}/caddyfile/download`, '_blank');
     };
 
     const restore = (e) => {
@@ -1234,19 +1080,12 @@ function CaddyfileEditor({ toast, onUnauth }) {
             const text = ev.target.result;
             if (!confirm("Restore this Caddyfile? This will validate, reload Caddy, and overwrite the current file.")) return;
             try {
-                await apiFetch("/caddyfile/restore", {
-                    method: "POST",
-                    headers: { "Content-Type": "text/plain" },
-                    body: text,
-                }, onUnauth);
+                await apiFetch("/caddyfile/restore", { method: "POST", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
                 const fresh = await apiFetch("/caddyfile", {}, onUnauth);
-                setContent(fresh);
-                setOriginal(fresh);
+                setContent(fresh); setOriginal(fresh);
                 toast.success("Caddyfile restored and reloaded");
                 if (historyOpen) loadHistory();
-            } catch (err) {
-                toast.error(err.message);
-            }
+            } catch (err) { toast.error(err.message); }
         };
         reader.readAsText(file);
         e.target.value = "";
@@ -1273,19 +1112,13 @@ function CaddyfileEditor({ toast, onUnauth }) {
                     </div>
                     <div className="btn-row">
                         <span className="editor-hint">{isDirty ? "● unsaved changes" : "✓ up to date"}</span>
-                        <button className="btn btn-ghost" onClick={validate} disabled={validating}>
-                            {validating ? "Validating..." : "✓ Validate"}
-                        </button>
-                        <button className="btn btn-ghost" onClick={toggleHistory}>
-                            ⊙ History{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}
-                        </button>
+                        <button className="btn btn-ghost" onClick={validate} disabled={validating}>{validating ? "Validating..." : "✓ Validate"}</button>
+                        <button className="btn btn-ghost" onClick={toggleHistory}>⊙ History{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}</button>
                         <button className="btn btn-ghost" onClick={download}>↓ Backup</button>
                         <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()}>↑ Restore</button>
                         <input ref={fileInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={restore} />
                         <button className="btn btn-ghost" onClick={reload}>↺ Reload</button>
-                        <button className="btn btn-primary" onClick={save} disabled={saving || !isDirty}>
-                            {saving ? "Saving..." : "↑ Save"}
-                        </button>
+                        <button className="btn btn-primary" onClick={save} disabled={saving || !isDirty}>{saving ? "Saving..." : "↑ Save"}</button>
                     </div>
                 </div>
             </div>
@@ -1293,43 +1126,28 @@ function CaddyfileEditor({ toast, onUnauth }) {
             {historyOpen && (
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                     <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
-                            Version History
-                        </span>
-                        <button className="btn btn-ghost" onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 11 }}>
-                            ↺ Refresh
-                        </button>
+                        <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Version History</span>
+                        <button className="btn btn-ghost" onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 11 }}>↺ Refresh</button>
                     </div>
                     {historyLoading ? (
                         <div style={{ padding: 16, fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
                     ) : history.length === 0 ? (
-                        <div style={{ padding: 24, textAlign: "center", fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>
-                            No snapshots yet — save your Caddyfile to create one
-                        </div>
+                        <div style={{ padding: 24, textAlign: "center", fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>No snapshots yet — save your Caddyfile to create one</div>
                     ) : (
                         <div style={{ padding: "0 16px" }}>
                             {history.map((entry, i) => (
                                 <div key={entry.filename}>
                                     <div className="history-row">
-                                        <div
-                                            style={{ fontFamily: "var(--mono)", fontSize: 12, color: previewEntry?.filename === entry.filename ? "var(--accent)" : "var(--text)", cursor: "pointer", flex: 1 }}
-                                            onClick={() => previewSnapshot(entry)}
-                                        >
+                                        <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: previewEntry?.filename === entry.filename ? "var(--accent)" : "var(--text)", cursor: "pointer", flex: 1 }} onClick={() => previewSnapshot(entry)}>
                                             {formatTs(entry.timestamp)}
                                             {i === 0 && <span style={{ marginLeft: 8, fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)" }}>latest</span>}
                                         </div>
                                         <div className="btn-row">
-                                            <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => restoreSnapshot(entry)}>
-                                                ↺ Restore
-                                            </button>
-                                            <button className="btn btn-danger" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => deleteSnapshot(entry)}>
-                                                ✕
-                                            </button>
+                                            <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => restoreSnapshot(entry)}>↺ Restore</button>
+                                            <button className="btn btn-danger" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => deleteSnapshot(entry)}>✕</button>
                                         </div>
                                     </div>
-                                    {previewEntry?.filename === entry.filename && (
-                                        <div className="history-preview">{previewContent}</div>
-                                    )}
+                                    {previewEntry?.filename === entry.filename && <div className="history-preview">{previewContent}</div>}
                                 </div>
                             ))}
                         </div>
@@ -1345,10 +1163,8 @@ function CaddyfileEditor({ toast, onUnauth }) {
 function RouteModal({ mode, initial, onSave, onClose }) {
     const isEdit = mode === "edit";
     const [form, setForm] = useState({
-        domain: initial?.domain || "",
-        upstream: initial?.upstream || "",
-        stripPrefix: initial?.stripPrefix || "",
-        _id: initial?._id || null,
+        domain: initial?.domain || "", upstream: initial?.upstream || "",
+        stripPrefix: initial?.stripPrefix || "", _id: initial?._id || null,
         _originalDomain: initial?._originalDomain || null,
     });
     const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -1359,17 +1175,8 @@ function RouteModal({ mode, initial, onSave, onClose }) {
                 <div className="modal-title">{isEdit ? "Edit Route" : "New Reverse Proxy Route"}</div>
                 <div className="field">
                     <label>Domain</label>
-                    <input
-                        value={form.domain}
-                        onChange={set("domain")}
-                        placeholder="app.example.com"
-                        disabled={isEdit && !form._id}
-                    />
-                    {isEdit && !form._id && (
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
-                            Domain cannot be changed for Caddyfile-managed routes
-                        </div>
-                    )}
+                    <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" disabled={isEdit && !form._id} />
+                    {isEdit && !form._id && <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Domain cannot be changed for Caddyfile-managed routes</div>}
                 </div>
                 <div className="field">
                     <label>Upstream</label>
@@ -1381,11 +1188,7 @@ function RouteModal({ mode, initial, onSave, onClose }) {
                 </div>
                 <div className="btn-row" style={{ marginTop: 20, justifyContent: "flex-end" }}>
                     <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => onSave(form)}
-                        disabled={!form.upstream || (!isEdit && !form.domain)}
-                    >
+                    <button className="btn btn-primary" onClick={() => onSave(form)} disabled={!form.upstream || (!isEdit && !form.domain)}>
                         {isEdit ? "Save Changes" : "Add Route"}
                     </button>
                 </div>
@@ -1396,27 +1199,16 @@ function RouteModal({ mode, initial, onSave, onClose }) {
 
 function NoteModal({ domain, initialNote, onSave, onClose }) {
     const [note, setNote] = useState(initialNote || "");
-
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-title">Route Note</div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>
-                    {domain}
-                </div>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>{domain}</div>
                 <div className="field">
                     <label>Note</label>
-                    <input
-                        value={note}
-                        onChange={e => setNote(e.target.value)}
-                        placeholder="e.g. Home Assistant, media server, internal dashboard..."
-                        autoFocus
-                        onKeyDown={e => e.key === 'Enter' && onSave(domain, note)}
-                    />
+                    <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Home Assistant, media server..." autoFocus onKeyDown={e => e.key === 'Enter' && onSave(domain, note)} />
                 </div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>
-                    Leave blank to clear the note.
-                </div>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the note.</div>
                 <div className="btn-row" style={{ justifyContent: "flex-end" }}>
                     <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
                     <button className="btn btn-primary" onClick={() => onSave(domain, note)}>Save</button>
@@ -1440,114 +1232,68 @@ function RoutesManager({ toast, setTab, onUnauth }) {
     const [search, setSearch] = useState("");
 
     const load = () => {
-        apiFetch("/routes", {}, onUnauth)
-            .then(setRoutes)
-            .catch(e => toast.error(e.message))
-            .finally(() => setLoading(false));
+        apiFetch("/routes", {}, onUnauth).then(setRoutes).catch(e => toast.error(e.message)).finally(() => setLoading(false));
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
         apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
     };
 
     const loadHealth = () => {
         setHealthLoading(true);
-        apiFetch("/health", {}, onUnauth)
-            .then(results => {
-                const map = {};
-                for (const r of results) map[r.upstream] = r.online;
-                setHealth(map);
-            })
-            .catch(() => { })
-            .finally(() => setHealthLoading(false));
+        apiFetch("/health", {}, onUnauth).then(results => {
+            const map = {};
+            for (const r of results) map[r.upstream] = r.online;
+            setHealth(map);
+        }).catch(() => { }).finally(() => setHealthLoading(false));
     };
 
     useEffect(() => {
-        load();
-        loadHealth();
+        load(); loadHealth();
         const t = setInterval(loadHealth, 30000);
         return () => clearInterval(t);
     }, []);
 
     const addRoute = async (form) => {
         try {
-            await apiFetch("/routes", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
-            }, onUnauth);
+            await apiFetch("/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, onUnauth);
             toast.success(`Route for ${form.domain} added`);
-            setModal(null);
-            load();
-            loadHealth();
-        } catch (e) {
-            toast.error(e.message);
-        }
+            setModal(null); load(); loadHealth();
+        } catch (e) { toast.error(e.message); }
     };
 
     const editRoute = async (form) => {
         try {
             if (form._id) {
-                await apiFetch(`/routes/${form._id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }),
-                }, onUnauth);
+                await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
             } else {
-                await apiFetch(`/routes/caddyfile/${encodeURIComponent(form._originalDomain)}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ upstream: form.upstream, stripPrefix: form.stripPrefix }),
-                }, onUnauth);
+                await apiFetch(`/routes/caddyfile/${encodeURIComponent(form._originalDomain)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
             }
             toast.success("Route updated");
-            setModal(null);
-            load();
-            loadHealth();
-        } catch (e) {
-            toast.error(e.message);
-        }
+            setModal(null); load(); loadHealth();
+        } catch (e) { toast.error(e.message); }
     };
 
     const deleteRoute = async (id) => {
         if (!confirm("Delete this route?")) return;
         try {
             await apiFetch(`/routes/${id}`, { method: "DELETE" }, onUnauth);
-            toast.success("Route removed");
-            load();
-            loadHealth();
-        } catch (e) {
-            toast.error(e.message);
-        }
+            toast.success("Route removed"); load(); loadHealth();
+        } catch (e) { toast.error(e.message); }
     };
 
     const saveNote = async (domain, note) => {
         try {
-            await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ note }),
-            }, onUnauth);
-            setNotes(n => {
-                const updated = { ...n };
-                if (note.trim()) updated[domain] = note.trim();
-                else delete updated[domain];
-                return updated;
-            });
+            await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note }) }, onUnauth);
+            setNotes(n => { const u = { ...n }; if (note.trim()) u[domain] = note.trim(); else delete u[domain]; return u; });
             toast.success(note.trim() ? "Note saved" : "Note cleared");
             setNoteModal(null);
-        } catch (e) {
-            toast.error(e.message);
-        }
+        } catch (e) { toast.error(e.message); }
     };
 
-    const getHost = (route) => {
-        const hostMatcher = route.match?.find(m => m.host);
-        return hostMatcher?.host?.join(", ") || "—";
-    };
+    const getHost = (route) => route.match?.find(m => m.host)?.host?.join(", ") || "—";
 
     const getUpstream = (route) => {
         const subroute = route.handle?.find(h => h.handler === "subroute");
-        const innerRoutes = subroute?.routes ?? [];
-        for (const r of innerRoutes) {
+        for (const r of subroute?.routes ?? []) {
             const rp = r.handle?.find(h => h.handler === "reverse_proxy");
             if (rp) return rp.upstreams?.map(u => u.dial).join(", ") || "—";
         }
@@ -1555,22 +1301,11 @@ function RoutesManager({ toast, setTab, onUnauth }) {
         return flat?.upstreams?.map(u => u.dial).join(", ") || "—";
     };
 
-    const getStripPrefix = (route) => {
-        const pathMatcher = route.match?.find(m => m.path);
-        if (!pathMatcher) return "";
-        return (pathMatcher.path?.[0] || "").replace("/*", "");
-    };
+    const getStripPrefix = (route) => (route.match?.find(m => m.path)?.path?.[0] || "").replace("/*", "");
 
     const openEdit = (route) => {
         const domain = getHost(route);
-        setModal({
-            mode: "edit",
-            _id: route["@id"] || null,
-            _originalDomain: domain,
-            domain,
-            upstream: getUpstream(route),
-            stripPrefix: getStripPrefix(route),
-        });
+        setModal({ mode: "edit", _id: route["@id"] || null, _originalDomain: domain, domain, upstream: getUpstream(route), stripPrefix: getStripPrefix(route) });
     };
 
     const getDomainScheme = (domain) => {
@@ -1666,28 +1401,19 @@ function RoutesManager({ toast, setTab, onUnauth }) {
                                         const hasId = !!r["@id"];
                                         const canEdit = hasId || r._simpleProxy;
                                         const note = notes[domain];
-
                                         return (
                                             <tr key={r["@id"] || i}>
                                                 <td>
                                                     <div style={{ display: "flex", alignItems: "center" }}>
                                                         {getHealthDot(r)}
                                                         <div>
-                                                            {dLink ? (
-                                                                <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">{domain}</a>
-                                                            ) : (
-                                                                <span className="mono">{domain}</span>
-                                                            )}
+                                                            {dLink ? <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">{domain}</a> : <span className="mono">{domain}</span>}
                                                             {note && <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{note}</div>}
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    {uLink ? (
-                                                        <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a>
-                                                    ) : (
-                                                        <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>
-                                                    )}
+                                                    {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
                                                 </td>
                                                 <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r._server || "—"}</td>
                                                 <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
@@ -1699,9 +1425,7 @@ function RoutesManager({ toast, setTab, onUnauth }) {
                                                         ) : (
                                                             <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => setTab("caddyfile")} title="Complex route — edit in Caddyfile">⌗</button>
                                                         )}
-                                                        {hasId && (
-                                                            <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>
-                                                        )}
+                                                        {hasId && <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1728,10 +1452,7 @@ function TLSViewer({ toast, onUnauth }) {
 
     const load = () => {
         setLoading(true);
-        apiFetch("/tls", {}, onUnauth)
-            .then(setCerts)
-            .catch(e => toast.error(e.message))
-            .finally(() => setLoading(false));
+        apiFetch("/tls", {}, onUnauth).then(setCerts).catch(e => toast.error(e.message)).finally(() => setLoading(false));
     };
 
     useEffect(load, []);
@@ -1740,11 +1461,8 @@ function TLSViewer({ toast, onUnauth }) {
         if (!confirm(`Delete orphaned cert for ${cert.domain}?`)) return;
         try {
             await apiFetch(`/tls/${cert.issuerDir}/${cert.domain}`, { method: "DELETE" }, onUnauth);
-            toast.success(`Deleted cert for ${cert.domain}`);
-            load();
-        } catch (e) {
-            toast.error(e.message);
-        }
+            toast.success(`Deleted cert for ${cert.domain}`); load();
+        } catch (e) { toast.error(e.message); }
     };
 
     const summary = {
@@ -1877,21 +1595,16 @@ function LogsViewer({ toast, onUnauth }) {
     }, [lines]);
 
     const toggleLive = () => {
-        if (live) {
-            esRef.current?.close();
-            esRef.current = null;
-            setLive(false);
-        } else {
-            const token = getToken();
-            const url = token ? `${API}/logs/stream?token=${token}` : `${API}/logs/stream`;
-            const es = new EventSource(url);
-            es.onmessage = e => {
-                const data = JSON.parse(e.data);
-                if (data.line) setLines(l => [...l.slice(-500), data.line]);
-            };
-            esRef.current = es;
-            setLive(true);
-        }
+        if (live) { esRef.current?.close(); esRef.current = null; setLive(false); return; }
+        const token = getToken();
+        const url = token ? `${API}/logs/stream?token=${token}` : `${API}/logs/stream`;
+        const es = new EventSource(url);
+        es.onmessage = e => {
+            const data = JSON.parse(e.data);
+            if (data.line) setLines(l => [...l.slice(-500), data.line]);
+        };
+        esRef.current = es;
+        setLive(true);
     };
 
     useEffect(() => () => esRef.current?.close(), []);
@@ -1911,28 +1624,18 @@ function LogsViewer({ toast, onUnauth }) {
         return true;
     };
 
-    const filteredLines = lines.filter(line => {
-        const matchesSearch = !logSearch || line.toLowerCase().includes(logSearch.toLowerCase());
-        return matchesSearch && matchesLevel(line);
-    });
+    const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
 
     const updateConfig = (key, value) => { setLogConfig(c => ({ ...c, [key]: value })); setConfigDirty(true); };
 
     const saveConfig = async () => {
         setSavingConfig(true);
         try {
-            await apiFetch("/logs/config", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(logConfig),
-            }, onUnauth);
+            await apiFetch("/logs/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logConfig) }, onUnauth);
             toast.success("Log config saved and reloaded");
             setConfigDirty(false);
-        } catch (e) {
-            toast.error(e.message);
-        } finally {
-            setSavingConfig(false);
-        }
+        } catch (e) { toast.error(e.message); }
+        finally { setSavingConfig(false); }
     };
 
     const selectStyle = { background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)", fontSize: 12, outline: "none", cursor: "pointer", width: "100%" };
@@ -1955,7 +1658,6 @@ function LogsViewer({ toast, onUnauth }) {
                         <span style={{ color: "var(--muted)", fontSize: 12 }}>{configOpen ? "▲" : "▼"}</span>
                     </div>
                 </div>
-
                 {configOpen && logConfig && (
                     <div style={{ padding: 16 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 16 }}>
@@ -2032,6 +1734,199 @@ function LogsViewer({ toast, onUnauth }) {
     );
 }
 
+// ── Metrics ───────────────────────────────────────────────────────────────────
+
+function MetricsViewer({ toast, onUnauth }) {
+    const [metrics, setMetrics] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [configOpen, setConfigOpen] = useState(false);
+    const [metricsConfig, setMetricsConfig] = useState(null);
+    const [savingMetrics, setSavingMetrics] = useState(false);
+    const [publicMetrics, setPublicMetrics] = useState(false);
+
+    const load = useCallback(() => {
+        setLoading(true);
+        apiFetch("/status/metrics-parsed", {}, onUnauth)
+            .then(setMetrics)
+            .catch(() => setMetrics({ ok: false, error: "Failed to fetch metrics" }))
+            .finally(() => setLoading(false));
+    }, [onUnauth]);
+
+    useEffect(() => {
+        load();
+        apiFetch("/status/metrics-config", {}, onUnauth).then(setMetricsConfig).catch(() => { });
+        fetch(`${API}/auth/status`).then(r => r.json()).then(d => setPublicMetrics(d.publicMetrics || false)).catch(() => { });
+        const t = setInterval(load, 30000);
+        return () => clearInterval(t);
+    }, [load]);
+
+    const toggleMetrics = async (enabled) => {
+        setSavingMetrics(true);
+        try {
+            await apiFetch("/status/metrics-config", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled }),
+            }, onUnauth);
+            setMetricsConfig({ enabled });
+            toast.success(enabled ? "Metrics enabled" : "Metrics disabled");
+            if (enabled) setTimeout(load, 1000);
+        } catch (e) { toast.error(e.message); }
+        finally { setSavingMetrics(false); }
+    };
+
+    const labelStyle = { fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block" };
+
+    const statusColors = {
+        '2xx': 'var(--accent)',
+        '3xx': 'var(--accent2)',
+        '4xx': 'var(--warn)',
+        '5xx': 'var(--danger)',
+    };
+
+    const formatScrapedAt = (iso) => {
+        if (!iso) return "";
+        const ts = iso.endsWith('Z') ? iso : iso + 'Z';
+        return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+    };
+
+    return (
+        <div className="gap-16">
+            {/* Config panel */}
+            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div onClick={() => setConfigOpen(o => !o)} style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: configOpen ? "1px solid var(--border)" : "none" }}>
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Metrics Configuration</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        {metricsConfig && <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>{metricsConfig.enabled ? "ENABLED" : "DISABLED"}</span>}
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>{configOpen ? "▲" : "▼"}</span>
+                    </div>
+                </div>
+
+                {configOpen && (
+                    <div style={{ padding: 16 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                            <div>
+                                <span style={labelStyle}>Caddy Metrics</span>
+                                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                                    Enables the Prometheus metrics endpoint on Caddy's admin API
+                                </div>
+                            </div>
+                            <button
+                                className={`btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`}
+                                onClick={() => toggleMetrics(!metricsConfig?.enabled)}
+                                disabled={savingMetrics}
+                            >
+                                {savingMetrics ? "Saving..." : metricsConfig?.enabled ? "Disable" : "Enable"}
+                            </button>
+                        </div>
+
+                        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                                <div>
+                                    <span style={labelStyle}>Public Metrics Endpoint</span>
+                                    <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                                        {publicMetrics
+                                            ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics</span></>
+                                            : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"
+                                        }
+                                    </div>
+                                </div>
+                                <span className={`badge ${publicMetrics ? "badge-green" : "badge-muted"}`}>{publicMetrics ? "ENABLED" : "DISABLED"}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Metrics data */}
+            {loading ? (
+                <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading metrics...</div>
+            ) : !metrics?.ok ? (
+                <div className="card">
+                    <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                        <span>Metrics not enabled — enable above to see request data</span>
+                        <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfigOpen(true)}>Configure →</button>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    {/* Summary cards */}
+                    <div className="grid-3">
+                        <div className="card">
+                            <div className="card-title">Total Requests</div>
+                            <div className="stat-val">{metrics.totalRequests.toLocaleString()}</div>
+                            <div className="stat-label">Since process start</div>
+                        </div>
+                        <div className="card">
+                            <div className="card-title">Requests / sec</div>
+                            <div className="stat-val" style={{ color: "var(--accent)" }}>{metrics.rps ?? "—"}</div>
+                            <div className="stat-label">Avg over uptime</div>
+                        </div>
+                        <div className="card">
+                            <div className="card-title">Avg Response</div>
+                            <div className="stat-val" style={{ color: metrics.avgResponseMs > 500 ? "var(--warn)" : "var(--text)" }}>
+                                {metrics.avgResponseMs}<span style={{ fontSize: 14, color: "var(--muted)", marginLeft: 4 }}>ms</span>
+                            </div>
+                            <div className="stat-label">Mean response time</div>
+                        </div>
+                    </div>
+
+                    {/* Status codes + percentiles */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                        <div className="card">
+                            <div className="card-title">Status Codes</div>
+                            <div className="metrics-bar-wrap">
+                                {Object.entries(metrics.statusGroups).map(([group, count]) => {
+                                    const total = metrics.totalRequests || 1;
+                                    const pct = Math.round((count / total) * 100);
+                                    return (
+                                        <div key={group} className="metrics-bar-row">
+                                            <div className="metrics-bar-label" style={{ color: statusColors[group] }}>{group}</div>
+                                            <div className="metrics-bar-track">
+                                                <div className="metrics-bar-fill" style={{ width: `${pct}%`, background: statusColors[group] }} />
+                                            </div>
+                                            <div className="metrics-bar-count">{count}</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="card">
+                            <div className="card-title">Response Time Percentiles</div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                                {[
+                                    { label: "p50", val: metrics.p50, color: "var(--accent)" },
+                                    { label: "p95", val: metrics.p95, color: "var(--warn)" },
+                                    { label: "p99", val: metrics.p99, color: "var(--danger)" },
+                                ].map(({ label, val, color }) => (
+                                    <div key={label}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                                            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>{label}</span>
+                                            <span style={{ fontFamily: "var(--mono)", fontSize: 13, color }}>{val}<span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 3 }}>ms</span></span>
+                                        </div>
+                                        <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+                                            <div style={{ height: "100%", width: `${Math.min(100, (val / (metrics.p99 || 1)) * 100)}%`, background: color, borderRadius: 2, transition: "width 0.4s" }} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", textAlign: "right", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>Refreshes every 30s</span>
+                        <div className="btn-row">
+                            <span>Last scraped: {formatScrapedAt(metrics.scrapedAt)}</span>
+                            <button className="btn btn-ghost" onClick={load} style={{ fontSize: 11 }}>↺ Refresh</button>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
 const NAV = [
@@ -2040,6 +1935,7 @@ const NAV = [
     { id: "routes", label: "Routes", icon: "⇌" },
     { id: "tls", label: "TLS", icon: "⊕" },
     { id: "logs", label: "Logs", icon: "≡" },
+    { id: "metrics", label: "Metrics", icon: "∿" },
 ];
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -2052,25 +1948,17 @@ export default function App() {
     const [authed, setAuthed] = useState(!!getToken());
     const toast = useToast();
 
-    const onUnauth = useCallback(() => {
-        setToken(null);
-        setAuthed(false);
-    }, []);
+    const onUnauth = useCallback(() => { setToken(null); setAuthed(false); }, []);
 
     useEffect(() => {
         fetch(`${API}/auth/status`)
             .then(r => r.json())
-            .then(d => {
-                setAuthEnabled(d.authEnabled);
-                if (!d.authEnabled) setAuthed(true);
-            })
+            .then(d => { setAuthEnabled(d.authEnabled); if (!d.authEnabled) setAuthed(true); })
             .catch(() => setAuthed(true));
     }, []);
 
     const fetchStatus = useCallback(() => {
-        apiFetch("/status", {}, onUnauth)
-            .then(setStatus)
-            .catch(() => setStatus({ online: false, error: "Could not reach backend" }));
+        apiFetch("/status", {}, onUnauth).then(setStatus).catch(() => setStatus({ online: false, error: "Could not reach backend" }));
     }, [onUnauth]);
 
     useEffect(() => {
@@ -2080,9 +1968,7 @@ export default function App() {
         return () => clearInterval(t);
     }, [authed, fetchStatus]);
 
-    if (!authed) {
-        return <LoginScreen onLogin={() => setAuthed(true)} />;
-    }
+    if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
 
     const titles = {
         dashboard: "Dashboard",
@@ -2090,6 +1976,7 @@ export default function App() {
         routes: "Route Manager",
         tls: "TLS Certificates",
         logs: "Access Logs",
+        metrics: "Metrics",
     };
 
     return (
@@ -2104,9 +1991,7 @@ export default function App() {
                         <div className="logo-sub">Server Manager</div>
                         <div className="status-pill">
                             <div className={`status-dot ${status ? (status.online ? "online" : "offline") : ""}`} />
-                            <span style={{ color: "var(--muted)" }}>
-                                {status ? (status.online ? "connected" : "unreachable") : "checking..."}
-                            </span>
+                            <span style={{ color: "var(--muted)" }}>{status ? (status.online ? "connected" : "unreachable") : "checking..."}</span>
                         </div>
                     </div>
                     <nav className="nav">
@@ -2136,11 +2021,12 @@ export default function App() {
                         <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>↺ Refresh</button>
                     </div>
                     <div className="content">
-                        {tab === "dashboard" && <Dashboard status={status} toast={toast} onUnauth={onUnauth} />}
+                        {tab === "dashboard" && <Dashboard status={status} toast={toast} onUnauth={onUnauth} setTab={setTab} />}
                         {tab === "caddyfile" && <CaddyfileEditor toast={toast} onUnauth={onUnauth} />}
                         {tab === "routes" && <RoutesManager toast={toast} setTab={setTab} onUnauth={onUnauth} />}
                         {tab === "tls" && <TLSViewer toast={toast} onUnauth={onUnauth} />}
                         {tab === "logs" && <LogsViewer toast={toast} onUnauth={onUnauth} />}
+                        {tab === "metrics" && <MetricsViewer toast={toast} onUnauth={onUnauth} />}
                     </div>
                 </div>
             </div>
