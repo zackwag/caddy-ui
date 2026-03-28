@@ -1221,6 +1221,7 @@ function NoteModal({ domain, initialNote, onSave, onClose }) {
 function RoutesManager({ toast, setTab, onUnauth }) {
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
+    const [uptime, setUptime] = useState({});
     const [certs, setCerts] = useState([]);
     const [notes, setNotes] = useState({});
     const [loading, setLoading] = useState(true);
@@ -1239,11 +1240,15 @@ function RoutesManager({ toast, setTab, onUnauth }) {
 
     const loadHealth = () => {
         setHealthLoading(true);
-        apiFetch("/health", {}, onUnauth).then(results => {
-            const map = {};
-            for (const r of results) map[r.upstream] = r.online;
-            setHealth(map);
-        }).catch(() => { }).finally(() => setHealthLoading(false));
+        apiFetch("/health", {}, onUnauth)
+            .then(results => {
+                const map = {};
+                for (const r of results) map[r.upstream] = r.online;
+                setHealth(map);
+            })
+            .catch(() => { })
+            .finally(() => setHealthLoading(false));
+        apiFetch("/health/uptime", {}, onUnauth).then(setUptime).catch(() => { });
     };
 
     useEffect(() => {
@@ -1323,15 +1328,36 @@ function RoutesManager({ toast, setTab, onUnauth }) {
 
     const getHealthDot = (route) => {
         const upstream = getUpstream(route);
-        if (upstream === "—") return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--border2)", marginRight: 8, flexShrink: 0 }} title="No upstream" />;
+        if (upstream === "—") return (
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--border2)", marginRight: 8, flexShrink: 0 }} title="No upstream" />
+        );
+
         const upstreams = upstream.split(", ");
         const allOnline = upstreams.every(u => health[u] === true);
         const anyOnline = upstreams.some(u => health[u] === true);
         const checked = upstreams.some(u => u in health);
-        if (!checked) return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted)", marginRight: 8, flexShrink: 0 }} title="Checking..." />;
+
+        if (!checked) return (
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted)", marginRight: 8, flexShrink: 0 }} title="Checking..." />
+        );
+
         const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
         const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
-        return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: shadow, marginRight: 8, flexShrink: 0 }} title={allOnline ? "Online" : anyOnline ? "Partial" : "Offline"} />;
+        const label = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
+
+        const stats = uptime[upstreams[0]];
+        const uptimeLabel = stats && stats.total > 1 ? `${stats.pct}%` : null;
+
+        return (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: 8, flexShrink: 0, width: 20 }}>
+                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: shadow }} title={label} />
+                {uptimeLabel && (
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--muted)", marginTop: 2, lineHeight: 1, whiteSpace: "nowrap" }}>
+                        {uptimeLabel}
+                    </span>
+                )}
+            </div>
+        );
     };
 
     const handleSort = (col) => {
@@ -1401,6 +1427,7 @@ function RoutesManager({ toast, setTab, onUnauth }) {
                                         const hasId = !!r["@id"];
                                         const canEdit = hasId || r._simpleProxy;
                                         const note = notes[domain];
+
                                         return (
                                             <tr key={r["@id"] || i}>
                                                 <td>
