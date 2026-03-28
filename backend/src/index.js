@@ -2,6 +2,8 @@ import cors from 'cors';
 import express from 'express';
 import 'express-async-errors';
 
+import { authMiddleware } from './middleware/auth.js';
+import authRouter from './routes/auth.js';
 import caddyfileRouter from './routes/caddyfile.js';
 import healthRouter from './routes/health.js';
 import logsRouter from './routes/logs.js';
@@ -17,6 +19,12 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
+
+// Auth routes are public
+app.use('/api/auth', authRouter);
+
+// All other /api/* routes require auth if enabled
+app.use('/api', authMiddleware);
 
 app.use('/api/caddyfile', caddyfileRouter);
 app.use('/api/routes', routesRouter);

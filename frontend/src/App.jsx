@@ -109,6 +109,11 @@ const css = `
 
   .nav-icon { width: 16px; text-align: center; font-size: 14px; flex-shrink: 0; }
 
+  .nav-footer {
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+  }
+
   .main {
     flex: 1;
     overflow: hidden;
@@ -258,11 +263,7 @@ const css = `
 
   .editor-hint { font-family: var(--mono); font-size: 10px; color: var(--muted); }
 
-  .cm-editor {
-    min-height: 420px;
-    font-family: var(--mono) !important;
-  }
-
+  .cm-editor { min-height: 420px; font-family: var(--mono) !important; }
   .cm-editor.cm-focused { outline: none; }
 
   .btn {
@@ -497,6 +498,51 @@ const css = `
     white-space: pre;
   }
 
+  /* Login screen */
+  .login-shell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: var(--bg);
+  }
+
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 40px;
+    width: 360px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .login-logo {
+    font-family: var(--mono);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .login-sub {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  .login-error {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--danger);
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: rgba(255,77,106,0.08);
+    border: 1px solid rgba(255,77,106,0.2);
+    border-radius: 4px;
+  }
+
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
@@ -522,6 +568,15 @@ const css = `
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function getToken() {
+    return localStorage.getItem('caddy_ui_token');
+}
+
+function setToken(token) {
+    if (token) localStorage.setItem('caddy_ui_token', token);
+    else localStorage.removeItem('caddy_ui_token');
+}
+
 function useToast() {
     const [toasts, setToasts] = useState([]);
     const add = useCallback((msg, type = "info") => {
@@ -532,8 +587,19 @@ function useToast() {
     return { toasts, success: m => add(m, "success"), error: m => add(m, "error"), info: m => add(m, "info") };
 }
 
-async function apiFetch(path, opts = {}) {
-    const res = await fetch(`${API}${path}`, opts);
+async function apiFetch(path, opts = {}, onUnauth) {
+    const token = getToken();
+    const headers = { ...(opts.headers || {}) };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${API}${path}`, { ...opts, headers });
+
+    if (res.status === 401) {
+        setToken(null);
+        if (onUnauth) onUnauth();
+        throw new Error('Session expired — please log in again');
+    }
+
     if (!res.ok) {
         const ct = res.headers.get("content-type") || "";
         if (ct.includes("application/json")) {
@@ -543,6 +609,7 @@ async function apiFetch(path, opts = {}) {
         }
         throw new Error(res.statusText);
     }
+
     const ct = res.headers.get("content-type") || "";
     return ct.includes("application/json") ? res.json() : res.text();
 }
@@ -561,6 +628,78 @@ function Toasts({ toasts }) {
             {toasts.map(t => (
                 <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>
             ))}
+        </div>
+    );
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+
+function LoginScreen({ onLogin }) {
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    const login = async () => {
+        if (!username || !password) return;
+        setLoading(true);
+        setError("");
+        try {
+            const res = await fetch(`${API}/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.error || "Login failed");
+                return;
+            }
+            setToken(data.token);
+            onLogin();
+        } catch {
+            setError("Could not reach the server");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="login-shell">
+            <style>{css}</style>
+            <div className="login-card">
+                <div className="login-logo">caddy/ui</div>
+                <div className="login-sub">Server Manager</div>
+                {error && <div className="login-error">{error}</div>}
+                <div className="field">
+                    <label>Username</label>
+                    <input
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && login()}
+                        autoFocus
+                        autoComplete="username"
+                    />
+                </div>
+                <div className="field">
+                    <label>Password</label>
+                    <input
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && login()}
+                        autoComplete="current-password"
+                    />
+                </div>
+                <button
+                    className="btn btn-primary"
+                    style={{ width: "100%", marginTop: 8, justifyContent: "center" }}
+                    onClick={login}
+                    disabled={loading || !username || !password}
+                >
+                    {loading ? "Signing in..." : "Sign in"}
+                </button>
+            </div>
         </div>
     );
 }
@@ -586,24 +725,9 @@ function CaddyfileCodeMirror({ value, onChange }) {
             const { nginx } = await import("@codemirror/legacy-modes/mode/nginx");
 
             const theme = EditorView.theme({
-                "&": {
-                    background: "#0a0c0f",
-                    color: "#c9d1e0",
-                    fontSize: "13px",
-                    fontFamily: "'IBM Plex Mono', monospace",
-                },
-                ".cm-content": {
-                    padding: "16px",
-                    caretColor: "#00e5a0",
-                    lineHeight: "1.7",
-                },
-                ".cm-gutters": {
-                    background: "#0d0f12",
-                    color: "#586275",
-                    border: "none",
-                    borderRight: "1px solid #1e2329",
-                    paddingRight: "8px",
-                },
+                "&": { background: "#0a0c0f", color: "#c9d1e0", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace" },
+                ".cm-content": { padding: "16px", caretColor: "#00e5a0", lineHeight: "1.7" },
+                ".cm-gutters": { background: "#0d0f12", color: "#586275", border: "none", borderRight: "1px solid #1e2329", paddingRight: "8px" },
                 ".cm-activeLineGutter": { background: "rgba(0,229,160,0.05)" },
                 ".cm-activeLine": { background: "rgba(0,229,160,0.03)" },
                 ".cm-cursor": { borderLeftColor: "#00e5a0" },
@@ -637,9 +761,7 @@ function CaddyfileCodeMirror({ value, onChange }) {
                     theme,
                     keymap.of([...defaultKeymap, ...historyKeymap]),
                     EditorView.updateListener.of(update => {
-                        if (update.docChanged) {
-                            onChangeRef.current(update.state.doc.toString());
-                        }
+                        if (update.docChanged) onChangeRef.current(update.state.doc.toString());
                     }),
                     EditorView.lineWrapping,
                 ],
@@ -658,28 +780,24 @@ function CaddyfileCodeMirror({ value, onChange }) {
         if (!view) return;
         const current = view.state.doc.toString();
         if (current !== value) {
-            view.dispatch({
-                changes: { from: 0, to: current.length, insert: value },
-            });
+            view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
         }
     }, [value]);
 
-    return (
-        <div ref={containerRef} style={{ minHeight: 420, background: "#0a0c0f" }} />
-    );
+    return <div ref={containerRef} style={{ minHeight: 420, background: "#0a0c0f" }} />;
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-function Dashboard({ status, toast }) {
+function Dashboard({ status, toast, onUnauth }) {
     const [names, setNames] = useState({});
     const [editingServer, setEditingServer] = useState(null);
     const [editName, setEditName] = useState("");
     const [health, setHealth] = useState(null);
 
     useEffect(() => {
-        apiFetch("/server-names").then(setNames).catch(() => { });
-        apiFetch("/health").then(results => {
+        apiFetch("/server-names", {}, onUnauth).then(setNames).catch(() => { });
+        apiFetch("/health", {}, onUnauth).then(results => {
             const total = results.length;
             const online = results.filter(r => r.online).length;
             setHealth({ total, online, offline: total - online });
@@ -698,11 +816,11 @@ function Dashboard({ status, toast }) {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name: editName }),
-                });
+                }, onUnauth);
                 setNames(n => ({ ...n, [editingServer.name]: editName.trim() }));
                 toast.success("Server name saved");
             } else {
-                await apiFetch(`/server-names/${editingServer.name}`, { method: "DELETE" });
+                await apiFetch(`/server-names/${editingServer.name}`, { method: "DELETE" }, onUnauth);
                 setNames(n => { const x = { ...n }; delete x[editingServer.name]; return x; });
                 toast.success("Server name cleared");
             }
@@ -821,7 +939,7 @@ function Dashboard({ status, toast }) {
 
 // ── Caddyfile Editor ──────────────────────────────────────────────────────────
 
-function CaddyfileEditor({ toast }) {
+function CaddyfileEditor({ toast, onUnauth }) {
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
     const [loading, setLoading] = useState(true);
@@ -837,7 +955,7 @@ function CaddyfileEditor({ toast }) {
     const fileInputRef = useRef(null);
 
     useEffect(() => {
-        apiFetch("/caddyfile")
+        apiFetch("/caddyfile", {}, onUnauth)
             .then(t => { setContent(t); setOriginal(t); })
             .catch(e => toast.error(e.message))
             .finally(() => setLoading(false));
@@ -845,7 +963,7 @@ function CaddyfileEditor({ toast }) {
 
     const loadHistory = () => {
         setHistoryLoading(true);
-        apiFetch("/caddyfile/history")
+        apiFetch("/caddyfile/history", {}, onUnauth)
             .then(setHistory)
             .catch(() => setHistory([]))
             .finally(() => setHistoryLoading(false));
@@ -865,7 +983,7 @@ function CaddyfileEditor({ toast }) {
             return;
         }
         try {
-            const text = await apiFetch(`/caddyfile/history/${entry.filename}`);
+            const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             setPreviewEntry(entry);
             setPreviewContent(text);
         } catch (e) {
@@ -876,13 +994,13 @@ function CaddyfileEditor({ toast }) {
     const restoreSnapshot = async (entry) => {
         if (!confirm(`Restore Caddyfile from ${formatTs(entry.timestamp)}? The current file will be snapshotted first.`)) return;
         try {
-            const text = await apiFetch(`/caddyfile/history/${entry.filename}`);
+            const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             await apiFetch("/caddyfile/restore", {
                 method: "POST",
                 headers: { "Content-Type": "text/plain" },
                 body: text,
-            });
-            const fresh = await apiFetch("/caddyfile");
+            }, onUnauth);
+            const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh);
             setOriginal(fresh);
             setHistoryOpen(false);
@@ -897,7 +1015,7 @@ function CaddyfileEditor({ toast }) {
     const deleteSnapshot = async (entry) => {
         if (!confirm(`Delete snapshot from ${formatTs(entry.timestamp)}?`)) return;
         try {
-            await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" });
+            await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
             toast.success("Snapshot deleted");
             if (previewEntry?.filename === entry.filename) {
                 setPreviewEntry(null);
@@ -916,7 +1034,7 @@ function CaddyfileEditor({ toast }) {
                 method: "POST",
                 headers: { "Content-Type": "text/plain" },
                 body: content,
-            });
+            }, onUnauth);
             if (result.warnings?.length) {
                 result.warnings.forEach(w => toast.info(w));
             } else {
@@ -936,8 +1054,8 @@ function CaddyfileEditor({ toast }) {
                 method: "PUT",
                 headers: { "Content-Type": "text/plain" },
                 body: content,
-            });
-            const fresh = await apiFetch("/caddyfile");
+            }, onUnauth);
+            const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh);
             setOriginal(fresh);
             toast.success("Caddyfile saved and reloaded");
@@ -951,7 +1069,7 @@ function CaddyfileEditor({ toast }) {
 
     const reload = async () => {
         try {
-            await apiFetch("/caddyfile/reload", { method: "POST" });
+            await apiFetch("/caddyfile/reload", { method: "POST" }, onUnauth);
             toast.success("Caddy reloaded from disk");
         } catch (e) {
             toast.error(e.message);
@@ -959,7 +1077,11 @@ function CaddyfileEditor({ toast }) {
     };
 
     const download = () => {
-        window.open(`${API}/caddyfile/download`, '_blank');
+        const token = getToken();
+        const url = token
+            ? `${API}/caddyfile/download?token=${token}`
+            : `${API}/caddyfile/download`;
+        window.open(url, '_blank');
     };
 
     const restore = (e) => {
@@ -974,8 +1096,8 @@ function CaddyfileEditor({ toast }) {
                     method: "POST",
                     headers: { "Content-Type": "text/plain" },
                     body: text,
-                });
-                const fresh = await apiFetch("/caddyfile");
+                }, onUnauth);
+                const fresh = await apiFetch("/caddyfile", {}, onUnauth);
                 setContent(fresh);
                 setOriginal(fresh);
                 toast.success("Caddyfile restored and reloaded");
@@ -1162,7 +1284,7 @@ function NoteModal({ domain, initialNote, onSave, onClose }) {
     );
 }
 
-function RoutesManager({ toast, setTab }) {
+function RoutesManager({ toast, setTab, onUnauth }) {
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
     const [certs, setCerts] = useState([]);
@@ -1176,17 +1298,17 @@ function RoutesManager({ toast, setTab }) {
     const [search, setSearch] = useState("");
 
     const load = () => {
-        apiFetch("/routes")
+        apiFetch("/routes", {}, onUnauth)
             .then(setRoutes)
             .catch(e => toast.error(e.message))
             .finally(() => setLoading(false));
-        apiFetch("/tls").then(setCerts).catch(() => { });
-        apiFetch("/route-notes").then(setNotes).catch(() => { });
+        apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
+        apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
     };
 
     const loadHealth = () => {
         setHealthLoading(true);
-        apiFetch("/health")
+        apiFetch("/health", {}, onUnauth)
             .then(results => {
                 const map = {};
                 for (const r of results) map[r.upstream] = r.online;
@@ -1209,7 +1331,7 @@ function RoutesManager({ toast, setTab }) {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(form),
-            });
+            }, onUnauth);
             toast.success(`Route for ${form.domain} added`);
             setModal(null);
             load();
@@ -1225,21 +1347,14 @@ function RoutesManager({ toast, setTab }) {
                 await apiFetch(`/routes/${form._id}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        domain: form.domain,
-                        upstream: form.upstream,
-                        stripPrefix: form.stripPrefix,
-                    }),
-                });
+                    body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }),
+                }, onUnauth);
             } else {
                 await apiFetch(`/routes/caddyfile/${encodeURIComponent(form._originalDomain)}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        upstream: form.upstream,
-                        stripPrefix: form.stripPrefix,
-                    }),
-                });
+                    body: JSON.stringify({ upstream: form.upstream, stripPrefix: form.stripPrefix }),
+                }, onUnauth);
             }
             toast.success("Route updated");
             setModal(null);
@@ -1253,7 +1368,7 @@ function RoutesManager({ toast, setTab }) {
     const deleteRoute = async (id) => {
         if (!confirm("Delete this route?")) return;
         try {
-            await apiFetch(`/routes/${id}`, { method: "DELETE" });
+            await apiFetch(`/routes/${id}`, { method: "DELETE" }, onUnauth);
             toast.success("Route removed");
             load();
             loadHealth();
@@ -1268,14 +1383,11 @@ function RoutesManager({ toast, setTab }) {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ note }),
-            });
+            }, onUnauth);
             setNotes(n => {
                 const updated = { ...n };
-                if (note.trim()) {
-                    updated[domain] = note.trim();
-                } else {
-                    delete updated[domain];
-                }
+                if (note.trim()) updated[domain] = note.trim();
+                else delete updated[domain];
                 return updated;
             });
             toast.success(note.trim() ? "Note saved" : "Note cleared");
@@ -1304,85 +1416,56 @@ function RoutesManager({ toast, setTab }) {
     const getStripPrefix = (route) => {
         const pathMatcher = route.match?.find(m => m.path);
         if (!pathMatcher) return "";
-        const path = pathMatcher.path?.[0] || "";
-        return path.replace("/*", "");
+        return (pathMatcher.path?.[0] || "").replace("/*", "");
     };
 
     const openEdit = (route) => {
         const domain = getHost(route);
-        const upstream = getUpstream(route);
-        const stripPrefix = getStripPrefix(route);
-        const id = route["@id"] || null;
         setModal({
             mode: "edit",
-            _id: id,
+            _id: route["@id"] || null,
             _originalDomain: domain,
             domain,
-            upstream,
-            stripPrefix,
+            upstream: getUpstream(route),
+            stripPrefix: getStripPrefix(route),
         });
     };
 
     const getDomainScheme = (domain) => {
         if (domain.startsWith("http://")) return "http";
-        const hasCert = certs.some(c => c.domain === domain && c.status !== "orphaned");
-        return hasCert ? "https" : "http";
+        return certs.some(c => c.domain === domain && c.status !== "orphaned") ? "https" : "http";
     };
 
     const domainLink = (domain) => {
         if (domain === "—") return null;
         const clean = domain.replace(/^https?:\/\//, "");
-        const scheme = getDomainScheme(clean);
-        return `${scheme}://${clean}`;
+        return `${getDomainScheme(clean)}://${clean}`;
     };
 
-    const upstreamLink = (upstream) => {
-        if (upstream === "—") return null;
-        return `http://${upstream}`;
-    };
+    const upstreamLink = (upstream) => upstream === "—" ? null : `http://${upstream}`;
 
     const getHealthDot = (route) => {
         const upstream = getUpstream(route);
-        if (upstream === "—") {
-            return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--border2)", marginRight: 8, flexShrink: 0 }} title="No upstream" />;
-        }
+        if (upstream === "—") return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--border2)", marginRight: 8, flexShrink: 0 }} title="No upstream" />;
         const upstreams = upstream.split(", ");
         const allOnline = upstreams.every(u => health[u] === true);
         const anyOnline = upstreams.some(u => health[u] === true);
         const checked = upstreams.some(u => u in health);
-
-        if (!checked) {
-            return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted)", marginRight: 8, flexShrink: 0 }} title="Checking..." />;
-        }
-
+        if (!checked) return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted)", marginRight: 8, flexShrink: 0 }} title="Checking..." />;
         const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
         const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
-        const label = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
-
-        return (
-            <span
-                style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: shadow, marginRight: 8, flexShrink: 0 }}
-                title={label}
-            />
-        );
+        return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: shadow, marginRight: 8, flexShrink: 0 }} title={allOnline ? "Online" : anyOnline ? "Partial" : "Offline"} />;
     };
 
     const handleSort = (col) => {
-        if (sortCol === col) {
-            setSortDir(d => d === "asc" ? "desc" : "asc");
-        } else {
-            setSortCol(col);
-            setSortDir("asc");
-        }
+        if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+        else { setSortCol(col); setSortDir("asc"); }
     };
 
     const filtered = routes.filter(r => {
         if (!search) return true;
         const q = search.toLowerCase();
-        const domain = getHost(r).toLowerCase();
-        const upstream = getUpstream(r).toLowerCase();
-        const note = (notes[getHost(r)] || "").toLowerCase();
-        return domain.includes(q) || upstream.includes(q) || note.includes(q);
+        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q) || (notes[getHost(r)] || "").toLowerCase().includes(q);
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -1390,8 +1473,7 @@ function RoutesManager({ toast, setTab }) {
         if (sortCol === "domain") { valA = getHost(a); valB = getHost(b); }
         else if (sortCol === "upstream") { valA = getUpstream(a); valB = getUpstream(b); }
         else { valA = a._server || ""; valB = b._server || ""; }
-        const cmp = valA.localeCompare(valB);
-        return sortDir === "asc" ? cmp : -cmp;
+        return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
     });
 
     const SortIcon = ({ col }) => {
@@ -1406,20 +1488,13 @@ function RoutesManager({ toast, setTab }) {
             <div className="gap-16">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                        <input
-                            className="search-input"
-                            placeholder="Filter by domain, upstream, or note..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                        />
+                        <input className="search-input" placeholder="Filter by domain, upstream, or note..." value={search} onChange={e => setSearch(e.target.value)} />
                         <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
                             {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} online`}
                         </span>
                     </div>
                     <div className="btn-row">
-                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading} style={{ fontSize: 11 }}>
-                            ↺ Check health
-                        </button>
+                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading} style={{ fontSize: 11 }}>↺ Check health</button>
                         <button className="btn btn-primary" onClick={() => setModal({ mode: "new" })}>+ Add Route</button>
                     </div>
                 </div>
@@ -1433,15 +1508,9 @@ function RoutesManager({ toast, setTab }) {
                             <table className="table">
                                 <thead>
                                     <tr>
-                                        <th onClick={() => handleSort("domain")} style={{ cursor: "pointer", userSelect: "none" }}>
-                                            Domain <SortIcon col="domain" />
-                                        </th>
-                                        <th onClick={() => handleSort("upstream")} style={{ cursor: "pointer", userSelect: "none" }}>
-                                            Upstream <SortIcon col="upstream" />
-                                        </th>
-                                        <th onClick={() => handleSort("server")} style={{ cursor: "pointer", userSelect: "none" }}>
-                                            Server <SortIcon col="server" />
-                                        </th>
+                                        <th onClick={() => handleSort("domain")} style={{ cursor: "pointer", userSelect: "none" }}>Domain <SortIcon col="domain" /></th>
+                                        <th onClick={() => handleSort("upstream")} style={{ cursor: "pointer", userSelect: "none" }}>Upstream <SortIcon col="upstream" /></th>
+                                        <th onClick={() => handleSort("server")} style={{ cursor: "pointer", userSelect: "none" }}>Server <SortIcon col="server" /></th>
                                         <th>ID</th>
                                         <th></th>
                                     </tr>
@@ -1453,8 +1522,7 @@ function RoutesManager({ toast, setTab }) {
                                         const dLink = domainLink(domain);
                                         const uLink = upstreamLink(upstream);
                                         const hasId = !!r["@id"];
-                                        const isSimple = r._simpleProxy;
-                                        const canEdit = hasId || isSimple;
+                                        const canEdit = hasId || r._simpleProxy;
                                         const note = notes[domain];
 
                                         return (
@@ -1464,25 +1532,17 @@ function RoutesManager({ toast, setTab }) {
                                                         {getHealthDot(r)}
                                                         <div>
                                                             {dLink ? (
-                                                                <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">
-                                                                    {domain}
-                                                                </a>
+                                                                <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">{domain}</a>
                                                             ) : (
                                                                 <span className="mono">{domain}</span>
                                                             )}
-                                                            {note && (
-                                                                <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
-                                                                    {note}
-                                                                </div>
-                                                            )}
+                                                            {note && <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{note}</div>}
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td>
                                                     {uLink ? (
-                                                        <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">
-                                                            {upstream}
-                                                        </a>
+                                                        <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a>
                                                     ) : (
                                                         <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>
                                                     )}
@@ -1491,41 +1551,14 @@ function RoutesManager({ toast, setTab }) {
                                                 <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
                                                 <td style={{ width: 140, textAlign: "right" }}>
                                                     <div className="btn-row" style={{ justifyContent: "flex-end" }}>
-                                                        <button
-                                                            className="btn btn-ghost"
-                                                            style={{ padding: "4px 10px", color: note ? "var(--accent2)" : "var(--muted)" }}
-                                                            onClick={() => setNoteModal({ domain, note: note || "" })}
-                                                            title={note || "Add note"}
-                                                        >
-                                                            ✎
-                                                        </button>
+                                                        <button className="btn btn-ghost" style={{ padding: "4px 10px", color: note ? "var(--accent2)" : "var(--muted)" }} onClick={() => setNoteModal({ domain, note: note || "" })} title={note || "Add note"}>✎</button>
                                                         {canEdit ? (
-                                                            <button
-                                                                className="btn btn-ghost"
-                                                                style={{ padding: "4px 10px" }}
-                                                                onClick={() => openEdit(r)}
-                                                                title="Edit route"
-                                                            >
-                                                                ⚙
-                                                            </button>
+                                                            <button className="btn btn-ghost" style={{ padding: "4px 10px" }} onClick={() => openEdit(r)} title="Edit route">⚙</button>
                                                         ) : (
-                                                            <button
-                                                                className="btn btn-ghost"
-                                                                style={{ padding: "4px 10px", fontSize: 10 }}
-                                                                onClick={() => setTab("caddyfile")}
-                                                                title="Complex route — edit in Caddyfile"
-                                                            >
-                                                                ⌗
-                                                            </button>
+                                                            <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => setTab("caddyfile")} title="Complex route — edit in Caddyfile">⌗</button>
                                                         )}
                                                         {hasId && (
-                                                            <button
-                                                                className="btn btn-danger"
-                                                                style={{ padding: "4px 10px" }}
-                                                                onClick={() => deleteRoute(r["@id"])}
-                                                            >
-                                                                ✕
-                                                            </button>
+                                                            <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>
                                                         )}
                                                     </div>
                                                 </td>
@@ -1538,38 +1571,22 @@ function RoutesManager({ toast, setTab }) {
                     )}
                 </div>
             </div>
-
-            {modal && (
-                <RouteModal
-                    mode={modal.mode}
-                    initial={modal}
-                    onSave={modal.mode === "edit" ? editRoute : addRoute}
-                    onClose={() => setModal(null)}
-                />
-            )}
-
-            {noteModal && (
-                <NoteModal
-                    domain={noteModal.domain}
-                    initialNote={noteModal.note}
-                    onSave={saveNote}
-                    onClose={() => setNoteModal(null)}
-                />
-            )}
+            {modal && <RouteModal mode={modal.mode} initial={modal} onSave={modal.mode === "edit" ? editRoute : addRoute} onClose={() => setModal(null)} />}
+            {noteModal && <NoteModal domain={noteModal.domain} initialNote={noteModal.note} onSave={saveNote} onClose={() => setNoteModal(null)} />}
         </>
     );
 }
 
 // ── TLS ───────────────────────────────────────────────────────────────────────
 
-function TLSViewer({ toast }) {
+function TLSViewer({ toast, onUnauth }) {
     const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
 
     const load = () => {
         setLoading(true);
-        apiFetch("/tls")
+        apiFetch("/tls", {}, onUnauth)
             .then(setCerts)
             .catch(e => toast.error(e.message))
             .finally(() => setLoading(false));
@@ -1580,7 +1597,7 @@ function TLSViewer({ toast }) {
     const deleteCert = async (cert) => {
         if (!confirm(`Delete orphaned cert for ${cert.domain}?`)) return;
         try {
-            await apiFetch(`/tls/${cert.issuerDir}/${cert.domain}`, { method: "DELETE" });
+            await apiFetch(`/tls/${cert.issuerDir}/${cert.domain}`, { method: "DELETE" }, onUnauth);
             toast.success(`Deleted cert for ${cert.domain}`);
             load();
         } catch (e) {
@@ -1596,9 +1613,7 @@ function TLSViewer({ toast }) {
         orphaned: certs.filter(c => c.status === 'orphaned').length,
     };
 
-    const filtered = filter === "all"
-        ? certs.filter(c => c.status !== 'orphaned')
-        : certs.filter(c => c.status === filter);
+    const filtered = filter === "all" ? certs.filter(c => c.status !== 'orphaned') : certs.filter(c => c.status === filter);
 
     const statusBadge = (cert) => {
         if (cert.status === 'expired') return <span className="badge badge-red">EXPIRED</span>;
@@ -1609,24 +1624,14 @@ function TLSViewer({ toast }) {
 
     const expiryBar = (cert) => {
         if (cert.isInternal) return null;
-        const max = 90;
-        const pct = Math.max(0, Math.min(100, (cert.daysRemaining / max) * 100));
-        const color = cert.daysRemaining < 0 ? 'var(--danger)'
-            : cert.daysRemaining < 14 ? 'var(--warn)'
-                : 'var(--accent)';
-        return (
-            <div className="expiry-bar">
-                <div className="expiry-bar-fill" style={{ width: `${pct}%`, background: color }} />
-            </div>
-        );
+        const pct = Math.max(0, Math.min(100, (cert.daysRemaining / 90) * 100));
+        const color = cert.daysRemaining < 0 ? 'var(--danger)' : cert.daysRemaining < 14 ? 'var(--warn)' : 'var(--accent)';
+        return <div className="expiry-bar"><div className="expiry-bar-fill" style={{ width: `${pct}%`, background: color }} /></div>;
     };
 
     const formatDate = (dateStr) => {
-        try {
-            return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        } catch {
-            return dateStr;
-        }
+        try { return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+        catch { return dateStr; }
     };
 
     if (loading) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading certificates...</div>;
@@ -1634,26 +1639,18 @@ function TLSViewer({ toast }) {
     return (
         <div className="gap-16">
             <div className="grid-4">
-                <div className="card" style={{ cursor: "pointer", borderColor: filter === "all" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("all")}>
-                    <div className="card-title">Total</div>
-                    <div className="stat-val">{summary.total}</div>
-                    <div className="stat-label">Managed certs</div>
-                </div>
-                <div className="card" style={{ cursor: "pointer", borderColor: filter === "valid" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("valid")}>
-                    <div className="card-title">Valid</div>
-                    <div className="stat-val" style={{ color: "var(--accent)" }}>{summary.valid}</div>
-                    <div className="stat-label">Healthy</div>
-                </div>
-                <div className="card" style={{ cursor: "pointer", borderColor: filter === "expiring" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("expiring")}>
-                    <div className="card-title">Expiring</div>
-                    <div className="stat-val" style={{ color: summary.expiring > 0 ? "var(--warn)" : "var(--text)" }}>{summary.expiring}</div>
-                    <div className="stat-label">Within 14 days</div>
-                </div>
-                <div className="card" style={{ cursor: "pointer", borderColor: filter === "expired" ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter("expired")}>
-                    <div className="card-title">Expired</div>
-                    <div className="stat-val" style={{ color: summary.expired > 0 ? "var(--danger)" : "var(--text)" }}>{summary.expired}</div>
-                    <div className="stat-label">Needs renewal</div>
-                </div>
+                {[
+                    { key: "all", label: "Total", val: summary.total, sub: "Managed certs", color: null },
+                    { key: "valid", label: "Valid", val: summary.valid, sub: "Healthy", color: "var(--accent)" },
+                    { key: "expiring", label: "Expiring", val: summary.expiring, sub: "Within 14 days", color: summary.expiring > 0 ? "var(--warn)" : null },
+                    { key: "expired", label: "Expired", val: summary.expired, sub: "Needs renewal", color: summary.expired > 0 ? "var(--danger)" : null },
+                ].map(({ key, label, val, sub, color }) => (
+                    <div key={key} className="card" style={{ cursor: "pointer", borderColor: filter === key ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter(key)}>
+                        <div className="card-title">{label}</div>
+                        <div className="stat-val" style={{ color: color || "var(--text)" }}>{val}</div>
+                        <div className="stat-label">{sub}</div>
+                    </div>
+                ))}
             </div>
 
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -1663,10 +1660,7 @@ function TLSViewer({ toast }) {
                     </span>
                     <div className="btn-row">
                         {summary.orphaned > 0 && (
-                            <span
-                                style={{ fontFamily: "var(--mono)", fontSize: 11, color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }}
-                                onClick={() => setFilter(filter === "orphaned" ? "all" : "orphaned")}
-                            >
+                            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }} onClick={() => setFilter(filter === "orphaned" ? "all" : "orphaned")}>
                                 {summary.orphaned} orphaned
                             </span>
                         )}
@@ -1674,47 +1668,28 @@ function TLSViewer({ toast }) {
                     </div>
                 </div>
                 {filtered.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>
-                        No certificates in this category
-                    </div>
+                    <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>No certificates in this category</div>
                 ) : (
                     <div className="table-wrap">
                         <table className="table">
                             <thead>
-                                <tr>
-                                    <th>Domain</th>
-                                    <th>Issuer</th>
-                                    <th>Expires</th>
-                                    <th>Days</th>
-                                    <th>Status</th>
-                                    <th></th>
-                                </tr>
+                                <tr><th>Domain</th><th>Issuer</th><th>Expires</th><th>Days</th><th>Status</th><th></th></tr>
                             </thead>
                             <tbody>
                                 {filtered.map((cert, i) => (
                                     <tr key={i} style={{ opacity: cert.status === 'orphaned' ? 0.6 : 1 }}>
                                         <td className="mono">{cert.domain}</td>
-                                        <td>
-                                            <span className={`badge ${cert.issuer === 'acme' ? 'badge-blue' : 'badge-muted'}`}>
-                                                {cert.issuer === 'acme' ? "Let's Encrypt" : "Internal"}
-                                            </span>
-                                        </td>
+                                        <td><span className={`badge ${cert.issuer === 'acme' ? 'badge-blue' : 'badge-muted'}`}>{cert.issuer === 'acme' ? "Let's Encrypt" : "Internal"}</span></td>
                                         <td>
                                             <div style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{formatDate(cert.validTo)}</div>
                                             {expiryBar(cert)}
                                         </td>
-                                        <td className="mono" style={{
-                                            color: cert.daysRemaining < 0 ? "var(--danger)"
-                                                : cert.daysRemaining < 14 ? "var(--warn)"
-                                                    : "var(--muted)"
-                                        }}>
+                                        <td className="mono" style={{ color: cert.daysRemaining < 0 ? "var(--danger)" : cert.daysRemaining < 14 ? "var(--warn)" : "var(--muted)" }}>
                                             {cert.isInternal ? "auto" : `${cert.daysRemaining}d`}
                                         </td>
                                         <td>{statusBadge(cert)}</td>
                                         <td style={{ width: 60, textAlign: "right" }}>
-                                            {cert.status === 'orphaned' && (
-                                                <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteCert(cert)}>✕</button>
-                                            )}
+                                            {cert.status === 'orphaned' && <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteCert(cert)}>✕</button>}
                                         </td>
                                     </tr>
                                 ))}
@@ -1736,7 +1711,7 @@ function TLSViewer({ toast }) {
 
 // ── Logs ──────────────────────────────────────────────────────────────────────
 
-function LogsViewer({ toast }) {
+function LogsViewer({ toast, onUnauth }) {
     const [lines, setLines] = useState([]);
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
@@ -1749,8 +1724,8 @@ function LogsViewer({ toast }) {
     const esRef = useRef(null);
 
     useEffect(() => {
-        apiFetch("/logs").then(data => setLines(data.lines || [])).catch(e => toast.error(e.message));
-        apiFetch("/logs/config").then(cfg => setLogConfig(cfg)).catch(e => toast.error(e.message));
+        apiFetch("/logs", {}, onUnauth).then(data => setLines(data.lines || [])).catch(e => toast.error(e.message));
+        apiFetch("/logs/config", {}, onUnauth).then(setLogConfig).catch(e => toast.error(e.message));
     }, []);
 
     useEffect(() => {
@@ -1765,7 +1740,9 @@ function LogsViewer({ toast }) {
             esRef.current = null;
             setLive(false);
         } else {
-            const es = new EventSource(`${API}/logs/stream`);
+            const token = getToken();
+            const url = token ? `${API}/logs/stream?token=${token}` : `${API}/logs/stream`;
+            const es = new EventSource(url);
             es.onmessage = e => {
                 const data = JSON.parse(e.data);
                 if (data.line) setLines(l => [...l.slice(-500), data.line]);
@@ -1797,10 +1774,7 @@ function LogsViewer({ toast }) {
         return matchesSearch && matchesLevel(line);
     });
 
-    const updateConfig = (key, value) => {
-        setLogConfig(c => ({ ...c, [key]: value }));
-        setConfigDirty(true);
-    };
+    const updateConfig = (key, value) => { setLogConfig(c => ({ ...c, [key]: value })); setConfigDirty(true); };
 
     const saveConfig = async () => {
         setSavingConfig(true);
@@ -1809,7 +1783,7 @@ function LogsViewer({ toast }) {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(logConfig),
-            });
+            }, onUnauth);
             toast.success("Log config saved and reloaded");
             setConfigDirty(false);
         } catch (e) {
@@ -1819,34 +1793,12 @@ function LogsViewer({ toast }) {
         }
     };
 
-    const selectStyle = {
-        background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4,
-        padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)",
-        fontSize: 12, outline: "none", cursor: "pointer", width: "100%",
-    };
-
-    const inputStyle = {
-        background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4,
-        padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)",
-        fontSize: 12, outline: "none", width: "100%",
-    };
-
-    const labelStyle = {
-        fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "1.2px",
-        textTransform: "uppercase", color: "var(--muted)", marginBottom: 5, display: "block",
-    };
+    const selectStyle = { background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)", fontSize: 12, outline: "none", cursor: "pointer", width: "100%" };
+    const inputStyle = { background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)", fontSize: 12, outline: "none", width: "100%" };
+    const labelStyle = { fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "1.2px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 5, display: "block" };
 
     const levelBtn = (level, label, color) => (
-        <button
-            className="btn btn-ghost"
-            style={{
-                fontSize: 10,
-                padding: "4px 10px",
-                borderColor: levelFilter === level ? color : "var(--border2)",
-                color: levelFilter === level ? color : "var(--muted)",
-            }}
-            onClick={() => setLevelFilter(levelFilter === level ? "all" : level)}
-        >
+        <button className="btn btn-ghost" style={{ fontSize: 10, padding: "4px 10px", borderColor: levelFilter === level ? color : "var(--border2)", color: levelFilter === level ? color : "var(--muted)" }} onClick={() => setLevelFilter(levelFilter === level ? "all" : level)}>
             {label}
         </button>
     );
@@ -1854,19 +1806,10 @@ function LogsViewer({ toast }) {
     return (
         <div className="gap-16">
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <div
-                    onClick={() => setConfigOpen(o => !o)}
-                    style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: configOpen ? "1px solid var(--border)" : "none" }}
-                >
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
-                        Log Configuration
-                    </span>
+                <div onClick={() => setConfigOpen(o => !o)} style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: configOpen ? "1px solid var(--border)" : "none" }}>
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Log Configuration</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        {logConfig && (
-                            <span className={`badge ${logConfig.enabled ? "badge-green" : "badge-red"}`}>
-                                {logConfig.enabled ? "ENABLED" : "DISABLED"}
-                            </span>
-                        )}
+                        {logConfig && <span className={`badge ${logConfig.enabled ? "badge-green" : "badge-red"}`}>{logConfig.enabled ? "ENABLED" : "DISABLED"}</span>}
                         <span style={{ color: "var(--muted)", fontSize: 12 }}>{configOpen ? "▲" : "▼"}</span>
                     </div>
                 </div>
@@ -1911,9 +1854,7 @@ function LogsViewer({ toast }) {
                             </div>
                         </div>
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                            <button className="btn btn-primary" onClick={saveConfig} disabled={savingConfig || !configDirty}>
-                                {savingConfig ? "Saving..." : "↑ Save Config"}
-                            </button>
+                            <button className="btn btn-primary" onClick={saveConfig} disabled={savingConfig || !configDirty}>{savingConfig ? "Saving..." : "↑ Save Config"}</button>
                         </div>
                     </div>
                 )}
@@ -1921,12 +1862,7 @@ function LogsViewer({ toast }) {
 
             <div className="log-toolbar">
                 <div className="btn-row">
-                    <input
-                        className="search-input"
-                        placeholder="Search logs..."
-                        value={logSearch}
-                        onChange={e => setLogSearch(e.target.value)}
-                    />
+                    <input className="search-input" placeholder="Search logs..." value={logSearch} onChange={e => setLogSearch(e.target.value)} />
                     {levelBtn("error", "ERROR", "var(--danger)")}
                     {levelBtn("warn", "WARN", "var(--warn)")}
                     {levelBtn("info", "INFO", "var(--accent2)")}
@@ -1936,24 +1872,16 @@ function LogsViewer({ toast }) {
                         {filteredLines.length}{logSearch || levelFilter !== "all" ? ` / ${lines.length}` : ""} lines
                     </span>
                     {live && <div className="live-dot" />}
-                    <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>
-                        {live ? "■ Stop" : "▶ Live"}
-                    </button>
-                    <button className="btn btn-ghost" onClick={() => apiFetch("/logs").then(d => setLines(d.lines || []))}>
-                        ↺ Refresh
-                    </button>
+                    <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>{live ? "■ Stop" : "▶ Live"}</button>
+                    <button className="btn btn-ghost" onClick={() => apiFetch("/logs", {}, onUnauth).then(d => setLines(d.lines || []))}>↺ Refresh</button>
                 </div>
             </div>
             <div className="log-wrap">
                 {filteredLines.length === 0 ? (
-                    <div style={{ color: "var(--muted)", padding: "8px 0" }}>
-                        {logSearch || levelFilter !== "all" ? "No lines match the current filter" : "No log lines loaded"}
-                    </div>
+                    <div style={{ color: "var(--muted)", padding: "8px 0" }}>{logSearch || levelFilter !== "all" ? "No lines match the current filter" : "No log lines loaded"}</div>
                 ) : (
                     filteredLines.map((line, i) => (
-                        <div key={i} className={`log-line ${classify(line)} ${logSearch && line.toLowerCase().includes(logSearch.toLowerCase()) ? "highlight" : ""}`}>
-                            {line}
-                        </div>
+                        <div key={i} className={`log-line ${classify(line)} ${logSearch && line.toLowerCase().includes(logSearch.toLowerCase()) ? "highlight" : ""}`}>{line}</div>
                     ))
                 )}
                 <div ref={bottomRef} />
@@ -1978,19 +1906,41 @@ export default function App() {
     const [tab, setTab] = useState("dashboard");
     const [status, setStatus] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [authEnabled, setAuthEnabled] = useState(false);
+    const [authed, setAuthed] = useState(!!getToken());
     const toast = useToast();
 
-    const fetchStatus = useCallback(() => {
-        apiFetch("/status")
-            .then(setStatus)
-            .catch(() => setStatus({ online: false, error: "Could not reach backend" }));
+    const onUnauth = useCallback(() => {
+        setToken(null);
+        setAuthed(false);
     }, []);
 
     useEffect(() => {
+        fetch(`${API}/auth/status`)
+            .then(r => r.json())
+            .then(d => {
+                setAuthEnabled(d.authEnabled);
+                if (!d.authEnabled) setAuthed(true);
+            })
+            .catch(() => setAuthed(true));
+    }, []);
+
+    const fetchStatus = useCallback(() => {
+        apiFetch("/status", {}, onUnauth)
+            .then(setStatus)
+            .catch(() => setStatus({ online: false, error: "Could not reach backend" }));
+    }, [onUnauth]);
+
+    useEffect(() => {
+        if (!authed) return;
         fetchStatus();
         const t = setInterval(fetchStatus, 15000);
         return () => clearInterval(t);
-    }, [fetchStatus]);
+    }, [authed, fetchStatus]);
+
+    if (!authed) {
+        return <LoginScreen onLogin={() => setAuthed(true)} />;
+    }
 
     const titles = {
         dashboard: "Dashboard",
@@ -1998,11 +1948,6 @@ export default function App() {
         routes: "Route Manager",
         tls: "TLS Certificates",
         logs: "Access Logs",
-    };
-
-    const handleNavClick = (id) => {
-        setTab(id);
-        setSidebarOpen(false);
     };
 
     return (
@@ -2024,12 +1969,20 @@ export default function App() {
                     </div>
                     <nav className="nav">
                         {NAV.map(n => (
-                            <div key={n.id} className={`nav-item ${tab === n.id ? "active" : ""}`} onClick={() => handleNavClick(n.id)}>
+                            <div key={n.id} className={`nav-item ${tab === n.id ? "active" : ""}`} onClick={() => { setTab(n.id); setSidebarOpen(false); }}>
                                 <span className="nav-icon">{n.icon}</span>
                                 {n.label}
                             </div>
                         ))}
                     </nav>
+                    {authEnabled && (
+                        <div className="nav-footer">
+                            <div className="nav-item" onClick={onUnauth}>
+                                <span className="nav-icon">⏻</span>
+                                Sign out
+                            </div>
+                        </div>
+                    )}
                 </aside>
 
                 <div className="main">
@@ -2041,11 +1994,11 @@ export default function App() {
                         <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>↺ Refresh</button>
                     </div>
                     <div className="content">
-                        {tab === "dashboard" && <Dashboard status={status} toast={toast} />}
-                        {tab === "caddyfile" && <CaddyfileEditor toast={toast} />}
-                        {tab === "routes" && <RoutesManager toast={toast} setTab={setTab} />}
-                        {tab === "tls" && <TLSViewer toast={toast} />}
-                        {tab === "logs" && <LogsViewer toast={toast} />}
+                        {tab === "dashboard" && <Dashboard status={status} toast={toast} onUnauth={onUnauth} />}
+                        {tab === "caddyfile" && <CaddyfileEditor toast={toast} onUnauth={onUnauth} />}
+                        {tab === "routes" && <RoutesManager toast={toast} setTab={setTab} onUnauth={onUnauth} />}
+                        {tab === "tls" && <TLSViewer toast={toast} onUnauth={onUnauth} />}
+                        {tab === "logs" && <LogsViewer toast={toast} onUnauth={onUnauth} />}
                     </div>
                 </div>
             </div>
