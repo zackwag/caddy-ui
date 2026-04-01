@@ -2,33 +2,62 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const API = "/api";
 
+const darkTheme = `
+  --bg:       #0d0f12;
+  --surface:  #13161b;
+  --border:   #1e2329;
+  --border2:  #2a3040;
+  --text:     #c9d1e0;
+  --muted:    #586275;
+  --accent:   #00e5a0;
+  --accent2:  #0099ff;
+  --danger:   #ff4d6a;
+  --warn:     #ffb830;
+  --editor-bg:    #0a0c0f;
+  --editor-gutter:#0d0f12;
+  --editor-text:  #a8d8a8;
+  --log-bg:       #0a0c0f;
+`;
+
+const lightTheme = `
+  --bg:       #f5f0eb;
+  --surface:  #faf7f4;
+  --border:   #e0d8d0;
+  --border2:  #ccc4ba;
+  --text:     #2c2825;
+  --muted:    #8a7f75;
+  --accent:   #00956b;
+  --accent2:  #0077cc;
+  --danger:   #cc2233;
+  --warn:     #b36000;
+  --editor-bg:    #f0ebe4;
+  --editor-gutter:#e8e2db;
+  --editor-text:  #3a5c3a;
+  --log-bg:       #f0ebe4;
+`;
+
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:       #0d0f12;
-    --surface:  #13161b;
-    --border:   #1e2329;
-    --border2:  #2a3040;
-    --text:     #c9d1e0;
-    --muted:    #586275;
-    --accent:   #00e5a0;
-    --accent2:  #0099ff;
-    --danger:   #ff4d6a;
-    --warn:     #ffb830;
-    --mono:     'IBM Plex Mono', monospace;
-    --sans:     'IBM Plex Sans', sans-serif;
+    ${darkTheme}
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  :root.light {
+    ${lightTheme}
   }
 
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: var(--sans);
+    font-family: 'IBM Plex Sans', sans-serif;
     font-size: 14px;
     line-height: 1.6;
     min-height: 100vh;
+    transition: background 0.2s, color 0.2s;
   }
 
   .shell { display: flex; height: 100vh; overflow: hidden; }
@@ -41,7 +70,7 @@ const css = `
     display: flex;
     flex-direction: column;
     padding: 0;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, background 0.2s;
     z-index: 200;
   }
 
@@ -51,7 +80,7 @@ const css = `
   }
 
   .logo-mark {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 18px;
     font-weight: 600;
     color: var(--accent);
@@ -70,7 +99,7 @@ const css = `
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     margin-top: 8px;
   }
@@ -99,12 +128,12 @@ const css = `
     user-select: none;
   }
 
-  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item:hover { color: var(--text); background: rgba(0,0,0,0.04); }
 
   .nav-item.active {
     color: var(--accent);
     border-left-color: var(--accent);
-    background: rgba(0,229,160,0.05);
+    background: rgba(0,149,107,0.07);
   }
 
   .nav-icon { width: 16px; text-align: center; font-size: 14px; flex-shrink: 0; }
@@ -131,6 +160,7 @@ const css = `
     background: var(--surface);
     flex-shrink: 0;
     gap: 12px;
+    transition: background 0.2s;
   }
 
   .topbar-left {
@@ -141,7 +171,7 @@ const css = `
   }
 
   .page-title {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 13px;
     font-weight: 500;
     color: var(--text);
@@ -181,10 +211,11 @@ const css = `
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 20px;
+    transition: background 0.2s;
   }
 
   .card-title {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     font-weight: 500;
     color: var(--muted);
@@ -198,7 +229,7 @@ const css = `
   .gap-16 { display: flex; flex-direction: column; gap: 16px; }
 
   .stat-val {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 32px;
     font-weight: 600;
     color: var(--text);
@@ -223,7 +254,7 @@ const css = `
   .server-row:last-child { border-bottom: none; }
 
   .server-name {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 12px;
     color: var(--text);
   }
@@ -231,18 +262,18 @@ const css = `
   .server-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
   .badge {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     padding: 2px 8px;
     border-radius: 3px;
     font-weight: 500;
     white-space: nowrap;
   }
-  .badge-green  { background: rgba(0,229,160,0.1);  color: var(--accent);  border: 1px solid rgba(0,229,160,0.2); }
-  .badge-blue   { background: rgba(0,153,255,0.1);  color: var(--accent2); border: 1px solid rgba(0,153,255,0.2); }
-  .badge-red    { background: rgba(255,77,106,0.1);  color: var(--danger);  border: 1px solid rgba(255,77,106,0.2); }
-  .badge-yellow { background: rgba(255,184,48,0.1); color: var(--warn);    border: 1px solid rgba(255,184,48,0.2); }
-  .badge-muted  { background: rgba(88,98,117,0.1);  color: var(--muted);   border: 1px solid rgba(88,98,117,0.2); }
+  .badge-green  { background: rgba(0,149,107,0.1);  color: var(--accent);  border: 1px solid rgba(0,149,107,0.25); }
+  .badge-blue   { background: rgba(0,119,204,0.1);  color: var(--accent2); border: 1px solid rgba(0,119,204,0.25); }
+  .badge-red    { background: rgba(204,34,51,0.1);  color: var(--danger);  border: 1px solid rgba(204,34,51,0.25); }
+  .badge-yellow { background: rgba(179,96,0,0.1);   color: var(--warn);    border: 1px solid rgba(179,96,0,0.25); }
+  .badge-muted  { background: rgba(138,127,117,0.1);color: var(--muted);   border: 1px solid rgba(138,127,117,0.25); }
 
   .editor-wrap {
     position: relative;
@@ -256,15 +287,15 @@ const css = `
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: #0a0c0f;
+    background: var(--editor-bg);
     border-top: 1px solid var(--border);
     flex-wrap: wrap;
     gap: 8px;
   }
 
-  .editor-hint { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .editor-hint { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); }
 
-  .cm-editor { min-height: 420px; font-family: var(--mono) !important; }
+  .cm-editor { min-height: 420px; font-family: 'IBM Plex Mono', monospace !important; }
   .cm-editor.cm-focused { outline: none; }
 
   .btn {
@@ -273,7 +304,7 @@ const css = `
     gap: 6px;
     padding: 7px 14px;
     border-radius: 4px;
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -284,14 +315,29 @@ const css = `
   }
 
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-primary { background: var(--accent); color: #000; }
-  .btn-primary:hover:not(:disabled) { background: #00ffb3; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
   .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
   .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
-  .btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(255,77,106,0.3); }
-  .btn-danger:hover:not(:disabled) { background: rgba(255,77,106,0.1); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(204,34,51,0.3); }
+  .btn-danger:hover:not(:disabled) { background: rgba(204,34,51,0.08); }
 
   .btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  /* Theme toggle */
+  .theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 6px 10px;
+    font-size: 14px;
+    line-height: 1;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover { color: var(--text); border-color: var(--muted); }
 
   .toast-wrap {
     position: fixed;
@@ -302,7 +348,7 @@ const css = `
   }
 
   .toast {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 12px;
     padding: 10px 16px;
     border-radius: 4px;
@@ -311,9 +357,9 @@ const css = `
     max-width: 340px;
   }
 
-  .toast-success { background: #0a1a12; border-color: var(--accent); color: var(--accent); }
-  .toast-error   { background: #1a0a0e; border-color: var(--danger); color: var(--danger); }
-  .toast-info    { background: #0a1020; border-color: var(--accent2); color: var(--accent2); }
+  .toast-success { background: rgba(0,149,107,0.12); border-color: var(--accent); color: var(--accent); }
+  .toast-error   { background: rgba(204,34,51,0.12);  border-color: var(--danger); color: var(--danger); }
+  .toast-info    { background: rgba(0,119,204,0.12);  border-color: var(--accent2); color: var(--accent2); }
 
   @keyframes slideIn {
     from { transform: translateX(20px); opacity: 0; }
@@ -325,7 +371,7 @@ const css = `
   .table { width: 100%; border-collapse: collapse; min-width: 500px; }
   .table th {
     text-align: left;
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
@@ -341,9 +387,9 @@ const css = `
     vertical-align: middle;
   }
   .table tr:last-child td { border-bottom: none; }
-  .table tr:hover td { background: rgba(255,255,255,0.02); }
+  .table tr:hover td { background: rgba(0,0,0,0.03); }
 
-  .mono { font-family: var(--mono); font-size: 12px; }
+  .mono { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
 
   a.route-link {
     color: inherit;
@@ -355,12 +401,12 @@ const css = `
   a.route-link.upstream { color: var(--accent2); }
 
   .search-input {
-    background: #0a0c0f;
+    background: var(--editor-bg);
     border: 1px solid var(--border2);
     border-radius: 4px;
     padding: 7px 12px;
     color: var(--text);
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 12px;
     outline: none;
     width: 220px;
@@ -371,7 +417,7 @@ const css = `
 
   .modal-overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.5);
     display: flex; align-items: center; justify-content: center;
     z-index: 500;
     animation: fadeIn 0.15s ease;
@@ -390,7 +436,7 @@ const css = `
   }
 
   .modal-title {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 13px;
     font-weight: 600;
     color: var(--text);
@@ -400,7 +446,7 @@ const css = `
   .field { margin-bottom: 14px; }
   .field label {
     display: block;
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     letter-spacing: 1.2px;
     text-transform: uppercase;
@@ -409,12 +455,12 @@ const css = `
   }
   .field input {
     width: 100%;
-    background: #0a0c0f;
+    background: var(--editor-bg);
     border: 1px solid var(--border2);
     border-radius: 4px;
     padding: 8px 12px;
     color: var(--text);
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 13px;
     outline: none;
     transition: border-color 0.15s;
@@ -423,22 +469,22 @@ const css = `
   .field input:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .log-wrap {
-    background: #0a0c0f;
+    background: var(--log-bg);
     border: 1px solid var(--border);
     border-radius: 6px;
     height: 420px;
     overflow-y: auto;
     padding: 12px;
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     line-height: 1.6;
   }
 
   .log-line { padding: 1px 0; color: var(--muted); word-break: break-all; }
-  .log-line:hover { color: var(--text); background: rgba(255,255,255,0.02); }
-  .log-line.err { color: #ff6b6b; }
+  .log-line:hover { color: var(--text); background: rgba(0,0,0,0.04); }
+  .log-line.err { color: var(--danger); }
   .log-line.warn { color: var(--warn); }
-  .log-line.highlight { background: rgba(0,229,160,0.06); color: var(--text); }
+  .log-line.highlight { background: rgba(0,149,107,0.08); color: var(--text); }
 
   .log-toolbar {
     display: flex;
@@ -482,16 +528,16 @@ const css = `
     gap: 8px;
   }
   .history-row:last-child { border-bottom: none; }
-  .history-row:hover { background: rgba(255,255,255,0.02); }
+  .history-row:hover { background: rgba(0,0,0,0.03); }
 
   .history-preview {
-    background: #0a0c0f;
+    background: var(--editor-bg);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 12px;
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
-    color: #a8d8a8;
+    color: var(--editor-text);
     line-height: 1.6;
     max-height: 200px;
     overflow-y: auto;
@@ -500,43 +546,12 @@ const css = `
   }
 
   /* Metrics bar chart */
-  .metrics-bar-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .metrics-bar-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .metrics-bar-label {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    width: 32px;
-    flex-shrink: 0;
-  }
-  .metrics-bar-track {
-    flex: 1;
-    height: 8px;
-    background: var(--border);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-  .metrics-bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.4s ease;
-  }
-  .metrics-bar-count {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text);
-    width: 40px;
-    text-align: right;
-    flex-shrink: 0;
-  }
+  .metrics-bar-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .metrics-bar-row { display: flex; align-items: center; gap: 10px; }
+  .metrics-bar-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); width: 32px; flex-shrink: 0; }
+  .metrics-bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .metrics-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+  .metrics-bar-count { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text); width: 40px; text-align: right; flex-shrink: 0; }
 
   /* Login screen */
   .login-shell {
@@ -557,7 +572,7 @@ const css = `
   }
 
   .login-logo {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 24px;
     font-weight: 600;
     color: var(--accent);
@@ -573,13 +588,13 @@ const css = `
   }
 
   .login-error {
-    font-family: var(--mono);
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     color: var(--danger);
     margin-bottom: 12px;
     padding: 8px 12px;
-    background: rgba(255,77,106,0.08);
-    border: 1px solid rgba(255,77,106,0.2);
+    background: rgba(204,34,51,0.08);
+    border: 1px solid rgba(204,34,51,0.2);
     border-radius: 4px;
   }
 
@@ -614,6 +629,9 @@ function setToken(token) {
     if (token) localStorage.setItem('caddy_ui_token', token);
     else localStorage.removeItem('caddy_ui_token');
 }
+
+function getTheme() { return localStorage.getItem('caddy_ui_theme') || 'dark'; }
+function saveTheme(theme) { localStorage.setItem('caddy_ui_theme', theme); }
 
 function useToast() {
     const [toasts, setToasts] = useState([]);
@@ -720,7 +738,7 @@ function LoginScreen({ onLogin }) {
 
 // ── CodeMirror Editor ─────────────────────────────────────────────────────────
 
-function CaddyfileCodeMirror({ value, onChange }) {
+function CaddyfileCodeMirror({ value, onChange, theme }) {
     const containerRef = useRef(null);
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
@@ -738,27 +756,29 @@ function CaddyfileCodeMirror({ value, onChange }) {
             const { StreamLanguage, syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching } = await import("@codemirror/language");
             const { nginx } = await import("@codemirror/legacy-modes/mode/nginx");
 
-            const theme = EditorView.theme({
-                "&": { background: "#0a0c0f", color: "#c9d1e0", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace" },
-                ".cm-content": { padding: "16px", caretColor: "#00e5a0", lineHeight: "1.7" },
-                ".cm-gutters": { background: "#0d0f12", color: "#586275", border: "none", borderRight: "1px solid #1e2329", paddingRight: "8px" },
-                ".cm-activeLineGutter": { background: "rgba(0,229,160,0.05)" },
-                ".cm-activeLine": { background: "rgba(0,229,160,0.03)" },
-                ".cm-cursor": { borderLeftColor: "#00e5a0" },
-                ".cm-selectionBackground, ::selection": { background: "rgba(0,153,255,0.2) !important" },
+            const isDark = theme === 'dark';
+
+            const editorTheme = EditorView.theme({
+                "&": { background: isDark ? "#0a0c0f" : "#f0ebe4", color: isDark ? "#c9d1e0" : "#2c2825", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace" },
+                ".cm-content": { padding: "16px", caretColor: "var(--accent)", lineHeight: "1.7" },
+                ".cm-gutters": { background: isDark ? "#0d0f12" : "#e8e2db", color: isDark ? "#586275" : "#8a7f75", border: "none", borderRight: `1px solid ${isDark ? "#1e2329" : "#d0c8c0"}`, paddingRight: "8px" },
+                ".cm-activeLineGutter": { background: isDark ? "rgba(0,229,160,0.05)" : "rgba(0,149,107,0.05)" },
+                ".cm-activeLine": { background: isDark ? "rgba(0,229,160,0.03)" : "rgba(0,149,107,0.03)" },
+                ".cm-cursor": { borderLeftColor: "var(--accent)" },
+                ".cm-selectionBackground, ::selection": { background: isDark ? "rgba(0,153,255,0.2) !important" : "rgba(0,119,204,0.15) !important" },
                 ".cm-line": { padding: "0 4px" },
-                ".tok-keyword": { color: "#00e5a0" },
-                ".tok-string": { color: "#ffb830" },
-                ".tok-comment": { color: "#586275", fontStyle: "italic" },
-                ".tok-number": { color: "#0099ff" },
-                ".tok-operator": { color: "#c9d1e0" },
-                ".tok-variableName": { color: "#ff4d6a" },
-                ".tok-typeName": { color: "#00e5a0" },
-                ".tok-atom": { color: "#ffb830" },
-                ".tok-def": { color: "#00e5a0" },
-                ".tok-property": { color: "#0099ff" },
+                ".tok-keyword": { color: isDark ? "#00e5a0" : "#00956b" },
+                ".tok-string": { color: isDark ? "#ffb830" : "#b36000" },
+                ".tok-comment": { color: isDark ? "#586275" : "#8a7f75", fontStyle: "italic" },
+                ".tok-number": { color: isDark ? "#0099ff" : "#0077cc" },
+                ".tok-operator": { color: isDark ? "#c9d1e0" : "#2c2825" },
+                ".tok-variableName": { color: isDark ? "#ff4d6a" : "#cc2233" },
+                ".tok-typeName": { color: isDark ? "#00e5a0" : "#00956b" },
+                ".tok-atom": { color: isDark ? "#ffb830" : "#b36000" },
+                ".tok-def": { color: isDark ? "#00e5a0" : "#00956b" },
+                ".tok-property": { color: isDark ? "#0099ff" : "#0077cc" },
                 "& .cm-scroller": { overflow: "auto" },
-            }, { dark: true });
+            }, { dark: isDark });
 
             const startState = EditorState.create({
                 doc: value,
@@ -766,7 +786,7 @@ function CaddyfileCodeMirror({ value, onChange }) {
                     lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
                     history(), drawSelection(), indentOnInput(), bracketMatching(),
                     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-                    StreamLanguage.define(nginx), theme,
+                    StreamLanguage.define(nginx), editorTheme,
                     keymap.of([...defaultKeymap, ...historyKeymap]),
                     EditorView.updateListener.of(update => {
                         if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -781,7 +801,7 @@ function CaddyfileCodeMirror({ value, onChange }) {
 
         init();
         return () => { view?.destroy(); viewRef.current = null; };
-    }, []);
+    }, [theme]); // Reinitialize when theme changes
 
     useEffect(() => {
         const view = viewRef.current;
@@ -790,7 +810,7 @@ function CaddyfileCodeMirror({ value, onChange }) {
         if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
     }, [value]);
 
-    return <div ref={containerRef} style={{ minHeight: 420, background: "#0a0c0f" }} />;
+    return <div ref={containerRef} style={{ minHeight: 420, background: theme === 'dark' ? "#0a0c0f" : "#f0ebe4" }} />;
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -823,10 +843,7 @@ function Dashboard({ status, toast, onUnauth, setTab }) {
     const saveName = async () => {
         try {
             if (editName.trim()) {
-                await apiFetch(`/server-names/${editingServer.name}`, {
-                    method: "PUT", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name: editName }),
-                }, onUnauth);
+                await apiFetch(`/server-names/${editingServer.name}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editName }) }, onUnauth);
                 setNames(n => ({ ...n, [editingServer.name]: editName.trim() }));
                 toast.success("Server name saved");
             } else {
@@ -843,9 +860,9 @@ function Dashboard({ status, toast, onUnauth, setTab }) {
         return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
     };
 
-    const labelStyle = { fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block" };
+    const labelStyle = { fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block" };
 
-    if (!status) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading...</div>;
+    if (!status) return <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading...</div>;
 
     return (
         <>
@@ -877,38 +894,35 @@ function Dashboard({ status, toast, onUnauth, setTab }) {
                     </div>
                 </div>
 
-                {/* Process card -- always visible, no expander */}
                 <div className="card">
                     <div className="card-title">Process</div>
                     {!process ? (
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
                     ) : !process.ok ? (
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                             <span>Metrics not enabled</span>
-                            <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setTab("metrics")}>
-                                Enable in Metrics →
-                            </button>
+                            <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setTab("metrics")}>Enable in Metrics →</button>
                         </div>
                     ) : (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                             <div>
                                 <span style={labelStyle}>Version</span>
-                                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--text)" }}>{process.version}</div>
+                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--text)" }}>{process.version}</div>
                             </div>
                             <div>
                                 <span style={labelStyle}>Uptime</span>
-                                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--accent)" }}>{process.uptime || "—"}</div>
+                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--accent)" }}>{process.uptime || "—"}</div>
                             </div>
                             <div>
                                 <span style={labelStyle}>Heap</span>
-                                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: "var(--text)" }}>
+                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--text)" }}>
                                     {process.memAlloc !== null ? `${process.memAlloc} MB` : "—"}
                                     {process.memSys !== null && <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 4 }}>/ {process.memSys} MB sys</span>}
                                 </div>
                             </div>
                             <div>
                                 <span style={labelStyle}>Last Reload</span>
-                                <div style={{ fontFamily: "var(--mono)", fontSize: 13, color: process.lastReloadSuccess ? "var(--text)" : "var(--danger)" }}>
+                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: process.lastReloadSuccess ? "var(--text)" : "var(--danger)" }}>
                                     {formatLastReload(process.lastReload)}
                                 </div>
                             </div>
@@ -924,14 +938,14 @@ function Dashboard({ status, toast, onUnauth, setTab }) {
                                 <div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <div className="server-name">{s.name}</div>
-                                        {names[s.name] && <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--text)" }}>— {names[s.name]}</span>}
+                                        {names[s.name] && <span style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: "var(--text)" }}>— {names[s.name]}</span>}
                                     </div>
                                     <div className="server-meta">{s.listen?.join(", ") || "no listeners"}</div>
                                 </div>
                                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                     <span className="badge badge-blue">{s.routeCount} routes</span>
                                     <span className="badge badge-green">active</span>
-                                    <span style={{ color: "var(--muted)", fontSize: 11, fontFamily: "var(--mono)" }}>✎</span>
+                                    <span style={{ color: "var(--muted)", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>✎</span>
                                 </div>
                             </div>
                         ))}
@@ -939,9 +953,9 @@ function Dashboard({ status, toast, onUnauth, setTab }) {
                 )}
 
                 {!status.online && (
-                    <div className="card" style={{ borderColor: "rgba(255,77,106,0.3)" }}>
+                    <div className="card" style={{ borderColor: "rgba(204,34,51,0.3)" }}>
                         <div className="card-title" style={{ color: "var(--danger)" }}>Connection Error</div>
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>{status.error}</div>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)" }}>{status.error}</div>
                     </div>
                 )}
             </div>
@@ -961,7 +975,7 @@ function Dashboard({ status, toast, onUnauth, setTab }) {
                             <label>Display Name</label>
                             <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={`e.g. "Main Sites" or "Internal Services"`} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                         </div>
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the name.</div>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the name.</div>
                         <div className="btn-row" style={{ justifyContent: "flex-end" }}>
                             <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>Cancel</button>
                             <button className="btn btn-primary" onClick={saveName}>Save</button>
@@ -975,7 +989,7 @@ function Dashboard({ status, toast, onUnauth, setTab }) {
 
 // ── Caddyfile Editor ──────────────────────────────────────────────────────────
 
-function CaddyfileEditor({ toast, onUnauth }) {
+function CaddyfileEditor({ toast, onUnauth, theme }) {
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
     const [loading, setLoading] = useState(true);
@@ -1013,8 +1027,7 @@ function CaddyfileEditor({ toast, onUnauth }) {
         if (previewEntry?.filename === entry.filename) { setPreviewEntry(null); setPreviewContent(""); return; }
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
-            setPreviewEntry(entry);
-            setPreviewContent(text);
+            setPreviewEntry(entry); setPreviewContent(text);
         } catch (e) { toast.error(e.message); }
     };
 
@@ -1093,19 +1106,19 @@ function CaddyfileEditor({ toast, onUnauth }) {
 
     const isDirty = content !== original;
 
-    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading Caddyfile...</div>;
+    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading Caddyfile...</div>;
 
     return (
         <div className="gap-16">
             <div className="editor-wrap">
-                <CaddyfileCodeMirror value={content} onChange={setContent} />
+                <CaddyfileCodeMirror value={content} onChange={setContent} theme={theme} />
                 <div className="editor-toolbar">
                     <div className="btn-row">
-                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
                             <input type="checkbox" checked={runFmt} onChange={e => setRunFmt(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
                             caddy fmt
                         </label>
-                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
                             <input type="checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
                             sort entries
                         </label>
@@ -1126,21 +1139,21 @@ function CaddyfileEditor({ toast, onUnauth }) {
             {historyOpen && (
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                     <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Version History</span>
+                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Version History</span>
                         <button className="btn btn-ghost" onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 11 }}>↺ Refresh</button>
                     </div>
                     {historyLoading ? (
-                        <div style={{ padding: 16, fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
+                        <div style={{ padding: 16, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
                     ) : history.length === 0 ? (
-                        <div style={{ padding: 24, textAlign: "center", fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)" }}>No snapshots yet — save your Caddyfile to create one</div>
+                        <div style={{ padding: 24, textAlign: "center", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)" }}>No snapshots yet — save your Caddyfile to create one</div>
                     ) : (
                         <div style={{ padding: "0 16px" }}>
                             {history.map((entry, i) => (
                                 <div key={entry.filename}>
                                     <div className="history-row">
-                                        <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: previewEntry?.filename === entry.filename ? "var(--accent)" : "var(--text)", cursor: "pointer", flex: 1 }} onClick={() => previewSnapshot(entry)}>
+                                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: previewEntry?.filename === entry.filename ? "var(--accent)" : "var(--text)", cursor: "pointer", flex: 1 }} onClick={() => previewSnapshot(entry)}>
                                             {formatTs(entry.timestamp)}
-                                            {i === 0 && <span style={{ marginLeft: 8, fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)" }}>latest</span>}
+                                            {i === 0 && <span style={{ marginLeft: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)" }}>latest</span>}
                                         </div>
                                         <div className="btn-row">
                                             <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => restoreSnapshot(entry)}>↺ Restore</button>
@@ -1176,7 +1189,7 @@ function RouteModal({ mode, initial, onSave, onClose }) {
                 <div className="field">
                     <label>Domain</label>
                     <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" disabled={isEdit && !form._id} />
-                    {isEdit && !form._id && <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Domain cannot be changed for Caddyfile-managed routes</div>}
+                    {isEdit && !form._id && <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Domain cannot be changed for Caddyfile-managed routes</div>}
                 </div>
                 <div className="field">
                     <label>Upstream</label>
@@ -1203,12 +1216,12 @@ function NoteModal({ domain, initialNote, onSave, onClose }) {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-title">Route Note</div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>{domain}</div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>{domain}</div>
                 <div className="field">
                     <label>Note</label>
                     <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Home Assistant, media server..." autoFocus onKeyDown={e => e.key === 'Enter' && onSave(domain, note)} />
                 </div>
-                <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the note.</div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the note.</div>
                 <div className="btn-row" style={{ justifyContent: "flex-end" }}>
                     <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
                     <button className="btn btn-primary" onClick={() => onSave(domain, note)}>Save</button>
@@ -1328,34 +1341,20 @@ function RoutesManager({ toast, setTab, onUnauth }) {
 
     const getHealthDot = (route) => {
         const upstream = getUpstream(route);
-        if (upstream === "—") return (
-            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--border2)", marginRight: 8, flexShrink: 0 }} title="No upstream" />
-        );
-
+        if (upstream === "—") return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--border2)", marginRight: 8, flexShrink: 0 }} title="No upstream" />;
         const upstreams = upstream.split(", ");
         const allOnline = upstreams.every(u => health[u] === true);
         const anyOnline = upstreams.some(u => health[u] === true);
         const checked = upstreams.some(u => u in health);
-
-        if (!checked) return (
-            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted)", marginRight: 8, flexShrink: 0 }} title="Checking..." />
-        );
-
+        if (!checked) return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted)", marginRight: 8, flexShrink: 0 }} title="Checking..." />;
         const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
         const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
-        const label = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
-
         const stats = uptime[upstreams[0]];
         const uptimeLabel = stats && stats.total > 1 ? `${stats.pct}%` : null;
-
         return (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: 8, flexShrink: 0, width: 20 }}>
-                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: shadow }} title={label} />
-                {uptimeLabel && (
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--muted)", marginTop: 2, lineHeight: 1, whiteSpace: "nowrap" }}>
-                        {uptimeLabel}
-                    </span>
-                )}
+                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: shadow }} title={allOnline ? "Online" : anyOnline ? "Partial" : "Offline"} />
+                {uptimeLabel && <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: "var(--muted)", marginTop: 2, lineHeight: 1, whiteSpace: "nowrap" }}>{uptimeLabel}</span>}
             </div>
         );
     };
@@ -1384,7 +1383,7 @@ function RoutesManager({ toast, setTab, onUnauth }) {
         return <span style={{ marginLeft: 4, color: "var(--accent)" }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
     };
 
-    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading routes...</div>;
+    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading routes...</div>;
 
     return (
         <>
@@ -1392,7 +1391,7 @@ function RoutesManager({ toast, setTab, onUnauth }) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                         <input className="search-input" placeholder="Filter by domain, upstream, or note..." value={search} onChange={e => setSearch(e.target.value)} />
-                        <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
                             {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} online`}
                         </span>
                     </div>
@@ -1403,7 +1402,7 @@ function RoutesManager({ toast, setTab, onUnauth }) {
                 </div>
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                     {sorted.length === 0 ? (
-                        <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>
+                        <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
                             {search ? `No routes matching "${search}"` : "No routes configured"}
                         </div>
                     ) : (
@@ -1427,7 +1426,6 @@ function RoutesManager({ toast, setTab, onUnauth }) {
                                         const hasId = !!r["@id"];
                                         const canEdit = hasId || r._simpleProxy;
                                         const note = notes[domain];
-
                                         return (
                                             <tr key={r["@id"] || i}>
                                                 <td>
@@ -1435,7 +1433,7 @@ function RoutesManager({ toast, setTab, onUnauth }) {
                                                         {getHealthDot(r)}
                                                         <div>
                                                             {dLink ? <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">{domain}</a> : <span className="mono">{domain}</span>}
-                                                            {note && <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{note}</div>}
+                                                            {note && <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{note}</div>}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -1526,17 +1524,15 @@ function TLSViewer({ toast, onUnauth }) {
         catch { return dateStr; }
     };
 
-    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading certificates...</div>;
+    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading certificates...</div>;
 
     return (
         <div className="gap-16">
-
-            {/* Root CA card */}
             <div className="card">
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                     <div>
                         <div className="card-title" style={{ marginBottom: 4 }}>Root CA Certificate</div>
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", maxWidth: 480 }}>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", maxWidth: 480 }}>
                             Install this on your devices to trust internal TLD domains (e.g. <span style={{ color: "var(--accent)" }}>.internal</span>, <span style={{ color: "var(--accent)" }}>.home</span>) served by Caddy's built-in CA. Required after a fresh Caddy install or server rebuild.
                         </div>
                         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
@@ -1546,19 +1542,16 @@ function TLSViewer({ toast, onUnauth }) {
                                 { os: "Android", instruction: "Settings → Security → Install from storage" },
                                 { os: "Windows", instruction: "Double-click cert → Install Certificate → Trusted Root CAs" },
                             ].map(({ os, instruction }) => (
-                                <div key={os} style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)" }}>
+                                <div key={os} style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)" }}>
                                     <span style={{ color: "var(--text)" }}>{os}</span> — {instruction}
                                 </div>
                             ))}
                         </div>
                     </div>
-                    <button className="btn btn-primary" onClick={downloadCA} style={{ flexShrink: 0 }}>
-                        ↓ Download Root CA
-                    </button>
+                    <button className="btn btn-primary" onClick={downloadCA} style={{ flexShrink: 0 }}>↓ Download Root CA</button>
                 </div>
             </div>
 
-            {/* Summary cards */}
             <div className="grid-4">
                 {[
                     { key: "all", label: "Total", val: summary.total, sub: "Managed certs", color: null },
@@ -1574,15 +1567,14 @@ function TLSViewer({ toast, onUnauth }) {
                 ))}
             </div>
 
-            {/* Cert table */}
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
                         Certificates {filter !== "all" && `— ${filter}`}
                     </span>
                     <div className="btn-row">
                         {summary.orphaned > 0 && (
-                            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }} onClick={() => setFilter(filter === "orphaned" ? "all" : "orphaned")}>
+                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }} onClick={() => setFilter(filter === "orphaned" ? "all" : "orphaned")}>
                                 {summary.orphaned} orphaned
                             </span>
                         )}
@@ -1590,7 +1582,7 @@ function TLSViewer({ toast, onUnauth }) {
                     </div>
                 </div>
                 {filtered.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>No certificates in this category</div>
+                    <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>No certificates in this category</div>
                 ) : (
                     <div className="table-wrap">
                         <table className="table">
@@ -1603,7 +1595,7 @@ function TLSViewer({ toast, onUnauth }) {
                                         <td className="mono">{cert.domain}</td>
                                         <td><span className={`badge ${cert.issuer === 'acme' ? 'badge-blue' : 'badge-muted'}`}>{cert.issuer === 'acme' ? "Let's Encrypt" : "Internal"}</span></td>
                                         <td>
-                                            <div style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{formatDate(cert.validTo)}</div>
+                                            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>{formatDate(cert.validTo)}</div>
                                             {expiryBar(cert)}
                                         </td>
                                         <td className="mono" style={{ color: cert.daysRemaining < 0 ? "var(--danger)" : cert.daysRemaining < 14 ? "var(--warn)" : "var(--muted)" }}>
@@ -1622,7 +1614,7 @@ function TLSViewer({ toast, onUnauth }) {
             </div>
 
             {summary.orphaned > 0 && filter !== "orphaned" && (
-                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", textAlign: "center" }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", textAlign: "center" }}>
                     {summary.orphaned} orphaned cert{summary.orphaned > 1 ? "s" : ""} hidden — stale certs for domains no longer in your Caddyfile.
                     <span style={{ color: "var(--accent2)", cursor: "pointer", marginLeft: 6 }} onClick={() => setFilter("orphaned")}>Show</span>
                 </div>
@@ -1700,9 +1692,9 @@ function LogsViewer({ toast, onUnauth }) {
         finally { setSavingConfig(false); }
     };
 
-    const selectStyle = { background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)", fontSize: 12, outline: "none", cursor: "pointer", width: "100%" };
-    const inputStyle = { background: "#0a0c0f", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "var(--mono)", fontSize: 12, outline: "none", width: "100%" };
-    const labelStyle = { fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "1.2px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 5, display: "block" };
+    const selectStyle = { background: "var(--editor-bg)", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, outline: "none", cursor: "pointer", width: "100%" };
+    const inputStyle = { background: "var(--editor-bg)", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, outline: "none", width: "100%" };
+    const labelStyle = { fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: "1.2px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 5, display: "block" };
 
     const levelBtn = (level, label, color) => (
         <button className="btn btn-ghost" style={{ fontSize: 10, padding: "4px 10px", borderColor: levelFilter === level ? color : "var(--border2)", color: levelFilter === level ? color : "var(--muted)" }} onClick={() => setLevelFilter(levelFilter === level ? "all" : level)}>
@@ -1714,7 +1706,7 @@ function LogsViewer({ toast, onUnauth }) {
         <div className="gap-16">
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <div onClick={() => setConfigOpen(o => !o)} style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: configOpen ? "1px solid var(--border)" : "none" }}>
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Log Configuration</span>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Log Configuration</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         {logConfig && <span className={`badge ${logConfig.enabled ? "badge-green" : "badge-red"}`}>{logConfig.enabled ? "ENABLED" : "DISABLED"}</span>}
                         <span style={{ color: "var(--muted)", fontSize: 12 }}>{configOpen ? "▲" : "▼"}</span>
@@ -1725,7 +1717,7 @@ function LogsViewer({ toast, onUnauth }) {
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 16 }}>
                             <div>
                                 <span style={labelStyle}>Logging</span>
-                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "var(--mono)", fontSize: 12, color: "var(--text)" }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--text)" }}>
                                     <input type="checkbox" checked={logConfig.enabled} onChange={e => updateConfig("enabled", e.target.checked)} style={{ accentColor: "var(--accent)", width: 14, height: 14 }} />
                                     {logConfig.enabled ? "Enabled" : "Disabled"}
                                 </label>
@@ -1774,7 +1766,7 @@ function LogsViewer({ toast, onUnauth }) {
                     {levelBtn("info", "INFO", "var(--accent2)")}
                 </div>
                 <div className="btn-row">
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
                         {filteredLines.length}{logSearch || levelFilter !== "all" ? ` / ${lines.length}` : ""} lines
                     </span>
                     {live && <div className="live-dot" />}
@@ -1825,11 +1817,7 @@ function MetricsViewer({ toast, onUnauth }) {
     const toggleMetrics = async (enabled) => {
         setSavingMetrics(true);
         try {
-            await apiFetch("/status/metrics-config", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enabled }),
-            }, onUnauth);
+            await apiFetch("/status/metrics-config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }, onUnauth);
             setMetricsConfig({ enabled });
             toast.success(enabled ? "Metrics enabled" : "Metrics disabled");
             if (enabled) setTimeout(load, 1000);
@@ -1837,14 +1825,9 @@ function MetricsViewer({ toast, onUnauth }) {
         finally { setSavingMetrics(false); }
     };
 
-    const labelStyle = { fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block" };
+    const labelStyle = { fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block" };
 
-    const statusColors = {
-        '2xx': 'var(--accent)',
-        '3xx': 'var(--accent2)',
-        '4xx': 'var(--warn)',
-        '5xx': 'var(--danger)',
-    };
+    const statusColors = { '2xx': 'var(--accent)', '3xx': 'var(--accent2)', '4xx': 'var(--warn)', '5xx': 'var(--danger)' };
 
     const formatScrapedAt = (iso) => {
         if (!iso) return "";
@@ -1854,43 +1837,31 @@ function MetricsViewer({ toast, onUnauth }) {
 
     return (
         <div className="gap-16">
-            {/* Config panel */}
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <div onClick={() => setConfigOpen(o => !o)} style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: configOpen ? "1px solid var(--border)" : "none" }}>
-                    <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Metrics Configuration</span>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Metrics Configuration</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         {metricsConfig && <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>{metricsConfig.enabled ? "ENABLED" : "DISABLED"}</span>}
                         <span style={{ color: "var(--muted)", fontSize: 12 }}>{configOpen ? "▲" : "▼"}</span>
                     </div>
                 </div>
-
                 {configOpen && (
                     <div style={{ padding: 16 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
                             <div>
                                 <span style={labelStyle}>Caddy Metrics</span>
-                                <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-                                    Enables the Prometheus metrics endpoint on Caddy's admin API
-                                </div>
+                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>Enables the Prometheus metrics endpoint on Caddy's admin API</div>
                             </div>
-                            <button
-                                className={`btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`}
-                                onClick={() => toggleMetrics(!metricsConfig?.enabled)}
-                                disabled={savingMetrics}
-                            >
+                            <button className={`btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`} onClick={() => toggleMetrics(!metricsConfig?.enabled)} disabled={savingMetrics}>
                                 {savingMetrics ? "Saving..." : metricsConfig?.enabled ? "Disable" : "Enable"}
                             </button>
                         </div>
-
                         <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                                 <div>
                                     <span style={labelStyle}>Public Metrics Endpoint</span>
-                                    <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>
-                                        {publicMetrics
-                                            ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics</span></>
-                                            : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"
-                                        }
+                                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
+                                        {publicMetrics ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics</span></> : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"}
                                     </div>
                                 </div>
                                 <span className={`badge ${publicMetrics ? "badge-green" : "badge-muted"}`}>{publicMetrics ? "ENABLED" : "DISABLED"}</span>
@@ -1900,19 +1871,17 @@ function MetricsViewer({ toast, onUnauth }) {
                 )}
             </div>
 
-            {/* Metrics data */}
             {loading ? (
-                <div style={{ color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>Loading metrics...</div>
+                <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading metrics...</div>
             ) : !metrics?.ok ? (
                 <div className="card">
-                    <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                         <span>Metrics not enabled — enable above to see request data</span>
                         <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfigOpen(true)}>Configure →</button>
                     </div>
                 </div>
             ) : (
                 <>
-                    {/* Summary cards */}
                     <div className="grid-3">
                         <div className="card">
                             <div className="card-title">Total Requests</div>
@@ -1933,14 +1902,12 @@ function MetricsViewer({ toast, onUnauth }) {
                         </div>
                     </div>
 
-                    {/* Status codes + percentiles */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                         <div className="card">
                             <div className="card-title">Status Codes</div>
                             <div className="metrics-bar-wrap">
                                 {Object.entries(metrics.statusGroups).map(([group, count]) => {
-                                    const total = metrics.totalRequests || 1;
-                                    const pct = Math.round((count / total) * 100);
+                                    const pct = Math.round((count / (metrics.totalRequests || 1)) * 100);
                                     return (
                                         <div key={group} className="metrics-bar-row">
                                             <div className="metrics-bar-label" style={{ color: statusColors[group] }}>{group}</div>
@@ -1953,7 +1920,6 @@ function MetricsViewer({ toast, onUnauth }) {
                                 })}
                             </div>
                         </div>
-
                         <div className="card">
                             <div className="card-title">Response Time Percentiles</div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1964,8 +1930,8 @@ function MetricsViewer({ toast, onUnauth }) {
                                 ].map(({ label, val, color }) => (
                                     <div key={label}>
                                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                                            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)" }}>{label}</span>
-                                            <span style={{ fontFamily: "var(--mono)", fontSize: 13, color }}>{val}<span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 3 }}>ms</span></span>
+                                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>{label}</span>
+                                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color }}>{val}<span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 3 }}>ms</span></span>
                                         </div>
                                         <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
                                             <div style={{ height: "100%", width: `${Math.min(100, (val / (metrics.p99 || 1)) * 100)}%`, background: color, borderRadius: 2, transition: "width 0.4s" }} />
@@ -1976,7 +1942,7 @@ function MetricsViewer({ toast, onUnauth }) {
                         </div>
                     </div>
 
-                    <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", textAlign: "right", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span>Refreshes every 30s</span>
                         <div className="btn-row">
                             <span>Last scraped: {formatScrapedAt(metrics.scrapedAt)}</span>
@@ -2008,9 +1974,20 @@ export default function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [authEnabled, setAuthEnabled] = useState(false);
     const [authed, setAuthed] = useState(!!getToken());
+    const [theme, setTheme] = useState(getTheme);
     const toast = useToast();
 
     const onUnauth = useCallback(() => { setToken(null); setAuthed(false); }, []);
+
+    // Apply theme class to root
+    useEffect(() => {
+        if (theme === 'light') {
+            document.documentElement.classList.add('light');
+        } else {
+            document.documentElement.classList.remove('light');
+        }
+        saveTheme(theme);
+    }, [theme]);
 
     useEffect(() => {
         fetch(`${API}/auth/status`)
@@ -2029,6 +2006,8 @@ export default function App() {
         const t = setInterval(fetchStatus, 15000);
         return () => clearInterval(t);
     }, [authed, fetchStatus]);
+
+    const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
     if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
 
@@ -2080,11 +2059,16 @@ export default function App() {
                             <button className="hamburger" onClick={() => setSidebarOpen(o => !o)}>☰</button>
                             <span className="page-title">{titles[tab]}</span>
                         </div>
-                        <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>↺ Refresh</button>
+                        <div className="btn-row">
+                            <button className="theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+                                {theme === 'dark' ? '☀' : '☾'}
+                            </button>
+                            <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>↺ Refresh</button>
+                        </div>
                     </div>
                     <div className="content">
                         {tab === "dashboard" && <Dashboard status={status} toast={toast} onUnauth={onUnauth} setTab={setTab} />}
-                        {tab === "caddyfile" && <CaddyfileEditor toast={toast} onUnauth={onUnauth} />}
+                        {tab === "caddyfile" && <CaddyfileEditor toast={toast} onUnauth={onUnauth} theme={theme} />}
                         {tab === "routes" && <RoutesManager toast={toast} setTab={setTab} onUnauth={onUnauth} />}
                         {tab === "tls" && <TLSViewer toast={toast} onUnauth={onUnauth} />}
                         {tab === "logs" && <LogsViewer toast={toast} onUnauth={onUnauth} />}
