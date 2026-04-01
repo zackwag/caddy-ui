@@ -55,10 +55,19 @@ export async function caddyDelete(path) {
 }
 
 export async function caddyLoad(caddyfileText) {
-    const res = await fetch(`${CADDY_ADMIN_URL}/load`, {
+    // Adapt the Caddyfile to JSON first so env vars like {$DOMAIN} are resolved
+    const adaptRes = await fetch(`${CADDY_ADMIN_URL}/adapt?adapter=caddyfile`, {
         method: 'POST',
         headers: { ...BASE_HEADERS, 'Content-Type': 'text/caddyfile' },
         body: caddyfileText,
+    });
+    if (!adaptRes.ok) throw new Error(`Caddy adapt error: ${adaptRes.status} ${await adaptRes.text()}`);
+    const { result } = await adaptRes.json();
+
+    const res = await fetch(`${CADDY_ADMIN_URL}/load`, {
+        method: 'POST',
+        headers: { ...BASE_HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify(result),
     });
     if (!res.ok) throw new Error(`Caddy reload error: ${res.status} ${await res.text()}`);
     return {};

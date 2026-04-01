@@ -194,6 +194,8 @@ router.post('/validate', async (req, res) => {
     const tmpPath = `/tmp/Caddyfile.validate.${Date.now()}`;
     try {
         await writeFile(tmpPath, content, 'utf8');
+        // Format first so validate doesn't fail on whitespace/formatting issues
+        await execAsync(`caddy fmt --overwrite ${tmpPath}`).catch(() => { });
         const { stdout, stderr } = await execAsync(`caddy validate --config ${tmpPath} --adapter caddyfile 2>&1`);
         const output = (stdout + stderr).trim();
         const lines = output.split('\n').filter(Boolean);
