@@ -1492,6 +1492,11 @@ function TLSViewer({ toast, onUnauth }) {
         } catch (e) { toast.error(e.message); }
     };
 
+    const downloadCA = () => {
+        const token = getToken();
+        window.open(token ? `${API}/tls/ca?token=${token}` : `${API}/tls/ca`, '_blank');
+    };
+
     const summary = {
         total: certs.filter(c => c.status !== 'orphaned').length,
         valid: certs.filter(c => c.status === 'valid').length,
@@ -1525,6 +1530,35 @@ function TLSViewer({ toast, onUnauth }) {
 
     return (
         <div className="gap-16">
+
+            {/* Root CA card */}
+            <div className="card">
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                    <div>
+                        <div className="card-title" style={{ marginBottom: 4 }}>Root CA Certificate</div>
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--muted)", maxWidth: 480 }}>
+                            Install this on your devices to trust internal TLD domains (e.g. <span style={{ color: "var(--accent)" }}>.internal</span>, <span style={{ color: "var(--accent)" }}>.home</span>) served by Caddy's built-in CA. Required after a fresh Caddy install or server rebuild.
+                        </div>
+                        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
+                            {[
+                                { os: "iOS / iPadOS", instruction: "Open the file → Settings → Profile Downloaded → Install" },
+                                { os: "macOS", instruction: "Open Keychain Access → drag in cert → set to Always Trust" },
+                                { os: "Android", instruction: "Settings → Security → Install from storage" },
+                                { os: "Windows", instruction: "Double-click cert → Install Certificate → Trusted Root CAs" },
+                            ].map(({ os, instruction }) => (
+                                <div key={os} style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)" }}>
+                                    <span style={{ color: "var(--text)" }}>{os}</span> — {instruction}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <button className="btn btn-primary" onClick={downloadCA} style={{ flexShrink: 0 }}>
+                        ↓ Download Root CA
+                    </button>
+                </div>
+            </div>
+
+            {/* Summary cards */}
             <div className="grid-4">
                 {[
                     { key: "all", label: "Total", val: summary.total, sub: "Managed certs", color: null },
@@ -1540,6 +1574,7 @@ function TLSViewer({ toast, onUnauth }) {
                 ))}
             </div>
 
+            {/* Cert table */}
             <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>

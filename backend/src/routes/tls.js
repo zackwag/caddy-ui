@@ -132,4 +132,17 @@ router.delete('/:issuerDir/:domain', async (req, res) => {
     }
 });
 
+// GET /api/tls/ca -- download Caddy's root CA cert
+router.get('/ca', async (req, res) => {
+    try {
+        const caPath = join(CERTS_PATH, '..', 'pki', 'authorities', 'local', 'root.crt');
+        const cert = await readFile(caPath);
+        res.setHeader('Content-Disposition', 'attachment; filename="caddy-root-ca.crt"');
+        res.setHeader('Content-Type', 'application/x-x509-ca-cert');
+        res.send(cert);
+    } catch (err) {
+        res.status(404).json({ error: 'Root CA cert not found' });
+    }
+});
+
 export default router;
