@@ -324,7 +324,6 @@ const css = `
 
   .btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-  /* Theme toggle */
   .theme-toggle {
     background: transparent;
     border: 1px solid var(--border2);
@@ -545,7 +544,6 @@ const css = `
     white-space: pre;
   }
 
-  /* Metrics bar chart */
   .metrics-bar-wrap { display: flex; flex-direction: column; gap: 8px; }
   .metrics-bar-row { display: flex; align-items: center; gap: 10px; }
   .metrics-bar-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); width: 32px; flex-shrink: 0; }
@@ -553,7 +551,6 @@ const css = `
   .metrics-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
   .metrics-bar-count { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text); width: 40px; text-align: right; flex-shrink: 0; }
 
-  /* Login screen */
   .login-shell {
     display: flex;
     align-items: center;
@@ -801,7 +798,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
 
         init();
         return () => { view?.destroy(); viewRef.current = null; };
-    }, [theme]); // Reinitialize when theme changes
+    }, [theme]);
 
     useEffect(() => {
         const view = viewRef.current;
@@ -905,10 +902,12 @@ function Dashboard({ status, toast, onUnauth, setTab }) {
                         </div>
                     ) : (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
-                            <div>
-                                <span style={labelStyle}>Version</span>
-                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--text)" }}>{process.version}</div>
-                            </div>
+                            {process.version && process.version !== 'unknown' && (
+                                <div>
+                                    <span style={labelStyle}>Version</span>
+                                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--text)" }}>{process.version}</div>
+                                </div>
+                            )}
                             <div>
                                 <span style={labelStyle}>Uptime</span>
                                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: "var(--accent)" }}>{process.uptime || "—"}</div>
@@ -1680,6 +1679,19 @@ function LogsViewer({ toast, onUnauth }) {
 
     const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
 
+    const exportLogs = () => {
+        const linesToExport = (logSearch || levelFilter !== "all") && filteredLines.length > 0
+            ? filteredLines
+            : lines;
+        const blob = new Blob([linesToExport.join('\n')], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `caddy-access-${new Date().toISOString().slice(0, 10)}.log`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const updateConfig = (key, value) => { setLogConfig(c => ({ ...c, [key]: value })); setConfigDirty(true); };
 
     const saveConfig = async () => {
@@ -1772,6 +1784,7 @@ function LogsViewer({ toast, onUnauth }) {
                     {live && <div className="live-dot" />}
                     <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>{live ? "■ Stop" : "▶ Live"}</button>
                     <button className="btn btn-ghost" onClick={() => apiFetch("/logs", {}, onUnauth).then(d => setLines(d.lines || []))}>↺ Refresh</button>
+                    <button className="btn btn-ghost" onClick={exportLogs}>↓ Export</button>
                 </div>
             </div>
             <div className="log-wrap">
@@ -1826,7 +1839,6 @@ function MetricsViewer({ toast, onUnauth }) {
     };
 
     const labelStyle = { fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block" };
-
     const statusColors = { '2xx': 'var(--accent)', '3xx': 'var(--accent2)', '4xx': 'var(--warn)', '5xx': 'var(--danger)' };
 
     const formatScrapedAt = (iso) => {
@@ -1979,13 +1991,9 @@ export default function App() {
 
     const onUnauth = useCallback(() => { setToken(null); setAuthed(false); }, []);
 
-    // Apply theme class to root
     useEffect(() => {
-        if (theme === 'light') {
-            document.documentElement.classList.add('light');
-        } else {
-            document.documentElement.classList.remove('light');
-        }
+        if (theme === 'light') document.documentElement.classList.add('light');
+        else document.documentElement.classList.remove('light');
         saveTheme(theme);
     }, [theme]);
 
