@@ -11,6 +11,32 @@ A modern web interface for managing your [Caddy](https://caddyserver.com) server
 
 caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker containers alongside your existing Caddy instance and communicates with Caddy's built-in admin API. Your Caddyfile remains the source of truth — the UI reads from it, writes to it, and never takes ownership away from you.
 
+## Screenshots
+
+### Dashboard
+
+![Dashboard](screenshots/dashboard.png)
+
+### Caddyfile Editor
+
+![Caddyfile Editor](screenshots/caddyfile.png)
+
+### Route Manager
+
+![Route Manager](screenshots/routes.png)
+
+### TLS Certificates
+
+![TLS Certificates](screenshots/tls.png)
+
+### Access Logs
+
+![Access Logs](screenshots/logs.png)
+
+### Metrics
+
+![Metrics](screenshots/metrics.png)
+
 ## Features
 
 - **Dashboard** — Live server status, TLS state, server block summary with custom display names, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
