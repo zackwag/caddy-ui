@@ -10,6 +10,7 @@ export default function Logs({ toast, onUnauth }) {
     const [savingConfig, setSavingConfig] = useState(false);
     const [logSearch, setLogSearch] = useState("");
     const [levelFilter, setLevelFilter] = useState("all");
+    const [refreshing, setRefreshing] = useState(false);
     const bottomRef = useRef(null);
     const esRef = useRef(null);
 
@@ -69,6 +70,14 @@ export default function Logs({ toast, onUnauth }) {
         URL.revokeObjectURL(url);
     };
 
+    const refreshLogs = () => {
+        setRefreshing(true);
+        apiFetch("/logs", {}, onUnauth)
+            .then(d => setLines(d.lines || []))
+            .catch(e => toast.error(e.message))
+            .finally(() => setRefreshing(false));
+    };
+
     const updateConfig = (key, value) => { setLogConfig(c => ({ ...c, [key]: value })); setConfigDirty(true); };
 
     const saveConfig = async () => {
@@ -101,6 +110,9 @@ export default function Logs({ toast, onUnauth }) {
                         <span style={{ color: "var(--muted)", fontSize: 12 }}>{configOpen ? "▲" : "▼"}</span>
                     </div>
                 </div>
+                {configOpen && !logConfig && (
+                    <div style={{ padding: 16, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
+                )}
                 {configOpen && logConfig && (
                     <div style={{ padding: 16 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 16 }}>
@@ -160,7 +172,7 @@ export default function Logs({ toast, onUnauth }) {
                     </span>
                     {live && <div className="live-dot" />}
                     <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>{live ? "■ Stop" : "▶ Live"}</button>
-                    <button className="btn btn-ghost" onClick={() => apiFetch("/logs", {}, onUnauth).then(d => setLines(d.lines || []))}>↺ Refresh</button>
+                    <button className="btn btn-ghost" onClick={refreshLogs} disabled={refreshing}>↺ {refreshing ? "Refreshing..." : "Refresh"}</button>
                     <button className="btn btn-ghost" onClick={exportLogs}>↓ Export</button>
                 </div>
             </div>
