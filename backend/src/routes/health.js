@@ -72,13 +72,19 @@ function checkTCP(host, port) {
 
 function extractUpstreams(route) {
     const results = [];
-    const subroute = route.handle?.find(h => h.handler === 'subroute');
-    for (const r of subroute?.routes ?? []) {
-        const rp = r.handle?.find(h => h.handler === 'reverse_proxy');
-        if (rp?.upstreams) for (const u of rp.upstreams) if (u.dial) results.push(u.dial);
+
+    function walk(handles) {
+        for (const h of handles || []) {
+            if (h.handler === 'reverse_proxy' && h.upstreams) {
+                for (const u of h.upstreams) if (u.dial) results.push(u.dial);
+            }
+            if (h.routes) {
+                for (const r of h.routes) walk(r.handle);
+            }
+        }
     }
-    const flat = route.handle?.find(h => h.handler === 'reverse_proxy');
-    if (flat?.upstreams) for (const u of flat.upstreams) if (u.dial) results.push(u.dial);
+
+    walk(route.handle);
     return results;
 }
 

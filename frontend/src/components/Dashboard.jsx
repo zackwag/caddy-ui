@@ -59,19 +59,19 @@ export default function Dashboard({ status, toast, onUnauth, setTab }) {
                         <div className="stat-val" style={{ color: status.online ? "var(--accent)" : "var(--danger)" }}>{status.online ? "ONLINE" : "OFFLINE"}</div>
                         <div className="stat-label">Caddy server</div>
                     </div>
-                    <div className="card">
+                    <div className="card" style={{ cursor: "pointer" }} onClick={() => setTab("caddyfile")}>
                         <div className="card-title">Servers</div>
                         <div className="stat-val">{status.online ? status.serverCount : "—"}</div>
                         <div className="stat-label">Active server blocks</div>
                     </div>
-                    <div className="card">
+                    <div className="card" style={{ cursor: "pointer" }} onClick={() => setTab("tls")}>
                         <div className="card-title">TLS</div>
                         <div className="stat-val" style={{ fontSize: 20, paddingTop: 6 }}>
                             {status.online ? <span className={`badge ${status.tlsEnabled ? "badge-green" : "badge-red"}`}>{status.tlsEnabled ? "ENABLED" : "DISABLED"}</span> : "—"}
                         </div>
                         <div className="stat-label">Certificate management</div>
                     </div>
-                    <div className="card">
+                    <div className="card" style={{ cursor: "pointer" }} onClick={() => setTab("routes")}>
                         <div className="card-title">Upstreams</div>
                         <div className="stat-val" style={{ color: !health ? "var(--text)" : health.offline > 0 ? "var(--danger)" : "var(--accent)" }}>
                             {health ? `${health.online}/${health.total}` : "—"}
@@ -126,14 +126,15 @@ export default function Dashboard({ status, toast, onUnauth, setTab }) {
                                 <div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <div className="server-name">{s.name}</div>
-                                        {names[s.name] && <span style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: "var(--text)" }}>— {names[s.name]}</span>}
+                                        {names[s.name] && <span style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: "var(--muted)" }}>·</span>}
+                                        {names[s.name] && <span style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 12, color: "var(--text)" }}>{names[s.name]}</span>}
                                     </div>
                                     <div className="server-meta">{s.listen?.join(", ") || "no listeners"}</div>
                                 </div>
                                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                     <span className="badge badge-blue">{s.routeCount} routes</span>
                                     <span className="badge badge-green">active</span>
-                                    <span style={{ color: "var(--muted)", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>✎</span>
+                                    <span style={{ color: "var(--muted)", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }} title="Edit display name">✎</span>
                                 </div>
                             </div>
                         ))}
@@ -163,7 +164,7 @@ export default function Dashboard({ status, toast, onUnauth, setTab }) {
                             <label>Display Name</label>
                             <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={`e.g. "Main Sites" or "Internal Services"`} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                         </div>
-                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the name.</div>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the name. This label appears next to the server key on the Dashboard.</div>
                         <div className="btn-row" style={{ justifyContent: "flex-end" }}>
                             <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>Cancel</button>
                             <button className="btn btn-primary" onClick={saveName}>Save</button>
