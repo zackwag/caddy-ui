@@ -5,6 +5,8 @@ export default function TLS({ toast, onUnauth }) {
     const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
+    const [sortCol, setSortCol] = useState("domain");
+    const [sortDir, setSortDir] = useState("asc");
 
     const load = () => {
         setLoading(true);
@@ -36,6 +38,25 @@ export default function TLS({ toast, onUnauth }) {
 
     const filtered = filter === "all" ? certs.filter(c => c.status !== 'orphaned') : certs.filter(c => c.status === filter);
 
+    const handleSort = (col) => {
+        if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+        else { setSortCol(col); setSortDir("asc"); }
+    };
+
+    const sorted = [...filtered].sort((a, b) => {
+        let valA, valB;
+        if (sortCol === "domain") { valA = a.domain; valB = b.domain; }
+        else if (sortCol === "expires") { valA = new Date(a.validTo).getTime(); valB = new Date(b.validTo).getTime(); return sortDir === "asc" ? valA - valB : valB - valA; }
+        else if (sortCol === "days") { valA = a.isInternal ? Infinity : a.daysRemaining; valB = b.isInternal ? Infinity : b.daysRemaining; return sortDir === "asc" ? valA - valB : valB - valA; }
+        else { valA = a.domain; valB = b.domain; }
+        return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    });
+
+    const SortIcon = ({ col }) => {
+        if (sortCol !== col) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
+        return <span style={{ marginLeft: 4, color: "var(--accent)" }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
+    };
+
     const statusBadge = (cert) => {
         if (cert.status === 'expired') return <span className="badge badge-red">EXPIRED</span>;
         if (cert.status === 'expiring') return <span className="badge badge-yellow">EXPIRING</span>;
@@ -54,6 +75,13 @@ export default function TLS({ toast, onUnauth }) {
         try { return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
         catch { return dateStr; }
     };
+
+    const filterCards = [
+        { key: "all", label: "Total", val: summary.total, sub: "Managed certs", color: null },
+        { key: "valid", label: "Valid", val: summary.valid, sub: "Healthy", color: "var(--accent)" },
+        { key: "expiring", label: "Expiring", val: summary.expiring, sub: "Within 14 days", color: summary.expiring > 0 ? "var(--warn)" : null },
+        { key: "expired", label: "Expired", val: summary.expired, sub: "Needs renewal", color: summary.expired > 0 ? "var(--danger)" : null },
+    ];
 
     if (loading) return <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading certificates...</div>;
 
@@ -84,13 +112,15 @@ export default function TLS({ toast, onUnauth }) {
             </div>
 
             <div className="grid-4">
-                {[
-                    { key: "all", label: "Total", val: summary.total, sub: "Managed certs", color: null },
-                    { key: "valid", label: "Valid", val: summary.valid, sub: "Healthy", color: "var(--accent)" },
-                    { key: "expiring", label: "Expiring", val: summary.expiring, sub: "Within 14 days", color: summary.expiring > 0 ? "var(--warn)" : null },
-                    { key: "expired", label: "Expired", val: summary.expired, sub: "Needs renewal", color: summary.expired > 0 ? "var(--danger)" : null },
-                ].map(({ key, label, val, sub, color }) => (
-                    <div key={key} className="card" style={{ cursor: "pointer", borderColor: filter === key ? "var(--accent)" : "var(--border)" }} onClick={() => setFilter(key)}>
+                {filterCards.map(({ key, label, val, sub, color }) => (
+                    <div
+                        key={key}
+                        className="card"
+                        style={{ cursor: "pointer", borderColor: filter === key ? "var(--accent)" : "var(--border)", transition: "border-color 0.15s, background 0.15s" }}
+                        onClick={() => setFilter(key)}
+                        onMouseEnter={e => { if (filter !== key) e.currentTarget.style.borderColor = "var(--border2)"; }}
+                        onMouseLeave={e => { if (filter !== key) e.currentTarget.style.borderColor = "var(--border)"; }}
+                    >
                         <div className="card-title">{label}</div>
                         <div className="stat-val" style={{ color: color || "var(--text)" }}>{val}</div>
                         <div className="stat-label">{sub}</div>
@@ -105,23 +135,37 @@ export default function TLS({ toast, onUnauth }) {
                     </span>
                     <div className="btn-row">
                         {summary.orphaned > 0 && (
-                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }} onClick={() => setFilter(filter === "orphaned" ? "all" : "orphaned")}>
+                            <span
+                                style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }}
+                                onClick={() => setFilter(filter === "orphaned" ? "all" : "orphaned")}
+                            >
                                 {summary.orphaned} orphaned
                             </span>
                         )}
                         <button className="btn btn-ghost" onClick={load} style={{ fontSize: 11 }}>↺ Refresh</button>
                     </div>
                 </div>
-                {filtered.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>No certificates in this category</div>
+                {sorted.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
+                        {filter === "orphaned"
+                            ? "No orphaned certificates"
+                            : "No certificates in this category"}
+                    </div>
                 ) : (
                     <div className="table-wrap">
                         <table className="table">
                             <thead>
-                                <tr><th>Domain</th><th>Issuer</th><th>Expires</th><th>Days</th><th>Status</th><th></th></tr>
+                                <tr>
+                                    <th onClick={() => handleSort("domain")} style={{ cursor: "pointer", userSelect: "none" }}>Domain <SortIcon col="domain" /></th>
+                                    <th>Issuer</th>
+                                    <th onClick={() => handleSort("expires")} style={{ cursor: "pointer", userSelect: "none" }}>Expires <SortIcon col="expires" /></th>
+                                    <th onClick={() => handleSort("days")} style={{ cursor: "pointer", userSelect: "none" }}>Days <SortIcon col="days" /></th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
                             </thead>
                             <tbody>
-                                {filtered.map((cert, i) => (
+                                {sorted.map((cert, i) => (
                                     <tr key={i} style={{ opacity: cert.status === 'orphaned' ? 0.6 : 1 }}>
                                         <td className="mono">{cert.domain}</td>
                                         <td><span className={`badge ${cert.issuer === 'acme' ? 'badge-blue' : 'badge-muted'}`}>{cert.issuer === 'acme' ? "Let's Encrypt" : "Internal"}</span></td>
@@ -143,13 +187,6 @@ export default function TLS({ toast, onUnauth }) {
                     </div>
                 )}
             </div>
-
-            {summary.orphaned > 0 && filter !== "orphaned" && (
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", textAlign: "center" }}>
-                    {summary.orphaned} orphaned cert{summary.orphaned > 1 ? "s" : ""} hidden — stale certs for domains no longer in your Caddyfile.
-                    <span style={{ color: "var(--accent2)", cursor: "pointer", marginLeft: 6 }} onClick={() => setFilter("orphaned")}>Show</span>
-                </div>
-            )}
         </div>
     );
 }
