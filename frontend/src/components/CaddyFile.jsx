@@ -91,6 +91,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     const [previewEntry, setPreviewEntry] = useState(null);
     const [previewContent, setPreviewContent] = useState("");
     const fileInputRef = useRef(null);
+    const historyRef = useRef(null);
 
     useEffect(() => {
         apiFetch("/caddyfile", {}, onUnauth)
@@ -105,7 +106,10 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     };
 
     const toggleHistory = () => {
-        if (!historyOpen) loadHistory();
+        if (!historyOpen) {
+            loadHistory();
+            setTimeout(() => historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+        }
         setHistoryOpen(o => !o);
         setPreviewEntry(null);
         setPreviewContent("");
@@ -225,7 +229,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
             </div>
 
             {historyOpen && (
-                <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div ref={historyRef} className="card" style={{ padding: 0, overflow: "hidden" }}>
                     <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Version History</span>
                         <button className="btn btn-ghost" onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 11 }}>↺ Refresh</button>

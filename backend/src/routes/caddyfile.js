@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { Router } from 'express';
 import { createReadStream } from 'fs';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
@@ -10,6 +10,7 @@ const execAsync = promisify(exec);
 const router = Router();
 const CADDYFILE_PATH = process.env.CADDYFILE_PATH || '/etc/caddy/Caddyfile';
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
+const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
 const MAX_HISTORY = 20;
 
 async function ensureHistoryDir() {
@@ -44,12 +45,39 @@ async function pruneHistory() {
     } catch { }
 }
 
-async function fmtCaddyfile() {
+function dockerExec(args, input) {
+    return new Promise((resolve, reject) => {
+        const proc = spawn('docker', ['exec', '-i', CADDY_CONTAINER, ...args]);
+        let stdout = '';
+        let stderr = '';
+        proc.stdout.on('data', d => { stdout += d; });
+        proc.stderr.on('data', d => { stderr += d; });
+        proc.on('close', code => {
+            if (code === 0) resolve({ stdout, stderr });
+            else reject(Object.assign(new Error(stderr.trim() || stdout.trim()), { stdout, stderr, code }));
+        });
+        proc.on('error', err => {
+            reject(Object.assign(err, { stdout, stderr: err.message, code: null }));
+        });
+        if (input) {
+            proc.stdin.write(input);
+            proc.stdin.end();
+        }
+    });
+}
+
+async function fmtCaddyfile(content) {
     try {
-        await execAsync(`caddy fmt --overwrite ${CADDYFILE_PATH}`);
+        const { stdout } = await dockerExec(['caddy', 'fmt', '-'], content);
+        return stdout;
     } catch (err) {
         console.warn('caddy fmt failed:', err.message);
+        return content;
     }
+}
+
+async function validateCaddyfile(content) {
+    await dockerExec(['caddy', 'validate', '--config', '-', '--adapter', 'caddyfile'], content);
 }
 
 function parseSiteBlocks(content) {
@@ -191,26 +219,15 @@ router.post('/validate', async (req, res) => {
         return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
     }
 
-    const tmpPath = `/tmp/Caddyfile.validate.${Date.now()}`;
     try {
-        await writeFile(tmpPath, content, 'utf8');
-        // Format first so validate doesn't fail on whitespace/formatting issues
-        await execAsync(`caddy fmt --overwrite ${tmpPath}`).catch(() => { });
-        const { stdout, stderr } = await execAsync(`caddy validate --config ${tmpPath} --adapter caddyfile 2>&1`);
-        const output = (stdout + stderr).trim();
+        await validateCaddyfile(content);
+        res.json({ valid: true, warnings: [] });
+    } catch (err) {
+        const output = ((err.stdout || '') + (err.stderr || '')).trim();
         const lines = output.split('\n').filter(Boolean);
         const warnings = lines.filter(l => l.toLowerCase().includes('warn'));
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        if (errors.length) return res.status(422).json({ valid: false, errors, warnings });
-        res.json({ valid: true, warnings, output });
-    } catch (err) {
-        const output = (err.stdout + err.stderr).trim();
-        const lines = output.split('\n').filter(Boolean);
-        const errors = lines.filter(l => l.toLowerCase().includes('error') || l.includes('Error'));
-        const warnings = lines.filter(l => l.toLowerCase().includes('warn'));
-        res.status(422).json({ valid: false, errors: errors.length ? errors : lines, warnings });
-    } finally {
-        unlink(tmpPath).catch(() => { });
+        res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message], warnings });
     }
 });
 
@@ -226,18 +243,13 @@ router.post('/restore', async (req, res) => {
         return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
     }
 
-    const tmpPath = `/tmp/Caddyfile.restore.${Date.now()}`;
     try {
-        await writeFile(tmpPath, content, 'utf8');
-        await execAsync(`caddy validate --config ${tmpPath} --adapter caddyfile 2>&1`);
+        await validateCaddyfile(content);
     } catch (err) {
-        const output = (err.stdout + err.stderr).trim();
+        const output = ((err.stdout || '') + (err.stderr || '')).trim();
         const lines = output.split('\n').filter(Boolean);
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        unlink(tmpPath).catch(() => { });
-        return res.status(422).json({ errors: errors.length ? errors : lines });
-    } finally {
-        unlink(tmpPath).catch(() => { });
+        return res.status(422).json({ errors: errors.length ? errors : [err.message] });
     }
 
     await snapshotCaddyfile();
@@ -255,32 +267,23 @@ router.put('/', async (req, res) => {
     const fmt = req.query.fmt !== 'false';
     const sort = req.query.sort !== 'false';
 
-    const tmpPath = `/tmp/Caddyfile.save.${Date.now()}`;
     try {
-        await writeFile(tmpPath, content, 'utf8');
-        await execAsync(`caddy validate --config ${tmpPath} --adapter caddyfile 2>&1`);
+        await validateCaddyfile(content);
     } catch (err) {
-        const output = (err.stdout + err.stderr).trim();
+        const output = ((err.stdout || '') + (err.stderr || '')).trim();
         const lines = output.split('\n').filter(Boolean);
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        unlink(tmpPath).catch(() => { });
-        return res.status(422).json({ valid: false, errors: errors.length ? errors : lines });
-    } finally {
-        unlink(tmpPath).catch(() => { });
+        return res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message] });
     }
 
     await snapshotCaddyfile();
     await caddyLoad(content);
-    await writeFile(CADDYFILE_PATH, content, 'utf8');
 
-    if (fmt) await fmtCaddyfile();
+    let final = content;
+    if (fmt) final = await fmtCaddyfile(final);
+    if (sort) final = sortCaddyfile(final);
 
-    if (sort) {
-        const formatted = await readFile(CADDYFILE_PATH, 'utf8');
-        const sorted = sortCaddyfile(formatted);
-        await writeFile(CADDYFILE_PATH, sorted, 'utf8');
-    }
-
+    await writeFile(CADDYFILE_PATH, final, 'utf8');
     res.json({ ok: true, message: 'Caddyfile saved and reloaded' });
 });
 

@@ -336,7 +336,7 @@ export const css = `
 
   .toast-wrap {
     position: fixed;
-    bottom: 24px; right: 24px;
+    top: 60px; right: 19px;
     display: flex; flex-direction: column;
     gap: 8px; z-index: 1000;
     max-width: calc(100vw - 48px);
