@@ -86,8 +86,8 @@ export default function Metrics({ toast, onUnauth }) {
             ) : !metrics?.ok ? (
                 <div className="card">
                     <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                        <span>Metrics not enabled — enable above to see request data</span>
-                        <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfigOpen(true)}>Configure →</button>
+                        <span>Metrics not enabled</span>
+                        <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfigOpen(true)}>Enable in Metrics →</button>
                     </div>
                 </div>
             ) : (
@@ -153,7 +153,7 @@ export default function Metrics({ toast, onUnauth }) {
                     </div>
 
                     <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span>Refreshes every 30s</span>
+                        <span style={{ letterSpacing: "1px", textTransform: "uppercase", fontSize: 10 }}>Refreshes every 30s</span>
                         <div className="btn-row">
                             <span>Last scraped: {formatScrapedAt(metrics.scrapedAt)}</span>
                             <button className="btn btn-ghost" onClick={load} style={{ fontSize: 11 }}>↺ Refresh</button>
