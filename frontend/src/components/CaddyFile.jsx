@@ -249,7 +249,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
                                         </div>
                                         <div className="btn-row">
                                             <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => restoreSnapshot(entry)}>↺ Restore</button>
-                                            <button className="btn btn-danger" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => deleteSnapshot(entry)}>✕</button>
+                                            <button className="btn btn-danger" style={{ padding: "3px 10px", fontSize: 11 }} title="Delete snapshot" onClick={() => deleteSnapshot(entry)}>✕</button>
                                         </div>
                                     </div>
                                     {previewEntry?.filename === entry.filename && <div className="history-preview">{previewContent}</div>}

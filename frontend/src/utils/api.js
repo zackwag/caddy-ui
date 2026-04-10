@@ -17,7 +17,7 @@ export async function apiFetch(path, opts = {}, onUnauth) {
     if (res.status === 401) {
         setToken(null);
         if (onUnauth) onUnauth();
-        throw new Error('Session expired — please log in again');
+        throw new Error('unauthorized');
     }
     if (!res.ok) {
         const ct = res.headers.get("content-type") || "";

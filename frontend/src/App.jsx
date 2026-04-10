@@ -26,6 +26,7 @@ export default function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [authEnabled, setAuthEnabled] = useState(false);
     const [authed, setAuthed] = useState(!!getToken());
+    const [sessionExpired, setSessionExpired] = useState(false);
     const [theme, setTheme] = useState(getTheme);
     const [routeFilter, setRouteFilter] = useState("");
     const toast = useToast();
@@ -35,7 +36,12 @@ export default function App() {
         setTab("routes");
     }, []);
 
-    const onUnauth = useCallback(() => { setToken(null); setAuthed(false); }, []);
+    const onUnauth = useCallback(() => {
+        const wasAuthed = !!getToken();
+        setToken(null);
+        setAuthed(false);
+        if (wasAuthed) setSessionExpired(true);
+    }, []);
 
     useEffect(() => {
         if (theme === 'light') document.documentElement.classList.add('light');
@@ -67,7 +73,7 @@ export default function App() {
         <>
             <style>{css}</style>
             {!authed ? (
-                <Login onLogin={() => setAuthed(true)} />
+                <Login onLogin={() => { setAuthed(true); setSessionExpired(false); }} sessionExpired={sessionExpired} />
             ) : (
                 <div className="shell">
                     <div className={`sidebar-overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
@@ -92,7 +98,7 @@ export default function App() {
                                 <button className="theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
                                     {theme === 'dark' ? '☀' : '☾'}
                                 </button>
-                                <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>↺ Refresh</button>
+                                <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>↺ Status</button>
                             </div>
                         </div>
                         <div className="content">

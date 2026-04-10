@@ -76,7 +76,7 @@ export default function Dashboard({ status, toast, onUnauth, setTab, navigateToR
                         <div className="stat-val" style={{ color: !health ? "var(--text)" : health.offline > 0 ? "var(--danger)" : "var(--accent)" }}>
                             {health ? `${health.online}/${health.total}` : "—"}
                         </div>
-                        <div className="stat-label">{!health ? "Checking..." : health.offline > 0 ? `${health.offline} offline` : "All online"}</div>
+                        <div className="stat-label">{!health ? "—" : health.offline > 0 ? `${health.offline} offline` : "All online"}</div>
                     </div>
                 </div>
 
