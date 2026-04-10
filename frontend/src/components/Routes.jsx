@@ -1,23 +1,78 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../utils/api.js";
 
-function RouteModal({ mode, initial, onSave, onClose }) {
-    const isEdit = mode === "edit";
+function EditModal({ route, initialNote, isCaddyfileManaged, onSaveRoute, onSaveNote, onClose, onGoToCaddyfile }) {
     const [form, setForm] = useState({
-        domain: initial?.domain || "", upstream: initial?.upstream || "",
-        stripPrefix: initial?.stripPrefix || "", _id: initial?._id || null,
-        _originalDomain: initial?._originalDomain || null,
+        domain: route.domain || "",
+        upstream: route.upstream || "",
+        stripPrefix: route.stripPrefix || "",
+        _id: route._id || null,
+        _originalDomain: route._originalDomain || null,
     });
+    const [note, setNote] = useState(initialNote || "");
     const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-title">{isEdit ? "Edit Route" : "New Reverse Proxy Route"}</div>
+                <div className="modal-title">Edit Route</div>
+
+                {isCaddyfileManaged ? (
+                    <>
+                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", background: "rgba(0,0,0,0.15)", border: "1px solid var(--border2)", borderRadius: 4, padding: "12px", marginBottom: 8 }}>
+                            This route is defined in the Caddyfile and cannot be edited here.
+                        </div>
+                        <button className="btn btn-ghost" style={{ fontSize: 11, marginBottom: 20 }} onClick={onGoToCaddyfile}>⌗ Edit in Caddyfile →</button>
+                    </>
+                ) : (
+                    <>
+                        <div className="field">
+                            <label>Domain</label>
+                            <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" disabled={!form._id} />
+                        </div>
+                        <div className="field">
+                            <label>Upstream</label>
+                            <input value={form.upstream} onChange={set("upstream")} placeholder="192.168.4.88:8080" />
+                        </div>
+                        <div className="field">
+                            <label>Strip Prefix (optional)</label>
+                            <input value={form.stripPrefix} onChange={set("stripPrefix")} placeholder="/api" />
+                        </div>
+                        <div className="btn-row" style={{ justifyContent: "flex-end", marginBottom: 20 }}>
+                            <button className="btn btn-primary" onClick={() => onSaveRoute(form)} disabled={!form.upstream}>
+                                Save Route
+                            </button>
+                        </div>
+                    </>
+                )}
+
+                <div style={{ borderTop: "1px solid var(--border)", margin: "4px 0 20px" }} />
+
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.2px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 12 }}>Note</div>
+                <div className="field">
+                    <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Home Assistant, media server..." onKeyDown={e => e.key === 'Enter' && onSaveNote(note)} />
+                </div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the note.</div>
+                <div className="btn-row" style={{ justifyContent: "flex-end" }}>
+                    <button className="btn btn-ghost" onClick={onClose}>Close</button>
+                    <button className="btn btn-primary" onClick={() => onSaveNote(note)}>Save Note</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function NewRouteModal({ onSave, onClose }) {
+    const [form, setForm] = useState({ domain: "", upstream: "", stripPrefix: "" });
+    const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" onClick={e => e.stopPropagation()}>
+                <div className="modal-title">New Reverse Proxy Route</div>
                 <div className="field">
                     <label>Domain</label>
-                    <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" disabled={isEdit && !form._id} />
-                    {isEdit && !form._id && <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Domain cannot be changed for Caddyfile-managed routes</div>}
+                    <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" autoFocus />
                 </div>
                 <div className="field">
                     <label>Upstream</label>
@@ -29,8 +84,8 @@ function RouteModal({ mode, initial, onSave, onClose }) {
                 </div>
                 <div className="btn-row" style={{ marginTop: 20, justifyContent: "flex-end" }}>
                     <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => onSave(form)} disabled={!form.upstream || (!isEdit && !form.domain)}>
-                        {isEdit ? "Save Changes" : "Add Route"}
+                    <button className="btn btn-primary" onClick={() => onSave(form)} disabled={!form.upstream || !form.domain}>
+                        Add Route
                     </button>
                 </div>
             </div>
@@ -38,28 +93,7 @@ function RouteModal({ mode, initial, onSave, onClose }) {
     );
 }
 
-function NoteModal({ domain, initialNote, onSave, onClose }) {
-    const [note, setNote] = useState(initialNote || "");
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-title">Route Note</div>
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", marginBottom: 12 }}>{domain}</div>
-                <div className="field">
-                    <label>Note</label>
-                    <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Home Assistant, media server..." autoFocus onKeyDown={e => e.key === 'Enter' && onSave(domain, note)} />
-                </div>
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the note.</div>
-                <div className="btn-row" style={{ justifyContent: "flex-end" }}>
-                    <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                    <button className="btn btn-primary" onClick={() => onSave(domain, note)}>Save</button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-export default function Routes({ toast, setTab, onUnauth }) {
+export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilterConsumed }) {
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
     const [uptime, setUptime] = useState({});
@@ -67,11 +101,15 @@ export default function Routes({ toast, setTab, onUnauth }) {
     const [notes, setNotes] = useState({});
     const [loading, setLoading] = useState(true);
     const [healthLoading, setHealthLoading] = useState(false);
-    const [modal, setModal] = useState(null);
-    const [noteModal, setNoteModal] = useState(null);
+    const [editModal, setEditModal] = useState(null);
+    const [newModal, setNewModal] = useState(false);
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
-    const [search, setSearch] = useState("");
+    const [search, setSearch] = useState(initialFilter || "");
+
+    useEffect(() => {
+        if (initialFilter) onFilterConsumed?.();
+    }, []);
 
     const load = () => {
         apiFetch("/routes", {}, onUnauth).then(setRoutes).catch(e => toast.error(e.message)).finally(() => setLoading(false));
@@ -102,7 +140,7 @@ export default function Routes({ toast, setTab, onUnauth }) {
         try {
             await apiFetch("/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, onUnauth);
             toast.success(`Route for ${form.domain} added`);
-            setModal(null); load(); loadHealth();
+            setNewModal(false); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
 
@@ -114,7 +152,7 @@ export default function Routes({ toast, setTab, onUnauth }) {
                 await apiFetch(`/routes/caddyfile/${encodeURIComponent(form._originalDomain)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
             }
             toast.success("Route updated");
-            setModal(null); load(); loadHealth();
+            setEditModal(null); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
 
@@ -131,27 +169,44 @@ export default function Routes({ toast, setTab, onUnauth }) {
             await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note }) }, onUnauth);
             setNotes(n => { const u = { ...n }; if (note.trim()) u[domain] = note.trim(); else delete u[domain]; return u; });
             toast.success(note.trim() ? "Note saved" : "Note cleared");
-            setNoteModal(null);
+            setEditModal(null);
         } catch (e) { toast.error(e.message); }
     };
 
     const getHost = (route) => route.match?.find(m => m.host)?.host?.join(", ") || "—";
 
     const getUpstream = (route) => {
-        const subroute = route.handle?.find(h => h.handler === "subroute");
-        for (const r of subroute?.routes ?? []) {
-            const rp = r.handle?.find(h => h.handler === "reverse_proxy");
-            if (rp) return rp.upstreams?.map(u => u.dial).join(", ") || "—";
+        const dials = [];
+        function walk(handles) {
+            for (const h of handles || []) {
+                if (h.handler === 'reverse_proxy' && h.upstreams) {
+                    for (const u of h.upstreams) if (u.dial) dials.push(u.dial);
+                }
+                if (h.routes) {
+                    for (const r of h.routes) walk(r.handle);
+                }
+            }
         }
-        const flat = route.handle?.find(h => h.handler === "reverse_proxy");
-        return flat?.upstreams?.map(u => u.dial).join(", ") || "—";
+        walk(route.handle);
+        return dials.join(", ") || "—";
     };
 
     const getStripPrefix = (route) => (route.match?.find(m => m.path)?.path?.[0] || "").replace("/*", "");
 
     const openEdit = (route) => {
         const domain = getHost(route);
-        setModal({ mode: "edit", _id: route["@id"] || null, _originalDomain: domain, domain, upstream: getUpstream(route), stripPrefix: getStripPrefix(route) });
+        const hasId = !!route["@id"];
+        setEditModal({
+            route: {
+                domain,
+                upstream: getUpstream(route),
+                stripPrefix: getStripPrefix(route),
+                _id: route["@id"] || null,
+                _originalDomain: domain,
+            },
+            domain,
+            isCaddyfileManaged: !hasId,
+        });
     };
 
     const getDomainScheme = (domain) => {
@@ -195,7 +250,7 @@ export default function Routes({ toast, setTab, onUnauth }) {
     const filtered = routes.filter(r => {
         if (!search) return true;
         const q = search.toLowerCase();
-        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q) || (notes[getHost(r)] || "").toLowerCase().includes(q);
+        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q) || (notes[getHost(r)] || "").toLowerCase().includes(q) || (r._server || "").toLowerCase().includes(q);
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -218,14 +273,14 @@ export default function Routes({ toast, setTab, onUnauth }) {
             <div className="gap-16">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                        <input className="search-input" placeholder="Filter by domain, upstream, or note..." value={search} onChange={e => setSearch(e.target.value)} />
+                        <input className="search-input" placeholder="Filter by domain, upstream, note, or server..." value={search} onChange={e => setSearch(e.target.value)} />
                         <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
                             {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} online`}
                         </span>
                     </div>
                     <div className="btn-row">
-                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading} style={{ fontSize: 11 }}>↺ Check health</button>
-                        <button className="btn btn-primary" onClick={() => setModal({ mode: "new" })}>+ Add Route</button>
+                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading} style={{ fontSize: 11 }}>↺ Refresh</button>
+                        <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ Add Route</button>
                     </div>
                 </div>
                 <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -252,7 +307,6 @@ export default function Routes({ toast, setTab, onUnauth }) {
                                         const dLink = domainLink(domain);
                                         const uLink = upstreamLink(upstream);
                                         const hasId = !!r["@id"];
-                                        const canEdit = hasId || r._simpleProxy;
                                         const note = notes[domain];
                                         return (
                                             <tr key={r["@id"] || i}>
@@ -268,16 +322,16 @@ export default function Routes({ toast, setTab, onUnauth }) {
                                                 <td>
                                                     {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
                                                 </td>
-                                                <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r._server || "—"}</td>
+                                                <td className="mono" style={{ color: "var(--muted)", fontSize: 10, cursor: r._server ? "pointer" : "default" }} onClick={() => r._server && setSearch(r._server)} title={r._server ? `Filter by ${r._server}` : undefined} onMouseEnter={e => { if (r._server) e.target.style.color = "var(--accent)"; }} onMouseLeave={e => { if (r._server) e.target.style.color = "var(--muted)"; }}>{r._server || "—"}</td>
                                                 <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
-                                                <td style={{ width: 140, textAlign: "right" }}>
+                                                <td style={{ width: 100, textAlign: "right" }}>
                                                     <div className="btn-row" style={{ justifyContent: "flex-end" }}>
-                                                        <button className="btn btn-ghost" style={{ padding: "4px 10px", color: note ? "var(--accent2)" : "var(--muted)" }} onClick={() => setNoteModal({ domain, note: note || "" })} title={note || "Add note"}>✎</button>
-                                                        {canEdit ? (
-                                                            <button className="btn btn-ghost" style={{ padding: "4px 10px" }} onClick={() => openEdit(r)} title="Edit route">⚙</button>
-                                                        ) : (
-                                                            <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 10 }} onClick={() => setTab("caddyfile")} title="Complex route — edit in Caddyfile">⌗</button>
-                                                        )}
+                                                        <button
+                                                            className="btn btn-ghost"
+                                                            style={{ padding: "4px 10px", color: note ? "var(--accent2)" : "var(--muted)" }}
+                                                            onClick={() => openEdit(r)}
+                                                            title="Edit route"
+                                                        >✎</button>
                                                         {hasId && <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>}
                                                     </div>
                                                 </td>
@@ -290,8 +344,18 @@ export default function Routes({ toast, setTab, onUnauth }) {
                     )}
                 </div>
             </div>
-            {modal && <RouteModal mode={modal.mode} initial={modal} onSave={modal.mode === "edit" ? editRoute : addRoute} onClose={() => setModal(null)} />}
-            {noteModal && <NoteModal domain={noteModal.domain} initialNote={noteModal.note} onSave={saveNote} onClose={() => setNoteModal(null)} />}
+            {editModal && (
+                <EditModal
+                    route={editModal.route}
+                    initialNote={notes[editModal.domain] || ""}
+                    isCaddyfileManaged={editModal.isCaddyfileManaged}
+                    onSaveRoute={editRoute}
+                    onSaveNote={(note) => saveNote(editModal.domain, note)}
+                    onGoToCaddyfile={() => { setEditModal(null); setTab("caddyfile"); }}
+                    onClose={() => setEditModal(null)}
+                />
+            )}
+            {newModal && <NewRouteModal onSave={addRoute} onClose={() => setNewModal(false)} />}
         </>
     );
 }

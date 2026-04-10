@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../utils/api.js";
 
-export default function Dashboard({ status, toast, onUnauth, setTab }) {
+export default function Dashboard({ status, toast, onUnauth, setTab, navigateToRoutes }) {
     const [names, setNames] = useState({});
     const [editingServer, setEditingServer] = useState(null);
     const [editName, setEditName] = useState("");
@@ -122,7 +122,7 @@ export default function Dashboard({ status, toast, onUnauth, setTab }) {
                     <div className="card">
                         <div className="card-title">Server Blocks</div>
                         {status.servers.map(s => (
-                            <div className="server-row" key={s.name} onClick={() => openEdit(s)} style={{ cursor: "pointer" }}>
+                            <div className="server-row" key={s.name} onClick={() => navigateToRoutes(s.name)} style={{ cursor: "pointer" }}>
                                 <div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                                         <div className="server-name">{s.name}</div>
@@ -134,7 +134,11 @@ export default function Dashboard({ status, toast, onUnauth, setTab }) {
                                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                     <span className="badge badge-blue">{s.routeCount} routes</span>
                                     <span className="badge badge-green">active</span>
-                                    <span style={{ color: "var(--muted)", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }} title="Edit display name">✎</span>
+                                    <span
+                                        style={{ color: "var(--muted)", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}
+                                        title="Edit display name"
+                                        onClick={e => { e.stopPropagation(); openEdit(s); }}
+                                    >✎</span>
                                 </div>
                             </div>
                         ))}

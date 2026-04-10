@@ -27,7 +27,13 @@ export default function App() {
     const [authEnabled, setAuthEnabled] = useState(false);
     const [authed, setAuthed] = useState(!!getToken());
     const [theme, setTheme] = useState(getTheme);
+    const [routeFilter, setRouteFilter] = useState("");
     const toast = useToast();
+
+    const navigateToRoutes = useCallback((filter = "") => {
+        setRouteFilter(filter);
+        setTab("routes");
+    }, []);
 
     const onUnauth = useCallback(() => { setToken(null); setAuthed(false); }, []);
 
@@ -90,9 +96,9 @@ export default function App() {
                             </div>
                         </div>
                         <div className="content">
-                            {tab === "dashboard" && <Dashboard status={status} toast={toast} onUnauth={onUnauth} setTab={setTab} />}
+                            {tab === "dashboard" && <Dashboard status={status} toast={toast} onUnauth={onUnauth} setTab={setTab} navigateToRoutes={navigateToRoutes} />}
                             {tab === "caddyfile" && <CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} />}
-                            {tab === "routes" && <Routes toast={toast} setTab={setTab} onUnauth={onUnauth} />}
+                            {tab === "routes" && <Routes toast={toast} setTab={setTab} onUnauth={onUnauth} initialFilter={routeFilter} onFilterConsumed={() => setRouteFilter("")} />}
                             {tab === "tls" && <TLS toast={toast} onUnauth={onUnauth} />}
                             {tab === "logs" && <Logs toast={toast} onUnauth={onUnauth} />}
                             {tab === "metrics" && <Metrics toast={toast} onUnauth={onUnauth} />}
