@@ -85,18 +85,90 @@ function formatUptime(seconds) {
 
 router.get('/', async (req, res) => {
     try {
-        const config = await caddyGet('/config/apps/http/servers');
-        const servers = Object.entries(config || {}).map(([name, server]) => ({
+        const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
+
+        // Fetch servers, metrics, and TLS in parallel
+        const [config, metricsText, tlsConfig] = await Promise.allSettled([
+            caddyGet('/config/apps/http/servers'),
+            fetch(`${CADDY_ADMIN_URL}/metrics`, { headers: { 'Origin': 'http://0.0.0.0:2019' } }).then(r => r.ok ? r.text() : null).catch(() => null),
+            caddyGet('/config/apps/tls'),
+        ]);
+
+        const servers = Object.entries(config.value || {}).map(([name, server]) => ({
             name,
             listen: server.listen,
             routeCount: (server.routes || []).length,
         }));
+
+        const routeCount = servers.reduce((sum, s) => sum + s.routeCount, 0);
+
+        // Parse uptime from metrics
+        let uptime = null;
+        if (metricsText.value) {
+            const parsed = parsePrometheusMetrics(metricsText.value);
+            const startTime = parsed['process_start_time_seconds'];
+            if (startTime) {
+                const uptimeSeconds = Math.floor(Date.now() / 1000 - startTime);
+                uptime = formatUptime(uptimeSeconds);
+            }
+        }
+
+        // Count upstreams via health check
+        let upstreamsOnline = null;
+        let upstreamsTotal = null;
+        try {
+            const { createConnection } = await import('net');
+            const TIMEOUT_MS = 3000;
+
+            function checkTCP(host, port) {
+                return new Promise((resolve) => {
+                    const socket = createConnection({ host, port: parseInt(port), timeout: TIMEOUT_MS });
+                    const timer = setTimeout(() => { socket.destroy(); resolve(false); }, TIMEOUT_MS);
+                    socket.on('connect', () => { clearTimeout(timer); socket.destroy(); resolve(true); });
+                    socket.on('error', () => { clearTimeout(timer); resolve(false); });
+                    socket.on('timeout', () => { clearTimeout(timer); socket.destroy(); resolve(false); });
+                });
+            }
+
+            function extractUpstreams(route) {
+                const results = [];
+                function walk(handles) {
+                    for (const h of handles || []) {
+                        if (h.handler === 'reverse_proxy' && h.upstreams) {
+                            for (const u of h.upstreams) if (u.dial) results.push(u.dial);
+                        }
+                        if (h.routes) for (const r of h.routes) walk(r.handle);
+                    }
+                }
+                walk(route.handle);
+                return results;
+            }
+
+            const checks = [];
+            for (const [, server] of Object.entries(config.value || {})) {
+                for (const route of server.routes || []) {
+                    for (const upstream of extractUpstreams(route)) {
+                        const [host, port] = upstream.split(':');
+                        if (host && port) checks.push({ host, port });
+                    }
+                }
+            }
+
+            const results = await Promise.all(checks.map(c => checkTCP(c.host, c.port)));
+            upstreamsTotal = results.length;
+            upstreamsOnline = results.filter(Boolean).length;
+        } catch { }
+
         res.json({
             online: true,
             serverCount: servers.length,
+            routeCount,
+            upstreamsOnline,
+            upstreamsTotal,
+            uptime,
             servers,
             tlsEnabled: true,
-            adminUrl: process.env.CADDY_ADMIN_URL || 'http://caddy:2019',
+            adminUrl: CADDY_ADMIN_URL,
         });
     } catch (err) {
         res.json({ online: false, error: err.message });
