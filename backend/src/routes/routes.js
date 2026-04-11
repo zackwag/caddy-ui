@@ -190,26 +190,6 @@ router.patch('/:id', async (req, res) => {
     res.json({ ok: true, id, route });
 });
 
-// PATCH /api/routes/caddyfile -- update a Caddyfile-managed simple route
-router.patch('/caddyfile/:domain', async (req, res) => {
-    const { domain } = req.params;
-    const { upstream, stripPrefix } = req.body;
-    if (!upstream) {
-        return res.status(400).json({ error: 'upstream is required' });
-    }
-
-    const caddyfile = await readFile(CADDYFILE_PATH, 'utf8');
-    const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-    const updated = replaceSiteBlock(caddyfile, domain, newBlock);
-    await writeFile(CADDYFILE_PATH, updated, 'utf8');
-
-    // Reload Caddy with new config
-    const { caddyLoad } = await import('../caddy.js');
-    await caddyLoad(updated);
-
-    res.json({ ok: true, domain });
-});
-
 // DELETE /api/routes/:id
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;

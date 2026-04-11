@@ -18,7 +18,7 @@ export default function TLS({ toast, onUnauth }) {
     const deleteCert = async (cert) => {
         if (!confirm(`Delete orphaned cert for ${cert.domain}?`)) return;
         try {
-            await apiFetch(`/tls/${cert.issuerDir}/${cert.domain}`, { method: "DELETE" }, onUnauth);
+            await apiFetch(`/tls/${cert.domain}`, { method: "DELETE" }, onUnauth);
             toast.success(`Deleted cert for ${cert.domain}`); load();
         } catch (e) { toast.error(e.message); }
     };

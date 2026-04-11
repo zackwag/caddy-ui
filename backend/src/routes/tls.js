@@ -107,9 +107,14 @@ router.get('/', async (req, res) => {
     res.json(certs);
 });
 
-// DELETE /api/tls/:issuerDir/:domain -- only allowed for orphaned certs
-router.delete('/:issuerDir/:domain', async (req, res) => {
-    const { issuerDir, domain } = req.params;
+// DELETE /api/tls/:domain -- only allowed for orphaned certs
+router.delete('/:domain', async (req, res) => {
+    const { domain } = req.params;
+
+    // Sanitize -- prevent directory traversal
+    if (domain.includes('..') || domain.includes('/')) {
+        return res.status(400).json({ error: 'Invalid domain' });
+    }
 
     // Safety check -- verify it's actually orphaned before deleting
     const managedDomains = await getManagedDomains();
@@ -117,12 +122,25 @@ router.delete('/:issuerDir/:domain', async (req, res) => {
         return res.status(403).json({ error: 'Cannot delete a cert for an actively managed domain' });
     }
 
-    // Sanitize paths -- prevent directory traversal
-    if (issuerDir.includes('..') || domain.includes('..') || issuerDir.includes('/') || domain.includes('/')) {
-        return res.status(400).json({ error: 'Invalid path' });
+    // Find the issuer directory by scanning the filesystem
+    let certDir = null;
+    try {
+        const issuers = await readdir(CERTS_PATH);
+        for (const issuer of issuers) {
+            const candidate = join(CERTS_PATH, issuer, domain);
+            try {
+                await readdir(candidate);
+                certDir = candidate;
+                break;
+            } catch { }
+        }
+    } catch (err) {
+        return res.status(500).json({ error: `Failed to scan certs: ${err.message}` });
     }
 
-    const certDir = join(CERTS_PATH, issuerDir, domain);
+    if (!certDir) {
+        return res.status(404).json({ error: `Cert not found for domain: ${domain}` });
+    }
 
     try {
         await rm(certDir, { recursive: true, force: true });

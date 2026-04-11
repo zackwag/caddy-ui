@@ -7,6 +7,7 @@ import authRouter from './routes/auth.js';
 import caddyfileRouter from './routes/caddyfile.js';
 import healthRouter from './routes/health.js';
 import logsRouter from './routes/logs.js';
+import metricsRouter from './routes/metrics.js';
 import routenotesRouter from './routes/routenotes.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
@@ -24,8 +25,9 @@ app.use(express.text({ type: 'text/plain' }));
 // Auth routes are always public
 app.use('/api/auth', authRouter);
 
-// /api/metrics -- public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
-app.get('/api/metrics', authMiddleware, async (req, res) => {
+// /api/metrics/raw -- Prometheus scrape endpoint
+// Public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
+app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, async (req, res) => {
     try {
         const metricsRes = await fetch(`${CADDY_ADMIN_URL}/metrics`, {
             headers: { 'Origin': 'http://0.0.0.0:2019' },
@@ -46,6 +48,7 @@ app.use('/api/caddyfile', caddyfileRouter);
 app.use('/api/routes', routesRouter);
 app.use('/api/status', statusRouter);
 app.use('/api/logs', logsRouter);
+app.use('/api/metrics', metricsRouter);
 app.use('/api/server-names', servernamesRouter);
 app.use('/api/tls', tlsRouter);
 app.use('/api/health', healthRouter);

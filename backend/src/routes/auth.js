@@ -8,7 +8,7 @@ const CADDY_UI_USER = process.env.CADDY_UI_USER;
 const CADDY_UI_PASSWORD = process.env.CADDY_UI_PASSWORD;
 const JWT_SECRET = process.env.JWT_SECRET;
 
-router.post('/login', (req, res) => {
+router.post('/sessions', (req, res) => {
     if (!authEnabled) {
         return res.json({ ok: true, token: null, authEnabled: false });
     }

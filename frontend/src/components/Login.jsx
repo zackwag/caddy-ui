@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { API, setToken } from "../utils/api.js";
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, sessionExpired }) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
+    const [error, setError] = useState(sessionExpired ? "Your session has expired. Please sign in again." : "");
     const [loading, setLoading] = useState(false);
 
     const login = async () => {
@@ -12,7 +12,7 @@ export default function Login({ onLogin }) {
         setLoading(true);
         setError("");
         try {
-            const res = await fetch(`${API}/auth/login`, {
+            const res = await fetch(`${API}/auth/sessions`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),

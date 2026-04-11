@@ -11,7 +11,7 @@ export default function Metrics({ toast, onUnauth }) {
 
     const load = useCallback(() => {
         setLoading(true);
-        apiFetch("/status/metrics-parsed", {}, onUnauth)
+        apiFetch("/metrics", {}, onUnauth)
             .then(setMetrics)
             .catch(() => setMetrics({ ok: false, error: "Failed to fetch metrics" }))
             .finally(() => setLoading(false));
@@ -19,7 +19,7 @@ export default function Metrics({ toast, onUnauth }) {
 
     useEffect(() => {
         load();
-        apiFetch("/status/metrics-config", {}, onUnauth).then(setMetricsConfig).catch(() => { });
+        apiFetch("/metrics/config", {}, onUnauth).then(setMetricsConfig).catch(() => { });
         fetch(`${API}/auth/status`).then(r => r.json()).then(d => setPublicMetrics(d.publicMetrics || false)).catch(() => { });
         const t = setInterval(load, 30000);
         return () => clearInterval(t);
@@ -28,7 +28,7 @@ export default function Metrics({ toast, onUnauth }) {
     const toggleMetrics = async (enabled) => {
         setSavingMetrics(true);
         try {
-            await apiFetch("/status/metrics-config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }, onUnauth);
+            await apiFetch("/metrics/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }, onUnauth);
             setMetricsConfig({ enabled });
             toast.success(enabled ? "Metrics enabled" : "Metrics disabled");
             if (enabled) setTimeout(load, 1000);
@@ -71,7 +71,7 @@ export default function Metrics({ toast, onUnauth }) {
                                 <div>
                                     <span style={labelStyle}>Public Metrics Endpoint</span>
                                     <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
-                                        {publicMetrics ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics</span></> : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"}
+                                        {publicMetrics ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics/raw</span></> : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"}
                                     </div>
                                 </div>
                                 <span className={`badge ${publicMetrics ? "badge-green" : "badge-muted"}`}>{publicMetrics ? "ENABLED" : "DISABLED"}</span>

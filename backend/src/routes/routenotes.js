@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
     res.json(notes);
 });
 
-// PUT /api/route-notes/:domain
+// PUT /api/route-notes/:domain -- upsert or clear (blank note) a note
 router.put('/:domain', async (req, res) => {
     const { domain } = req.params;
     const { note } = req.body;
@@ -33,15 +33,6 @@ router.put('/:domain', async (req, res) => {
     } else {
         delete notes[domain];
     }
-    await writeNotes(notes);
-    res.json({ ok: true });
-});
-
-// DELETE /api/route-notes/:domain
-router.delete('/:domain', async (req, res) => {
-    const { domain } = req.params;
-    const notes = await readNotes();
-    delete notes[domain];
     await writeNotes(notes);
     res.json({ ok: true });
 });

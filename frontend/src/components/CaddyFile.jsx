@@ -127,7 +127,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
         if (!confirm(`Restore Caddyfile from ${formatTs(entry.timestamp)}? The current file will be snapshotted first.`)) return;
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
-            await apiFetch("/caddyfile/restore", { method: "POST", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
+            await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh); setHistoryOpen(false); setPreviewEntry(null);
             toast.success(`Restored from ${formatTs(entry.timestamp)}`);
@@ -148,7 +148,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     const validate = async () => {
         setValidating(true);
         try {
-            const result = await apiFetch("/caddyfile/validate", { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
+            const result = await apiFetch("/caddyfile/validations", { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             if (result.warnings?.length) result.warnings.forEach(w => toast.info(w));
             else toast.success("Caddyfile is valid");
         } catch (e) { toast.error(e.message); }
@@ -168,13 +168,13 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     };
 
     const reload = async () => {
-        try { await apiFetch("/caddyfile/reload", { method: "POST" }, onUnauth); toast.success("Caddy reloaded from disk"); }
+        try { await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth); toast.success("Caddy reloaded from disk"); }
         catch (e) { toast.error(e.message); }
     };
 
     const download = () => {
         const token = getToken();
-        window.open(token ? `/api/caddyfile/download?token=${token}` : `/api/caddyfile/download`, '_blank');
+        window.open(token ? `/api/caddyfile?download=true&token=${token}` : `/api/caddyfile?download=true`, '_blank');
     };
 
     const restore = (e) => {
@@ -185,7 +185,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
             const text = ev.target.result;
             if (!confirm("Restore this Caddyfile? This will validate, reload Caddy, and overwrite the current file.")) return;
             try {
-                await apiFetch("/caddyfile/restore", { method: "POST", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
+                await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
                 const fresh = await apiFetch("/caddyfile", {}, onUnauth);
                 setContent(fresh); setOriginal(fresh);
                 toast.success("Caddyfile restored and reloaded");
