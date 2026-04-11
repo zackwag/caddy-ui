@@ -1,16 +1,15 @@
-import { exec, spawn } from 'child_process';
+import { exec } from 'child_process';
 import { Router } from 'express';
 import { createReadStream } from 'fs';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { promisify } from 'util';
-import { caddyLoad } from '../caddy.js';
+import { caddyLoad, CADDY_ADMIN_URL } from '../caddy.js';
 
 const execAsync = promisify(exec);
 const router = Router();
 const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
-const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
 const MAX_HISTORY = 20;
 
 async function ensureHistoryDir() {
@@ -45,39 +44,29 @@ async function pruneHistory() {
     } catch { }
 }
 
-function dockerExec(args, input) {
-    return new Promise((resolve, reject) => {
-        const proc = spawn('docker', ['exec', '-i', CADDY_CONTAINER, ...args]);
-        let stdout = '';
-        let stderr = '';
-        proc.stdout.on('data', d => { stdout += d; });
-        proc.stderr.on('data', d => { stderr += d; });
-        proc.on('close', code => {
-            if (code === 0) resolve({ stdout, stderr });
-            else reject(Object.assign(new Error(stderr.trim() || stdout.trim()), { stdout, stderr, code }));
-        });
-        proc.on('error', err => {
-            reject(Object.assign(err, { stdout, stderr: err.message, code: null }));
-        });
-        if (input) {
-            proc.stdin.write(input);
-            proc.stdin.end();
-        }
-    });
-}
-
 async function fmtCaddyfile(content) {
     try {
-        const { stdout } = await dockerExec(['caddy', 'fmt', '-'], content);
-        return stdout;
+        const { stdout } = await execAsync('caddy fmt -', { input: content });
+        return stdout || content;
     } catch (err) {
-        console.warn('caddy fmt failed:', err.message);
+        console.warn('caddy fmt failed, skipping:', err.message);
         return content;
     }
 }
 
 async function validateCaddyfile(content) {
-    await dockerExec(['caddy', 'validate', '--config', '-', '--adapter', 'caddyfile'], content);
+    const res = await fetch(`${CADDY_ADMIN_URL}/adapt?adapter=caddyfile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
+        body: content,
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(text);
+        err.stderr = text;
+        err.stdout = '';
+        throw err;
+    }
 }
 
 function parseSiteBlocks(content) {
