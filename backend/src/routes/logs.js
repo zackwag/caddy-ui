@@ -1,39 +1,15 @@
-import { spawn } from 'child_process';
+import { exec } from 'child_process';
 import { Router } from 'express';
 import { createReadStream, unwatchFile, watchFile } from 'fs';
 import { readFile, stat, writeFile } from 'fs/promises';
+import { promisify } from 'util';
 import { caddyLoad } from '../caddy.js';
 
+const execAsync = promisify(exec);
 const router = Router();
 const LOG_PATH = process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log';
-const CADDYFILE_PATH = process.env.CADDYFILE_PATH || '/etc/caddy/Caddyfile';
-const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
+const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 const TAIL_LINES = 200;
-
-function dockerExec(args, input) {
-    return new Promise((resolve, reject) => {
-        const proc = spawn('docker', ['exec', '-i', CADDY_CONTAINER, ...args]);
-        let stdout = '';
-        let stderr = '';
-        proc.stdout.on('data', d => { stdout += d; });
-        proc.stderr.on('data', d => { stderr += d; });
-        proc.on('close', code => {
-            if (code === 0) resolve({ stdout, stderr });
-            else reject(Object.assign(new Error(stderr.trim() || stdout.trim()), { stdout, stderr, code }));
-        });
-        proc.on('error', err => {
-            reject(Object.assign(err, { stdout, stderr: err.message, code: null }));
-        });
-        if (input) {
-            proc.stdin.write(input);
-            proc.stdin.end();
-        }
-    });
-}
-
-async function validateCaddyfile(content) {
-    await dockerExec(['caddy', 'validate', '--config', '-', '--adapter', 'caddyfile'], content);
-}
 
 // ── Log config parsing ────────────────────────────────────────────────────────
 
@@ -146,7 +122,7 @@ function updateGlobalBlock(content, logConfig) {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 router.get('/config', async (req, res) => {
-    const content = await readFile(CADDYFILE_PATH, 'utf8');
+    const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
     const config = parseLogConfig(content);
     res.json(config);
 });
@@ -157,19 +133,25 @@ router.put('/config', async (req, res) => {
         return res.status(400).json({ error: 'Invalid log config' });
     }
 
-    const content = await readFile(CADDYFILE_PATH, 'utf8');
+    const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
     const updated = updateGlobalBlock(content, config);
 
+    // Validate before writing
+    const tmpPath = `/tmp/Caddyfile.logconfig.${Date.now()}`;
     try {
-        await validateCaddyfile(updated);
+        await writeFile(tmpPath, updated, 'utf8');
+        await execAsync(`caddy validate --config ${tmpPath} --adapter caddyfile 2>&1`);
     } catch (err) {
-        const output = ((err.stdout || '') + (err.stderr || '')).trim();
+        const output = (err.stdout + err.stderr).trim();
         const lines = output.split('\n').filter(Boolean);
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        return res.status(422).json({ errors: errors.length ? errors : [err.message] });
+        return res.status(422).json({ errors: errors.length ? errors : lines });
+    } finally {
+        const { unlink } = await import('fs/promises');
+        unlink(tmpPath).catch(() => { });
     }
 
-    await writeFile(CADDYFILE_PATH, updated, 'utf8');
+    await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
     await caddyLoad(updated);
 
     res.json({ ok: true, message: 'Log config saved and reloaded' });

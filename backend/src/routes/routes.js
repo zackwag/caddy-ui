@@ -5,7 +5,7 @@ import { caddyDelete, caddyGet, caddyPatch, caddyPut } from '../caddy.js';
 const router = Router();
 
 const PRIMARY_SERVER = process.env.CADDY_SERVER_NAME || 'srv0';
-const CADDYFILE_PATH = process.env.CADDYFILE_PATH || '/etc/caddy/Caddyfile';
+const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 
 function buildReverseProxyRoute({ id, domain, upstream, stripPrefix }) {
     const matchers = [{ host: [domain] }];
@@ -152,9 +152,9 @@ router.post('/', async (req, res) => {
     const index = existing.length;
     await caddyPut(`${routesPath}/${index}`, route);
 
-    const caddyfile = await readFile(CADDYFILE_PATH, 'utf8');
+    const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
     const block = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-    await writeFile(CADDYFILE_PATH, `${caddyfile.trimEnd()}\n\n${block}\n`, 'utf8');
+    await writeFile(CADDY_CONFIG_PATH, `${caddyfile.trimEnd()}\n\n${block}\n`, 'utf8');
 
     res.status(201).json({ ok: true, id, route });
 });
@@ -181,13 +181,33 @@ router.patch('/:id', async (req, res) => {
 
     // Update Caddyfile block
     if (oldDomain) {
-        const caddyfile = await readFile(CADDYFILE_PATH, 'utf8');
+        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
         const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
         const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock);
-        await writeFile(CADDYFILE_PATH, updated, 'utf8');
+        await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
     }
 
     res.json({ ok: true, id, route });
+});
+
+// PATCH /api/routes/caddyfile -- update a Caddyfile-managed simple route
+router.patch('/caddyfile/:domain', async (req, res) => {
+    const { domain } = req.params;
+    const { upstream, stripPrefix } = req.body;
+    if (!upstream) {
+        return res.status(400).json({ error: 'upstream is required' });
+    }
+
+    const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
+    const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
+    const updated = replaceSiteBlock(caddyfile, domain, newBlock);
+    await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
+
+    // Reload Caddy with new config
+    const { caddyLoad } = await import('../caddy.js');
+    await caddyLoad(updated);
+
+    res.json({ ok: true, domain });
 });
 
 // DELETE /api/routes/:id
@@ -205,9 +225,9 @@ router.delete('/:id', async (req, res) => {
     await caddyDelete(`/id/${id}`);
 
     if (domain) {
-        const caddyfile = await readFile(CADDYFILE_PATH, 'utf8');
+        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
         const cleaned = removeSiteBlock(caddyfile, domain);
-        await writeFile(CADDYFILE_PATH, cleaned, 'utf8');
+        await writeFile(CADDY_CONFIG_PATH, cleaned, 'utf8');
     }
 
     res.json({ ok: true, id });

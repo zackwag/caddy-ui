@@ -123,7 +123,7 @@ router.get('/', async (req, res) => {
 // GET /api/metrics/config
 router.get('/config', async (req, res) => {
     try {
-        const content = await readFile(process.env.CADDYFILE_PATH || '/etc/caddy/Caddyfile', 'utf8');
+        const content = await readFile(process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile', 'utf8');
         const enabled = /^\s*metrics\s*$/m.test(content);
         res.json({ enabled });
     } catch (err) {
@@ -134,16 +134,16 @@ router.get('/config', async (req, res) => {
 // PUT /api/metrics/config
 router.put('/config', async (req, res) => {
     const { enabled } = req.body;
-    const CADDYFILE_PATH = process.env.CADDYFILE_PATH || '/etc/caddy/Caddyfile';
+    const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
     try {
-        let content = await readFile(CADDYFILE_PATH, 'utf8');
+        let content = await readFile(CADDY_CONFIG_PATH, 'utf8');
         if (enabled) {
             if (/^\s*metrics\s*$/m.test(content)) return res.json({ ok: true, message: 'Metrics already enabled' });
             content = content.replace(/^(\s*\{)/m, '$1\n    metrics');
         } else {
             content = content.replace(/^\s*metrics\s*\n?/m, '');
         }
-        await writeFile(CADDYFILE_PATH, content, 'utf8');
+        await writeFile(CADDY_CONFIG_PATH, content, 'utf8');
         await caddyLoad(content);
         res.json({ ok: true, enabled });
     } catch (err) {
