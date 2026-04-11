@@ -44,17 +44,14 @@ export default function TLS({ toast, onUnauth }) {
     };
 
     const sorted = [...filtered].sort((a, b) => {
-        let valA, valB;
-        if (sortCol === "domain") { valA = a.domain; valB = b.domain; }
-        else if (sortCol === "expires") { valA = new Date(a.validTo).getTime(); valB = new Date(b.validTo).getTime(); return sortDir === "asc" ? valA - valB : valB - valA; }
-        else if (sortCol === "days") { valA = a.isInternal ? Infinity : a.daysRemaining; valB = b.isInternal ? Infinity : b.daysRemaining; return sortDir === "asc" ? valA - valB : valB - valA; }
-        else { valA = a.domain; valB = b.domain; }
-        return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        if (sortCol === "expires") { const va = new Date(a.validTo).getTime(), vb = new Date(b.validTo).getTime(); return sortDir === "asc" ? va - vb : vb - va; }
+        if (sortCol === "days") { const va = a.isInternal ? Infinity : a.daysRemaining, vb = b.isInternal ? Infinity : b.daysRemaining; return sortDir === "asc" ? va - vb : vb - va; }
+        return sortDir === "asc" ? a.domain.localeCompare(b.domain) : b.domain.localeCompare(a.domain);
     });
 
     const SortIcon = ({ col }) => {
-        if (sortCol !== col) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
-        return <span style={{ marginLeft: 4, color: "var(--accent)" }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
+        if (sortCol !== col) return <span className="sort-icon">↕</span>;
+        return <span className="sort-icon--active">{sortDir === "asc" ? "↑" : "↓"}</span>;
     };
 
     const statusBadge = (cert) => {
@@ -83,25 +80,25 @@ export default function TLS({ toast, onUnauth }) {
         { key: "expired", label: "Expired", val: summary.expired, sub: "Needs renewal", color: summary.expired > 0 ? "var(--danger)" : null },
     ];
 
-    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading certificates...</div>;
+    if (loading) return <div className="loading">Loading certificates...</div>;
 
     return (
         <div className="gap-16">
             <div className="card">
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div className="flex-between">
                     <div>
                         <div className="card-title" style={{ marginBottom: 4 }}>Root CA Certificate</div>
-                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", maxWidth: 480 }}>
+                        <div className="hint" style={{ maxWidth: 480, marginBottom: 10 }}>
                             Install this on your devices to trust internal TLD domains (e.g. <span style={{ color: "var(--accent)" }}>.internal</span>, <span style={{ color: "var(--accent)" }}>.home</span>) served by Caddy's built-in CA. Required after a fresh Caddy install or server rebuild.
                         </div>
-                        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
+                        <div className="flex-col-sm">
                             {[
                                 { os: "iOS / iPadOS", instruction: "Open the file → Settings → Profile Downloaded → Install" },
                                 { os: "macOS", instruction: "Open Keychain Access → drag in cert → set to Always Trust" },
                                 { os: "Android", instruction: "Settings → Security → Install from storage" },
                                 { os: "Windows", instruction: "Double-click cert → Install Certificate → Trusted Root CAs" },
                             ].map(({ os, instruction }) => (
-                                <div key={os} style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)" }}>
+                                <div key={os} className="hint" style={{ marginBottom: 0 }}>
                                     <span style={{ color: "var(--text)" }}>{os}</span> — {instruction}
                                 </div>
                             ))}
@@ -115,8 +112,8 @@ export default function TLS({ toast, onUnauth }) {
                 {filterCards.map(({ key, label, val, sub, color }) => (
                     <div
                         key={key}
-                        className="card"
-                        style={{ cursor: "pointer", borderColor: filter === key ? "var(--accent)" : "var(--border)", transition: "border-color 0.15s, background 0.15s" }}
+                        className="card card-clickable"
+                        style={{ borderColor: filter === key ? "var(--accent)" : "var(--border)" }}
                         onClick={() => setFilter(key)}
                         onMouseEnter={e => { if (filter !== key) e.currentTarget.style.borderColor = "var(--border2)"; }}
                         onMouseLeave={e => { if (filter !== key) e.currentTarget.style.borderColor = "var(--border)"; }}
@@ -128,38 +125,37 @@ export default function TLS({ toast, onUnauth }) {
                 ))}
             </div>
 
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>
+            <div className="card card-flush">
+                <div className="card-header">
+                    <span className="section-label">
                         Certificates {filter !== "all" && `— ${filter}`}
                     </span>
                     <div className="btn-row">
                         {summary.orphaned > 0 && (
                             <span
-                                style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }}
+                                className="section-label"
+                                style={{ color: filter === "orphaned" ? "var(--accent)" : "var(--muted)", cursor: "pointer" }}
                                 onClick={() => setFilter(filter === "orphaned" ? "all" : "orphaned")}
                             >
                                 {summary.orphaned} orphaned
                             </span>
                         )}
-                        <button className="btn btn-ghost" onClick={load} style={{ fontSize: 11 }}>↺ Refresh</button>
+                        <button className="btn btn-ghost btn--sm" onClick={load}>↺ Refresh</button>
                     </div>
                 </div>
                 {sorted.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
-                        {filter === "orphaned"
-                            ? "No orphaned certificates"
-                            : "No certificates in this category"}
+                    <div className="card-empty">
+                        {filter === "orphaned" ? "No orphaned certificates" : "No certificates in this category"}
                     </div>
                 ) : (
                     <div className="table-wrap">
                         <table className="table">
                             <thead>
                                 <tr>
-                                    <th onClick={() => handleSort("domain")} style={{ cursor: "pointer", userSelect: "none" }}>Domain <SortIcon col="domain" /></th>
+                                    <th className="th-sortable" onClick={() => handleSort("domain")}>Domain <SortIcon col="domain" /></th>
                                     <th>Issuer</th>
-                                    <th onClick={() => handleSort("expires")} style={{ cursor: "pointer", userSelect: "none" }}>Expires <SortIcon col="expires" /></th>
-                                    <th onClick={() => handleSort("days")} style={{ cursor: "pointer", userSelect: "none" }}>Days <SortIcon col="days" /></th>
+                                    <th className="th-sortable" onClick={() => handleSort("expires")}>Expires <SortIcon col="expires" /></th>
+                                    <th className="th-sortable" onClick={() => handleSort("days")}>Days <SortIcon col="days" /></th>
                                     <th>Status</th>
                                     <th></th>
                                 </tr>
@@ -170,15 +166,15 @@ export default function TLS({ toast, onUnauth }) {
                                         <td className="mono">{cert.domain}</td>
                                         <td><span className={`badge ${cert.issuer === 'acme' ? 'badge-blue' : 'badge-muted'}`}>{cert.issuer === 'acme' ? "Let's Encrypt" : "Internal"}</span></td>
                                         <td>
-                                            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>{formatDate(cert.validTo)}</div>
+                                            <div className="mono" style={{ fontSize: 12 }}>{formatDate(cert.validTo)}</div>
                                             {expiryBar(cert)}
                                         </td>
                                         <td className="mono" style={{ color: cert.daysRemaining < 0 ? "var(--danger)" : cert.daysRemaining < 14 ? "var(--warn)" : "var(--muted)" }}>
                                             {cert.isInternal ? "auto" : `${cert.daysRemaining}d`}
                                         </td>
                                         <td>{statusBadge(cert)}</td>
-                                        <td style={{ width: 60, textAlign: "right" }}>
-                                            {cert.status === 'orphaned' && <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteCert(cert)}>✕</button>}
+                                        <td className="col-actions-sm">
+                                            {cert.status === 'orphaned' && <button className="btn btn-danger btn--icon" onClick={() => deleteCert(cert)}>✕</button>}
                                         </td>
                                     </tr>
                                 ))}

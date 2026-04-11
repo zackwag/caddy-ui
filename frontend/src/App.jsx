@@ -98,7 +98,7 @@ export default function App() {
                                 <button className="theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
                                     {theme === 'dark' ? '☀' : '☾'}
                                 </button>
-                                <button className="btn btn-ghost" onClick={fetchStatus} style={{ fontSize: 11 }}>↺ Status</button>
+                                <button className="btn btn-ghost btn--sm" onClick={fetchStatus}>↺ Status</button>
                             </div>
                         </div>
                         <div className="content">

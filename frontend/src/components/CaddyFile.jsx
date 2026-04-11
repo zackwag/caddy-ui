@@ -198,7 +198,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
 
     const isDirty = content !== original;
 
-    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading Caddyfile...</div>;
+    if (loading) return <div className="loading">Loading Caddyfile...</div>;
 
     return (
         <div className="gap-16">
@@ -206,12 +206,12 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
                 <CaddyfileCodeMirror value={content} onChange={setContent} theme={theme} />
                 <div className="editor-toolbar">
                     <div className="btn-row">
-                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
-                            <input type="checkbox" checked={runFmt} onChange={e => setRunFmt(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
+                        <label className="editor-checkbox-label">
+                            <input type="checkbox" className="editor-checkbox" checked={runFmt} onChange={e => setRunFmt(e.target.checked)} />
                             caddy fmt
                         </label>
-                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
-                            <input type="checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} style={{ accentColor: "var(--accent)" }} />
+                        <label className="editor-checkbox-label">
+                            <input type="checkbox" className="editor-checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} />
                             sort entries
                         </label>
                     </div>
@@ -229,27 +229,30 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
             </div>
 
             {historyOpen && (
-                <div ref={historyRef} className="card" style={{ padding: 0, overflow: "hidden" }}>
-                    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Version History</span>
-                        <button className="btn btn-ghost" onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 11 }}>↺ Refresh</button>
+                <div ref={historyRef} className="card card-flush">
+                    <div className="card-header">
+                        <span className="section-label">Version History</span>
+                        <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}>↺ Refresh</button>
                     </div>
                     {historyLoading ? (
-                        <div style={{ padding: 16, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
+                        <div className="card-body loading">Loading...</div>
                     ) : history.length === 0 ? (
-                        <div style={{ padding: 24, textAlign: "center", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)" }}>No snapshots yet — save your Caddyfile to create one</div>
+                        <div className="card-empty">No snapshots yet — save your Caddyfile to create one</div>
                     ) : (
-                        <div style={{ padding: "0 16px" }}>
+                        <div className="history-body">
                             {history.map((entry, i) => (
                                 <div key={entry.filename}>
                                     <div className="history-row">
-                                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: previewEntry?.filename === entry.filename ? "var(--accent)" : "var(--text)", cursor: "pointer", flex: 1 }} onClick={() => previewSnapshot(entry)}>
+                                        <div
+                                            className={`history-entry ${previewEntry?.filename === entry.filename ? "history-entry--active" : "history-entry--default"}`}
+                                            onClick={() => previewSnapshot(entry)}
+                                        >
                                             {formatTs(entry.timestamp)}
-                                            {i === 0 && <span style={{ marginLeft: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)" }}>latest</span>}
+                                            {i === 0 && <span className="history-latest">latest</span>}
                                         </div>
                                         <div className="btn-row">
-                                            <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => restoreSnapshot(entry)}>↺ Restore</button>
-                                            <button className="btn btn-danger" style={{ padding: "3px 10px", fontSize: 11 }} title="Delete snapshot" onClick={() => deleteSnapshot(entry)}>✕</button>
+                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(entry)}>↺ Restore</button>
+                                            <button className="btn btn-danger btn--sm" title="Delete snapshot" onClick={() => deleteSnapshot(entry)}>✕</button>
                                         </div>
                                     </div>
                                     {previewEntry?.filename === entry.filename && <div className="history-preview">{previewContent}</div>}

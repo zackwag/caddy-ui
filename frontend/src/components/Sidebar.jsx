@@ -15,7 +15,7 @@ export default function Sidebar({ tab, setTab, status, authEnabled, onUnauth, si
                 <div className="logo-sub">Server Manager</div>
                 <div className="status-pill">
                     <div className={`status-dot ${status ? (status.online ? "online" : "offline") : ""}`} />
-                    <span style={{ color: "var(--muted)" }}>
+                    <span className="status-pill-text">
                         {status ? (status.online ? "connected" : "unreachable") : "checking..."}
                     </span>
                 </div>

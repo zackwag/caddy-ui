@@ -58,9 +58,7 @@ export default function Logs({ toast, onUnauth }) {
     const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
 
     const exportLogs = () => {
-        const linesToExport = (logSearch || levelFilter !== "all") && filteredLines.length > 0
-            ? filteredLines
-            : lines;
+        const linesToExport = (logSearch || levelFilter !== "all") && filteredLines.length > 0 ? filteredLines : lines;
         const blob = new Blob([linesToExport.join('\n')], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -90,69 +88,69 @@ export default function Logs({ toast, onUnauth }) {
         finally { setSavingConfig(false); }
     };
 
-    const selectStyle = { background: "var(--editor-bg)", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, outline: "none", cursor: "pointer", width: "100%" };
-    const inputStyle = { background: "var(--editor-bg)", border: "1px solid var(--border2)", borderRadius: 4, padding: "6px 10px", color: "var(--text)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, outline: "none", width: "100%" };
-    const labelStyle = { fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, letterSpacing: "1.2px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 5, display: "block" };
-
     const levelBtn = (level, label, color) => (
-        <button className="btn btn-ghost" style={{ fontSize: 10, padding: "4px 10px", borderColor: levelFilter === level ? color : "var(--border2)", color: levelFilter === level ? color : "var(--muted)" }} onClick={() => setLevelFilter(levelFilter === level ? "all" : level)}>
+        <button
+            className="btn btn-ghost btn--icon"
+            style={{ fontSize: 10, borderColor: levelFilter === level ? color : "var(--border2)", color: levelFilter === level ? color : "var(--muted)" }}
+            onClick={() => setLevelFilter(levelFilter === level ? "all" : level)}
+        >
             {label}
         </button>
     );
 
     return (
         <div className="gap-16">
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <div onClick={() => setConfigOpen(o => !o)} style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: configOpen ? "1px solid var(--border)" : "none" }}>
-                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Log Configuration</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="card card-flush">
+                <div className={`card-header--clickable ${configOpen ? "is-open" : ""}`} onClick={() => setConfigOpen(o => !o)}>
+                    <span className="section-label">Log Configuration</span>
+                    <div className="flex-center">
                         {logConfig && <span className={`badge ${logConfig.enabled ? "badge-green" : "badge-muted"}`}>{logConfig.enabled ? "ENABLED" : "DISABLED"}</span>}
-                        <span style={{ color: "var(--muted)", fontSize: 12 }}>{configOpen ? "▲" : "▼"}</span>
+                        <span className="chevron">{configOpen ? "▲" : "▼"}</span>
                     </div>
                 </div>
                 {configOpen && !logConfig && (
-                    <div style={{ padding: 16, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)" }}>Loading...</div>
+                    <div className="card-body loading">Loading...</div>
                 )}
                 {configOpen && logConfig && (
-                    <div style={{ padding: 16 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 16 }}>
+                    <div className="card-body">
+                        <div className="config-grid">
                             <div>
-                                <span style={labelStyle}>Logging</span>
-                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--text)" }}>
-                                    <input type="checkbox" checked={logConfig.enabled} onChange={e => updateConfig("enabled", e.target.checked)} style={{ accentColor: "var(--accent)", width: 14, height: 14 }} />
+                                <span className="field-label">Logging</span>
+                                <label className="config-checkbox-label">
+                                    <input type="checkbox" className="config-checkbox" checked={logConfig.enabled} onChange={e => updateConfig("enabled", e.target.checked)} />
                                     {logConfig.enabled ? "Enabled" : "Disabled"}
                                 </label>
                             </div>
                             <div>
-                                <span style={labelStyle}>Format</span>
-                                <select value={logConfig.format} onChange={e => updateConfig("format", e.target.value)} style={selectStyle} disabled={!logConfig.enabled}>
+                                <span className="field-label">Format</span>
+                                <select className="config-select" value={logConfig.format} onChange={e => updateConfig("format", e.target.value)} disabled={!logConfig.enabled}>
                                     <option value="json">json</option>
                                     <option value="console">console</option>
                                 </select>
                             </div>
                             <div>
-                                <span style={labelStyle}>Level</span>
-                                <select value={logConfig.level} onChange={e => updateConfig("level", e.target.value)} style={selectStyle} disabled={!logConfig.enabled}>
+                                <span className="field-label">Level</span>
+                                <select className="config-select" value={logConfig.level} onChange={e => updateConfig("level", e.target.value)} disabled={!logConfig.enabled}>
                                     <option value="DEBUG">DEBUG</option>
                                     <option value="INFO">INFO</option>
                                     <option value="WARN">WARN</option>
                                     <option value="ERROR">ERROR</option>
                                 </select>
                             </div>
-                            <div style={{ gridColumn: "1 / -1" }}>
-                                <span style={labelStyle}>Log File Path</span>
-                                <input value={logConfig.path} onChange={e => updateConfig("path", e.target.value)} style={inputStyle} disabled={!logConfig.enabled} />
+                            <div className="config-grid-full">
+                                <span className="field-label">Log File Path</span>
+                                <input className="config-input" value={logConfig.path} onChange={e => updateConfig("path", e.target.value)} disabled={!logConfig.enabled} />
                             </div>
                             <div>
-                                <span style={labelStyle}>Roll Size</span>
-                                <input value={logConfig.rollSize} onChange={e => updateConfig("rollSize", e.target.value)} style={inputStyle} placeholder="50mb" disabled={!logConfig.enabled} />
+                                <span className="field-label">Roll Size</span>
+                                <input className="config-input" value={logConfig.rollSize} onChange={e => updateConfig("rollSize", e.target.value)} placeholder="50mb" disabled={!logConfig.enabled} />
                             </div>
                             <div>
-                                <span style={labelStyle}>Roll Keep</span>
-                                <input type="number" value={logConfig.rollKeep} onChange={e => updateConfig("rollKeep", parseInt(e.target.value))} style={inputStyle} min={1} max={20} disabled={!logConfig.enabled} />
+                                <span className="field-label">Roll Keep</span>
+                                <input type="number" className="config-input" value={logConfig.rollKeep} onChange={e => updateConfig("rollKeep", parseInt(e.target.value))} min={1} max={20} disabled={!logConfig.enabled} />
                             </div>
                         </div>
-                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <div className="flex-end">
                             <button className="btn btn-primary" onClick={saveConfig} disabled={savingConfig || !configDirty}>{savingConfig ? "Saving..." : "↑ Save Config"}</button>
                         </div>
                     </div>
@@ -167,7 +165,7 @@ export default function Logs({ toast, onUnauth }) {
                     {levelBtn("info", "INFO", "var(--accent2)")}
                 </div>
                 <div className="btn-row">
-                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
+                    <span className="log-line-count">
                         {filteredLines.length}{logSearch || levelFilter !== "all" ? ` / ${lines.length}` : ""} lines
                     </span>
                     {live && <div className="live-dot" />}
@@ -178,7 +176,7 @@ export default function Logs({ toast, onUnauth }) {
             </div>
             <div className="log-wrap">
                 {filteredLines.length === 0 ? (
-                    <div style={{ color: "var(--muted)", padding: "8px 0" }}>{logSearch || levelFilter !== "all" ? "No lines match the current filter" : "No log lines loaded"}</div>
+                    <div className="log-empty">{logSearch || levelFilter !== "all" ? "No lines match the current filter" : "No log lines loaded"}</div>
                 ) : (
                     filteredLines.map((line, i) => (
                         <div key={i} className={`log-line ${classify(line)} ${logSearch && line.toLowerCase().includes(logSearch.toLowerCase()) ? "highlight" : ""}`}>{line}</div>

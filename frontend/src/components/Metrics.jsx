@@ -36,7 +36,6 @@ export default function Metrics({ toast, onUnauth }) {
         finally { setSavingMetrics(false); }
     };
 
-    const labelStyle = { fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", letterSpacing: "1.2px", textTransform: "uppercase", marginBottom: 4, display: "block" };
     const statusColors = { '2xx': 'var(--accent)', '3xx': 'var(--accent2)', '4xx': 'var(--warn)', '5xx': 'var(--danger)' };
 
     const formatScrapedAt = (iso) => {
@@ -47,30 +46,30 @@ export default function Metrics({ toast, onUnauth }) {
 
     return (
         <div className="gap-16">
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <div onClick={() => setConfigOpen(o => !o)} style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none", borderBottom: configOpen ? "1px solid var(--border)" : "none" }}>
-                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--muted)" }}>Metrics Configuration</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="card card-flush">
+                <div className={`card-header--clickable ${configOpen ? "is-open" : ""}`} onClick={() => setConfigOpen(o => !o)}>
+                    <span className="section-label">Metrics Configuration</span>
+                    <div className="flex-center">
                         {metricsConfig && <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>{metricsConfig.enabled ? "ENABLED" : "DISABLED"}</span>}
-                        <span style={{ color: "var(--muted)", fontSize: 12 }}>{configOpen ? "▲" : "▼"}</span>
+                        <span className="chevron">{configOpen ? "▲" : "▼"}</span>
                     </div>
                 </div>
                 {configOpen && (
-                    <div style={{ padding: 16 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                    <div className="card-body">
+                        <div className="flex-between" style={{ marginBottom: 16 }}>
                             <div>
-                                <span style={labelStyle}>Caddy Metrics</span>
-                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>Enables the Prometheus metrics endpoint on Caddy's admin API</div>
+                                <span className="field-label">Caddy Metrics</span>
+                                <div className="hint" style={{ marginBottom: 0 }}>Enables the Prometheus metrics endpoint on Caddy's admin API</div>
                             </div>
                             <button className={`btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`} onClick={() => toggleMetrics(!metricsConfig?.enabled)} disabled={savingMetrics}>
                                 {savingMetrics ? "Saving..." : metricsConfig?.enabled ? "Disable" : "Enable"}
                             </button>
                         </div>
-                        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                        <div className="config-section-divider">
+                            <div className="flex-between">
                                 <div>
-                                    <span style={labelStyle}>Public Metrics Endpoint</span>
-                                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
+                                    <span className="field-label">Public Metrics Endpoint</span>
+                                    <div className="hint" style={{ marginBottom: 0 }}>
                                         {publicMetrics ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics/raw</span></> : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"}
                                     </div>
                                 </div>
@@ -82,12 +81,12 @@ export default function Metrics({ toast, onUnauth }) {
             </div>
 
             {loading ? (
-                <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading metrics...</div>
+                <div className="loading">Loading metrics...</div>
             ) : !metrics?.ok ? (
                 <div className="card">
-                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                        <span>Metrics not enabled</span>
-                        <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfigOpen(true)}>Enable in Metrics →</button>
+                    <div className="flex-between">
+                        <span className="loading">Metrics not enabled</span>
+                        <button className="btn btn-ghost btn--sm" onClick={() => setConfigOpen(true)}>Enable in Metrics →</button>
                     </div>
                 </div>
             ) : (
@@ -100,19 +99,19 @@ export default function Metrics({ toast, onUnauth }) {
                         </div>
                         <div className="card">
                             <div className="card-title">Requests / sec</div>
-                            <div className="stat-val" style={{ color: "var(--accent)" }}>{metrics.rps ?? "—"}</div>
+                            <div className="stat-val data-val--accent">{metrics.rps ?? "—"}</div>
                             <div className="stat-label">Avg over uptime</div>
                         </div>
                         <div className="card">
                             <div className="card-title">Avg Response</div>
                             <div className="stat-val" style={{ color: metrics.avgResponseMs > 500 ? "var(--warn)" : "var(--text)" }}>
-                                {metrics.avgResponseMs}<span style={{ fontSize: 14, color: "var(--muted)", marginLeft: 4 }}>ms</span>
+                                {metrics.avgResponseMs}<span className="ms-unit">ms</span>
                             </div>
                             <div className="stat-label">Mean response time</div>
                         </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <div className="grid-2">
                         <div className="card">
                             <div className="card-title">Status Codes</div>
                             <div className="metrics-bar-wrap">
@@ -132,19 +131,19 @@ export default function Metrics({ toast, onUnauth }) {
                         </div>
                         <div className="card">
                             <div className="card-title">Response Time Percentiles</div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                            <div className="percentile-rows">
                                 {[
                                     { label: "p50", val: metrics.p50, color: "var(--accent)" },
                                     { label: "p95", val: metrics.p95, color: "var(--warn)" },
                                     { label: "p99", val: metrics.p99, color: "var(--danger)" },
                                 ].map(({ label, val, color }) => (
                                     <div key={label}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>{label}</span>
-                                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color }}>{val}<span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 3 }}>ms</span></span>
+                                        <div className="percentile-header">
+                                            <span className="percentile-label">{label}</span>
+                                            <span className="percentile-val" style={{ color }}>{val}<span className="percentile-unit">ms</span></span>
                                         </div>
-                                        <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
-                                            <div style={{ height: "100%", width: `${Math.min(100, (val / (metrics.p99 || 1)) * 100)}%`, background: color, borderRadius: 2, transition: "width 0.4s" }} />
+                                        <div className="percentile-bar-track">
+                                            <div className="percentile-bar-fill" style={{ width: `${Math.min(100, (val / (metrics.p99 || 1)) * 100)}%`, background: color }} />
                                         </div>
                                     </div>
                                 ))}
@@ -152,11 +151,11 @@ export default function Metrics({ toast, onUnauth }) {
                         </div>
                     </div>
 
-                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ letterSpacing: "1px", textTransform: "uppercase", fontSize: 10 }}>Refreshes every 30s</span>
+                    <div className="metrics-footer">
+                        <span className="metrics-footer-label">Refreshes every 30s</span>
                         <div className="btn-row">
                             <span>Last scraped: {formatScrapedAt(metrics.scrapedAt)}</span>
-                            <button className="btn btn-ghost" onClick={load} style={{ fontSize: 11 }}>↺ Refresh</button>
+                            <button className="btn btn-ghost btn--sm" onClick={load}>↺ Refresh</button>
                         </div>
                     </div>
                 </>

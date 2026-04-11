@@ -19,10 +19,10 @@ function EditModal({ route, initialNote, isCaddyfileManaged, onSaveRoute, onSave
 
                 {isCaddyfileManaged ? (
                     <>
-                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)", background: "rgba(0,0,0,0.15)", border: "1px solid var(--border2)", borderRadius: 4, padding: "12px", marginBottom: 8 }}>
+                        <div className="caddyfile-notice">
                             This route is defined in the Caddyfile and cannot be edited here.
                         </div>
-                        <button className="btn btn-ghost" style={{ fontSize: 11, marginBottom: 20 }} onClick={onGoToCaddyfile}>⌗ Edit in Caddyfile →</button>
+                        <button className="btn btn-ghost btn--sm" style={{ marginBottom: 20 }} onClick={onGoToCaddyfile}>⌗ Edit in Caddyfile →</button>
                     </>
                 ) : (
                     <>
@@ -38,7 +38,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, onSaveRoute, onSave
                             <label>Strip Prefix (optional)</label>
                             <input value={form.stripPrefix} onChange={set("stripPrefix")} placeholder="/api" />
                         </div>
-                        <div className="btn-row" style={{ justifyContent: "flex-end", marginBottom: 20 }}>
+                        <div className="btn-row flex-end" style={{ marginBottom: 20 }}>
                             <button className="btn btn-primary" onClick={() => onSaveRoute(form)} disabled={!form.upstream}>
                                 Save Route
                             </button>
@@ -46,14 +46,13 @@ function EditModal({ route, initialNote, isCaddyfileManaged, onSaveRoute, onSave
                     </>
                 )}
 
-                <div style={{ borderTop: "1px solid var(--border)", margin: "4px 0 20px" }} />
-
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "1.2px", textTransform: "uppercase", color: "var(--muted)", marginBottom: 12 }}>Note</div>
+                <div className="modal-section-divider" />
+                <div className="modal-section-label">Note</div>
                 <div className="field">
                     <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Home Assistant, media server..." onKeyDown={e => e.key === 'Enter' && onSaveNote(note)} />
                 </div>
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginBottom: 16 }}>Leave blank to clear the note.</div>
-                <div className="btn-row" style={{ justifyContent: "flex-end" }}>
+                <div className="modal-hint">Leave blank to clear the note.</div>
+                <div className="btn-row flex-end">
                     <button className="btn btn-ghost" onClick={onClose}>Close</button>
                     <button className="btn btn-primary" onClick={() => onSaveNote(note)}>Save Note</button>
                 </div>
@@ -82,7 +81,7 @@ function NewRouteModal({ onSave, onClose }) {
                     <label>Strip Prefix (optional)</label>
                     <input value={form.stripPrefix} onChange={set("stripPrefix")} placeholder="/api" />
                 </div>
-                <div className="btn-row" style={{ marginTop: 20, justifyContent: "flex-end" }}>
+                <div className="btn-row flex-end" style={{ marginTop: 20 }}>
                     <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
                     <button className="btn btn-primary" onClick={() => onSave(form)} disabled={!form.upstream || !form.domain}>
                         Add Route
@@ -146,11 +145,7 @@ export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilte
 
     const editRoute = async (form) => {
         try {
-            if (form._id) {
-                await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
-            } else {
-                await apiFetch(`/routes/caddyfile/${encodeURIComponent(form._originalDomain)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
-            }
+            await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
             toast.success("Route updated");
             setEditModal(null); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
@@ -224,20 +219,20 @@ export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilte
 
     const getHealthDot = (route) => {
         const upstream = getUpstream(route);
-        if (upstream === "—") return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--border2)", marginRight: 8, flexShrink: 0 }} title="No upstream" />;
+        if (upstream === "—") return <span className="health-dot health-dot--none" title="No upstream" />;
         const upstreams = upstream.split(", ");
         const allOnline = upstreams.every(u => health[u] === true);
         const anyOnline = upstreams.some(u => health[u] === true);
         const checked = upstreams.some(u => u in health);
-        if (!checked) return <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted)", marginRight: 8, flexShrink: 0 }} title="Checking..." />;
+        if (!checked) return <span className="health-dot health-dot--pending" title="Checking..." />;
         const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
         const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
         const stats = uptime[upstreams[0]];
         const uptimeLabel = stats && stats.total > 1 ? `${stats.pct}%` : null;
         return (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: 8, flexShrink: 0, width: 20 }}>
-                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: shadow }} title={allOnline ? "Online" : anyOnline ? "Partial" : "Offline"} />
-                {uptimeLabel && <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: "var(--muted)", marginTop: 2, lineHeight: 1, whiteSpace: "nowrap" }}>{uptimeLabel}</span>}
+            <div className="health-dot-wrap">
+                <span className="health-dot" style={{ background: color, boxShadow: shadow }} title={allOnline ? "Online" : anyOnline ? "Partial" : "Offline"} />
+                {uptimeLabel && <span className="uptime-label">{uptimeLabel}</span>}
             </div>
         );
     };
@@ -262,30 +257,30 @@ export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilte
     });
 
     const SortIcon = ({ col }) => {
-        if (sortCol !== col) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>;
-        return <span style={{ marginLeft: 4, color: "var(--accent)" }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
+        if (sortCol !== col) return <span className="sort-icon">↕</span>;
+        return <span className="sort-icon--active">{sortDir === "asc" ? "↑" : "↓"}</span>;
     };
 
-    if (loading) return <div style={{ color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>Loading routes...</div>;
+    if (loading) return <div className="loading">Loading routes...</div>;
 
     return (
         <>
             <div className="gap-16">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div className="flex-between">
+                    <div className="flex-center" style={{ gap: 12 }}>
                         <input className="search-input" placeholder="Filter by domain, upstream, note, or server..." value={search} onChange={e => setSearch(e.target.value)} />
-                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
+                        <span className="section-label">
                             {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} online`}
                         </span>
                     </div>
                     <div className="btn-row">
-                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading} style={{ fontSize: 11 }}>↺ Refresh</button>
+                        <button className="btn btn-ghost btn--sm" onClick={loadHealth} disabled={healthLoading}>↺ Refresh</button>
                         <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ Add Route</button>
                     </div>
                 </div>
-                <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div className="card card-flush">
                     {sorted.length === 0 ? (
-                        <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
+                        <div className="card-empty">
                             {search ? `No routes matching "${search}"` : "No routes configured"}
                         </div>
                     ) : (
@@ -293,9 +288,9 @@ export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilte
                             <table className="table">
                                 <thead>
                                     <tr>
-                                        <th onClick={() => handleSort("domain")} style={{ cursor: "pointer", userSelect: "none" }}>Domain <SortIcon col="domain" /></th>
-                                        <th onClick={() => handleSort("upstream")} style={{ cursor: "pointer", userSelect: "none" }}>Upstream <SortIcon col="upstream" /></th>
-                                        <th onClick={() => handleSort("server")} style={{ cursor: "pointer", userSelect: "none" }}>Server <SortIcon col="server" /></th>
+                                        <th className="th-sortable" onClick={() => handleSort("domain")}>Domain <SortIcon col="domain" /></th>
+                                        <th className="th-sortable" onClick={() => handleSort("upstream")}>Upstream <SortIcon col="upstream" /></th>
+                                        <th className="th-sortable" onClick={() => handleSort("server")}>Server <SortIcon col="server" /></th>
                                         <th>ID</th>
                                         <th></th>
                                     </tr>
@@ -311,28 +306,35 @@ export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilte
                                         return (
                                             <tr key={r["@id"] || i}>
                                                 <td>
-                                                    <div style={{ display: "flex", alignItems: "center" }}>
+                                                    <div className="route-domain-cell">
                                                         {getHealthDot(r)}
                                                         <div>
                                                             {dLink ? <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">{domain}</a> : <span className="mono">{domain}</span>}
-                                                            {note && <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{note}</div>}
+                                                            {note && <div className="route-note">{note}</div>}
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td>
                                                     {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
                                                 </td>
-                                                <td className="mono" style={{ color: "var(--muted)", fontSize: 10, cursor: r._server ? "pointer" : "default" }} onClick={() => r._server && setSearch(r._server)} title={r._server ? `Filter by ${r._server}` : undefined} onMouseEnter={e => { if (r._server) e.target.style.color = "var(--accent)"; }} onMouseLeave={e => { if (r._server) e.target.style.color = "var(--muted)"; }}>{r._server || "—"}</td>
-                                                <td className="mono" style={{ color: "var(--muted)", fontSize: 10 }}>{r["@id"] || "—"}</td>
-                                                <td style={{ width: 100, textAlign: "right" }}>
-                                                    <div className="btn-row" style={{ justifyContent: "flex-end" }}>
+                                                <td
+                                                    className="mono cell-muted"
+                                                    style={{ cursor: r._server ? "pointer" : "default" }}
+                                                    onClick={() => r._server && setSearch(r._server)}
+                                                    title={r._server ? `Filter by ${r._server}` : undefined}
+                                                    onMouseEnter={e => { if (r._server) e.target.style.color = "var(--accent)"; }}
+                                                    onMouseLeave={e => { if (r._server) e.target.style.color = "var(--muted)"; }}
+                                                >{r._server || "—"}</td>
+                                                <td className="mono cell-muted">{r["@id"] || "—"}</td>
+                                                <td className="col-actions">
+                                                    <div className="btn-row flex-end">
                                                         <button
-                                                            className="btn btn-ghost"
-                                                            style={{ padding: "4px 10px", color: note ? "var(--accent2)" : "var(--muted)" }}
+                                                            className="btn btn-ghost btn--icon"
+                                                            style={{ color: note ? "var(--accent2)" : "var(--muted)" }}
                                                             onClick={() => openEdit(r)}
                                                             title="Edit route"
                                                         >✎</button>
-                                                        {hasId && <button className="btn btn-danger" style={{ padding: "4px 10px" }} onClick={() => deleteRoute(r["@id"])}>✕</button>}
+                                                        {hasId && <button className="btn btn-danger btn--icon" onClick={() => deleteRoute(r["@id"])}>✕</button>}
                                                     </div>
                                                 </td>
                                             </tr>

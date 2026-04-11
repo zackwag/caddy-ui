@@ -42,7 +42,7 @@ export default function Login({ onLogin, sessionExpired }) {
                     <label>Password</label>
                     <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} autoComplete="current-password" />
                 </div>
-                <button className="btn btn-primary" style={{ width: "100%", marginTop: 8, justifyContent: "center" }} onClick={login} disabled={loading || !username || !password}>
+                <button className="btn btn-primary btn--full" onClick={login} disabled={loading || !username || !password}>
                     {loading ? "Signing in..." : "Sign in"}
                 </button>
             </div>
