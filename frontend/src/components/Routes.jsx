@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../utils/api.js";
 
 function EditModal({ route, initialNote, isCaddyfileManaged, onSaveRoute, onSaveNote, onClose, onGoToCaddyfile }) {
@@ -92,7 +93,9 @@ function NewRouteModal({ onSave, onClose }) {
     );
 }
 
-export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilterConsumed }) {
+export default function Routes({ toast, onUnauth }) {
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
     const [uptime, setUptime] = useState({});
@@ -104,10 +107,11 @@ export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilte
     const [newModal, setNewModal] = useState(false);
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
-    const [search, setSearch] = useState(initialFilter || "");
+    const [search, setSearch] = useState(searchParams.get("filter") || "");
 
     useEffect(() => {
-        if (initialFilter) onFilterConsumed?.();
+        const f = searchParams.get("filter");
+        if (f) setSearch(f);
     }, []);
 
     const load = () => {
@@ -353,7 +357,7 @@ export default function Routes({ toast, setTab, onUnauth, initialFilter, onFilte
                     isCaddyfileManaged={editModal.isCaddyfileManaged}
                     onSaveRoute={editRoute}
                     onSaveNote={(note) => saveNote(editModal.domain, note)}
-                    onGoToCaddyfile={() => { setEditModal(null); setTab("caddyfile"); }}
+                    onGoToCaddyfile={() => { setEditModal(null); navigate("/caddyfile"); }}
                     onClose={() => setEditModal(null)}
                 />
             )}

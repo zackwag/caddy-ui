@@ -1,13 +1,22 @@
+import { useNavigate } from "react-router-dom";
+
 const NAV = [
-    { id: "dashboard", label: "Dashboard", icon: "◈" },
-    { id: "caddyfile", label: "Caddyfile", icon: "⌗" },
-    { id: "routes", label: "Routes", icon: "⇌" },
-    { id: "tls", label: "TLS", icon: "⊕" },
-    { id: "logs", label: "Logs", icon: "≡" },
-    { id: "metrics", label: "Metrics", icon: "∿" },
+    { path: "/dashboard", label: "Dashboard", icon: "◈" },
+    { path: "/caddyfile", label: "Caddyfile", icon: "⌗" },
+    { path: "/routes", label: "Routes", icon: "⇌" },
+    { path: "/tls", label: "TLS", icon: "⊕" },
+    { path: "/logs", label: "Logs", icon: "≡" },
+    { path: "/metrics", label: "Metrics", icon: "∿" },
 ];
 
-export default function Sidebar({ tab, setTab, status, authEnabled, onUnauth, sidebarOpen, setSidebarOpen }) {
+export default function Sidebar({ currentPath, status, authEnabled, onUnauth, sidebarOpen, setSidebarOpen }) {
+    const navigate = useNavigate();
+
+    const go = (path) => {
+        navigate(path);
+        setSidebarOpen(false);
+    };
+
     return (
         <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
             <div className="sidebar-logo">
@@ -23,9 +32,9 @@ export default function Sidebar({ tab, setTab, status, authEnabled, onUnauth, si
             <nav className="nav">
                 {NAV.map(n => (
                     <div
-                        key={n.id}
-                        className={`nav-item ${tab === n.id ? "active" : ""}`}
-                        onClick={() => { setTab(n.id); setSidebarOpen(false); }}
+                        key={n.path}
+                        className={`nav-item ${currentPath === n.path ? "active" : ""}`}
+                        onClick={() => go(n.path)}
                     >
                         <span className="nav-icon">{n.icon}</span>
                         {n.label}

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import CaddyFile from "./components/CaddyFile.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import Login from "./components/Login.jsx";
 import Logs from "./components/Logs.jsx";
 import Metrics from "./components/Metrics.jsx";
-import Routes from "./components/Routes.jsx";
+import RoutesPage from "./components/Routes.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
@@ -12,29 +13,24 @@ import { css } from "./styles.js";
 import { API, apiFetch, getTheme, getToken, saveTheme, setToken } from "./utils/api.js";
 
 const TITLES = {
-    dashboard: "Dashboard",
-    caddyfile: "Caddyfile Editor",
-    routes: "Route Manager",
-    tls: "TLS Certificates",
-    logs: "Access Logs",
-    metrics: "Metrics",
+    "/dashboard": "Dashboard",
+    "/caddyfile": "Caddyfile Editor",
+    "/routes": "Route Manager",
+    "/tls": "TLS Certificates",
+    "/logs": "Access Logs",
+    "/metrics": "Metrics",
 };
 
 export default function App() {
-    const [tab, setTab] = useState("dashboard");
+    const location = useLocation();
+    const navigate = useNavigate();
     const [status, setStatus] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [authEnabled, setAuthEnabled] = useState(false);
     const [authed, setAuthed] = useState(!!getToken());
     const [sessionExpired, setSessionExpired] = useState(false);
     const [theme, setTheme] = useState(getTheme);
-    const [routeFilter, setRouteFilter] = useState("");
     const toast = useToast();
-
-    const navigateToRoutes = useCallback((filter = "") => {
-        setRouteFilter(filter);
-        setTab("routes");
-    }, []);
 
     const onUnauth = useCallback(() => {
         const wasAuthed = !!getToken();
@@ -69,6 +65,10 @@ export default function App() {
 
     const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
+    // Current path without query string for title lookup
+    const basePath = '/' + location.pathname.split('/')[1];
+    const title = TITLES[basePath] || "Dashboard";
+
     return (
         <>
             <style>{css}</style>
@@ -79,8 +79,7 @@ export default function App() {
                     <div className={`sidebar-overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
 
                     <Sidebar
-                        tab={tab}
-                        setTab={setTab}
+                        currentPath={basePath}
                         status={status}
                         authEnabled={authEnabled}
                         onUnauth={onUnauth}
@@ -92,7 +91,7 @@ export default function App() {
                         <div className="topbar">
                             <div className="topbar-left">
                                 <button className="hamburger" onClick={() => setSidebarOpen(o => !o)}>☰</button>
-                                <span className="page-title">{TITLES[tab]}</span>
+                                <span className="page-title">{title}</span>
                             </div>
                             <div className="btn-row">
                                 <button className="theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
@@ -102,12 +101,16 @@ export default function App() {
                             </div>
                         </div>
                         <div className="content">
-                            {tab === "dashboard" && <Dashboard status={status} toast={toast} onUnauth={onUnauth} setTab={setTab} navigateToRoutes={navigateToRoutes} />}
-                            {tab === "caddyfile" && <CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} />}
-                            {tab === "routes" && <Routes toast={toast} setTab={setTab} onUnauth={onUnauth} initialFilter={routeFilter} onFilterConsumed={() => setRouteFilter("")} />}
-                            {tab === "tls" && <TLS toast={toast} onUnauth={onUnauth} />}
-                            {tab === "logs" && <Logs toast={toast} onUnauth={onUnauth} />}
-                            {tab === "metrics" && <Metrics toast={toast} onUnauth={onUnauth} />}
+                            <Routes>
+                                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                                <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} />} />
+                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                            </Routes>
                         </div>
                     </div>
                     <Toasts toasts={toast.toasts} />
