@@ -41,12 +41,13 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 - **Dashboard** — Live server status, TLS state, server block summary with custom display names, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
 - **Caddyfile Editor** — Edit your Caddyfile with syntax highlighting, live validation, `caddy fmt` formatting, automatic site block sorting, backup/restore, and full version history with inline preview and one-click rollback
-- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, uptime percentages, search/filter, clickable domain and upstream links, edit routes in-place, and per-route notes
-- **TLS Certificates** — View cert status, expiry dates, and days remaining for all managed domains. Detect and delete orphaned certs. Download Caddy's root CA cert with per-OS install instructions
+- **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, uptime percentages, search/filter by domain, upstream, note, or server, clickable domain and upstream links, edit routes in-place, and per-route notes
+- **TLS Certificates** — View cert status, expiry dates, and sortable columns for all managed domains. Detect and delete orphaned certs. Download Caddy's root CA cert with per-OS install instructions
 - **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, ERROR/WARN/INFO level filters, and log export
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
 - **Metrics** — Request count, RPS, avg response time, status code breakdown, and p50/p95/p99 percentiles powered by Caddy's built-in Prometheus endpoint
 - **Dark/Light Theme** — Toggle between dark and warm off-white themes, persisted across sessions
+- **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
 - **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
@@ -69,7 +70,7 @@ graph LR
     BE -->|"admin API"| CA
     BE -->|"TCP healthcheck + uptime"| CA
     BE -->|"Prometheus metrics"| CA
-    BE -->|"caddy version"| DK
+    BE -->|"caddy exec"| DK
     BE <-->|"read / write / backup"| CF
     BE <-->|"read / stream / export"| LG
     BE <-->|"read / write"| SN
@@ -84,11 +85,20 @@ graph LR
 ### Prerequisites
 
 - Docker and Docker Compose
-- An existing Caddy container with the admin API enabled
+- An existing Caddy container with the admin API enabled on `0.0.0.0:2019`
 
 ### 1. Enable Caddy's admin API
 
-Add `CADDY_ADMIN=0.0.0.0:2019` to your Caddy container's environment variables.
+Add the following to your Caddyfile global block:
+
+```json
+{
+    admin 0.0.0.0:2019
+    email {$EMAIL}
+}
+```
+
+> Note: the `CADDY_ADMIN` environment variable does not configure this — it must be set in the Caddyfile.
 
 ### 2. Create required directories
 
@@ -97,7 +107,7 @@ mkdir -p /docker/caddy/logs
 mkdir -p /docker/caddy-ui
 ```
 
-### 3. Generate a JWT secret
+### 3. Generate a JWT secret (if using auth)
 
 ```bash
 openssl rand -base64 32
@@ -115,7 +125,10 @@ services:
       - 80:80
       - 443:443
     environment:
-      - CADDY_ADMIN=0.0.0.0:2019
+      - CADDY_LOG_PATH=/var/log/caddy/access.log
+      - DOMAIN=example.com
+      - EMAIL=you@example.com
+      - TZ=America/New_York
     volumes:
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /docker/caddy/data:/data
@@ -131,18 +144,11 @@ services:
     ports:
       - 9876:3001
     environment:
-      - PORT=3001
-      - CADDY_ADMIN_URL=http://caddy:2019
-      - CADDYFILE_PATH=/etc/caddy/Caddyfile
-      - CADDY_LOG_PATH=/var/log/caddy/access.log
-      - SERVER_NAMES_PATH=/etc/caddy-ui/server-names.json
-      - CADDY_DATA_PATH=/data/caddy/caddy
-      - HISTORY_PATH=/etc/caddy-ui/history
-      - ROUTE_NOTES_PATH=/etc/caddy-ui/route-notes.json
+      - TZ=America/New_York
+      # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
       - CADDY_UI_PASSWORD=yourpassword
       - JWT_SECRET=your-long-random-secret
-      - CADDY_UI_PUBLIC_METRICS=false
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
@@ -178,16 +184,38 @@ docker compose up -d
 
 Open `http://your-server:9877` in your browser.
 
+## Environment Variables
+
+All backend variables have sensible defaults. Only set what you need to override.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CADDY_ADMIN_URL` | `http://caddy:2019` | URL of Caddy's admin API |
+| `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the container |
+| `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy container for Docker exec |
+| `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory |
+| `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log |
+| `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes |
+| `CADDY_UI_PASSWORD` | — | Password for UI authentication |
+| `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
+| `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
+| `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
+| `JWT_SECRET` | — | Secret key for signing JWT tokens |
+| `PORT` | `3001` | Port the backend listens on |
+| `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
+| `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the server display names file |
+
 ## Authentication
 
 Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. All API endpoints are protected and the login screen appears automatically.
 
 ## Environment Variables in Caddyfile
 
-Caddy supports `{$VAR_NAME}` syntax in the Caddyfile. caddy/ui resolves these via the `/adapt` endpoint before reloading, so env vars work correctly end-to-end:
+Caddy supports `{$VAR_NAME}` syntax in the Caddyfile. Set the vars in your Caddy container's environment and they will be substituted at reload time:
 
-```
+```json
 {
+    admin 0.0.0.0:2019
     email {$EMAIL}
 }
 
@@ -196,11 +224,48 @@ blog.{$DOMAIN} {
 }
 ```
 
-Set the vars in your Caddy container's environment or a shared `.env` file.
-
 ## Prometheus Metrics
 
-Enable Caddy's metrics endpoint from the Metrics tab, or add `metrics` to your Caddyfile global block manually. Set `CADDY_UI_PUBLIC_METRICS=true` to expose `/api/metrics` without auth for Prometheus scraping.
+Enable Caddy's metrics endpoint from the Metrics tab, or add `metrics` to your Caddyfile global block manually. Set `CADDY_UI_PUBLIC_METRICS=true` to expose `/api/metrics/raw` without auth for Prometheus scraping.
+
+```yaml
+scrape_configs:
+  - job_name: caddy
+    static_configs:
+      - targets: ['caddy-ui-backend:3001']
+    metrics_path: /api/metrics/raw
+```
+
+## Homepage Widget
+
+The status endpoint returns enriched data for use with [Homepage](https://gethomepage.dev):
+
+```yaml
+- Caddy:
+    href: https://caddy.home
+    icon: caddy.png
+    widget:
+        type: customapi
+        url: http://caddy-ui-backend:3001/api/status
+        mappings:
+            - field: online
+              label: Status
+              format: text
+              remap:
+                  - value: true
+                    to: Online
+                  - value: false
+                    to: Offline
+            - field: routeCount
+              label: Routes
+              format: number
+            - field: upstreamsOnline
+              label: Upstreams
+              format: number
+            - field: uptime
+              label: Uptime
+              format: text
+```
 
 ## Building from Source
 
@@ -222,19 +287,34 @@ caddy-ui/
 │   │   └── routes/
 │   │       ├── auth.js
 │   │       ├── caddyfile.js
-│   │       ├── routes.js
-│   │       ├── status.js
-│   │       ├── logs.js
-│   │       ├── tls.js
 │   │       ├── health.js
+│   │       ├── logs.js
+│   │       ├── metrics.js
+│   │       ├── routenotes.js
+│   │       ├── routes.js
 │   │       ├── servernames.js
-│   │       └── routenotes.js
+│   │       ├── status.js
+│   │       └── tls.js
 │   ├── Dockerfile
 │   └── package.json
 ├── frontend/
 │   ├── src/
+│   │   ├── components/
+│   │   │   ├── CaddyFile.jsx
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Login.jsx
+│   │   │   ├── Logs.jsx
+│   │   │   ├── Metrics.jsx
+│   │   │   ├── Routes.jsx
+│   │   │   ├── Sidebar.jsx
+│   │   │   ├── TLS.jsx
+│   │   │   └── Toasts.jsx
+│   │   ├── utils/
+│   │   │   ├── api.js
+│   │   │   └── format.js
+│   │   ├── App.jsx
 │   │   ├── main.jsx
-│   │   └── App.jsx
+│   │   └── styles.js
 │   ├── Dockerfile
 │   ├── nginx.conf
 │   ├── vite.config.js
@@ -245,25 +325,26 @@ caddy-ui/
 
 ## Docker Hub
 
-| Image    | Link                                                                            |
-| -------- | ------------------------------------------------------------------------------- |
+| Image | Link |
+|-------|------|
 | Frontend | [zackwag/caddy-ui-frontend](https://hub.docker.com/r/zackwag/caddy-ui-frontend) |
-| Backend  | [zackwag/caddy-ui-backend](https://hub.docker.com/r/zackwag/caddy-ui-backend)   |
+| Backend | [zackwag/caddy-ui-backend](https://hub.docker.com/r/zackwag/caddy-ui-backend) |
 
 ## Changelog
 
-| Version | Description                                                                                                               |
-| ------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `v1.9`  | Dark/light theme toggle, log export, root CA cert download, Caddy version via Docker socket, env var support in Caddyfile |
-| `v1.8`  | Metrics tab, upstream uptime tracking, simplified dashboard process card                                                  |
-| `v1.7`  | JWT auth, Caddy process info, metrics toggle, public metrics endpoint                                                     |
-| `v1.6`  | Edit routes in-place, route notes, Caddyfile syntax highlighting                                                          |
-| `v1.5`  | Caddyfile version history with snapshots, log search and level filters                                                    |
-| `v1.4`  | Dashboard health summary, route search/filter, Caddyfile backup and restore                                               |
-| `v1.3`  | Upstream healthchecks, clickable domain/upstream links, http/https scheme detection                                       |
-| `v1.2`  | TLS certificate tab, orphaned cert cleanup, all server routes visible, mobile layout                                      |
-| `v1.1`  | Mobile responsive layout, hamburger menu                                                                                  |
-| `v1.0`  | Initial release                                                                                                           |
+| Version | Description |
+|---------|-------------|
+| `v1.10` | URL-based navigation with React Router, full RESTful API audit, inline style cleanup, Homepage widget support, docker exec replaces local caddy binary, enriched status endpoint, `CADDYFILE_PATH` renamed to `CADDY_CONFIG_PATH` |
+| `v1.9` | Dark/light theme toggle, log export, root CA cert download, Caddy version via Docker socket, env var support in Caddyfile |
+| `v1.8` | Metrics tab, upstream uptime tracking, simplified dashboard process card |
+| `v1.7` | JWT auth, Caddy process info, metrics toggle, public metrics endpoint |
+| `v1.6` | Edit routes in-place, route notes, Caddyfile syntax highlighting |
+| `v1.5` | Caddyfile version history with snapshots, log search and level filters |
+| `v1.4` | Dashboard health summary, route search/filter, Caddyfile backup and restore |
+| `v1.3` | Upstream healthchecks, clickable domain/upstream links, http/https scheme detection |
+| `v1.2` | TLS certificate tab, orphaned cert cleanup, all server routes visible, mobile layout |
+| `v1.1` | Mobile responsive layout, hamburger menu |
+| `v1.0` | Initial release |
 
 ## License
 
