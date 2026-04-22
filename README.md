@@ -58,7 +58,6 @@ graph LR
     FE["caddy/ui frontend\nReact + Nginx\n:9877"]
     BE["caddy/ui backend\nNode.js + Express\n:9876"]
     CA["Caddy\n:2019 admin API\n:80 / :443"]
-    DK[("Docker Socket\n/var/run/docker.sock")]
     CF[("Caddyfile\n/etc/caddy/Caddyfile")]
     LG[("Access Logs\n/var/log/caddy")]
     SN[("Server Names\n/etc/caddy-ui")]
@@ -70,7 +69,7 @@ graph LR
     BE -->|"admin API"| CA
     BE -->|"TCP healthcheck + uptime"| CA
     BE -->|"Prometheus metrics"| CA
-    BE -->|"caddy exec"| DK
+    BE -->|"/adapt validation"| CA
     BE <-->|"read / write / backup"| CF
     BE <-->|"read / stream / export"| LG
     BE <-->|"read / write"| SN
@@ -150,7 +149,6 @@ services:
       - CADDY_UI_PASSWORD=yourpassword
       - JWT_SECRET=your-long-random-secret
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /docker/caddy/logs:/var/log/caddy
       - /docker/caddy-ui:/etc/caddy-ui
@@ -334,7 +332,8 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
-| `v1.10` | URL-based navigation with React Router, full RESTful API audit, inline style cleanup, Homepage widget support, docker exec replaces local caddy binary, enriched status endpoint, `CADDYFILE_PATH` renamed to `CADDY_CONFIG_PATH` |
+| `v1.10.1` | Replace docker exec validation with Caddy `/adapt` API, remove Docker socket dependency, fix route insertion index out of bounds for non-standard Caddy configs, remove version field from Dashboard |
+| `v1.10` | URL-based navigation with React Router, full RESTful API audit, inline style cleanup, Homepage widget support, enriched status endpoint, `CADDYFILE_PATH` renamed to `CADDY_CONFIG_PATH` |
 | `v1.9` | Dark/light theme toggle, log export, root CA cert download, Caddy version via Docker socket, env var support in Caddyfile |
 | `v1.8` | Metrics tab, upstream uptime tracking, simplified dashboard process card |
 | `v1.7` | JWT auth, Caddy process info, metrics toggle, public metrics endpoint |
