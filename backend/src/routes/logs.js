@@ -1,11 +1,7 @@
-import { exec } from 'child_process';
 import { Router } from 'express';
 import { createReadStream, unwatchFile, watchFile } from 'fs';
 import { readFile, stat, writeFile } from 'fs/promises';
-import { promisify } from 'util';
-import { caddyLoad } from '../caddy.js';
-
-const execAsync = promisify(exec);
+import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
 const router = Router();
 const LOG_PATH = process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log';
 const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
@@ -137,18 +133,20 @@ router.put('/config', async (req, res) => {
     const updated = updateGlobalBlock(content, config);
 
     // Validate before writing
-    const tmpPath = `/tmp/Caddyfile.logconfig.${Date.now()}`;
     try {
-        await writeFile(tmpPath, updated, 'utf8');
-        await execAsync(`caddy validate --config ${tmpPath} --adapter caddyfile 2>&1`);
+        const validateRes = await fetch(`${CADDY_ADMIN_URL}/adapt?adapter=caddyfile`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
+            body: updated,
+        });
+        if (!validateRes.ok) {
+            const text = await validateRes.text();
+            const lines = text.split('\n').filter(Boolean);
+            const errors = lines.filter(l => l.toLowerCase().includes('error'));
+            return res.status(422).json({ errors: errors.length ? errors : lines });
+        }
     } catch (err) {
-        const output = (err.stdout + err.stderr).trim();
-        const lines = output.split('\n').filter(Boolean);
-        const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        return res.status(422).json({ errors: errors.length ? errors : lines });
-    } finally {
-        const { unlink } = await import('fs/promises');
-        unlink(tmpPath).catch(() => { });
+        return res.status(422).json({ errors: [err.message] });
     }
 
     await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');

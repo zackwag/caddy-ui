@@ -25,7 +25,7 @@ app.use(express.text({ type: 'text/plain' }));
 // Auth routes are always public
 app.use('/api/auth', authRouter);
 
-// /api/metrics/raw -- Prometheus scrape endpoint
+// GET /api/metrics/raw -- Prometheus scrape endpoint
 // Public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
 app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, async (req, res) => {
     try {
@@ -62,6 +62,6 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
     console.log(`Caddy UI backend running on port ${PORT}`);
     console.log(`Caddy admin API: ${CADDY_ADMIN_URL}`);
-    console.log(`Caddyfile path: ${process.env.CADDYFILE_PATH || '/etc/caddy/Caddyfile'}`);
+    console.log(`Caddyfile path: ${process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile'}`);
     console.log(`Public metrics: ${publicMetrics}`);
 });

@@ -1,26 +1,12 @@
 import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
-import { caddyLoad } from '../caddy.js';
+import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
 
 const router = Router();
-
-function parsePrometheusMetrics(text) {
-    const result = {};
-    for (const line of text.split('\n')) {
-        if (line.startsWith('#') || !line.trim()) continue;
-        const spaceIdx = line.lastIndexOf(' ');
-        if (spaceIdx === -1) continue;
-        const key = line.slice(0, spaceIdx).trim();
-        const val = parseFloat(line.slice(spaceIdx + 1).trim());
-        if (!isNaN(val)) result[key] = val;
-    }
-    return result;
-}
 
 // GET /api/metrics -- parsed metrics for the UI
 router.get('/', async (req, res) => {
     try {
-        const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
         const metricsRes = await fetch(`${CADDY_ADMIN_URL}/metrics`, {
             headers: { 'Origin': 'http://0.0.0.0:2019' },
         });

@@ -1,16 +1,15 @@
-import { exec, spawn } from 'child_process';
+import { exec } from 'child_process';
 import { Router } from 'express';
 import { createReadStream } from 'fs';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { promisify } from 'util';
-import { caddyLoad } from '../caddy.js';
+import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
 
 const execAsync = promisify(exec);
 const router = Router();
 const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
-const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
 const MAX_HISTORY = 20;
 
 async function ensureHistoryDir() {
@@ -45,39 +44,29 @@ async function pruneHistory() {
     } catch { }
 }
 
-function dockerExec(args, input) {
-    return new Promise((resolve, reject) => {
-        const proc = spawn('docker', ['exec', '-i', CADDY_CONTAINER, ...args]);
-        let stdout = '';
-        let stderr = '';
-        proc.stdout.on('data', d => { stdout += d; });
-        proc.stderr.on('data', d => { stderr += d; });
-        proc.on('close', code => {
-            if (code === 0) resolve({ stdout, stderr });
-            else reject(Object.assign(new Error(stderr.trim() || stdout.trim()), { stdout, stderr, code }));
-        });
-        proc.on('error', err => {
-            reject(Object.assign(err, { stdout, stderr: err.message, code: null }));
-        });
-        if (input) {
-            proc.stdin.write(input);
-            proc.stdin.end();
-        }
-    });
-}
-
 async function fmtCaddyfile(content) {
     try {
-        const { stdout } = await dockerExec(['caddy', 'fmt', '-'], content);
-        return stdout;
+        const { stdout } = await execAsync('caddy fmt -', { input: content });
+        return stdout || content;
     } catch (err) {
-        console.warn('caddy fmt failed:', err.message);
+        console.warn('caddy fmt failed, skipping:', err.message);
         return content;
     }
 }
 
 async function validateCaddyfile(content) {
-    await dockerExec(['caddy', 'validate', '--config', '-', '--adapter', 'caddyfile'], content);
+    const validateRes = await fetch(`${CADDY_ADMIN_URL}/adapt?adapter=caddyfile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
+        body: content,
+    });
+    if (!validateRes.ok) {
+        const text = await validateRes.text();
+        const err = new Error(text);
+        err.stderr = text;
+        err.stdout = '';
+        throw err;
+    }
 }
 
 function parseSiteBlocks(content) {
@@ -163,18 +152,21 @@ function sortCaddyfile(content) {
     return parts.join('\n\n').trimEnd() + '\n';
 }
 
+// GET /api/caddyfile
+// GET /api/caddyfile?download=true
 router.get('/', async (req, res) => {
     const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
+    if (req.query.download === 'true') {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);
+        res.setHeader('Content-Type', 'text/plain');
+        createReadStream(CADDY_CONFIG_PATH).pipe(res);
+        return;
+    }
     res.type('text/plain').send(content);
 });
 
-router.get('/download', async (req, res) => {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);
-    res.setHeader('Content-Type', 'text/plain');
-    createReadStream(CADDY_CONFIG_PATH).pipe(res);
-});
-
+// GET /api/caddyfile/history
 router.get('/history', async (req, res) => {
     await ensureHistoryDir();
     try {
@@ -195,6 +187,7 @@ router.get('/history', async (req, res) => {
     }
 });
 
+// GET /api/caddyfile/history/:filename
 router.get('/history/:filename', async (req, res) => {
     const { filename } = req.params;
     if (filename.includes('..') || filename.includes('/')) {
@@ -204,6 +197,7 @@ router.get('/history/:filename', async (req, res) => {
     res.type('text/plain').send(content);
 });
 
+// DELETE /api/caddyfile/history/:filename
 router.delete('/history/:filename', async (req, res) => {
     const { filename } = req.params;
     if (filename.includes('..') || filename.includes('/')) {
@@ -213,12 +207,12 @@ router.delete('/history/:filename', async (req, res) => {
     res.json({ ok: true });
 });
 
-router.post('/validate', async (req, res) => {
+// POST /api/caddyfile/validations
+router.post('/validations', async (req, res) => {
     const content = req.body;
     if (!content || typeof content !== 'string') {
         return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
     }
-
     try {
         await validateCaddyfile(content);
         res.json({ valid: true, warnings: [] });
@@ -231,33 +225,14 @@ router.post('/validate', async (req, res) => {
     }
 });
 
-router.post('/reload', async (req, res) => {
+// POST /api/caddyfile/reloads
+router.post('/reloads', async (req, res) => {
     const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
     await caddyLoad(content);
     res.json({ ok: true, message: 'Caddy reloaded from disk' });
 });
 
-router.post('/restore', async (req, res) => {
-    const content = req.body;
-    if (!content || typeof content !== 'string') {
-        return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
-    }
-
-    try {
-        await validateCaddyfile(content);
-    } catch (err) {
-        const output = ((err.stdout || '') + (err.stderr || '')).trim();
-        const lines = output.split('\n').filter(Boolean);
-        const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        return res.status(422).json({ errors: errors.length ? errors : [err.message] });
-    }
-
-    await snapshotCaddyfile();
-    await caddyLoad(content);
-    await writeFile(CADDY_CONFIG_PATH, content, 'utf8');
-    res.json({ ok: true, message: 'Caddyfile restored and reloaded' });
-});
-
+// PUT /api/caddyfile
 router.put('/', async (req, res) => {
     const content = req.body;
     if (!content || typeof content !== 'string') {

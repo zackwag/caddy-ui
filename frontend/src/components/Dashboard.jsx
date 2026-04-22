@@ -92,12 +92,6 @@ export default function Dashboard({ status, toast, onUnauth }) {
                         </div>
                     ) : (
                         <div className="process-grid">
-                            {process.version && process.version !== 'unknown' && (
-                                <div>
-                                    <span className="field-label">Version</span>
-                                    <div className="data-val">{process.version}</div>
-                                </div>
-                            )}
                             <div>
                                 <span className="field-label">Uptime</span>
                                 <div className="data-val data-val--accent">{process.uptime || "—"}</div>

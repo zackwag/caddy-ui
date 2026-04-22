@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
-import { caddyDelete, caddyGet, caddyPatch, caddyPut } from '../caddy.js';
+import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 
 const router = Router();
 
@@ -148,9 +148,12 @@ router.post('/', async (req, res) => {
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
 
     const routesPath = `/config/apps/http/servers/${PRIMARY_SERVER}/routes`;
-    const existing = await caddyGet(routesPath);
-    const index = existing.length;
-    await caddyPut(`${routesPath}/${index}`, route);
+    const existing = await caddyGet(routesPath).catch(() => null);
+    if (existing === null) {
+        await caddyPut(routesPath, [route]);
+    } else {
+        await caddyPost(routesPath, route);
+    }
 
     const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
     const block = buildCaddyfileBlock({ domain, upstream, stripPrefix });
