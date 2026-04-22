@@ -11,39 +11,10 @@ async function caddyRequest(method, path, body) {
         headers: HEADERS,
         body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) throw new Error(`Caddy API error: ${res.status} ${await res.text()}`);
-    return res.json();
-}
-
-export async function caddyPost(path, body) {
-    const res = await fetch(`${CADDY_ADMIN_URL}${path}`, {
-        method: 'POST',
-        headers: { ...BASE_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`Caddy API error: ${res.status} ${await res.text()}`);
-    const text = await res.text();
-    return text ? JSON.parse(text) : {};
-}
-
-export async function caddyPut(path, body) {
-    const res = await fetch(`${CADDY_ADMIN_URL}${path}`, {
-        method: 'PUT',
-        headers: { ...BASE_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`Caddy API error: ${res.status} ${await res.text()}`);
-    const text = await res.text();
-    return text ? JSON.parse(text) : {};
-}
-
-export async function caddyPatch(path, body) {
-    const res = await fetch(`${CADDY_ADMIN_URL}${path}`, {
-        method: 'PATCH',
-        headers: { ...BASE_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`Caddy API error: ${res.status} ${await res.text()}`);
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Caddy API error: ${res.status} ${text}`);
+    }
     const text = await res.text();
     if (!text) return null;
     try { return JSON.parse(text); } catch { return text; }
