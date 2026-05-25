@@ -2,7 +2,7 @@ import { X509Certificate } from 'crypto';
 import { Router } from 'express';
 import { readdir, readFile, rm } from 'fs/promises';
 import { join } from 'path';
-import { caddyGet } from '../caddy.js';
+import { CADDY_ADMIN_URL, caddyGet } from '../caddy.js';
 
 const router = Router();
 const CADDY_DATA_PATH = process.env.CADDY_DATA_PATH || '/data/caddy/caddy';
@@ -102,6 +102,7 @@ async function getCerts() {
     });
 }
 
+// GET /api/tls
 router.get('/', async (req, res) => {
     const certs = await getCerts();
     res.json(certs);
@@ -111,12 +112,10 @@ router.get('/', async (req, res) => {
 router.delete('/:domain', async (req, res) => {
     const { domain } = req.params;
 
-    // Sanitize -- prevent directory traversal
     if (domain.includes('..') || domain.includes('/')) {
         return res.status(400).json({ error: 'Invalid domain' });
     }
 
-    // Safety check -- verify it's actually orphaned before deleting
     const managedDomains = await getManagedDomains();
     if (managedDomains.has(domain)) {
         return res.status(403).json({ error: 'Cannot delete a cert for an actively managed domain' });
@@ -150,16 +149,21 @@ router.delete('/:domain', async (req, res) => {
     }
 });
 
-// GET /api/tls/ca -- download Caddy's root CA cert
+// GET /api/tls/ca -- download Caddy's root CA cert via admin API
 router.get('/ca', async (req, res) => {
     try {
-        const caPath = join(CERTS_PATH, '..', 'pki', 'authorities', 'local', 'root.crt');
-        const cert = await readFile(caPath);
+        const caRes = await fetch(`${CADDY_ADMIN_URL}/pki/ca/local`, {
+            headers: { 'Origin': 'http://0.0.0.0:2019' },
+        });
+        if (!caRes.ok) throw new Error(`Caddy PKI API returned ${caRes.status}`);
+        const data = await caRes.json();
+        const pem = data.root_certificate;
+        if (!pem) throw new Error('No root certificate in response');
         res.setHeader('Content-Disposition', 'attachment; filename="caddy-root-ca.crt"');
         res.setHeader('Content-Type', 'application/x-x509-ca-cert');
-        res.send(cert);
+        res.send(pem);
     } catch (err) {
-        res.status(404).json({ error: 'Root CA cert not found' });
+        res.status(404).json({ error: `Root CA cert not found: ${err.message}` });
     }
 });
 
