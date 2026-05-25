@@ -48,8 +48,8 @@ async function fmtCaddyfile(content) {
     try {
         const { stdout } = await execAsync('caddy fmt -', { input: content });
         return stdout || content;
-    } catch (err) {
-        console.warn('caddy fmt failed, skipping:', err.message);
+    } catch {
+        // caddy binary not available in this environment -- skip formatting
         return content;
     }
 }

@@ -1,7 +1,19 @@
+import { exec } from 'child_process';
 import { Router } from 'express';
+import { promisify } from 'util';
 import { CADDY_ADMIN_URL, caddyGet } from '../caddy.js';
 
 const router = Router();
+const execAsync = promisify(exec);
+
+async function getCaddyVersion() {
+    try {
+        const { stdout } = await execAsync('caddy version');
+        return stdout.trim().split(' ')[0] || 'unknown';
+    } catch {
+        return 'unknown';
+    }
+}
 
 function parsePrometheusMetrics(text) {
     const result = {};
@@ -114,9 +126,10 @@ router.get('/', async (req, res) => {
 // GET /api/status/process
 router.get('/process', async (req, res) => {
     try {
-        const metricsRes = await fetch(`${CADDY_ADMIN_URL}/metrics`, {
-            headers: { 'Origin': 'http://0.0.0.0:2019' },
-        });
+        const [metricsRes, version] = await Promise.all([
+            fetch(`${CADDY_ADMIN_URL}/metrics`, { headers: { 'Origin': 'http://0.0.0.0:2019' } }),
+            getCaddyVersion(),
+        ]);
         if (!metricsRes.ok) throw new Error(`Metrics endpoint unavailable: ${metricsRes.status}`);
         const text = await metricsRes.text();
         const metrics = parsePrometheusMetrics(text);
@@ -132,7 +145,7 @@ router.get('/process', async (req, res) => {
         const lastReload = lastReloadTs ? new Date(lastReloadTs * 1000).toISOString() : null;
         const lastReloadSuccess = metrics['caddy_config_last_reload_successful'] === 1;
 
-        res.json({ ok: true, uptime, uptimeSeconds, memAlloc, memSys, lastReload, lastReloadSuccess });
+        res.json({ ok: true, version, uptime, uptimeSeconds, memAlloc, memSys, lastReload, lastReloadSuccess });
     } catch (err) {
         res.json({ ok: false, error: err.message });
     }

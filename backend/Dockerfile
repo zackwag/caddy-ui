@@ -1,6 +1,7 @@
 FROM node:20-alpine
 
-RUN apk add --no-cache docker-cli
+# Copy the Caddy binary from the official image for caddy fmt and version detection
+COPY --from=caddy:latest /usr/bin/caddy /usr/bin/caddy
 
 WORKDIR /app
 
