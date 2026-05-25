@@ -67,13 +67,14 @@ graph LR
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
-    BE -->|"TCP healthcheck + uptime"| CA
+    BE -->|"upstream pool + TCP fallback"| CA
     BE -->|"Prometheus metrics"| CA
     BE -->|"/adapt validation"| CA
+    BE -->|"/pki/ca/local"| CA
     BE <-->|"read / write / backup"| CF
     BE <-->|"read / stream / export"| LG
     BE <-->|"read / write"| SN
-    BE <-->|"read / delete / CA download"| TLS
+    BE <-->|"read / delete"| TLS
     BE <-->|"snapshot / restore"| HX
     BE <-->|"read / write"| RN
     CA <-->|"reload from"| CF
@@ -90,7 +91,7 @@ graph LR
 
 Add the following to your Caddyfile global block:
 
-```json
+```caddyfile
 {
     admin 0.0.0.0:2019
     email {$EMAIL}
@@ -190,7 +191,6 @@ All backend variables have sensible defaults. Only set what you need to override
 |----------|---------|-------------|
 | `CADDY_ADMIN_URL` | `http://caddy:2019` | URL of Caddy's admin API |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the container |
-| `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy container for Docker exec |
 | `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log |
 | `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes |
@@ -211,7 +211,7 @@ Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`,
 
 Caddy supports `{$VAR_NAME}` syntax in the Caddyfile. Set the vars in your Caddy container's environment and they will be substituted at reload time:
 
-```json
+```caddyfile
 {
     admin 0.0.0.0:2019
     email {$EMAIL}
@@ -271,6 +271,14 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 cd backend && docker build -t caddy-ui-backend .
 cd frontend && docker build -t caddy-ui-frontend .
 ```
+
+The backend image copies the Caddy binary from `caddy:latest` at build time for `caddy fmt` formatting and version detection. To pin to a specific Caddy version, edit the first line of the backend Dockerfile before building:
+
+```dockerfile
+COPY --from=caddy:v2.11.2 /usr/bin/caddy /usr/bin/caddy
+```
+
+If you run Caddy outside of Docker (e.g. systemd), the backend will still work correctly — `caddy fmt` and version detection will degrade gracefully if the binary version doesn't match or is unavailable.
 
 ## Project Structure
 
@@ -332,7 +340,8 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
-| `v1.10.1` | Replace docker exec validation with Caddy `/adapt` API, remove Docker socket dependency, fix route insertion index out of bounds for non-standard Caddy configs, remove version field from Dashboard |
+| `v1.11.0` | Caddy binary bundled in backend image for `caddy fmt` and version detection, health checks use Caddy upstream pool API with TCP fallback, CA download via admin API, simplified TLS cert deletion, version restored to Dashboard |
+| `v1.10.1` | Replace docker exec validation with Caddy `/adapt` API, remove Docker socket dependency, fix route insertion index out of bounds for non-standard Caddy configs |
 | `v1.10` | URL-based navigation with React Router, full RESTful API audit, inline style cleanup, Homepage widget support, enriched status endpoint, `CADDYFILE_PATH` renamed to `CADDY_CONFIG_PATH` |
 | `v1.9` | Dark/light theme toggle, log export, root CA cert download, Caddy version via Docker socket, env var support in Caddyfile |
 | `v1.8` | Metrics tab, upstream uptime tracking, simplified dashboard process card |
