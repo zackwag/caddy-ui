@@ -13,12 +13,7 @@ async function parseCert(certPath) {
     try {
         const pem = await readFile(certPath, 'utf8');
         const cert = new X509Certificate(pem);
-        return {
-            validFrom: cert.validFrom,
-            validTo: cert.validTo,
-            subject: cert.subject,
-            issuer: cert.issuer,
-        };
+        return { validFrom: cert.validFrom, validTo: cert.validTo, subject: cert.subject, issuer: cert.issuer };
     } catch {
         return null;
     }
@@ -29,9 +24,7 @@ async function getManagedDomains() {
         const tls = await caddyGet('/config/apps/tls');
         const domains = new Set();
         for (const policy of tls?.automation?.policies || []) {
-            for (const subject of policy.subjects || []) {
-                domains.add(subject);
-            }
+            for (const subject of policy.subjects || []) domains.add(subject);
         }
         return domains;
     } catch {
@@ -73,32 +66,25 @@ async function getCerts() {
             const isManaged = managedDomains.has(domain);
 
             let status;
-            if (!isManaged) {
-                status = 'orphaned';
-            } else if (daysRemaining < 0) {
-                status = isInternal ? 'valid' : 'expired';
-            } else if (daysRemaining < 14 && !isInternal) {
-                status = 'expiring';
-            } else {
-                status = 'valid';
-            }
+            if (!isManaged) status = 'orphaned';
+            else if (daysRemaining < 0) status = isInternal ? 'valid' : 'expired';
+            else if (daysRemaining < 14 && !isInternal) status = 'expiring';
+            else status = 'valid';
 
-            results.push({
-                domain,
-                issuer: isInternal ? 'internal' : 'acme',
-                issuerDir: issuer,
-                validFrom: info.validFrom,
-                validTo: info.validTo,
-                daysRemaining,
-                isManaged,
-                isInternal,
-                status,
-            });
+            results.push({ domain, issuer: isInternal ? 'internal' : 'acme', issuerDir: issuer, validFrom: info.validFrom, validTo: info.validTo, daysRemaining, isManaged, isInternal, status });
+        }
+    }
+
+    // Mark internal certs as superseded when the same domain also has an ACME cert
+    const acmeDomains = new Set(results.filter(c => !c.isInternal).map(c => c.domain));
+    for (const cert of results) {
+        if (cert.isInternal && acmeDomains.has(cert.domain)) {
+            cert.status = 'superseded';
         }
     }
 
     return results.sort((a, b) => {
-        const order = { orphaned: 0, expired: 1, expiring: 2, valid: 3 };
+        const order = { orphaned: 0, superseded: 1, expired: 2, expiring: 3, valid: 4 };
         if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
         return a.daysRemaining - b.daysRemaining;
     });
@@ -111,7 +97,7 @@ router.get('/', async (req, res) => {
     res.json(certs);
 });
 
-// DELETE /api/tls/:domain -- only allowed for orphaned certs
+// DELETE /api/tls/:domain
 router.delete('/:domain', async (req, res) => {
     const { domain } = req.params;
     logger.info(`TLS cert deletion requested`, { domain });
@@ -120,28 +106,20 @@ router.delete('/:domain', async (req, res) => {
         return res.status(400).json({ error: 'Invalid domain' });
     }
 
-    const managedDomains = await getManagedDomains();
-    if (managedDomains.has(domain)) {
-        logger.warn(`Refused to delete managed cert`, { domain });
-        return res.status(403).json({ error: 'Cannot delete a cert for an actively managed domain' });
+    const certs = await getCerts();
+    const internalCert = certs.find(c => c.domain === domain && c.isInternal);
+    const acmeCert = certs.find(c => c.domain === domain && !c.isInternal);
+
+    const canDeleteInternal = internalCert && ['orphaned', 'superseded', 'expired'].includes(internalCert.status);
+    const canDeleteAcme = acmeCert && acmeCert.status === 'orphaned';
+
+    if (!canDeleteInternal && !canDeleteAcme) {
+        logger.warn(`Refused to delete cert`, { domain });
+        return res.status(403).json({ error: 'Cannot delete this cert — only orphaned, superseded, or expired internal certs can be removed' });
     }
 
-    let certDir = null;
-    try {
-        const issuers = await readdir(CERTS_PATH);
-        for (const issuer of issuers) {
-            const candidate = join(CERTS_PATH, issuer, domain);
-            try { await readdir(candidate); certDir = candidate; break; } catch { }
-        }
-    } catch (err) {
-        logger.error(`Failed to scan certs`, { domain, error: err.message });
-        return res.status(500).json({ error: `Failed to scan certs: ${err.message}` });
-    }
-
-    if (!certDir) {
-        logger.warn(`Cert not found`, { domain });
-        return res.status(404).json({ error: `Cert not found for domain: ${domain}` });
-    }
+    const target = canDeleteInternal ? internalCert : acmeCert;
+    const certDir = join(CERTS_PATH, target.issuerDir, domain);
 
     try {
         await rm(certDir, { recursive: true, force: true });
@@ -153,7 +131,7 @@ router.delete('/:domain', async (req, res) => {
     }
 });
 
-// GET /api/tls/ca -- download Caddy's root CA cert via admin API
+// GET /api/tls/ca
 router.get('/ca', async (req, res) => {
     logger.info(`Root CA download requested`);
     try {

@@ -16,7 +16,7 @@ export default function TLS({ toast, onUnauth }) {
     useEffect(load, []);
 
     const deleteCert = async (cert) => {
-        if (!confirm(`Delete orphaned cert for ${cert.domain}?`)) return;
+        if (!confirm(`Delete ${cert.status} cert for ${cert.domain}?`)) return;
         try {
             await apiFetch(`/tls/${cert.domain}`, { method: "DELETE" }, onUnauth);
             toast.success(`Deleted cert for ${cert.domain}`); load();
@@ -29,14 +29,17 @@ export default function TLS({ toast, onUnauth }) {
     };
 
     const summary = {
-        total: certs.filter(c => c.status !== 'orphaned').length,
+        total: certs.filter(c => c.status !== 'orphaned' && c.status !== 'superseded').length,
         valid: certs.filter(c => c.status === 'valid').length,
         expiring: certs.filter(c => c.status === 'expiring').length,
         expired: certs.filter(c => c.status === 'expired').length,
         orphaned: certs.filter(c => c.status === 'orphaned').length,
+        superseded: certs.filter(c => c.status === 'superseded').length,
     };
 
-    const filtered = filter === "all" ? certs.filter(c => c.status !== 'orphaned') : certs.filter(c => c.status === filter);
+    const filtered = filter === "all"
+        ? certs.filter(c => c.status !== 'orphaned' && c.status !== 'superseded')
+        : certs.filter(c => c.status === filter);
 
     const handleSort = (col) => {
         if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -58,6 +61,7 @@ export default function TLS({ toast, onUnauth }) {
         if (cert.status === 'expired') return <span className="badge badge-red">EXPIRED</span>;
         if (cert.status === 'expiring') return <span className="badge badge-yellow">EXPIRING</span>;
         if (cert.status === 'orphaned') return <span className="badge badge-muted">ORPHANED</span>;
+        if (cert.status === 'superseded') return <span className="badge badge-yellow">SUPERSEDED</span>;
         return <span className="badge badge-green">VALID</span>;
     };
 
@@ -72,6 +76,9 @@ export default function TLS({ toast, onUnauth }) {
         try { return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
         catch { return dateStr; }
     };
+
+    const isDeletable = (cert) =>
+        cert.status === 'orphaned' || cert.status === 'superseded' || cert.status === 'expired';
 
     const filterCards = [
         { key: "all", label: "Total", val: summary.total, sub: "Managed certs", color: null },
@@ -140,12 +147,21 @@ export default function TLS({ toast, onUnauth }) {
                                 {summary.orphaned} orphaned
                             </span>
                         )}
+                        {summary.superseded > 0 && (
+                            <span
+                                className="section-label"
+                                style={{ color: filter === "superseded" ? "var(--accent)" : "var(--warn)", cursor: "pointer" }}
+                                onClick={() => setFilter(filter === "superseded" ? "all" : "superseded")}
+                            >
+                                {summary.superseded} superseded
+                            </span>
+                        )}
                         <button className="btn btn-ghost btn--sm" onClick={load}>↺ Refresh</button>
                     </div>
                 </div>
                 {sorted.length === 0 ? (
                     <div className="card-empty">
-                        {filter === "orphaned" ? "No orphaned certificates" : "No certificates in this category"}
+                        {filter === "orphaned" ? "No orphaned certificates" : filter === "superseded" ? "No superseded certificates" : "No certificates in this category"}
                     </div>
                 ) : (
                     <div className="table-wrap">
@@ -162,7 +178,7 @@ export default function TLS({ toast, onUnauth }) {
                             </thead>
                             <tbody>
                                 {sorted.map((cert, i) => (
-                                    <tr key={i} style={{ opacity: cert.status === 'orphaned' ? 0.6 : 1 }}>
+                                    <tr key={i} style={{ opacity: cert.status === 'orphaned' || cert.status === 'superseded' ? 0.6 : 1 }}>
                                         <td className="mono">{cert.domain}</td>
                                         <td><span className={`badge ${cert.issuer === 'acme' ? 'badge-blue' : 'badge-muted'}`}>{cert.issuer === 'acme' ? "Let's Encrypt" : "Internal"}</span></td>
                                         <td>
@@ -174,7 +190,7 @@ export default function TLS({ toast, onUnauth }) {
                                         </td>
                                         <td>{statusBadge(cert)}</td>
                                         <td className="col-actions-sm">
-                                            {cert.status === 'orphaned' && <button className="btn btn-danger btn--icon" onClick={() => deleteCert(cert)}>✕</button>}
+                                            {isDeletable(cert) && <button className="btn btn-danger btn--icon" onClick={() => deleteCert(cert)}>✕</button>}
                                         </td>
                                     </tr>
                                 ))}
