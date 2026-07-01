@@ -47,8 +47,13 @@ async function pruneHistory() {
 }
 
 async function fmtCaddyfile(content) {
-    const { stdout, stderr } = await execAsync('caddy fmt -', { input: content, timeout: 1000 });
-    return stdout || content;
+    try {
+        const { stdout } = await execAsync('caddy fmt -', { input: content, timeout: 1000 });
+        return stdout || content;
+    } catch (err) {
+        const msg = (err.stderr || err.stdout || err.message || 'unknown error').trim();
+        throw new Error(msg);
+    }
 }
 
 async function validateCaddyfile(content) {

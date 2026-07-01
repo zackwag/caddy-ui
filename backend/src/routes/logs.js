@@ -13,8 +13,13 @@ const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile
 const TAIL_LINES = 200;
 
 async function fmtCaddyfile(content) {
-    const { stdout } = await execAsync('caddy fmt -', { input: content, timeout: 1000 });
-    return stdout || content;
+    try {
+        const { stdout } = await execAsync('caddy fmt -', { input: content, timeout: 1000 });
+        return stdout || content;
+    } catch (err) {
+        const msg = (err.stderr || err.stdout || err.message || 'unknown error').trim();
+        throw new Error(msg);
+    }
 }
 
 // ── Log config parsing ────────────────────────────────────────────────────────
