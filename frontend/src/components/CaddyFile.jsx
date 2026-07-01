@@ -148,7 +148,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     const validate = async () => {
         setValidating(true);
         try {
-            const result = await apiFetch("/caddyfile/validations", { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
+            const result = await apiFetch(`/caddyfile/validations?fmt=${runFmt}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             if (result.warnings?.length) result.warnings.forEach(w => toast.info(w));
             else toast.success("Caddyfile is valid");
         } catch (e) { toast.error(e.message); }

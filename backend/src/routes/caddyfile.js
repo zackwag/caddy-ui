@@ -47,13 +47,8 @@ async function pruneHistory() {
 }
 
 async function fmtCaddyfile(content) {
-    try {
-        const { stdout } = await execAsync('caddy fmt -', { input: content });
-        return stdout || content;
-    } catch {
-        // caddy binary not available in this environment -- skip formatting
-        return content;
-    }
+    const { stdout, stderr } = await execAsync('caddy fmt -', { input: content, timeout: 1000 });
+    return stdout || content;
 }
 
 async function validateCaddyfile(content) {
@@ -215,19 +210,33 @@ router.post('/validations', async (req, res) => {
     if (!content || typeof content !== 'string') {
         return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
     }
-    logger.info(`Validating Caddyfile`, { bytes: content.length });
+
+    const fmt = req.query.fmt !== 'false';
+    logger.info(`Validating Caddyfile`, { bytes: content.length, fmt });
+
     try {
         await validateCaddyfile(content);
-        logger.info(`Caddyfile validation passed`);
-        res.json({ valid: true, warnings: [] });
+        logger.info(`Caddyfile adapt validation passed`);
     } catch (err) {
         const output = ((err.stdout || '') + (err.stderr || '')).trim();
         const lines = output.split('\n').filter(Boolean);
         const warnings = lines.filter(l => l.toLowerCase().includes('warn'));
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        logger.warn(`Caddyfile validation failed`, { errors });
-        res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message], warnings });
+        logger.warn(`Caddyfile adapt validation failed`, { errors });
+        return res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message], warnings });
     }
+
+    if (fmt) {
+        try {
+            await fmtCaddyfile(content);
+            logger.info(`Caddyfile fmt validation passed`);
+        } catch (err) {
+            logger.warn(`Caddyfile fmt validation failed`, { error: err.message });
+            return res.status(422).json({ valid: false, errors: [`caddy fmt failed: ${err.message}`], warnings: [] });
+        }
+    }
+
+    res.json({ valid: true, warnings: [] });
 });
 
 // POST /api/caddyfile/reloads
@@ -264,8 +273,13 @@ router.put('/', async (req, res) => {
 
     let final = content;
     if (fmt) {
-        final = await fmtCaddyfile(final);
-        logger.info(`Caddyfile formatted`);
+        try {
+            final = await fmtCaddyfile(final);
+            logger.info(`Caddyfile formatted`);
+        } catch (err) {
+            logger.warn(`caddy fmt failed`, { error: err.message });
+            return res.status(422).json({ valid: false, errors: [`caddy fmt failed: ${err.message}`] });
+        }
     }
     if (sort) {
         final = sortCaddyfile(final);

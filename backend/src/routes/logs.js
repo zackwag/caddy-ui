@@ -13,12 +13,8 @@ const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile
 const TAIL_LINES = 200;
 
 async function fmtCaddyfile(content) {
-    try {
-        const { stdout } = await execAsync('caddy fmt -', { input: content });
-        return stdout || content;
-    } catch {
-        return content;
-    }
+    const { stdout } = await execAsync('caddy fmt -', { input: content, timeout: 1000 });
+    return stdout || content;
 }
 
 // ── Log config parsing ────────────────────────────────────────────────────────
@@ -165,7 +161,13 @@ router.put('/config', async (req, res) => {
         return res.status(422).json({ errors: [err.message] });
     }
 
-    const final = await fmtCaddyfile(updated);
+    let final;
+    try {
+        final = await fmtCaddyfile(updated);
+    } catch (err) {
+        logger.warn(`caddy fmt failed during log config save`, { error: err.message });
+        return res.status(422).json({ errors: [`caddy fmt failed: ${err.message}`] });
+    }
     await writeFile(CADDY_CONFIG_PATH, final, 'utf8');
     await caddyLoad(final);
     logger.info(`Log config saved and reloaded`);
