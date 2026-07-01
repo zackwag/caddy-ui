@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createReadStream } from 'fs';
-import { readdir, readFile, unlink, writeFile } from 'fs/promises';
+import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
 import { dockerExec } from '../docker.js';
@@ -10,6 +10,39 @@ const router = Router();
 const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
 const MAX_HISTORY = 20;
+
+async function ensureHistoryDir() {
+    try {
+        await mkdir(HISTORY_PATH, { recursive: true });
+    } catch { }
+}
+
+async function snapshotCaddyfile() {
+    try {
+        await ensureHistoryDir();
+        const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `Caddyfile-${timestamp}`;
+        await writeFile(join(HISTORY_PATH, filename), content, 'utf8');
+        await pruneHistory();
+        logger.info(`Caddyfile snapshot created`, { filename });
+    } catch (err) {
+        logger.warn(`Failed to snapshot Caddyfile`, { error: err.message });
+    }
+}
+
+async function pruneHistory() {
+    try {
+        const files = await readdir(HISTORY_PATH);
+        const sorted = files
+            .filter(f => f.startsWith('Caddyfile-'))
+            .sort()
+            .reverse();
+        for (const file of sorted.slice(MAX_HISTORY)) {
+            await unlink(join(HISTORY_PATH, file)).catch(() => { });
+        }
+    } catch { }
+}
 
 async function fmtCaddyfile(content) {
     try {
