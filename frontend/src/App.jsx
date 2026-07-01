@@ -27,7 +27,7 @@ export default function App() {
     const [status, setStatus] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [authEnabled, setAuthEnabled] = useState(false);
-    const [authed, setAuthed] = useState(!!getToken());
+    const [authed, setAuthed] = useState(null);
     const [sessionExpired, setSessionExpired] = useState(false);
     const [theme, setTheme] = useState(getTheme);
     const toast = useToast();
@@ -48,7 +48,7 @@ export default function App() {
     useEffect(() => {
         fetch(`${API}/auth/status`)
             .then(r => r.json())
-            .then(d => { setAuthEnabled(d.authEnabled); if (!d.authEnabled) setAuthed(true); })
+            .then(d => { setAuthEnabled(d.authEnabled); setAuthed(!d.authEnabled || !!getToken()); })
             .catch(() => setAuthed(true));
     }, []);
 
@@ -72,7 +72,7 @@ export default function App() {
     return (
         <>
             <style>{css}</style>
-            {!authed ? (
+            {authed === null ? null : !authed ? (
                 <Login onLogin={() => { setAuthed(true); setSessionExpired(false); }} sessionExpired={sessionExpired} />
             ) : (
                 <div className="shell">
