@@ -1,11 +1,25 @@
+import { exec } from 'child_process';
 import { Router } from 'express';
 import { createReadStream, unwatchFile, watchFile } from 'fs';
 import { readFile, stat, writeFile } from 'fs/promises';
+import { promisify } from 'util';
 import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
+import logger from '../logger.js';
+
+const execAsync = promisify(exec);
 const router = Router();
 const LOG_PATH = process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log';
 const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 const TAIL_LINES = 200;
+
+async function fmtCaddyfile(content) {
+    try {
+        const { stdout } = await execAsync('caddy fmt -', { input: content });
+        return stdout || content;
+    } catch {
+        return content;
+    }
+}
 
 // ── Log config parsing ────────────────────────────────────────────────────────
 
@@ -129,10 +143,10 @@ router.put('/config', async (req, res) => {
         return res.status(400).json({ error: 'Invalid log config' });
     }
 
+    logger.info(`Log config update requested`, { enabled: config.enabled });
     const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
     const updated = updateGlobalBlock(content, config);
 
-    // Validate before writing
     try {
         const validateRes = await fetch(`${CADDY_ADMIN_URL}/adapt?adapter=caddyfile`, {
             method: 'POST',
@@ -143,15 +157,18 @@ router.put('/config', async (req, res) => {
             const text = await validateRes.text();
             const lines = text.split('\n').filter(Boolean);
             const errors = lines.filter(l => l.toLowerCase().includes('error'));
+            logger.warn(`Log config validation failed`, { errors });
             return res.status(422).json({ errors: errors.length ? errors : lines });
         }
     } catch (err) {
+        logger.error(`Log config validation error`, { error: err.message });
         return res.status(422).json({ errors: [err.message] });
     }
 
-    await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
-    await caddyLoad(updated);
-
+    const final = await fmtCaddyfile(updated);
+    await writeFile(CADDY_CONFIG_PATH, final, 'utf8');
+    await caddyLoad(final);
+    logger.info(`Log config saved and reloaded`);
     res.json({ ok: true, message: 'Log config saved and reloaded' });
 });
 

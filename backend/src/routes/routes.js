@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
+import logger from '../logger.js';
 
 const router = Router();
 
@@ -143,6 +144,7 @@ router.post('/', async (req, res) => {
     if (!domain || !upstream) {
         return res.status(400).json({ error: 'domain and upstream are required' });
     }
+    logger.info(`Adding route`, { domain, upstream, stripPrefix });
 
     const id = `route-${Date.now()}`;
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
@@ -159,6 +161,7 @@ router.post('/', async (req, res) => {
     const block = buildCaddyfileBlock({ domain, upstream, stripPrefix });
     await writeFile(CADDY_CONFIG_PATH, `${caddyfile.trimEnd()}\n\n${block}\n`, 'utf8');
 
+    logger.info(`Route added`, { id, domain, upstream });
     res.status(201).json({ ok: true, id, route });
 });
 
@@ -169,20 +172,19 @@ router.patch('/:id', async (req, res) => {
     if (!domain || !upstream) {
         return res.status(400).json({ error: 'domain and upstream are required' });
     }
+    logger.info(`Updating route`, { id, domain, upstream });
 
-    // Get old route to find old domain for Caddyfile update
     let oldDomain = null;
     try {
         const oldRoute = await caddyGet(`/id/${id}`);
         oldDomain = oldRoute?.match?.[0]?.host?.[0] || null;
     } catch {
-        // Continue anyway
+        logger.warn(`Could not fetch old route for update`, { id });
     }
 
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
     await caddyPatch(`/id/${id}`, route);
 
-    // Update Caddyfile block
     if (oldDomain) {
         const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
         const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
@@ -190,39 +192,21 @@ router.patch('/:id', async (req, res) => {
         await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
     }
 
+    logger.info(`Route updated`, { id, domain, upstream });
     res.json({ ok: true, id, route });
-});
-
-// PATCH /api/routes/caddyfile -- update a Caddyfile-managed simple route
-router.patch('/caddyfile/:domain', async (req, res) => {
-    const { domain } = req.params;
-    const { upstream, stripPrefix } = req.body;
-    if (!upstream) {
-        return res.status(400).json({ error: 'upstream is required' });
-    }
-
-    const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
-    const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-    const updated = replaceSiteBlock(caddyfile, domain, newBlock);
-    await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
-
-    // Reload Caddy with new config
-    const { caddyLoad } = await import('../caddy.js');
-    await caddyLoad(updated);
-
-    res.json({ ok: true, domain });
 });
 
 // DELETE /api/routes/:id
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
+    logger.info(`Deleting route`, { id });
 
     let domain = null;
     try {
         const route = await caddyGet(`/id/${id}`);
         domain = route?.match?.[0]?.host?.[0] || null;
     } catch {
-        // Route may already be gone
+        logger.warn(`Could not fetch route for deletion`, { id });
     }
 
     await caddyDelete(`/id/${id}`);
@@ -233,6 +217,7 @@ router.delete('/:id', async (req, res) => {
         await writeFile(CADDY_CONFIG_PATH, cleaned, 'utf8');
     }
 
+    logger.info(`Route deleted`, { id, domain });
     res.json({ ok: true, id });
 });
 

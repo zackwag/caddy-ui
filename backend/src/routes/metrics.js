@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
+import logger from '../logger.js';
 
 const router = Router();
 
@@ -129,8 +130,19 @@ router.put('/config', async (req, res) => {
         } else {
             content = content.replace(/^\s*metrics\s*\n?/m, '');
         }
-        await writeFile(CADDY_CONFIG_PATH, content, 'utf8');
-        await caddyLoad(content);
+        // Format before loading to avoid Caddy rejecting unformatted input
+        let final = content;
+        try {
+            const { exec } = await import('child_process');
+            const { promisify } = await import('util');
+            const execAsync = promisify(exec);
+            const { stdout } = await execAsync('caddy fmt -', { input: content });
+            if (stdout) final = stdout;
+        } catch { }
+        logger.info(`Metrics config update requested`, { enabled });
+        await writeFile(CADDY_CONFIG_PATH, final, 'utf8');
+        await caddyLoad(final);
+        logger.info(`Metrics config saved and reloaded`, { enabled });
         res.json({ ok: true, enabled });
     } catch (err) {
         res.status(500).json({ error: err.message });

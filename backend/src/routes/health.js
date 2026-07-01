@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { createConnection } from 'net';
 import { CADDY_ADMIN_URL, caddyGet } from '../caddy.js';
+import logger from '../logger.js';
 
 const router = Router();
 const TIMEOUT_MS = 3000;
-const WINDOW_SIZE = 288; // ~2.5 hours at 30s intervals
+const WINDOW_SIZE = 288;
 
-// In-memory uptime tracking
-const uptimeHistory = {}; // upstream -> { results: boolean[], firstSeen: Date }
+const uptimeHistory = {};
 
 function recordCheck(upstream, online) {
     if (!uptimeHistory[upstream]) {
@@ -34,7 +34,6 @@ function getUptimeStats(upstream) {
 
     const streakSeconds = streak * 30;
     const streakLabel = formatDuration(streakSeconds);
-
     return { pct, total, online, currentlyOnline, streak, streakSeconds, streakLabel, firstSeen: entry.firstSeen };
 }
 
@@ -80,9 +79,8 @@ function getHost(route) {
 router.get('/', async (req, res) => {
     try {
         const servers = await caddyGet('/config/apps/http/servers');
-
-        // Build list of all upstreams from routes
         const checks = [];
+
         for (const [serverName, server] of Object.entries(servers || {})) {
             for (const route of server.routes || []) {
                 const domain = getHost(route);
@@ -95,9 +93,7 @@ router.get('/', async (req, res) => {
         }
 
         // Fetch Caddy's reverse proxy upstream pool.
-        // This gives us Caddy's own view of upstream health including active request counts
-        // and passive failure tracking. We use this as the primary source where available
-        // and fall back to TCP checks for upstreams not yet in the pool.
+        // Primary source where available, TCP fallback for upstreams not yet in the pool.
         let caddyPool = {};
         try {
             const poolRes = await fetch(`${CADDY_ADMIN_URL}/reverse_proxy/upstreams`, {
@@ -108,48 +104,53 @@ router.get('/', async (req, res) => {
                 for (const entry of pool) {
                     if (entry.address) caddyPool[entry.address] = entry;
                 }
+                logger.debug(`Caddy upstream pool fetched`, { count: Object.keys(caddyPool).length });
             }
-        } catch { }
+        } catch (err) {
+            logger.warn(`Could not fetch Caddy upstream pool, falling back to TCP`, { error: err.message });
+        }
 
         const results = await Promise.all(
             checks.map(async (check) => {
                 let online;
+                let source;
 
                 if (check.upstream in caddyPool) {
                     // Caddy has seen this upstream and tracks it in its global pool.
                     // We derive online status from the fails counter. Note: this is only
-                    // meaningful if passive health checks are configured in the Caddyfile
-                    // (via health_checks > passive > max_fails). Without passive checks,
-                    // fails will always be 0 and every known upstream will appear online.
-                    // For most home/self-hosted setups this is acceptable -- the TCP fallback
-                    // below handles upstreams Caddy hasn't seen traffic through yet.
+                    // meaningful if passive health checks are configured in the Caddyfile.
+                    // Without passive checks, fails will always be 0 and every known
+                    // upstream will appear online. TCP fallback handles upstreams Caddy
+                    // hasn't seen traffic through yet.
                     const entry = caddyPool[check.upstream];
                     online = entry.fails === 0;
+                    source = 'caddy';
                 } else {
-                    // Upstream is not in Caddy's pool -- either Caddy hasn't proxied any
-                    // traffic to it since the last restart, or it's defined only in the
-                    // Caddyfile without an active @id. Fall back to a direct TCP connect.
+                    // Upstream is not in Caddy's pool -- either no traffic since last
+                    // restart, or defined only in the Caddyfile without an active @id.
                     online = await checkTCP(check.host, check.port);
+                    source = 'tcp';
+                }
+
+                if (!online) {
+                    logger.warn(`Upstream offline`, { upstream: check.upstream, domain: check.domain, source });
                 }
 
                 recordCheck(check.upstream, online);
-                return {
-                    domain: check.domain,
-                    upstream: check.upstream,
-                    server: check.server,
-                    online,
-                    checkedAt: new Date().toISOString(),
-                };
+                return { domain: check.domain, upstream: check.upstream, server: check.server, online, checkedAt: new Date().toISOString() };
             })
         );
 
+        const onlineCount = results.filter(r => r.online).length;
+        logger.info(`Health check complete`, { total: results.length, online: onlineCount });
         res.json(results);
     } catch (err) {
+        logger.error(`Health check failed`, { error: err.message });
         res.status(500).json({ error: err.message });
     }
 });
 
-// GET /api/health/uptime -- uptime stats per upstream
+// GET /api/health/uptime
 router.get('/uptime', async (req, res) => {
     const stats = {};
     for (const [upstream] of Object.entries(uptimeHistory)) {
