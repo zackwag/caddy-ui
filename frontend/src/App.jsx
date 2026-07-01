@@ -10,7 +10,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
 import { css } from "./styles.js";
-import { API, apiFetch, getTheme, getToken, saveTheme, setToken } from "./utils/api.js";
+import { API, apiFetch, getAuthEnabled, getTheme, getToken, saveTheme, setAuthEnabled, setToken } from "./utils/api.js";
 
 const TITLES = {
     "/dashboard": "Dashboard",
@@ -26,8 +26,9 @@ export default function App() {
     const navigate = useNavigate();
     const [status, setStatus] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [authEnabled, setAuthEnabled] = useState(false);
-    const [authed, setAuthed] = useState(null);
+    const [authEnabled, setAuthEnabledState] = useState(false);
+    const cachedAuth = getAuthEnabled();
+    const [authed, setAuthed] = useState(cachedAuth === null ? null : !cachedAuth || !!getToken());
     const [sessionExpired, setSessionExpired] = useState(false);
     const [theme, setTheme] = useState(getTheme);
     const toast = useToast();
@@ -48,7 +49,11 @@ export default function App() {
     useEffect(() => {
         fetch(`${API}/auth/status`)
             .then(r => r.json())
-            .then(d => { setAuthEnabled(d.authEnabled); setAuthed(!d.authEnabled || !!getToken()); })
+            .then(d => {
+                setAuthEnabled(d.authEnabled);
+                setAuthEnabledState(d.authEnabled);
+                setAuthed(!d.authEnabled || !!getToken());
+            })
             .catch(() => setAuthed(true));
     }, []);
 

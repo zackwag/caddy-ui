@@ -6,6 +6,12 @@ export function setToken(token) {
     else localStorage.removeItem('caddy_ui_token');
 }
 
+export function getAuthEnabled() {
+    const v = localStorage.getItem('caddy_ui_auth_enabled');
+    return v === null ? null : v === 'true';
+}
+export function setAuthEnabled(v) { localStorage.setItem('caddy_ui_auth_enabled', String(v)); }
+
 export function getTheme() { return localStorage.getItem('caddy_ui_theme') || 'dark'; }
 export function saveTheme(theme) { localStorage.setItem('caddy_ui_theme', theme); }
 

@@ -1,10 +1,13 @@
 const isDev = process.env.NODE_ENV !== 'production';
+const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
+const minLevel = LEVELS[process.env.LOG_LEVEL?.toLowerCase()] ?? 1;
 
 function timestamp() {
     return new Date().toISOString();
 }
 
 function log(level, message, meta = {}) {
+    if (LEVELS[level] < minLevel) return;
     const entry = { ts: timestamp(), level, message, ...meta };
     if (isDev) {
         const metaStr = Object.keys(meta).length ? ' ' + JSON.stringify(meta) : '';
