@@ -27,8 +27,11 @@ export default function App() {
     const [status, setStatus] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [authEnabled, setAuthEnabledState] = useState(false);
-    const cachedAuth = getAuthEnabled();
-    const [authed, setAuthed] = useState(cachedAuth === null ? null : !cachedAuth || !!getToken());
+    const [authed, setAuthed] = useState(() => {
+        const cached = getAuthEnabled();
+        if (cached === null) return null;
+        return !cached || !!getToken();
+    });
     const [sessionExpired, setSessionExpired] = useState(false);
     const [theme, setTheme] = useState(getTheme);
     const toast = useToast();
