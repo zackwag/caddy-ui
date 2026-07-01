@@ -1,12 +1,11 @@
-import { exec } from 'child_process';
 import { Router } from 'express';
 import { createReadStream } from 'fs';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { promisify } from 'util';
 import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
+import { dockerExec } from '../docker.js';
+import logger from '../logger.js';
 
-const execAsync = promisify(exec);
 const router = Router();
 const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
@@ -26,8 +25,9 @@ async function snapshotCaddyfile() {
         const filename = `Caddyfile-${timestamp}`;
         await writeFile(join(HISTORY_PATH, filename), content, 'utf8');
         await pruneHistory();
+        logger.info(`Caddyfile snapshot created`, { filename });
     } catch (err) {
-        console.warn('Failed to snapshot Caddyfile:', err.message);
+        logger.warn(`Failed to snapshot Caddyfile`, { error: err.message });
     }
 }
 
@@ -46,10 +46,10 @@ async function pruneHistory() {
 
 async function fmtCaddyfile(content) {
     try {
-        const { stdout } = await execAsync('caddy fmt -', { input: content });
+        const { stdout } = await dockerExec(['caddy', 'fmt', '-'], content);
         return stdout || content;
-    } catch {
-        // caddy binary not available in this environment -- skip formatting
+    } catch (err) {
+        logger.warn('caddy fmt failed', { error: err.message });
         return content;
     }
 }
@@ -213,20 +213,39 @@ router.post('/validations', async (req, res) => {
     if (!content || typeof content !== 'string') {
         return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
     }
+
+    const fmt = req.query.fmt === 'true';
+    logger.info(`Validating Caddyfile`, { bytes: content.length, fmt });
+
     try {
         await validateCaddyfile(content);
-        res.json({ valid: true, warnings: [] });
+        logger.info(`Caddyfile adapt validation passed`);
     } catch (err) {
         const output = ((err.stdout || '') + (err.stderr || '')).trim();
         const lines = output.split('\n').filter(Boolean);
         const warnings = lines.filter(l => l.toLowerCase().includes('warn'));
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message], warnings });
+        logger.warn(`Caddyfile adapt validation failed`, { errors });
+        return res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message], warnings });
     }
+
+    let formatted = null;
+    if (fmt) {
+        try {
+            formatted = await fmtCaddyfile(content);
+            logger.info(`Caddyfile fmt passed`);
+        } catch (err) {
+            logger.warn(`Caddyfile fmt failed`, { error: err.message });
+            return res.status(422).json({ valid: false, errors: [`caddy fmt failed: ${err.message}`], warnings: [] });
+        }
+    }
+
+    res.json({ valid: true, warnings: [], ...(formatted ? { formatted } : {}) });
 });
 
 // POST /api/caddyfile/reloads
 router.post('/reloads', async (req, res) => {
+    logger.info(`Caddyfile reload requested`);
     const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
     await caddyLoad(content);
     res.json({ ok: true, message: 'Caddy reloaded from disk' });
@@ -241,24 +260,39 @@ router.put('/', async (req, res) => {
 
     const fmt = req.query.fmt !== 'false';
     const sort = req.query.sort !== 'false';
+    logger.info(`Saving Caddyfile`, { bytes: content.length, fmt, sort });
 
     try {
         await validateCaddyfile(content);
+        logger.info(`Caddyfile pre-save validation passed`);
     } catch (err) {
         const output = ((err.stdout || '') + (err.stderr || '')).trim();
         const lines = output.split('\n').filter(Boolean);
         const errors = lines.filter(l => l.toLowerCase().includes('error'));
+        logger.warn(`Caddyfile pre-save validation failed`, { errors });
         return res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message] });
     }
 
     await snapshotCaddyfile();
-    await caddyLoad(content);
 
     let final = content;
-    if (fmt) final = await fmtCaddyfile(final);
-    if (sort) final = sortCaddyfile(final);
+    if (fmt) {
+        try {
+            final = await fmtCaddyfile(final);
+            logger.info(`Caddyfile formatted`);
+        } catch (err) {
+            logger.warn(`caddy fmt failed`, { error: err.message });
+            return res.status(422).json({ valid: false, errors: [`caddy fmt failed: ${err.message}`] });
+        }
+    }
+    if (sort) {
+        final = sortCaddyfile(final);
+        logger.info(`Caddyfile sorted`);
+    }
 
+    await caddyLoad(final);
     await writeFile(CADDY_CONFIG_PATH, final, 'utf8');
+    logger.info(`Caddyfile saved`, { bytes: final.length });
     res.json({ ok: true, message: 'Caddyfile saved and reloaded' });
 });
 

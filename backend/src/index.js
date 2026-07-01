@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import 'express-async-errors';
 
+import logger from './logger.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import caddyfileRouter from './routes/caddyfile.js';
@@ -21,6 +22,20 @@ const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
 app.use(cors());
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
+
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const elapsed = Date.now() - start;
+        const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+        logger[level](`${req.method} ${req.path}`, {
+            status: res.statusCode,
+            elapsed,
+            ip: req.ip,
+        });
+    });
+    next();
+});
 
 // Auth routes are always public
 app.use('/api/auth', authRouter);
@@ -55,13 +70,13 @@ app.use('/api/health', healthRouter);
 app.use('/api/route-notes', routenotesRouter);
 
 app.use((err, req, res, next) => {
-    console.error(err);
+    logger.error(`Unhandled error`, { method: req.method, path: req.path, error: err.message, stack: err.stack });
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
 app.listen(PORT, () => {
-    console.log(`Caddy UI backend running on port ${PORT}`);
-    console.log(`Caddy admin API: ${CADDY_ADMIN_URL}`);
-    console.log(`Caddyfile path: ${process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile'}`);
-    console.log(`Public metrics: ${publicMetrics}`);
+    logger.info(`Caddy UI backend running`, { port: PORT });
+    logger.info(`Caddy admin API`, { url: CADDY_ADMIN_URL });
+    logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });
+    logger.info(`Public metrics`, { enabled: publicMetrics });
 });

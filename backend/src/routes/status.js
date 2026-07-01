@@ -1,16 +1,18 @@
-import { exec } from 'child_process';
 import { Router } from 'express';
-import { promisify } from 'util';
 import { CADDY_ADMIN_URL, caddyGet } from '../caddy.js';
+import { dockerExec } from '../docker.js';
+import logger from '../logger.js';
 
 const router = Router();
-const execAsync = promisify(exec);
 
 async function getCaddyVersion() {
     try {
-        const { stdout } = await execAsync('caddy version');
-        return stdout.trim().split(' ')[0] || 'unknown';
-    } catch {
+        const { stdout } = await dockerExec(['caddy', 'version']);
+        const version = stdout.trim().split(' ')[0] || 'unknown';
+        logger.debug(`Caddy version detected`, { version });
+        return version;
+    } catch (err) {
+        logger.warn(`Could not detect Caddy version`, { error: err.message });
         return 'unknown';
     }
 }

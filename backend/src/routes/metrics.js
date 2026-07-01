@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
+import logger from '../logger.js';
 
 const router = Router();
 
@@ -129,8 +130,10 @@ router.put('/config', async (req, res) => {
         } else {
             content = content.replace(/^\s*metrics\s*\n?/m, '');
         }
+        logger.info(`Metrics config update requested`, { enabled });
         await writeFile(CADDY_CONFIG_PATH, content, 'utf8');
         await caddyLoad(content);
+        logger.info(`Metrics config saved and reloaded`, { enabled });
         res.json({ ok: true, enabled });
     } catch (err) {
         res.status(500).json({ error: err.message });

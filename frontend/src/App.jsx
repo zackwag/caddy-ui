@@ -10,7 +10,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
 import { css } from "./styles.js";
-import { API, apiFetch, getTheme, getToken, saveTheme, setToken } from "./utils/api.js";
+import { API, apiFetch, getAuthEnabled, getTheme, getToken, saveTheme, setAuthEnabled, setToken } from "./utils/api.js";
 
 const TITLES = {
     "/dashboard": "Dashboard",
@@ -26,8 +26,12 @@ export default function App() {
     const navigate = useNavigate();
     const [status, setStatus] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [authEnabled, setAuthEnabled] = useState(false);
-    const [authed, setAuthed] = useState(!!getToken());
+    const [authEnabled, setAuthEnabledState] = useState(false);
+    const [authed, setAuthed] = useState(() => {
+        const cached = getAuthEnabled();
+        if (cached === null) return null;
+        return !cached || !!getToken();
+    });
     const [sessionExpired, setSessionExpired] = useState(false);
     const [theme, setTheme] = useState(getTheme);
     const toast = useToast();
@@ -48,7 +52,11 @@ export default function App() {
     useEffect(() => {
         fetch(`${API}/auth/status`)
             .then(r => r.json())
-            .then(d => { setAuthEnabled(d.authEnabled); if (!d.authEnabled) setAuthed(true); })
+            .then(d => {
+                setAuthEnabled(d.authEnabled);
+                setAuthEnabledState(d.authEnabled);
+                setAuthed(!d.authEnabled || !!getToken());
+            })
             .catch(() => setAuthed(true));
     }, []);
 
@@ -72,7 +80,7 @@ export default function App() {
     return (
         <>
             <style>{css}</style>
-            {!authed ? (
+            {authed === null ? null : !authed ? (
                 <Login onLogin={() => { setAuthed(true); setSessionExpired(false); }} sessionExpired={sessionExpired} />
             ) : (
                 <div className="shell">
