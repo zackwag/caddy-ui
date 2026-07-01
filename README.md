@@ -42,7 +42,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Dashboard** — Live server status, TLS state, server block summary with custom display names, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
 - **Caddyfile Editor** — Edit your Caddyfile with syntax highlighting, live validation, `caddy fmt` formatting, automatic site block sorting, backup/restore, and full version history with inline preview and one-click rollback
 - **Route Manager** — View all reverse proxy routes across all server blocks, with live upstream healthchecks, uptime percentages, search/filter by domain, upstream, note, or server, clickable domain and upstream links, edit routes in-place, and per-route notes
-- **TLS Certificates** — View cert status, expiry dates, and sortable columns for all managed domains. Detect and delete orphaned certs. Download Caddy's root CA cert with per-OS install instructions
+- **TLS Certificates** — View cert status, expiry dates, and sortable columns for all managed domains. Detect and delete orphaned and superseded certs. Download Caddy's root CA cert with per-OS install instructions
 - **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, ERROR/WARN/INFO level filters, and log export
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
 - **Metrics** — Request count, RPS, avg response time, status code breakdown, and p50/p95/p99 percentiles powered by Caddy's built-in Prometheus endpoint
@@ -150,6 +150,7 @@ services:
       - CADDY_UI_PASSWORD=yourpassword
       - JWT_SECRET=your-long-random-secret
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /docker/caddy/logs:/var/log/caddy
       - /docker/caddy-ui:/etc/caddy-ui
@@ -191,6 +192,7 @@ All backend variables have sensible defaults. Only set what you need to override
 |----------|---------|-------------|
 | `CADDY_ADMIN_URL` | `http://caddy:2019` | URL of Caddy's admin API |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the container |
+| `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy container (used for `docker exec`) |
 | `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log |
 | `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes |
@@ -199,6 +201,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
 | `JWT_SECRET` | — | Secret key for signing JWT tokens |
+| `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
 | `PORT` | `3001` | Port the backend listens on |
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
 | `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the server display names file |
@@ -272,13 +275,7 @@ cd backend && docker build -t caddy-ui-backend .
 cd frontend && docker build -t caddy-ui-frontend .
 ```
 
-The backend image copies the Caddy binary from `caddy:latest` at build time for `caddy fmt` formatting and version detection. To pin to a specific Caddy version, edit the first line of the backend Dockerfile before building:
-
-```dockerfile
-COPY --from=caddy:v2.11.2 /usr/bin/caddy /usr/bin/caddy
-```
-
-If you run Caddy outside of Docker (e.g. systemd), the backend will still work correctly — `caddy fmt` and version detection will degrade gracefully if the binary version doesn't match or is unavailable.
+The backend image installs `docker-cli` and calls `caddy fmt` and `caddy version` via `docker exec` into the running Caddy container. The Docker socket must be mounted into the backend container — see the compose example above.
 
 ## Project Structure
 
@@ -288,6 +285,8 @@ caddy-ui/
 │   ├── src/
 │   │   ├── index.js
 │   │   ├── caddy.js
+│   │   ├── docker.js
+│   │   ├── logger.js
 │   │   ├── middleware/
 │   │   │   └── auth.js
 │   │   └── routes/
@@ -340,6 +339,7 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
+| `v1.12.0` | Route `caddy fmt`/`caddy version` through `docker exec` to fix hangs with Caddy v2.11.3+, structured JSON logging with `LOG_LEVEL` support, validate button runs `caddy fmt` when checkbox is checked, fix login flash when auth is disabled, superseded TLS cert detection and deletion |
 | `v1.11.0` | Caddy binary bundled in backend image for `caddy fmt` and version detection, health checks use Caddy upstream pool API with TCP fallback, CA download via admin API, simplified TLS cert deletion, version restored to Dashboard |
 | `v1.10.1` | Replace docker exec validation with Caddy `/adapt` API, remove Docker socket dependency, fix route insertion index out of bounds for non-standard Caddy configs |
 | `v1.10` | URL-based navigation with React Router, full RESTful API audit, inline style cleanup, Homepage widget support, enriched status endpoint, `CADDYFILE_PATH` renamed to `CADDY_CONFIG_PATH` |
