@@ -5,6 +5,7 @@ import Dashboard from "./components/Dashboard.jsx";
 import Login from "./components/Login.jsx";
 import Logs from "./components/Logs.jsx";
 import Metrics from "./components/Metrics.jsx";
+import Notifications from "./components/Notifications.jsx";
 import RoutesPage from "./components/Routes.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import TLS from "./components/TLS.jsx";
@@ -19,6 +20,7 @@ const TITLES = {
     "/tls": "TLS Certificates",
     "/logs": "Access Logs",
     "/metrics": "Metrics",
+    "/notifications": "Notifications",
 };
 
 export default function App() {
@@ -117,6 +119,7 @@ export default function App() {
                                 <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/notifications" element={<Notifications toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
                             </Routes>
                         </div>

@@ -4,11 +4,13 @@ import 'express-async-errors';
 
 import logger from './logger.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
+import { initMonitor } from './notifications.js';
 import authRouter from './routes/auth.js';
 import caddyfileRouter from './routes/caddyfile.js';
 import healthRouter from './routes/health.js';
 import logsRouter from './routes/logs.js';
 import metricsRouter from './routes/metrics.js';
+import notificationsRouter from './routes/notifications.js';
 import routenotesRouter from './routes/routenotes.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
@@ -68,6 +70,7 @@ app.use('/api/server-names', servernamesRouter);
 app.use('/api/tls', tlsRouter);
 app.use('/api/health', healthRouter);
 app.use('/api/route-notes', routenotesRouter);
+app.use('/api/notifications', notificationsRouter);
 
 app.use((err, req, res, next) => {
     logger.error(`Unhandled error`, { method: req.method, path: req.path, error: err.message, stack: err.stack });
@@ -79,4 +82,5 @@ app.listen(PORT, () => {
     logger.info(`Caddy admin API`, { url: CADDY_ADMIN_URL });
     logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });
     logger.info(`Public metrics`, { enabled: publicMetrics });
+    initMonitor();
 });
