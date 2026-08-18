@@ -46,6 +46,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, ERROR/WARN/INFO level filters, and log export
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
 - **Metrics** — Request count, RPS, avg response time, status code breakdown, and p50/p95/p99 percentiles powered by Caddy's built-in Prometheus endpoint
+- **Notifications** — Push alerts via ntfy, Discord, Slack, Pushover, or custom webhook when upstreams go offline/online or TLS certs are expiring. Configurable debounce and per-trigger opt-in
 - **Dark/Light Theme** — Toggle between dark and warm off-white themes, persisted across sessions
 - **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
 - **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
@@ -64,6 +65,7 @@ graph LR
     TLS[("Certificates\n/data/caddy/caddy")]
     HX[("History\n/etc/caddy-ui/history")]
     RN[("Route Notes\n/etc/caddy-ui")]
+    NT[("Notifications\n/etc/caddy-ui")]
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
@@ -77,6 +79,7 @@ graph LR
     BE <-->|"read / delete"| TLS
     BE <-->|"snapshot / restore"| HX
     BE <-->|"read / write"| RN
+    BE <-->|"read / write"| NT
     CA <-->|"reload from"| CF
 ```
 
@@ -191,6 +194,7 @@ All backend variables have sensible defaults. Only set what you need to override
 |----------|---------|-------------|
 | `CADDY_ADMIN_URL` | `http://caddy:2019` | URL of Caddy's admin API |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the container |
+| `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy container (used for `docker exec`) |
 | `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log |
 | `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes |
@@ -199,6 +203,8 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
 | `JWT_SECRET` | — | Secret key for signing JWT tokens |
+| `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
+| `NOTIFICATIONS_CONFIG_PATH` | `/etc/caddy-ui/notifications.json` | Path to the notification settings file |
 | `PORT` | `3001` | Port the backend listens on |
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
 | `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the server display names file |
@@ -288,6 +294,9 @@ caddy-ui/
 │   ├── src/
 │   │   ├── index.js
 │   │   ├── caddy.js
+│   │   ├── docker.js
+│   │   ├── logger.js
+│   │   ├── notifications.js
 │   │   ├── middleware/
 │   │   │   └── auth.js
 │   │   └── routes/
@@ -296,12 +305,14 @@ caddy-ui/
 │   │       ├── health.js
 │   │       ├── logs.js
 │   │       ├── metrics.js
+│   │       ├── notifications.js
 │   │       ├── routenotes.js
 │   │       ├── routes.js
 │   │       ├── servernames.js
 │   │       ├── status.js
 │   │       └── tls.js
 │   ├── Dockerfile
+│   ├── DOCKERHUB.md
 │   └── package.json
 ├── frontend/
 │   ├── src/
@@ -311,6 +322,7 @@ caddy-ui/
 │   │   │   ├── Login.jsx
 │   │   │   ├── Logs.jsx
 │   │   │   ├── Metrics.jsx
+│   │   │   ├── Notifications.jsx
 │   │   │   ├── Routes.jsx
 │   │   │   ├── Sidebar.jsx
 │   │   │   ├── TLS.jsx
@@ -322,10 +334,14 @@ caddy-ui/
 │   │   ├── main.jsx
 │   │   └── styles.js
 │   ├── Dockerfile
+│   ├── DOCKERHUB.md
 │   ├── nginx.conf
 │   ├── vite.config.js
 │   ├── index.html
 │   └── package.json
+├── .github/
+│   └── workflows/
+│       └── release.yml
 └── README.md
 ```
 
@@ -340,17 +356,18 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
-| `v1.11.0` | Caddy binary bundled in backend image for `caddy fmt` and version detection, health checks use Caddy upstream pool API with TCP fallback, CA download via admin API, simplified TLS cert deletion, version restored to Dashboard |
-| `v1.10.1` | Replace docker exec validation with Caddy `/adapt` API, remove Docker socket dependency, fix route insertion index out of bounds for non-standard Caddy configs |
-| `v1.10` | URL-based navigation with React Router, full RESTful API audit, inline style cleanup, Homepage widget support, enriched status endpoint, `CADDYFILE_PATH` renamed to `CADDY_CONFIG_PATH` |
-| `v1.9` | Dark/light theme toggle, log export, root CA cert download, Caddy version via Docker socket, env var support in Caddyfile |
-| `v1.8` | Metrics tab, upstream uptime tracking, simplified dashboard process card |
+| `v1.12` | Push notifications via ntfy, Discord, Slack, Pushover, or custom webhook; automated release workflow with Docker Hub sync |
+| `v1.11` | Caddy binary bundled, upstream pool health checks, CA download via admin API, simplified TLS cert deletion |
+| `v1.10.1` | Caddy `/adapt` API validation, Docker socket removal |
+| `v1.10` | React Router navigation, RESTful API audit, Homepage widget, enriched status endpoint |
+| `v1.9` | Dark/light theme, log export, root CA download, env var support in Caddyfile |
+| `v1.8` | Metrics tab, upstream uptime tracking |
 | `v1.7` | JWT auth, Caddy process info, metrics toggle, public metrics endpoint |
-| `v1.6` | Edit routes in-place, route notes, Caddyfile syntax highlighting |
-| `v1.5` | Caddyfile version history with snapshots, log search and level filters |
-| `v1.4` | Dashboard health summary, route search/filter, Caddyfile backup and restore |
-| `v1.3` | Upstream healthchecks, clickable domain/upstream links, http/https scheme detection |
-| `v1.2` | TLS certificate tab, orphaned cert cleanup, all server routes visible, mobile layout |
+| `v1.6` | Edit routes, route notes, Caddyfile syntax highlighting |
+| `v1.5` | Caddyfile version history, log search and level filters |
+| `v1.4` | Dashboard health summary, route search/filter, Caddyfile backup/restore |
+| `v1.3` | Upstream healthchecks, clickable domain/upstream links |
+| `v1.2` | TLS certificate tab, orphaned cert cleanup, mobile layout |
 | `v1.1` | Mobile responsive layout, hamburger menu |
 | `v1.0` | Initial release |
 
