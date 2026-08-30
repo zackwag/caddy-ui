@@ -858,9 +858,7 @@ export const css = `
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-right: 8px;
     flex-shrink: 0;
-    width: 20px;
   }
 
   .health-dot {
@@ -871,8 +869,8 @@ export const css = `
     flex-shrink: 0;
   }
 
-  .health-dot--none    { background: var(--border2); margin-right: 8px; }
-  .health-dot--pending { background: var(--muted); margin-right: 8px; }
+  .health-dot--none    { background: var(--border2); }
+  .health-dot--pending { background: var(--muted); }
 
   .route-note {
     font-family: 'IBM Plex Mono', monospace;
@@ -881,7 +879,9 @@ export const css = `
     margin-top: 2px;
   }
 
-  .route-domain-cell { display: flex; align-items: center; }
+  .route-domain-cell { display: flex; align-items: center; gap: 8px; }
+
+  .route-domain-sep { color: var(--muted); }
 
   /* ── Utility: Server name display ─────────────────────────────────────────── */
 

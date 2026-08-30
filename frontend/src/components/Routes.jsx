@@ -302,8 +302,8 @@ export default function Routes({ toast, onUnauth }) {
                                 <tbody>
                                     {sorted.map((r, i) => {
                                         const domain = getHost(r);
+                                        const hosts = domain === "—" ? [] : domain.split(", ");
                                         const upstream = getUpstream(r);
-                                        const dLink = domainLink(domain);
                                         const uLink = upstreamLink(upstream);
                                         const hasId = !!r["@id"];
                                         const note = notes[domain];
@@ -313,7 +313,17 @@ export default function Routes({ toast, onUnauth }) {
                                                     <div className="route-domain-cell">
                                                         {getHealthDot(r)}
                                                         <div>
-                                                            {dLink ? <a href={dLink} target="_blank" rel="noopener noreferrer" className="mono route-link">{domain}</a> : <span className="mono">{domain}</span>}
+                                                            {hosts.length > 0 ? hosts.map((h, hi) => {
+                                                                const hLink = domainLink(h);
+                                                                return (
+                                                                    <span key={h}>
+                                                                        {hi > 0 && <span className="route-domain-sep">, </span>}
+                                                                        {hLink
+                                                                            ? <a href={hLink} target="_blank" rel="noopener noreferrer" className="mono route-link">{h}</a>
+                                                                            : <span className="mono">{h}</span>}
+                                                                    </span>
+                                                                );
+                                                            }) : <span className="mono">{domain}</span>}
                                                             {note && <div className="route-note">{note}</div>}
                                                         </div>
                                                     </div>
