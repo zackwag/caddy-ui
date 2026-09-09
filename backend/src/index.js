@@ -1,7 +1,5 @@
 import cors from 'cors';
 import express from 'express';
-import 'express-async-errors';
-
 import logger from './logger.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
 import { initMonitor } from './notifications.js';
