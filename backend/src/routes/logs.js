@@ -226,3 +226,4 @@ async function tailFile(filePath, numLines) {
 }
 
 export default router;
+export { parseLogConfig, buildLogBlock, updateGlobalBlock };

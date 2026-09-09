@@ -4,12 +4,17 @@
     "type": "module",
     "scripts": {
         "start": "node src/index.js",
-        "dev": "node --watch src/index.js"
+        "dev": "node --watch src/index.js",
+        "test": "vitest run"
     },
     "dependencies": {
-        "express": "^5.2.1",
         "cors": "^2.8.5",
+        "express": "^5.2.1",
         "express-async-errors": "^3.1.1",
         "jsonwebtoken": "^9.0.2"
+    },
+    "devDependencies": {
+        "vite": "^8.2.2",
+        "vitest": "^5.0.0"
     }
 }

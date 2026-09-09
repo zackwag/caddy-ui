@@ -159,3 +159,4 @@ router.get('/uptime', async (req, res) => {
 });
 
 export default router;
+export { extractUpstreams, formatDuration, recordCheck, getUptimeStats, getHost };

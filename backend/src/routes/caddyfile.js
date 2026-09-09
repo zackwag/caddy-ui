@@ -297,3 +297,4 @@ router.put('/', async (req, res) => {
 });
 
 export default router;
+export { parseSiteBlocks, sortCaddyfile };

@@ -154,3 +154,4 @@ router.get('/process', async (req, res) => {
 });
 
 export default router;
+export { parsePrometheusMetrics, formatUptime };
