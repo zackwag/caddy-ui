@@ -9,7 +9,7 @@
     },
     "dependencies": {
         "react": "^19.2.8",
-        "react-dom": "^18.2.0",
+        "react-dom": "^19.2.8",
         "react-router-dom": "^7.18.3",
         "@codemirror/view": "^6.0.0",
         "@codemirror/state": "^6.0.0",
