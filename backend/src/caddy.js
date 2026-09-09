@@ -9,7 +9,7 @@ const HEADERS = {
 
 const TIMEOUT_MS = 10000;
 
-function withTimeout(promise, ms, label) {
+export function withTimeout(promise, ms, label) {
     return Promise.race([
         promise,
         new Promise((_, reject) =>

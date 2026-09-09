@@ -356,6 +356,7 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
+| `v1.13` | `import` directive support in Caddyfile validation, reload, and sort; force-save option; validation timeout |
 | `v1.12` | Push notifications via ntfy, Discord, Slack, Pushover, or custom webhook; automated release workflow with Docker Hub sync |
 | `v1.11` | Caddy binary bundled, upstream pool health checks, CA download via admin API, simplified TLS cert deletion |
 | `v1.10.1` | Caddy `/adapt` API validation, Docker socket removal |

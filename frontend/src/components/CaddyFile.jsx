@@ -156,13 +156,16 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
         finally { setValidating(false); }
     };
 
-    const save = async () => {
+    const save = async ({ force = false } = {}) => {
+        if (force && !confirm("Force save skips validation and writes the Caddyfile to disk even if Caddy can't load it. Continue?")) return;
         setSaving(true);
         try {
-            await apiFetch(`/caddyfile?fmt=${runFmt}&sort=${runSort}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
+            const q = `fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`;
+            const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh);
-            toast.success("Caddyfile saved and reloaded");
+            if (result?.warning) toast.info(result.message || "Caddyfile written to disk; Caddy reload failed");
+            else toast.success("Caddyfile saved and reloaded");
             if (historyOpen) loadHistory();
         } catch (e) { toast.error(e.message); }
         finally { setSaving(false); }
@@ -224,7 +227,8 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
                         <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()}>↑ Restore</button>
                         <input ref={fileInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={restore} />
                         <button className="btn btn-ghost" onClick={reload}>↺ Reload</button>
-                        <button className="btn btn-primary" onClick={save} disabled={saving || !isDirty}>{saving ? "Saving..." : "↑ Save"}</button>
+                        <button className="btn btn-ghost" onClick={() => save({ force: true })} disabled={saving || !isDirty} title="Skip validation and write to disk even if Caddy rejects it">{saving ? "..." : "⚠ Force save"}</button>
+                        <button className="btn btn-primary" onClick={() => save()} disabled={saving || !isDirty}>{saving ? "Saving..." : "↑ Save"}</button>
                     </div>
                 </div>
             </div>

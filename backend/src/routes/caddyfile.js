@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { createReadStream } from 'fs';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
-import { join } from 'path';
-import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
+import { dirname, join } from 'path';
+import { CADDY_ADMIN_URL, caddyLoad, withTimeout } from '../caddy.js';
 import { dockerExec } from '../docker.js';
 import logger from '../logger.js';
 
@@ -54,14 +54,29 @@ async function fmtCaddyfile(content) {
     }
 }
 
-async function validateCaddyfile(content) {
-    const validateRes = await fetch(`${CADDY_ADMIN_URL}/adapt?adapter=caddyfile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
-        body: content,
-    });
-    if (!validateRes.ok) {
-        const text = await validateRes.text();
+const ADAPT_TIMEOUT_MS = 10000;
+
+// Distinguish "Docker/caddy binary isn't reachable from this container" from a
+// genuine Caddyfile error reported by `caddy adapt`.
+function isDockerUnavailable(err) {
+    if (!err) return false;
+    if (err.code === null || err.code === undefined) return true;
+    const msg = `${err.stderr || ''} ${err.stdout || ''} ${err.message || ''}`.toLowerCase();
+    return /cannot connect to the docker daemon|is the docker daemon running|no such container|permission denied while trying to connect|docker:? (?:command )?not found|executable file not found|not found in \$path/.test(msg);
+}
+
+async function adaptViaAdminApi(content) {
+    const res = await withTimeout(
+        fetch(`${CADDY_ADMIN_URL}/adapt?adapter=caddyfile`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
+            body: content,
+        }),
+        ADAPT_TIMEOUT_MS,
+        'POST /adapt'
+    );
+    if (!res.ok) {
+        const text = await res.text();
         const err = new Error(text);
         err.stderr = text;
         err.stdout = '';
@@ -69,9 +84,60 @@ async function validateCaddyfile(content) {
     }
 }
 
+// Adapt through the caddy binary in the Caddy container, writing the buffer to a
+// temp file next to the real Caddyfile so relative `import` paths resolve.
+async function adaptViaCaddyBinary(content) {
+    const tmp = join(dirname(CADDY_CONFIG_PATH), `.caddy-ui-adapt-${process.pid}-${Date.now()}.tmp`);
+    const script = `cat > '${tmp}' && caddy adapt --config '${tmp}' --adapter caddyfile > /dev/null; rc=$?; rm -f '${tmp}'; exit $rc`;
+    await dockerExec(['sh', '-c', script], content);
+}
+
+async function validateCaddyfile(content) {
+    try {
+        await adaptViaAdminApi(content);
+        return;
+    } catch (adminErr) {
+        // The admin API adapts a piped body with no directory context, so a
+        // Caddyfile that uses relative `import` paths fails there even when it is
+        // valid. Retry against the real config directory before giving up.
+        try {
+            await adaptViaCaddyBinary(content);
+            logger.info('Caddyfile validated via caddy binary (admin API adapt failed)');
+            return;
+        } catch (caddyErr) {
+            if (isDockerUnavailable(caddyErr)) throw adminErr;
+            throw caddyErr;
+        }
+    }
+}
+
+async function reloadViaCaddyBinary() {
+    await dockerExec(['caddy', 'reload', '--config', CADDY_CONFIG_PATH, '--adapter', 'caddyfile']);
+}
+
+// Reload Caddy, falling back to `caddy reload` (which resolves `import` relative
+// to the on-disk Caddyfile) when the admin /load endpoint rejects the piped body.
+// The caller must have written CADDY_CONFIG_PATH to disk first.
+async function reloadCaddy(content) {
+    try {
+        await caddyLoad(content);
+        return;
+    } catch (loadErr) {
+        try {
+            await reloadViaCaddyBinary();
+            logger.info('Caddy reloaded via caddy binary (admin /load failed)');
+            return;
+        } catch (caddyErr) {
+            if (isDockerUnavailable(caddyErr)) throw loadErr;
+            throw caddyErr;
+        }
+    }
+}
+
 function parseSiteBlocks(content) {
     const lines = content.split('\n');
     const blocks = [];
+    const loose = [];
     let current = null;
     let depth = 0;
 
@@ -82,6 +148,10 @@ function parseSiteBlocks(content) {
             if (trimmed.endsWith('{')) {
                 current = { header: trimmed, lines: [line] };
                 depth = 1;
+            } else {
+                // Top-level line that is not a site block, e.g. `import
+                // conf.d/*.caddy`. Keep it verbatim instead of dropping it.
+                loose.push(line);
             }
         } else {
             current.lines.push(line);
@@ -96,7 +166,7 @@ function parseSiteBlocks(content) {
         }
     }
 
-    return blocks;
+    return { blocks, loose };
 }
 
 function sortCaddyfile(content) {
@@ -127,7 +197,7 @@ function sortCaddyfile(content) {
         rest.push(line);
     }
 
-    const blocks = parseSiteBlocks(rest.join('\n'));
+    const { blocks, loose } = parseSiteBlocks(rest.join('\n'));
     const httpBlocks = [];
     const internalBlocks = [];
     const publicBlocks = [];
@@ -147,6 +217,7 @@ function sortCaddyfile(content) {
     const sorted = [...publicBlocks, ...internalBlocks, ...httpBlocks];
     const parts = [];
     if (globalBlock.length) parts.push(globalBlock.join('\n'));
+    if (loose.length) parts.push(loose.join('\n'));
     for (const block of sorted) parts.push(block.lines.join('\n'));
 
     return parts.join('\n\n').trimEnd() + '\n';
@@ -247,7 +318,7 @@ router.post('/validations', async (req, res) => {
 router.post('/reloads', async (req, res) => {
     logger.info(`Caddyfile reload requested`);
     const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
-    await caddyLoad(content);
+    await reloadCaddy(content);
     res.json({ ok: true, message: 'Caddy reloaded from disk' });
 });
 
@@ -260,17 +331,22 @@ router.put('/', async (req, res) => {
 
     const fmt = req.query.fmt !== 'false';
     const sort = req.query.sort !== 'false';
-    logger.info(`Saving Caddyfile`, { bytes: content.length, fmt, sort });
+    const skipValidation = req.query.validate === 'false';
+    logger.info(`Saving Caddyfile`, { bytes: content.length, fmt, sort, skipValidation });
 
-    try {
-        await validateCaddyfile(content);
-        logger.info(`Caddyfile pre-save validation passed`);
-    } catch (err) {
-        const output = ((err.stdout || '') + (err.stderr || '')).trim();
-        const lines = output.split('\n').filter(Boolean);
-        const errors = lines.filter(l => l.toLowerCase().includes('error'));
-        logger.warn(`Caddyfile pre-save validation failed`, { errors });
-        return res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message] });
+    if (skipValidation) {
+        logger.warn(`Caddyfile save requested without validation (force save)`);
+    } else {
+        try {
+            await validateCaddyfile(content);
+            logger.info(`Caddyfile pre-save validation passed`);
+        } catch (err) {
+            const output = ((err.stdout || '') + (err.stderr || '')).trim();
+            const lines = output.split('\n').filter(Boolean);
+            const errors = lines.filter(l => l.toLowerCase().includes('error'));
+            logger.warn(`Caddyfile pre-save validation failed`, { errors });
+            return res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message] });
+        }
     }
 
     await snapshotCaddyfile();
@@ -290,8 +366,25 @@ router.put('/', async (req, res) => {
         logger.info(`Caddyfile sorted`);
     }
 
-    await caddyLoad(final);
+    const previous = await readFile(CADDY_CONFIG_PATH, 'utf8').catch(() => null);
     await writeFile(CADDY_CONFIG_PATH, final, 'utf8');
+
+    try {
+        await reloadCaddy(final);
+    } catch (err) {
+        if (!skipValidation) {
+            if (previous !== null) await writeFile(CADDY_CONFIG_PATH, previous, 'utf8').catch(() => { });
+            logger.warn(`Caddy reload failed, save rolled back`, { error: err.message });
+            return res.status(422).json({ valid: false, errors: [`Caddy reload failed: ${err.message}`] });
+        }
+        logger.warn(`Caddy reload failed after force save; file left on disk`, { error: err.message });
+        return res.json({
+            ok: true,
+            message: 'Caddyfile written to disk. Caddy reload failed — changes apply on the next restart or manual reload.',
+            warning: err.message,
+        });
+    }
+
     logger.info(`Caddyfile saved`, { bytes: final.length });
     res.json({ ok: true, message: 'Caddyfile saved and reloaded' });
 });
