@@ -6,7 +6,7 @@ describe('parseSiteBlocks', () => {
         const content = `app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const blocks = parseSiteBlocks(content);
+        const { blocks } = parseSiteBlocks(content);
         expect(blocks).toHaveLength(1);
         expect(blocks[0].header).toBe('app.example.com {');
     });
@@ -19,7 +19,7 @@ describe('parseSiteBlocks', () => {
 other.example.com {
     reverse_proxy localhost:9090
 }`;
-        const blocks = parseSiteBlocks(content);
+        const { blocks } = parseSiteBlocks(content);
         expect(blocks).toHaveLength(2);
         expect(blocks[0].header).toBe('app.example.com {');
         expect(blocks[1].header).toBe('other.example.com {');
@@ -31,7 +31,7 @@ other.example.com {
         reverse_proxy localhost:8080
     }
 }`;
-        const blocks = parseSiteBlocks(content);
+        const { blocks } = parseSiteBlocks(content);
         expect(blocks).toHaveLength(1);
         expect(blocks[0].lines).toHaveLength(5);
     });
@@ -42,16 +42,31 @@ other.example.com {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const blocks = parseSiteBlocks(content);
+        const { blocks } = parseSiteBlocks(content);
         expect(blocks).toHaveLength(1);
     });
 
-    it('returns empty array for empty input', () => {
-        expect(parseSiteBlocks('')).toEqual([]);
+    it('returns empty blocks and loose for empty input', () => {
+        const { blocks, loose } = parseSiteBlocks('');
+        expect(blocks).toEqual([]);
+        expect(loose).toEqual([]);
     });
 
-    it('returns empty array for only comments', () => {
-        expect(parseSiteBlocks('# just a comment\n# another')).toEqual([]);
+    it('returns empty blocks for only comments', () => {
+        const { blocks } = parseSiteBlocks('# just a comment\n# another');
+        expect(blocks).toEqual([]);
+    });
+
+    it('captures top-level import lines as loose', () => {
+        const content = `import conf.d/*.caddy
+
+app.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const { blocks, loose } = parseSiteBlocks(content);
+        expect(blocks).toHaveLength(1);
+        expect(loose).toHaveLength(1);
+        expect(loose[0]).toContain('import conf.d/*.caddy');
     });
 });
 
@@ -122,6 +137,23 @@ bravo.example.com {
         const charlieIdx = result.indexOf('charlie.example.com');
         expect(alphaIdx).toBeLessThan(bravoIdx);
         expect(bravoIdx).toBeLessThan(charlieIdx);
+    });
+
+    it('preserves top-level import lines', () => {
+        const content = `import conf.d/*.caddy
+
+beta.example.com {
+    reverse_proxy localhost:9090
+}
+
+alpha.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const result = sortCaddyfile(content);
+        expect(result).toContain('import conf.d/*.caddy');
+        const alphaIdx = result.indexOf('alpha.example.com');
+        const betaIdx = result.indexOf('beta.example.com');
+        expect(alphaIdx).toBeLessThan(betaIdx);
     });
 
     it('ends with a trailing newline', () => {
