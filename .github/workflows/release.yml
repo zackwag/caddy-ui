@@ -36,7 +36,7 @@ jobs:
           VERSION="${TARGET_REF#v}"
           MAJOR_MINOR=$(echo "$VERSION" | cut -d. -f1,2)
 
-          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${TARGET_REF}$" | head -1)
+          PREV_TAG=$(git tag --sort=-v:refname | awk -v t="$TARGET_REF" 'found{print; exit} $0==t{found=1}')
           if [ -z "$PREV_TAG" ]; then
             CHANGED=$(git diff --name-only $(git rev-list --max-parents=0 HEAD) HEAD)
           else
@@ -175,7 +175,7 @@ jobs:
           BACKEND: ${{ needs.changes.outputs.backend }}
           FRONTEND: ${{ needs.changes.outputs.frontend }}
         run: |
-          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${{ github.ref_name }}$" | head -1)
+          PREV_TAG=$(git tag --sort=-v:refname | awk -v t="${{ github.ref_name }}" 'found{print; exit} $0==t{found=1}')
           if [ -z "$PREV_TAG" ]; then
             COMMITS=$(git log --pretty=format:"- %s" HEAD)
           else
