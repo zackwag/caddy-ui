@@ -1,4 +1,8 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../utils/api.js";
+
+const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 
 const NAV = [
     { path: "/dashboard", label: "Dashboard", icon: "◈" },
@@ -12,6 +16,11 @@ const NAV = [
 
 export default function Sidebar({ currentPath, status, authEnabled, onUnauth, sidebarOpen, setSidebarOpen }) {
     const navigate = useNavigate();
+    const [backendVersion, setBackendVersion] = useState(null);
+
+    useEffect(() => {
+        apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
+    }, []);
 
     const go = (path) => {
         navigate(path);
@@ -42,14 +51,17 @@ export default function Sidebar({ currentPath, status, authEnabled, onUnauth, si
                     </div>
                 ))}
             </nav>
-            {authEnabled && (
-                <div className="nav-footer">
+            <div className="nav-footer">
+                {authEnabled && (
                     <div className="nav-item" onClick={onUnauth}>
                         <span className="nav-icon">⏻</span>
                         Sign out
                     </div>
+                )}
+                <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? `frontend v${FRONTEND_VERSION} · backend v${backendVersion}` : undefined}>
+                    v{FRONTEND_VERSION}{backendVersion && backendVersion !== FRONTEND_VERSION ? ` (backend v${backendVersion})` : ""}
                 </div>
-            )}
+            </div>
         </aside>
     );
 }

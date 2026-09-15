@@ -18,6 +18,7 @@ import tlsRouter from './routes/tls.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
+const APP_VERSION = process.env.APP_VERSION || 'dev';
 
 app.use(cors());
 app.use(express.json());
@@ -39,6 +40,9 @@ app.use((req, res, next) => {
 
 // Auth routes are always public
 app.use('/api/auth', authRouter);
+
+// GET /api/version -- always public, non-sensitive
+app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
 
 // GET /api/metrics/raw -- Prometheus scrape endpoint
 // Public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
@@ -76,7 +80,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-    logger.info(`Caddy UI backend running`, { port: PORT });
+    logger.info(`Caddy UI backend running`, { port: PORT, version: APP_VERSION });
     logger.info(`Caddy admin API`, { url: CADDY_ADMIN_URL });
     logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });
     logger.info(`Public metrics`, { enabled: publicMetrics });

@@ -192,6 +192,7 @@ All backend variables have sensible defaults. Only set what you need to override
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `APP_VERSION` | `dev` | caddy-ui's own version, exposed at `GET /api/version` and shown in the sidebar. Baked in automatically by the release build (`docker build --build-arg APP_VERSION=...`) — no need to set by hand unless building from source and want the UI to report a specific version. |
 | `CADDY_ADMIN_URL` | `http://caddy:2019` | URL of Caddy's admin API |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the container |
 | `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy container (used for `docker exec`) |

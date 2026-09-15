@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
 RUN apk add --no-cache docker-cli
 
 WORKDIR /app
