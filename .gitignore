@@ -140,3 +140,6 @@ vite.config.ts.timestamp-*
 
 ### mac ###
 .DS_Store
+
+# Fetched at build time from zackwag/caddyfile-codemirror (see frontend/scripts/fetch-caddyfile-mode.mjs)
+frontend/src/lib/caddyfileMode.js

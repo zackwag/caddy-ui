@@ -18,7 +18,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
             const { EditorState } = await import("@codemirror/state");
             const { defaultKeymap, historyKeymap, history } = await import("@codemirror/commands");
             const { StreamLanguage, syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching } = await import("@codemirror/language");
-            const { nginx } = await import("@codemirror/legacy-modes/mode/nginx");
+            const { caddyfile } = await import("../lib/caddyfileMode.js");
 
             const isDark = theme === 'dark';
 
@@ -39,8 +39,8 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
                 ".tok-variableName": { color: isDark ? "#ff4d6a" : "#cc2233" },
                 ".tok-typeName": { color: isDark ? "#00e5a0" : "#00956b" },
                 ".tok-atom": { color: isDark ? "#ffb830" : "#b36000" },
-                ".tok-def": { color: isDark ? "#00e5a0" : "#00956b" },
-                ".tok-property": { color: isDark ? "#0099ff" : "#0077cc" },
+                ".tok-propertyName": { color: isDark ? "#0099ff" : "#0077cc" },
+                ".tok-variableName2": { color: isDark ? "#b388ff" : "#7c4dff" },
                 "& .cm-scroller": { overflow: "auto" },
             }, { dark: isDark });
 
@@ -50,7 +50,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
                     lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
                     history(), drawSelection(), indentOnInput(), bracketMatching(),
                     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-                    StreamLanguage.define(nginx), editorTheme,
+                    StreamLanguage.define(caddyfile), editorTheme,
                     keymap.of([...defaultKeymap, ...historyKeymap]),
                     EditorView.updateListener.of(update => {
                         if (update.docChanged) onChangeRef.current(update.state.doc.toString());
