@@ -17,7 +17,8 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
             const { EditorView, keymap, lineNumbers, highlightActiveLineGutter, drawSelection, highlightSpecialChars } = await import("@codemirror/view");
             const { EditorState } = await import("@codemirror/state");
             const { defaultKeymap, historyKeymap, history } = await import("@codemirror/commands");
-            const { StreamLanguage, syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching } = await import("@codemirror/language");
+            const { StreamLanguage, syntaxHighlighting, indentOnInput, bracketMatching } = await import("@codemirror/language");
+            const { classHighlighter } = await import("@lezer/highlight");
             const { caddyfile } = await import("../lib/caddyfileMode.js");
 
             const isDark = theme === 'dark';
@@ -49,7 +50,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
                 extensions: [
                     lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
                     history(), drawSelection(), indentOnInput(), bracketMatching(),
-                    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+                    syntaxHighlighting(classHighlighter),
                     StreamLanguage.define(caddyfile), editorTheme,
                     keymap.of([...defaultKeymap, ...historyKeymap]),
                     EditorView.updateListener.of(update => {
