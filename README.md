@@ -367,6 +367,7 @@ caddy-ui/
 
 | Version | Description |
 |---------|-------------|
+| `v1.17` | Report the running caddy-ui version via `GET /api/version` and the sidebar |
 | `v1.16` | Real Caddyfile-grammar syntax highlighting (directives, matchers, placeholders, env vars) in place of a generic nginx-mode approximation |
 | `v1.13` | `import` directive support in Caddyfile validation, reload, and sort; force-save option; validation timeout |
 | `v1.12` | Push notifications via ntfy, Discord, Slack, Pushover, or custom webhook; automated release workflow with Docker Hub sync |
