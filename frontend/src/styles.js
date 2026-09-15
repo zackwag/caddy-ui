@@ -141,6 +141,14 @@ export const css = `
     border-top: 1px solid var(--border);
   }
 
+  .sidebar-version {
+    padding: 8px 20px 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
   .main {
     flex: 1;
     overflow: hidden;
