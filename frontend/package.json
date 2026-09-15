@@ -3,7 +3,9 @@
     "version": "1.0.0",
     "type": "module",
     "scripts": {
+        "predev": "node scripts/fetch-caddyfile-mode.mjs",
         "dev": "vite",
+        "prebuild": "node scripts/fetch-caddyfile-mode.mjs",
         "build": "vite build",
         "preview": "vite preview"
     },
@@ -13,7 +15,6 @@
         "react-router-dom": "^7.18.3",
         "@codemirror/view": "^6.0.0",
         "@codemirror/state": "^6.0.0",
-        "@codemirror/legacy-modes": "^6.0.0",
         "@codemirror/theme-one-dark": "^6.0.0",
         "@codemirror/commands": "^6.0.0",
         "@codemirror/language": "^6.0.0"

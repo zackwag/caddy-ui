@@ -8,6 +8,7 @@ RUN npm install
 COPY index.html .
 COPY vite.config.js .
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 
 RUN npm run build
 
