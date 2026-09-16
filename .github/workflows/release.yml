@@ -24,7 +24,7 @@ jobs:
       version: ${{ steps.diff.outputs.version }}
       major_minor: ${{ steps.diff.outputs.major_minor }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
@@ -68,7 +68,7 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.changes.outputs.target_ref }}
 
@@ -106,7 +106,7 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.changes.outputs.target_ref }}
 
@@ -142,7 +142,7 @@ jobs:
     needs: [changes, docker-backend, docker-frontend]
     if: github.event_name == 'push' && always() && !failure() && !cancelled()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Update backend description
         if: needs.changes.outputs.backend == 'true'
@@ -169,7 +169,7 @@ jobs:
     needs: [changes, docker-backend, docker-frontend]
     if: github.event_name == 'push' && always() && !failure() && !cancelled()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
