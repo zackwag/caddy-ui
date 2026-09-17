@@ -19,3 +19,5 @@ jobs:
       - name: Create / update release PR, or tag + publish a GitHub Release
         id: release
         uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
