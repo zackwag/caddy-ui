@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/zackwag/caddy-ui/compare/v1.18.0...v1.18.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **ci:** use RELEASE_PLEASE_TOKEN so releases trigger downstream workflows ([#53](https://github.com/zackwag/caddy-ui/issues/53)) ([62d6e4a](https://github.com/zackwag/caddy-ui/commit/62d6e4aea4eeb25d2308f3137465f68e7740873d))
+
 ## [1.18.0](https://github.com/zackwag/caddy-ui/compare/v1.17.0...v1.18.0) (2026-09-17)
 
 
