@@ -1,0 +1,47 @@
+name: Conventional Commits
+
+# Enforces Conventional Commits (https://www.conventionalcommits.org) on the
+# default branch's history. Since this account squash-merges everything, the
+# PR title becomes the actual commit message on main — so that's what's
+# linted for PRs. For commits pushed directly to main (no PR), the commit
+# message itself is linted instead. Both paths report under the same job
+# name so either one satisfies a "Conventional Commits" required status check.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  push:
+    branches: [main, master]
+
+permissions:
+  pull-requests: read
+  contents: read
+
+jobs:
+  lint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint PR title
+        if: github.event_name == 'pull_request'
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout
+        if: github.event_name == 'push'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Lint commit message
+        if: github.event_name == 'push'
+        run: |
+          MSG=$(git log -1 --pretty=%s)
+          echo "Commit message: $MSG"
+          PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9./_-]+\))?!?: .+'
+          if ! echo "$MSG" | grep -qE "$PATTERN"; then
+            echo "::error::Commit message does not follow Conventional Commits format: \"$MSG\""
+            echo "Expected: type(scope)?: description, e.g. \"feat(api): add health endpoint\""
+            exit 1
+          fi
