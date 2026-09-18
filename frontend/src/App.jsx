@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import CaddyFile from "./components/CaddyFile.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import Login from "./components/Login.jsx";
@@ -25,7 +25,6 @@ const TITLES = {
 
 export default function App() {
     const location = useLocation();
-    const navigate = useNavigate();
     const [status, setStatus] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [authEnabled, setAuthEnabledState] = useState(false);

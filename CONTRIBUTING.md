@@ -35,7 +35,7 @@ cd backend
 npm test
 ```
 
-CI runs this on every PR against `main` (`.github/workflows/test.yml`). There is currently no frontend test suite — verify UI changes by running the app (see below).
+CI runs this, plus `npm run lint` in both `backend/` and `frontend/`, on every PR against `main` (`.github/workflows/test.yml`). There is currently no frontend test suite — verify UI changes by running the app (see below).
 
 ## Verifying UI changes
 
@@ -44,7 +44,7 @@ For anything touching `frontend/`, run the dev server and click through the affe
 ## Code style
 
 - Match the existing style in the file you're editing: ES modules, 4-space indentation, single quotes, semicolons.
-- No linter/formatter is currently enforced in CI, so consistency with surrounding code is the bar.
+- Both `backend/` and `frontend/` have an ESLint config (`npm run lint` in each) that CI runs on every PR (`.github/workflows/test.yml`). It only checks for correctness issues (unused vars, React hook rules, etc.) — it doesn't enforce formatting, so consistency with surrounding code is still the bar for style.
 - Keep changes scoped — avoid drive-by refactors in unrelated files.
 
 ## Commit messages / PR titles
@@ -62,7 +62,7 @@ Look at `git log` for more examples of the house style.
 
 1. Branch off `main`.
 2. Keep the diff focused on one change.
-3. Make sure `npm test` passes in `backend/` if you touched backend code.
+3. Make sure `npm test` passes in `backend/` if you touched backend code, and `npm run lint` passes in `backend/`/`frontend/` for whichever side you touched.
 4. If your change is user-facing, consider adding a line to the [Changelog table](README.md#changelog) in the same PR (bump the version per the project's existing numbering).
 5. Open the PR against `main` — the `Test` workflow will run automatically.
 

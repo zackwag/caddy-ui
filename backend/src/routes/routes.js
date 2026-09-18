@@ -133,7 +133,7 @@ router.get('/', async (req, res) => {
         }
 
         res.json(allRoutes);
-    } catch (err) {
+    } catch {
         res.json([]);
     }
 });
