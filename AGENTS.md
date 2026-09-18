@@ -18,19 +18,21 @@ There is no shared root `package.json` — always `cd backend` or `cd frontend` 
 cd backend && npm install
 cd backend && npm run dev     # node --watch src/index.js
 cd backend && npm test        # vitest run — the only automated test suite in this repo
+cd backend && npm run lint    # eslint .
 
 # Frontend
 cd frontend && npm install
 cd frontend && npm run dev    # vite dev server (predev fetches caddyfileMode.js)
 cd frontend && npm run build  # vite build (prebuild fetches caddyfileMode.js)
+cd frontend && npm run lint   # eslint .
 ```
 
-There is no frontend test suite and no repo-wide lint/format command. Don't invent one — match existing style by hand.
+There is no frontend test suite and no repo-wide lint/format command — `backend/` and `frontend/` each have their own ESLint config (`eslint.config.js`), run separately. Lint only checks correctness (unused vars, React hook rules); it doesn't enforce formatting, so match existing style by hand.
 
 ## Before finishing a task
 
-- If you changed `backend/src/**`, run `cd backend && npm test` and make sure it's green.
-- If you changed `frontend/src/**`, run the dev server and exercise the affected view in a browser. Don't claim a UI fix works without having rendered it — vitest doesn't cover the frontend.
+- If you changed `backend/src/**`, run `cd backend && npm test && npm run lint` and make sure both are green.
+- If you changed `frontend/src/**`, run `cd frontend && npm run lint`, and run the dev server to exercise the affected view in a browser. Don't claim a UI fix works without having rendered it — vitest doesn't cover the frontend.
 - If you touched code that changes user-visible behavior, consider whether the [README Changelog table](README.md#changelog) needs a new row (this repo bumps a version string per notable change).
 
 ## Things to know before editing
@@ -47,4 +49,4 @@ ES modules throughout (`type: "module"` in both `package.json`s), 4-space indent
 
 ## Commit / PR conventions
 
-PR titles use Conventional Commit prefixes (`feat:`, `fix:`, `build:`, `test:`, …) — see `git log` for examples. CI (`.github/workflows/test.yml`) runs `npm test` in `backend/` on every PR to `main`; nothing currently gates on the frontend.
+PR titles use Conventional Commit prefixes (`feat:`, `fix:`, `build:`, `test:`, …) — see `git log` for examples. CI (`.github/workflows/test.yml`) runs `npm test` in `backend/`, plus `npm run lint` in both `backend/` and `frontend/`, on every PR to `main`.

@@ -5,7 +5,8 @@
     "scripts": {
         "start": "node src/index.js",
         "dev": "node --watch src/index.js",
-        "test": "vitest run"
+        "test": "vitest run",
+        "lint": "eslint ."
     },
     "dependencies": {
         "cors": "^2.8.5",
@@ -13,6 +14,9 @@
         "jsonwebtoken": "^9.0.2"
     },
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "eslint": "^10.10.0",
+        "globals": "^17.12.0",
         "vite": "^8.3.0",
         "vitest": "^5.0.0"
     }
