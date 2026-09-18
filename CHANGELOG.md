@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0](https://github.com/zackwag/caddy-ui/compare/v1.18.1...v1.19.0) (2026-09-18)
+
+
+### Features
+
+* add ESLint for backend and frontend ([#56](https://github.com/zackwag/caddy-ui/issues/56)) ([3d2b5f9](https://github.com/zackwag/caddy-ui/commit/3d2b5f90d304571982092861d170332ff6468cf0))
+
 ## [1.18.1](https://github.com/zackwag/caddy-ui/compare/v1.18.0...v1.18.1) (2026-09-17)
 
 
