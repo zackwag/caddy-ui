@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/zackwag/caddy-ui/compare/v1.19.0...v1.20.0) (2026-09-19)
+
+
+### Features
+
+* **ci:** detect caddyfile-codemirror vocabulary updates automatically ([#58](https://github.com/zackwag/caddy-ui/issues/58)) ([1665e70](https://github.com/zackwag/caddy-ui/commit/1665e703ff76eb5e085f83a57889d0a5def5fb36))
+
 ## [1.19.0](https://github.com/zackwag/caddy-ui/compare/v1.18.1...v1.19.0) (2026-09-18)
 
 
