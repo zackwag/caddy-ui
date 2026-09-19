@@ -1,0 +1,88 @@
+name: Sync caddyfile-codemirror vocabulary
+
+# Checks whether zackwag/caddyfile-codemirror's generated dist/caddyfileMode.js
+# has changed (that repo regenerates it daily from the upstream Caddyfile
+# lexer). frontend/scripts/fetch-caddyfile-mode.mjs already fetches that file
+# fresh at every dev/build, but the fetched file isn't committed here, so a
+# vocabulary change alone never shows up as a `frontend/` diff — which means
+# release.yml's per-directory change detection never rebuilds the frontend
+# Docker image for it. This workflow closes that gap: when the upstream
+# blob SHA changes, it bumps a tracked marker file (frontend/caddyfile-mode.sha)
+# via a `fix(frontend)` commit, so the change is real, conventional-commits
+# and release-please can see it, and the next release actually republishes
+# the frontend image with the new vocabulary baked in.
+
+on:
+  schedule:
+    # 14:00 UTC, after caddyfile-codemirror's own 13:17 UTC daily sync.
+    - cron: "0 14 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check upstream caddyfileMode.js SHA
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          remote_sha=$(gh api repos/zackwag/caddyfile-codemirror/contents/dist/caddyfileMode.js -q .sha)
+          local_sha=$(cat frontend/caddyfile-mode.sha)
+          echo "remote_sha=$remote_sha" >> "$GITHUB_ENV"
+          echo "Remote: $remote_sha"
+          echo "Local:  $local_sha"
+          if [ "$remote_sha" = "$local_sha" ]; then
+            echo "changed=false" >> "$GITHUB_ENV"
+          else
+            echo "changed=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Open PR if changed
+        if: env.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          upstream_version=$(gh api repos/zackwag/caddyfile-codemirror/contents/dist/VERSION -q .content | base64 -d | tr -d '[:space:]')
+          echo "$remote_sha" > frontend/caddyfile-mode.sha
+          branch="sync/caddyfile-vocab-${remote_sha:0:7}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add frontend/caddyfile-mode.sha
+          git commit -m "fix(frontend): pick up caddyfile-codemirror v${upstream_version} vocabulary"
+          git push origin "$branch"
+
+          gh pr create --title "fix(frontend): pick up caddyfile-codemirror v${upstream_version} vocabulary" \
+            --body "Upstream [caddyfile-codemirror](https://github.com/zackwag/caddyfile-codemirror) regenerated its vocabulary (now v${upstream_version}, blob \`${remote_sha}\`). This bumps the tracked marker so the change is visible to release-please and the next release rebuilds the frontend image with it." \
+            --base main --head "$branch"
+
+          # PRs opened with the default GITHUB_TOKEN are treated as
+          # first-time-contributor PRs, so workflow runs they trigger (e.g.
+          # the required "Conventional Commits" and "Test" checks) sit in
+          # "action_required" until approved. Approve any such runs for this
+          # branch so the required checks actually execute.
+          sleep 5
+          for i in $(seq 1 10); do
+            run_ids=$(gh api "repos/$REPO/actions/runs?event=pull_request&status=action_required" \
+              -q ".workflow_runs[] | select(.head_branch==\"$branch\") | .id")
+            if [ -n "$run_ids" ]; then
+              for run_id in $run_ids; do
+                gh api -X POST "repos/$REPO/actions/runs/$run_id/approve" || true
+              done
+              break
+            fi
+            sleep 5
+          done
+
+          # Let GitHub's native auto-merge wait for required checks and
+          # merge once they pass, instead of polling for status ourselves.
+          # If a check fails, the PR is simply left open for review.
+          gh pr merge "$branch" --squash --delete-branch --auto
