@@ -4,6 +4,12 @@
 // vocabulary daily from the seanthegeek/rouge-lexer-caddyfile gem. Runs
 // before dev/build so the editor's highlighting always uses the latest
 // Caddyfile keyword vocabulary without vendoring it by hand.
+//
+// The fetched file itself isn't committed (see .gitignore), but
+// frontend/caddyfile-mode.sha is: it's a tracked marker of the upstream
+// blob SHA last picked up, updated by .github/workflows/sync-caddyfile-vocab.yml
+// so a vocabulary change actually shows up as a `frontend/` diff and
+// triggers a release + Docker image rebuild.
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
