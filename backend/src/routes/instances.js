@@ -31,7 +31,8 @@ router.get('/status', async (req, res) => {
     const instances = getInstances();
     const results = await Promise.all(instances.map(async (inst) => {
         try {
-            const r = await fetch(`${inst.adminUrl}/config/`, {
+            const url = validateAdminUrl(inst.adminUrl);
+            const r = await fetch(`${url}/config/`, {
                 headers: { 'Origin': 'http://0.0.0.0:2019' },
                 signal: AbortSignal.timeout(3000),
             });
