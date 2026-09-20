@@ -79,7 +79,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
     return <div ref={containerRef} className="modal-editor-wrap" style={{ minHeight: 180, background: theme === 'dark' ? "#0a0c0f" : "#f0ebe4" }} />;
 }
 
-function EditModal({ route, initialNote, isCaddyfileManaged, initialContent, onSave, onDelete, onClose, theme }) {
+function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, onSave, onDelete, onClose, theme }) {
     const [form, setForm] = useState({
         domain: route.domain || "",
         upstream: route.upstream || "",
@@ -112,9 +112,13 @@ function EditModal({ route, initialNote, isCaddyfileManaged, initialContent, onS
                 <div className="field">
                     <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Home Assistant, media server..." onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }} />
                 </div>
-                <div className="modal-hint">Leave blank to clear the title.</div>
+                <div className="modal-hint">{titleNeedsMigration ? "Save to store this title as a comment in your Caddyfile." : "Leave blank to clear the title."}</div>
 
-                {isCaddyfileManaged ? (
+                {isCaddyfileManaged && siteBlockFailed ? (
+                    <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4 }}>
+                        This route is defined in your Caddyfile but couldn't be loaded for inline editing. Use the <strong>Caddyfile</strong> tab to edit it directly.
+                    </div>
+                ) : isCaddyfileManaged ? (
                     <>
                         <div className="modal-section-label">Caddyfile</div>
                         <div className="editor-wrap" style={{ marginBottom: 16 }}>
@@ -140,12 +144,12 @@ function EditModal({ route, initialNote, isCaddyfileManaged, initialContent, onS
                 )}
 
                 <div className="btn-row" style={{ justifyContent: "space-between" }}>
-                    {isCaddyfileManaged ? (
+                    {isCaddyfileManaged && !siteBlockFailed ? (
                         <button className="btn btn-danger" onClick={onDelete}>Delete</button>
                     ) : <span />}
                     <div className="btn-row">
                         <button className="btn btn-ghost" onClick={onClose}>Close</button>
-                        <button className="btn btn-primary" onClick={handleSave} disabled={!canSave || saving}>{saving ? "Saving..." : "Save"}</button>
+                        <button className="btn btn-primary" onClick={handleSave} disabled={siteBlockFailed ? saving : (!canSave || saving)}>{saving ? "Saving..." : "Save"}</button>
                     </div>
                 </div>
             </div>
@@ -256,14 +260,16 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
         const domain = editModal.domain;
         const usesCaddyfileTitles = editModal.caddyfileTitle !== null;
         try {
-            if (editModal.isCaddyfileManaged) {
+            if (editModal.isCaddyfileManaged && !editModal.siteBlockFailed) {
                 await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, title }) }, onUnauth);
                 toast.success("Caddyfile updated");
+            } else if (editModal.siteBlockFailed) {
+                toast.success("Title saved");
             } else {
                 await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
                 toast.success("Route updated");
             }
-            if (!editModal.isCaddyfileManaged || !usesCaddyfileTitles) {
+            if (!editModal.isCaddyfileManaged || !usesCaddyfileTitles || editModal.siteBlockFailed) {
                 await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: title }) }, onUnauth);
             }
             setNotes(n => { const u = { ...n }; if (title.trim()) u[domain] = title.trim(); else delete u[domain]; return u; });
@@ -310,14 +316,14 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
 
         let content = "";
         let caddyfileTitle = null;
+        let siteBlockFailed = false;
         if (isCaddyfileManaged) {
             try {
                 const result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, {}, onUnauth);
                 content = result.content || "";
                 if (result.title !== undefined) caddyfileTitle = result.title;
-            } catch (e) {
-                toast.error(`Failed to load site block: ${e.message}`);
-                return;
+            } catch {
+                siteBlockFailed = true;
             }
         }
 
@@ -333,6 +339,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
             isCaddyfileManaged,
             content,
             caddyfileTitle,
+            siteBlockFailed,
         });
     };
 
@@ -494,9 +501,11 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
             {editModal && (
                 <EditModal
                     route={editModal.route}
-                    initialNote={editModal.caddyfileTitle !== null ? (editModal.caddyfileTitle || "") : (notes[editModal.domain] || "")}
+                    initialNote={editModal.caddyfileTitle || notes[editModal.domain] || ""}
                     isCaddyfileManaged={editModal.isCaddyfileManaged}
+                    siteBlockFailed={editModal.siteBlockFailed}
                     initialContent={editModal.content || ""}
+                    titleNeedsMigration={editModal.isCaddyfileManaged && editModal.caddyfileTitle !== null && !editModal.caddyfileTitle && !!notes[editModal.domain]}
                     onSave={handleEditSave}
                     onDelete={() => deleteCaddyfileBlock(editModal.domain)}
                     onClose={() => setEditModal(null)}

@@ -1,6 +1,30 @@
 import { spawn } from 'child_process';
+import logger from './logger.js';
 
 export const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
+
+let _envCache = null;
+
+export async function getCaddyEnv() {
+    if (_envCache) return _envCache;
+    try {
+        const { stdout } = await dockerExec(['env']);
+        const env = {};
+        for (const line of stdout.split('\n')) {
+            const eq = line.indexOf('=');
+            if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
+        }
+        _envCache = env;
+        logger.debug('Cached Caddy container env vars', { count: Object.keys(env).length });
+        return env;
+    } catch {
+        return {};
+    }
+}
+
+export function resolveEnvVars(str, env) {
+    return str.replace(/\{\$([A-Z_][A-Z0-9_]*)\}/g, (_, name) => env[name] || '');
+}
 
 export function dockerExec(args, input) {
     return new Promise((resolve, reject) => {
