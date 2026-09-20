@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createConnection } from 'net';
-import { CADDY_ADMIN_URL, caddyGet } from '../caddy.js';
+import { caddyGet } from '../caddy.js';
 
 const router = Router();
 const TIMEOUT_MS = 3000;
@@ -78,8 +78,9 @@ function getHost(route) {
 
 // GET /api/health
 router.get('/', async (req, res) => {
+    const adminUrl = req.instance.adminUrl;
     try {
-        const servers = await caddyGet('/config/apps/http/servers');
+        const servers = await caddyGet('/config/apps/http/servers', adminUrl);
 
         // Build list of all upstreams from routes
         const checks = [];
@@ -94,13 +95,9 @@ router.get('/', async (req, res) => {
             }
         }
 
-        // Fetch Caddy's reverse proxy upstream pool.
-        // This gives us Caddy's own view of upstream health including active request counts
-        // and passive failure tracking. We use this as the primary source where available
-        // and fall back to TCP checks for upstreams not yet in the pool.
         let caddyPool = {};
         try {
-            const poolRes = await fetch(`${CADDY_ADMIN_URL}/reverse_proxy/upstreams`, {
+            const poolRes = await fetch(`${adminUrl}/reverse_proxy/upstreams`, {
                 headers: { 'Origin': 'http://0.0.0.0:2019' },
             });
             if (poolRes.ok) {
@@ -116,19 +113,9 @@ router.get('/', async (req, res) => {
                 let online;
 
                 if (check.upstream in caddyPool) {
-                    // Caddy has seen this upstream and tracks it in its global pool.
-                    // We derive online status from the fails counter. Note: this is only
-                    // meaningful if passive health checks are configured in the Caddyfile
-                    // (via health_checks > passive > max_fails). Without passive checks,
-                    // fails will always be 0 and every known upstream will appear online.
-                    // For most home/self-hosted setups this is acceptable -- the TCP fallback
-                    // below handles upstreams Caddy hasn't seen traffic through yet.
                     const entry = caddyPool[check.upstream];
                     online = entry.fails === 0;
                 } else {
-                    // Upstream is not in Caddy's pool -- either Caddy hasn't proxied any
-                    // traffic to it since the last restart, or it's defined only in the
-                    // Caddyfile without an active @id. Fall back to a direct TCP connect.
                     online = await checkTCP(check.host, check.port);
                 }
 

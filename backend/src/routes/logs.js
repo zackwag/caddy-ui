@@ -1,11 +1,9 @@
 import { Router } from 'express';
 import { createReadStream, unwatchFile, watchFile } from 'fs';
 import { readFile, stat, writeFile } from 'fs/promises';
-import { CADDY_ADMIN_URL, caddyLoad } from '../caddy.js';
+import { caddyLoad } from '../caddy.js';
 import logger from '../logger.js';
 const router = Router();
-const LOG_PATH = process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log';
-const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 const TAIL_LINES = 200;
 
 // ── Log config parsing ────────────────────────────────────────────────────────
@@ -20,7 +18,6 @@ function parseLogConfig(content) {
         level: 'INFO',
     };
 
-    // Match the global block -- first { } block that isn't a site block
     const lines = content.split('\n');
     let globalLines = [];
     let inGlobal = false;
@@ -51,7 +48,6 @@ function parseLogConfig(content) {
     if (!globalLines.length) return defaultConfig;
     const globalBlock = globalLines.join('\n');
 
-    // Find log block inside global
     const logMatch = globalBlock.match(/\blog\s*\{([\s\S]*?)\n\t?\}/m);
     if (!logMatch) return defaultConfig;
 
@@ -92,11 +88,9 @@ function buildLogBlock(config) {
 function updateGlobalBlock(content, logConfig) {
     const logBlock = buildLogBlock(logConfig);
 
-    // Check if global block exists
     const globalMatch = content.match(/^\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/ms);
 
     if (!globalMatch) {
-        // No global block -- create one if logging enabled
         if (!logBlock) return content;
         return `{\n${logBlock}\n}\n\n${content.trim()}\n`;
     }
@@ -104,10 +98,8 @@ function updateGlobalBlock(content, logConfig) {
     const fullGlobal = globalMatch[0];
     const innerGlobal = globalMatch[1];
 
-    // Remove existing log block from global
     const withoutLog = innerGlobal.replace(/\n?\s*log\s*\{[^}]*(?:\{[^}]*\}[^}]*)*\}/ms, '');
 
-    // Build new global inner content
     const newInner = logBlock
         ? `${withoutLog.trimEnd()}\n${logBlock}\n`
         : withoutLog;
@@ -119,7 +111,7 @@ function updateGlobalBlock(content, logConfig) {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 router.get('/config', async (req, res) => {
-    const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
+    const content = await readFile(req.instance.configPath, 'utf8');
     const config = parseLogConfig(content);
     res.json(config);
 });
@@ -130,12 +122,13 @@ router.put('/config', async (req, res) => {
         return res.status(400).json({ error: 'Invalid log config' });
     }
 
+    const adminUrl = req.instance.adminUrl;
     logger.info(`Log config update requested`, { enabled: config.enabled });
-    const content = await readFile(CADDY_CONFIG_PATH, 'utf8');
+    const content = await readFile(req.instance.configPath, 'utf8');
     const updated = updateGlobalBlock(content, config);
 
     try {
-        const validateRes = await fetch(`${CADDY_ADMIN_URL}/adapt?adapter=caddyfile`, {
+        const validateRes = await fetch(`${adminUrl}/adapt?adapter=caddyfile`, {
             method: 'POST',
             headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
             body: updated,
@@ -152,23 +145,25 @@ router.put('/config', async (req, res) => {
         return res.status(422).json({ errors: [err.message] });
     }
 
-    await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
-    await caddyLoad(updated);
+    await writeFile(req.instance.configPath, updated, 'utf8');
+    await caddyLoad(updated, adminUrl);
     logger.info(`Log config saved and reloaded`);
     res.json({ ok: true, message: 'Log config saved and reloaded' });
 });
 
 router.get('/', async (req, res) => {
+    const logPath = req.instance.logPath;
     try {
-        await stat(LOG_PATH);
+        await stat(logPath);
     } catch {
-        return res.json({ lines: [], error: `Log file not found at ${LOG_PATH}` });
+        return res.json({ lines: [], error: `Log file not found at ${logPath}` });
     }
-    const lines = await tailFile(LOG_PATH, TAIL_LINES);
-    res.json({ lines, path: LOG_PATH });
+    const lines = await tailFile(logPath, TAIL_LINES);
+    res.json({ lines, path: logPath });
 });
 
 router.get('/stream', async (req, res) => {
+    const logPath = req.instance.logPath;
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -176,19 +171,19 @@ router.get('/stream', async (req, res) => {
 
     let fileSize;
     try {
-        const s = await stat(LOG_PATH);
+        const s = await stat(logPath);
         fileSize = s.size;
     } catch {
-        res.write(`data: ${JSON.stringify({ error: `Log file not found at ${LOG_PATH}` })}\n\n`);
+        res.write(`data: ${JSON.stringify({ error: `Log file not found at ${logPath}` })}\n\n`);
         res.end();
         return;
     }
 
     const onFileChange = async () => {
         try {
-            const s = await stat(LOG_PATH);
+            const s = await stat(logPath);
             if (s.size <= fileSize) return;
-            const stream = createReadStream(LOG_PATH, { start: fileSize, end: s.size });
+            const stream = createReadStream(logPath, { start: fileSize, end: s.size });
             let buffer = '';
             stream.on('data', chunk => { buffer += chunk.toString(); });
             stream.on('end', () => {
@@ -203,8 +198,8 @@ router.get('/stream', async (req, res) => {
         }
     };
 
-    watchFile(LOG_PATH, { interval: 1000 }, onFileChange);
-    req.on('close', () => { unwatchFile(LOG_PATH, onFileChange); });
+    watchFile(logPath, { interval: 1000 }, onFileChange);
+    req.on('close', () => { unwatchFile(logPath, onFileChange); });
 });
 
 async function tailFile(filePath, numLines) {

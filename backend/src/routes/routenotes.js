@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { caddyGet } from '../caddy.js';
 import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
+import { getInstance } from '../instances.js';
 import logger from '../logger.js';
 
 const router = Router();
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
-const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 
 async function readNotes() {
     try {
@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
 
     if (caddyfileTitlesEnabled()) {
         try {
-            const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
+            const caddyfile = await readFile(req.instance.configPath, 'utf8');
             const titles = await parseCaddyfileTitles(caddyfile);
             for (const [domain, title] of Object.entries(titles)) {
                 if (title) notes[domain] = title;
@@ -52,14 +52,15 @@ router.put('/:domain', async (req, res) => {
     res.json({ ok: true });
 });
 
-export async function cleanupOrphanedNotes() {
+export async function cleanupOrphanedNotes(instance) {
     try {
+        const inst = instance || getInstance('default');
         const notes = await readNotes();
         const domains = Object.keys(notes);
         if (domains.length === 0) return;
 
         const activeDomains = new Set();
-        const servers = await caddyGet('/config/apps/http/servers').catch(() => null);
+        const servers = await caddyGet('/config/apps/http/servers', inst.adminUrl).catch(() => null);
         if (!servers) return;
 
         for (const server of Object.values(servers)) {

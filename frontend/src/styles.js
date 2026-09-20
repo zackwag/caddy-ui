@@ -126,6 +126,47 @@ export const css = `
   }
   .status-refresh:hover { color: var(--text); background: rgba(255,255,255,0.06); }
 
+  .instance-switcher {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .instance-switcher-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .instance-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+
+  .instance-item:hover { color: var(--text); background: rgba(0,0,0,0.04); }
+
+  .instance-item.active {
+    color: var(--accent);
+    background: rgba(0,149,107,0.07);
+  }
+
+  .instance-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .nav { padding: 12px 0; flex: 1; }
 
   .nav-item {

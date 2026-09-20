@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch } from "../utils/api.js";
+import { apiFetch, getInstanceId, setInstanceId } from "../utils/api.js";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 
@@ -14,18 +14,39 @@ const NAV = [
     { path: "/notifications", label: "Notifications", icon: "⊘" },
 ];
 
-export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen }) {
+export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, onInstanceChange }) {
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
+    const [instances, setInstances] = useState([]);
+    const [instanceStatus, setInstanceStatus] = useState({});
+    const [selectedId, setSelectedId] = useState(getInstanceId);
 
     useEffect(() => {
         apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
+        loadInstances();
     }, [onUnauth]);
+
+    function loadInstances() {
+        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
+        apiFetch("/instances/status", {}, onUnauth).then(results => {
+            const map = {};
+            for (const r of results) map[r.id] = r.online;
+            setInstanceStatus(map);
+        }).catch(() => { });
+    }
+
+    const switchInstance = (id) => {
+        setInstanceId(id);
+        setSelectedId(id);
+        if (onInstanceChange) onInstanceChange(id);
+    };
 
     const go = (path) => {
         navigate(path);
         setSidebarOpen(false);
     };
+
+    const showSwitcher = instances.length > 1;
 
     return (
         <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
@@ -40,6 +61,21 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                     <button className="status-refresh" onClick={onRefreshStatus} title="Refresh status">↺</button>
                 </div>
             </div>
+            {showSwitcher && (
+                <div className="instance-switcher">
+                    <div className="instance-switcher-label">Instances</div>
+                    {instances.map(inst => (
+                        <div
+                            key={inst.id}
+                            className={`instance-item ${selectedId === inst.id ? "active" : ""}`}
+                            onClick={() => switchInstance(inst.id)}
+                        >
+                            <div className={`status-dot ${instanceStatus[inst.id] === true ? "online" : instanceStatus[inst.id] === false ? "offline" : ""}`} />
+                            <span className="instance-name">{inst.name}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
             <nav className="nav">
                 {NAV.map(n => (
                     <div

@@ -15,10 +15,14 @@ export function setAuthEnabled(v) { localStorage.setItem('caddy_ui_auth_enabled'
 export function getTheme() { return localStorage.getItem('caddy_ui_theme') || 'dark'; }
 export function saveTheme(theme) { localStorage.setItem('caddy_ui_theme', theme); }
 
+export function getInstanceId() { return localStorage.getItem('caddy_ui_instance') || 'default'; }
+export function setInstanceId(id) { localStorage.setItem('caddy_ui_instance', id); }
+
 export async function apiFetch(path, opts = {}, onUnauth) {
     const token = getToken();
     const headers = { ...(opts.headers || {}) };
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    headers['X-Instance-Id'] = getInstanceId();
     const res = await fetch(`${API}${path}`, { ...opts, headers });
     if (res.status === 401) {
         setToken(null);

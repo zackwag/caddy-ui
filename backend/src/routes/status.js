@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { CADDY_ADMIN_URL, caddyGet } from '../caddy.js';
+import { caddyGet } from '../caddy.js';
 import { dockerExec } from '../docker.js';
 import logger from '../logger.js';
 
 const router = Router();
 
-async function getCaddyVersion() {
+async function getCaddyVersion(containerName) {
     try {
-        const { stdout } = await dockerExec(['caddy', 'version']);
+        const { stdout } = await dockerExec(['caddy', 'version'], undefined, containerName);
         const version = stdout.trim().split(' ')[0] || 'unknown';
         logger.debug(`Caddy version detected`, { version });
         return version;
@@ -42,10 +42,11 @@ function formatUptime(seconds) {
 
 // GET /api/status
 router.get('/', async (req, res) => {
+    const adminUrl = req.instance.adminUrl;
     try {
         const [config, metricsText] = await Promise.allSettled([
-            caddyGet('/config/apps/http/servers'),
-            fetch(`${CADDY_ADMIN_URL}/metrics`, { headers: { 'Origin': 'http://0.0.0.0:2019' } })
+            caddyGet('/config/apps/http/servers', adminUrl),
+            fetch(`${adminUrl}/metrics`, { headers: { 'Origin': 'http://0.0.0.0:2019' } })
                 .then(r => r.ok ? r.text() : null).catch(() => null),
         ]);
 
@@ -118,7 +119,7 @@ router.get('/', async (req, res) => {
             uptime,
             servers,
             tlsEnabled: true,
-            adminUrl: CADDY_ADMIN_URL,
+            adminUrl,
         });
     } catch (err) {
         res.json({ online: false, error: err.message });
@@ -127,10 +128,11 @@ router.get('/', async (req, res) => {
 
 // GET /api/status/process
 router.get('/process', async (req, res) => {
+    const adminUrl = req.instance.adminUrl;
     try {
         const [metricsRes, version] = await Promise.all([
-            fetch(`${CADDY_ADMIN_URL}/metrics`, { headers: { 'Origin': 'http://0.0.0.0:2019' } }),
-            getCaddyVersion(),
+            fetch(`${adminUrl}/metrics`, { headers: { 'Origin': 'http://0.0.0.0:2019' } }),
+            getCaddyVersion(req.instance.containerName),
         ]);
         if (!metricsRes.ok) throw new Error(`Metrics endpoint unavailable: ${metricsRes.status}`);
         const text = await metricsRes.text();

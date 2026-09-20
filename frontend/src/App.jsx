@@ -12,7 +12,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
 import { css } from "./styles.js";
-import { API, apiFetch, getAuthEnabled, getTheme, getToken, saveTheme, setAuthEnabled, setToken } from "./utils/api.js";
+import { API, apiFetch, getAuthEnabled, getInstanceId, getTheme, getToken, saveTheme, setAuthEnabled, setToken } from "./utils/api.js";
 
 const TITLES = {
     "/dashboard": "Dashboard",
@@ -28,6 +28,7 @@ export default function App() {
     const location = useLocation();
     const [status, setStatus] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [instanceKey, setInstanceKey] = useState(getInstanceId);
     const [authEnabled, setAuthEnabledState] = useState(false);
     const [authed, setAuthed] = useState(() => {
         const cached = getAuthEnabled();
@@ -72,7 +73,12 @@ export default function App() {
         fetchStatus();
         const t = setInterval(fetchStatus, 15000);
         return () => clearInterval(t);
-    }, [authed, fetchStatus]);
+    }, [authed, fetchStatus, instanceKey]);
+
+    const handleInstanceChange = useCallback((id) => {
+        setInstanceKey(id);
+        setStatus(null);
+    }, []);
 
     const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
@@ -97,6 +103,7 @@ export default function App() {
                         onUnauth={onUnauth}
                         sidebarOpen={sidebarOpen}
                         setSidebarOpen={setSidebarOpen}
+                        onInstanceChange={handleInstanceChange}
                     />
 
                     <div className="main">
@@ -111,7 +118,7 @@ export default function App() {
                                 </button>
                             </div>
                         </div>
-                        <div className="content">
+                        <div className="content" key={instanceKey}>
                             <Routes>
                                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                                 <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
