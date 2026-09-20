@@ -448,11 +448,29 @@ export const css = `
     font-family: 'IBM Plex Mono', monospace;
     font-size: 12px;
     outline: none;
-    width: 220px;
+    width: 380px;
     transition: border-color 0.15s;
   }
+  .search-input--clearable { padding-right: 28px; }
   .search-input:focus { border-color: var(--accent); }
   .search-input::placeholder { color: var(--muted); }
+
+  .search-wrap { position: relative; }
+  .search-clear {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 4px;
+    line-height: 1;
+    border-radius: 2px;
+  }
+  .search-clear:hover { color: var(--text); }
 
   .modal-overlay {
     position: fixed; inset: 0;
@@ -829,6 +847,15 @@ export const css = `
 
   /* ── Utility: Caddyfile-managed route notice ──────────────────────────────── */
 
+  .modal-editor-wrap {
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .modal-editor-wrap .cm-editor { min-height: 180px; max-height: 340px; font-family: 'IBM Plex Mono', monospace !important; }
+  .modal-editor-wrap .cm-editor.cm-focused { outline: none; }
+  .modal-editor-wrap .cm-scroller { max-height: 340px; }
+
   .caddyfile-notice {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
@@ -1060,11 +1087,14 @@ export const css = `
     .metrics-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
     .cm-editor { min-height: 300px; }
     .cm-editor .cm-content { font-size: 16px; }
+    .modal-editor-wrap .cm-editor { min-height: 160px; max-height: 260px; }
+    .modal-editor-wrap .cm-scroller { max-height: 260px; }
     .editor-toolbar { flex-direction: column; align-items: stretch; }
     .editor-hint--desktop { display: none; }
     .editor-hint--mobile { display: inline; margin-left: auto; }
     .editor-toolbar-actions .btn { flex: 1 1 90px; }
     .log-wrap { height: 340px; }
+    .search-wrap { width: 100%; }
     .search-input { width: 100%; }
     .log-toolbar { flex-direction: column; align-items: stretch; }
     .log-toolbar .btn-row { width: 100%; }

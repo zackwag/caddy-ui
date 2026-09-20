@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
+import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
 import logger from '../logger.js';
 
 const router = Router();
@@ -95,6 +96,38 @@ function replaceSiteBlock(caddyfile, oldDomain, newBlock) {
     return `${cleaned.trimEnd()}\n\n${newBlock}\n`;
 }
 
+function extractSiteBlock(caddyfile, domain) {
+    const lines = caddyfile.split('\n');
+    const result = [];
+    let found = false;
+    let depth = 0;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+
+        if (!found) {
+            if (
+                trimmed === `${domain} {` ||
+                trimmed === `http://${domain} {` ||
+                trimmed === `https://${domain} {`
+            ) {
+                found = true;
+                depth = 1;
+                result.push(line);
+            }
+        } else {
+            result.push(line);
+            for (const ch of line) {
+                if (ch === '{') depth++;
+                if (ch === '}') depth--;
+            }
+            if (depth === 0) break;
+        }
+    }
+
+    return found ? result.join('\n') : null;
+}
+
 function isSimpleReverseProxy(route) {
     // Check if route is a simple reverse_proxy with no complex matchers
     const subroute = route.handle?.find(h => h.handler === 'subroute');
@@ -165,6 +198,81 @@ router.post('/', async (req, res) => {
     res.status(201).json({ ok: true, id, route });
 });
 
+// GET /api/routes/caddyfile/:domain -- get site block content
+router.get('/caddyfile/:domain', async (req, res) => {
+    const { domain } = req.params;
+    try {
+        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
+        const block = extractSiteBlock(caddyfile, domain);
+        if (!block) return res.status(404).json({ error: 'site block not found' });
+
+        if (caddyfileTitlesEnabled()) {
+            const { title, content } = extractTitleComment(block);
+            return res.json({ content, title });
+        }
+
+        res.json({ content: block });
+    } catch (e) {
+        logger.error('Failed to read site block', { domain, error: e.message });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// PATCH /api/routes/caddyfile/:domain -- update a Caddyfile-managed route
+router.patch('/caddyfile/:domain', async (req, res) => {
+    const { domain } = req.params;
+    const { content, title } = req.body;
+    if (!content || !content.trim()) {
+        return res.status(400).json({ error: 'content is required' });
+    }
+
+    try {
+        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
+        const existing = extractSiteBlock(caddyfile, domain);
+        if (!existing) return res.status(404).json({ error: 'site block not found' });
+
+        let finalContent = content.trim();
+        if (caddyfileTitlesEnabled()) {
+            finalContent = injectTitleComment(finalContent, title);
+        }
+
+        const cleaned = removeSiteBlock(caddyfile, domain);
+        const updated = `${cleaned.trimEnd()}\n\n${finalContent}\n`;
+        await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
+
+        const { caddyLoad } = await import('../caddy.js');
+        await caddyLoad(updated);
+
+        logger.info('Caddyfile site block updated', { domain });
+        res.json({ ok: true, domain });
+    } catch (e) {
+        logger.error('Failed to update site block', { domain, error: e.message });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// DELETE /api/routes/caddyfile/:domain -- remove a site block from the Caddyfile
+router.delete('/caddyfile/:domain', async (req, res) => {
+    const { domain } = req.params;
+    try {
+        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
+        const existing = extractSiteBlock(caddyfile, domain);
+        if (!existing) return res.status(404).json({ error: 'site block not found' });
+
+        const cleaned = removeSiteBlock(caddyfile, domain);
+        await writeFile(CADDY_CONFIG_PATH, cleaned, 'utf8');
+
+        const { caddyLoad } = await import('../caddy.js');
+        await caddyLoad(cleaned);
+
+        logger.info('Caddyfile site block deleted', { domain });
+        res.json({ ok: true, domain });
+    } catch (e) {
+        logger.error('Failed to delete site block', { domain, error: e.message });
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // PATCH /api/routes/:id -- update a UI-managed route (@id exists)
 router.patch('/:id', async (req, res) => {
     const { id } = req.params;
@@ -197,26 +305,6 @@ router.patch('/:id', async (req, res) => {
     res.json({ ok: true, id, route });
 });
 
-// PATCH /api/routes/caddyfile -- update a Caddyfile-managed simple route
-router.patch('/caddyfile/:domain', async (req, res) => {
-    const { domain } = req.params;
-    const { upstream, stripPrefix } = req.body;
-    if (!upstream) {
-        return res.status(400).json({ error: 'upstream is required' });
-    }
-
-    const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
-    const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-    const updated = replaceSiteBlock(caddyfile, domain, newBlock);
-    await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
-
-    // Reload Caddy with new config
-    const { caddyLoad } = await import('../caddy.js');
-    await caddyLoad(updated);
-
-    res.json({ ok: true, domain });
-});
-
 // DELETE /api/routes/:id
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
@@ -243,4 +331,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
-export { buildReverseProxyRoute, buildCaddyfileBlock, removeSiteBlock, replaceSiteBlock, isSimpleReverseProxy };
+export { buildReverseProxyRoute, buildCaddyfileBlock, removeSiteBlock, replaceSiteBlock, extractSiteBlock, isSimpleReverseProxy };
