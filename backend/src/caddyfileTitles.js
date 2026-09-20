@@ -1,4 +1,5 @@
 import { readFile } from 'fs/promises';
+import { getCaddyEnv, resolveEnvVars } from './docker.js';
 import logger from './logger.js';
 
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
@@ -73,7 +74,8 @@ export function injectTitleComment(blockContent, title) {
     return lines.join('\n');
 }
 
-export function parseCaddyfileTitles(caddyfileContent) {
+export async function parseCaddyfileTitles(caddyfileContent) {
+    const env = await getCaddyEnv();
     const titles = {};
     const lines = caddyfileContent.split('\n');
     let i = 0;
@@ -83,7 +85,9 @@ export function parseCaddyfileTitles(caddyfileContent) {
         const blockMatch = trimmed.match(/^(\S+)\s*\{$/);
         if (!blockMatch) { i++; continue; }
 
-        const domain = blockMatch[1];
+        const rawAddr = blockMatch[1];
+        const resolved = resolveEnvVars(rawAddr, env);
+        const domain = resolved.replace(/^https?:\/\//, '');
         let depth = 1;
         i++;
 

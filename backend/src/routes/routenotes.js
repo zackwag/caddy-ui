@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
     if (caddyfileTitlesEnabled()) {
         try {
             const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
-            const titles = parseCaddyfileTitles(caddyfile);
+            const titles = await parseCaddyfileTitles(caddyfile);
             for (const [domain, title] of Object.entries(titles)) {
                 if (title) notes[domain] = title;
             }

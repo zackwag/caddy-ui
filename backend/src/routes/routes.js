@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
+import { getCaddyEnv, resolveEnvVars } from '../docker.js';
 import logger from '../logger.js';
 
 const router = Router();
@@ -49,7 +50,15 @@ function buildCaddyfileBlock({ domain, upstream, stripPrefix }) {
     return lines.join('\n');
 }
 
-function removeSiteBlock(caddyfile, domain) {
+function matchesSiteAddress(trimmedLine, domain, env) {
+    if (!trimmedLine.endsWith('{')) return false;
+    const addr = trimmedLine.slice(0, -1).trim();
+    const resolved = env ? resolveEnvVars(addr, env) : addr;
+    const bare = resolved.replace(/^https?:\/\//, '');
+    return bare === domain;
+}
+
+function removeSiteBlock(caddyfile, domain, env) {
     const lines = caddyfile.split('\n');
     const result = [];
     let skip = false;
@@ -60,11 +69,7 @@ function removeSiteBlock(caddyfile, domain) {
         const trimmed = line.trim();
 
         if (!skip) {
-            if (
-                trimmed === `${domain} {` ||
-                trimmed === `http://${domain} {` ||
-                trimmed === `https://${domain} {`
-            ) {
+            if (matchesSiteAddress(trimmed, domain, env)) {
                 skip = true;
                 depth = 1;
                 pendingBlank = false;
@@ -91,12 +96,12 @@ function removeSiteBlock(caddyfile, domain) {
     return result.join('\n').trimEnd() + '\n';
 }
 
-function replaceSiteBlock(caddyfile, oldDomain, newBlock) {
-    const cleaned = removeSiteBlock(caddyfile, oldDomain);
+function replaceSiteBlock(caddyfile, oldDomain, newBlock, env) {
+    const cleaned = removeSiteBlock(caddyfile, oldDomain, env);
     return `${cleaned.trimEnd()}\n\n${newBlock}\n`;
 }
 
-function extractSiteBlock(caddyfile, domain) {
+function extractSiteBlock(caddyfile, domain, env) {
     const lines = caddyfile.split('\n');
     const result = [];
     let found = false;
@@ -106,11 +111,7 @@ function extractSiteBlock(caddyfile, domain) {
         const trimmed = line.trim();
 
         if (!found) {
-            if (
-                trimmed === `${domain} {` ||
-                trimmed === `http://${domain} {` ||
-                trimmed === `https://${domain} {`
-            ) {
+            if (matchesSiteAddress(trimmed, domain, env)) {
                 found = true;
                 depth = 1;
                 result.push(line);
@@ -202,8 +203,8 @@ router.post('/', async (req, res) => {
 router.get('/caddyfile/:domain', async (req, res) => {
     const { domain } = req.params;
     try {
-        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
-        const block = extractSiteBlock(caddyfile, domain);
+        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const block = extractSiteBlock(caddyfile, domain, env);
         if (!block) return res.status(404).json({ error: 'site block not found' });
 
         if (caddyfileTitlesEnabled()) {
@@ -227,8 +228,8 @@ router.patch('/caddyfile/:domain', async (req, res) => {
     }
 
     try {
-        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
-        const existing = extractSiteBlock(caddyfile, domain);
+        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const existing = extractSiteBlock(caddyfile, domain, env);
         if (!existing) return res.status(404).json({ error: 'site block not found' });
 
         let finalContent = content.trim();
@@ -236,7 +237,7 @@ router.patch('/caddyfile/:domain', async (req, res) => {
             finalContent = injectTitleComment(finalContent, title);
         }
 
-        const cleaned = removeSiteBlock(caddyfile, domain);
+        const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${finalContent}\n`;
         await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
 
@@ -255,11 +256,11 @@ router.patch('/caddyfile/:domain', async (req, res) => {
 router.delete('/caddyfile/:domain', async (req, res) => {
     const { domain } = req.params;
     try {
-        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
-        const existing = extractSiteBlock(caddyfile, domain);
+        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const existing = extractSiteBlock(caddyfile, domain, env);
         if (!existing) return res.status(404).json({ error: 'site block not found' });
 
-        const cleaned = removeSiteBlock(caddyfile, domain);
+        const cleaned = removeSiteBlock(caddyfile, domain, env);
         await writeFile(CADDY_CONFIG_PATH, cleaned, 'utf8');
 
         const { caddyLoad } = await import('../caddy.js');
@@ -295,9 +296,9 @@ router.patch('/:id', async (req, res) => {
 
     // Update Caddyfile block
     if (oldDomain) {
-        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
+        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
         const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-        const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock);
+        const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock, env);
         await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
     }
 
@@ -321,8 +322,8 @@ router.delete('/:id', async (req, res) => {
     await caddyDelete(`/id/${id}`);
 
     if (domain) {
-        const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
-        const cleaned = removeSiteBlock(caddyfile, domain);
+        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const cleaned = removeSiteBlock(caddyfile, domain, env);
         await writeFile(CADDY_CONFIG_PATH, cleaned, 'utf8');
     }
 
