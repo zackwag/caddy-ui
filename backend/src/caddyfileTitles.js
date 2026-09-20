@@ -2,7 +2,6 @@ import { readFile } from 'fs/promises';
 import logger from './logger.js';
 
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
-const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 
 let _enabled = null;
 
