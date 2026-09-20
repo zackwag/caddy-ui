@@ -8,6 +8,19 @@ function generateId(name) {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `instance-${Date.now()}`;
 }
 
+function validateAdminUrl(url) {
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch {
+        throw new Error(`Invalid admin URL: ${url}`);
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+        throw new Error('Admin URL must use http or https');
+    }
+    return parsed.href;
+}
+
 // GET /api/instances
 router.get('/', (req, res) => {
     res.json(getInstances());
@@ -36,12 +49,18 @@ router.post('/', async (req, res) => {
     if (!name || !adminUrl) {
         return res.status(400).json({ error: 'name and adminUrl are required' });
     }
+    let validatedUrl;
+    try {
+        validatedUrl = validateAdminUrl(adminUrl);
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
     const id = generateId(name);
     try {
         const instance = await addInstance({
             id,
             name,
-            adminUrl,
+            adminUrl: validatedUrl,
             configPath: configPath || '/etc/caddy/Caddyfile',
             logPath: logPath || '/var/log/caddy/access.log',
             dataPath: dataPath || '/data/caddy/caddy',
@@ -59,6 +78,13 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { name, adminUrl, configPath, logPath, dataPath, containerName, serverName } = req.body;
+    if (adminUrl) {
+        try {
+            validateAdminUrl(adminUrl);
+        } catch (err) {
+            return res.status(400).json({ error: err.message });
+        }
+    }
     try {
         const instance = await updateInstance(id, { name, adminUrl, configPath, logPath, dataPath, containerName, serverName });
         res.json(instance);
