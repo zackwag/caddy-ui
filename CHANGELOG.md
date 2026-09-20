@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.2](https://github.com/zackwag/caddy-ui/compare/v1.21.1...v1.21.2) (2026-09-20)
+
+
+### Bug Fixes
+
+* resolve Caddyfile env vars when matching site blocks ([#69](https://github.com/zackwag/caddy-ui/issues/69)) ([4c60d88](https://github.com/zackwag/caddy-ui/commit/4c60d88ebcf76c9b83c17d2186dd21eee81bc0cd))
+
 ## [1.21.1](https://github.com/zackwag/caddy-ui/compare/v1.21.0...v1.21.1) (2026-09-20)
 
 
