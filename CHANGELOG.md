@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.21.0](https://github.com/zackwag/caddy-ui/compare/v1.20.1...v1.21.0) (2026-09-20)
+
+
+### Features
+
+* inline caddyfile editor in edit modal with title comments ([#62](https://github.com/zackwag/caddy-ui/issues/62)) ([4763183](https://github.com/zackwag/caddy-ui/commit/4763183da8240a3ad3782061dd6aa0462f8fe5f6))
+
+
+### Bug Fixes
+
+* add API rate limiting ([#63](https://github.com/zackwag/caddy-ui/issues/63)) ([52a8383](https://github.com/zackwag/caddy-ui/commit/52a8383f3df49bfd787aeeb81e808e02225696a7))
+
 ## [1.20.1](https://github.com/zackwag/caddy-ui/compare/v1.20.0...v1.20.1) (2026-09-20)
 
 
