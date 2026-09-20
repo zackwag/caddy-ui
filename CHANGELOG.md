@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.1](https://github.com/zackwag/caddy-ui/compare/v1.20.0...v1.20.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* mobile view fixes across the app ([#60](https://github.com/zackwag/caddy-ui/issues/60)) ([11dff29](https://github.com/zackwag/caddy-ui/commit/11dff295772e3d4cb8b9872d7a8cfba51031ae82))
+
 ## [1.20.0](https://github.com/zackwag/caddy-ui/compare/v1.19.0...v1.20.0) (2026-09-19)
 
 
