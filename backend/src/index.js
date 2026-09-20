@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 3001;
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
 const APP_VERSION = process.env.APP_VERSION || 'dev';
 
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
