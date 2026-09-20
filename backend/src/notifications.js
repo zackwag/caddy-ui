@@ -225,7 +225,7 @@ function validateWebhookUrl(url) {
         || host.endsWith('.internal') || host === 'metadata.google.internal') {
         throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
     }
-    return parsed.href;
+    return url;
 }
 
 export async function sendNotification(cfg, { title, message, priority }) {
