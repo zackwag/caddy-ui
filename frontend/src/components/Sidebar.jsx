@@ -14,13 +14,13 @@ const NAV = [
     { path: "/notifications", label: "Notifications", icon: "⊘" },
 ];
 
-export default function Sidebar({ currentPath, status, authEnabled, onUnauth, sidebarOpen, setSidebarOpen }) {
+export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen }) {
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
 
     useEffect(() => {
         apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
-    }, []);
+    }, [onUnauth]);
 
     const go = (path) => {
         navigate(path);
@@ -37,6 +37,7 @@ export default function Sidebar({ currentPath, status, authEnabled, onUnauth, si
                     <span className="status-pill-text">
                         {status ? (status.online ? "connected" : "unreachable") : "checking..."}
                     </span>
+                    <button className="status-refresh" onClick={onRefreshStatus} title="Refresh status">↺</button>
                 </div>
             </div>
             <nav className="nav">

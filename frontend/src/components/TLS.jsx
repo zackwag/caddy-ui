@@ -1,22 +1,23 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch, getToken } from "../utils/api.js";
 
-export default function TLS({ toast, onUnauth }) {
+export default function TLS({ toast, onUnauth, confirm }) {
     const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
 
-    const load = () => {
+    const load = useCallback(() => {
         setLoading(true);
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(e => toast.error(e.message)).finally(() => setLoading(false));
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
+    }, [onUnauth]);
 
-    useEffect(load, []);
+    useEffect(load, [load]);
 
     const deleteCert = async (cert) => {
-        if (!confirm(`Delete ${cert.status} cert for ${cert.domain}?`)) return;
+        if (!await confirm(`Delete ${cert.status} cert for ${cert.domain}?`, { confirmLabel: "Delete", danger: true })) return;
         try {
             await apiFetch(`/tls/${cert.domain}`, { method: "DELETE" }, onUnauth);
             toast.success(`Deleted cert for ${cert.domain}`); load();
@@ -111,7 +112,10 @@ export default function TLS({ toast, onUnauth }) {
                             ))}
                         </div>
                     </div>
-                    <button className="btn btn-primary" onClick={downloadCA} style={{ flexShrink: 0 }}>↓ Download Root CA</button>
+                    <div className="btn-row tls-ca-actions">
+                        <button className="btn btn-ghost tls-refresh--mobile" onClick={load}>↺ Refresh</button>
+                        <button className="btn btn-primary" onClick={downloadCA}>↓ Download Root CA</button>
+                    </div>
                 </div>
             </div>
 
@@ -156,7 +160,7 @@ export default function TLS({ toast, onUnauth }) {
                                 {summary.superseded} superseded
                             </span>
                         )}
-                        <button className="btn btn-ghost btn--sm" onClick={load}>↺ Refresh</button>
+                        <button className="btn btn-ghost btn--sm tls-refresh--desktop" onClick={load}>↺ Refresh</button>
                     </div>
                 </div>
                 {sorted.length === 0 ? (

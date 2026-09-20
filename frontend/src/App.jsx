@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import CaddyFile from "./components/CaddyFile.jsx";
+import { ConfirmDialog, useConfirm } from "./components/Confirm.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import Login from "./components/Login.jsx";
 import Logs from "./components/Logs.jsx";
@@ -36,6 +37,7 @@ export default function App() {
     const [sessionExpired, setSessionExpired] = useState(false);
     const [theme, setTheme] = useState(getTheme);
     const toast = useToast();
+    const { dialog: confirmDialog, confirm, resolve: resolveConfirm } = useConfirm();
 
     const onUnauth = useCallback(() => {
         const wasAuthed = !!getToken();
@@ -90,6 +92,7 @@ export default function App() {
                     <Sidebar
                         currentPath={basePath}
                         status={status}
+                        onRefreshStatus={fetchStatus}
                         authEnabled={authEnabled}
                         onUnauth={onUnauth}
                         sidebarOpen={sidebarOpen}
@@ -104,18 +107,17 @@ export default function App() {
                             </div>
                             <div className="btn-row">
                                 <button className="theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-                                    {theme === 'dark' ? '☀' : '☾'}
+                                    {theme === 'dark' ? '☀︎' : '☾︎'}
                                 </button>
-                                <button className="btn btn-ghost btn--sm" onClick={fetchStatus}>↺ Status</button>
                             </div>
                         </div>
                         <div className="content">
                             <Routes>
                                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                                 <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
-                                <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} />} />
-                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} />} />
-                                <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} />} />
+                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
+                                <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
                                 <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/notifications" element={<Notifications toast={toast} onUnauth={onUnauth} />} />
@@ -124,6 +126,7 @@ export default function App() {
                         </div>
                     </div>
                     <Toasts toasts={toast.toasts} />
+                    <ConfirmDialog dialog={confirmDialog} resolve={resolveConfirm} />
                 </div>
             )}
         </>

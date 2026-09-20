@@ -64,15 +64,13 @@ export default function Notifications({ toast, onUnauth }) {
                 <div className="card-title">Notifications</div>
 
                 <div className="field">
-                    <label className="config-checkbox-label">
-                        <input
-                            type="checkbox"
-                            className="config-checkbox"
-                            checked={config.enabled}
-                            onChange={e => update({ enabled: e.target.checked })}
-                        />
-                        Enable notifications
-                    </label>
+                    <button
+                        type="button"
+                        className={`btn notifications-enabled-btn ${config.enabled ? "btn-danger" : "btn-primary"}`}
+                        onClick={() => update({ enabled: !config.enabled })}
+                    >
+                        {config.enabled ? "Disable Notifications" : "Enable Notifications"}
+                    </button>
                 </div>
 
                 <div className="config-section-divider" />
@@ -263,11 +261,11 @@ export default function Notifications({ toast, onUnauth }) {
                 </div>
             </div>
 
-            <div className="btn-row">
-                <button className="btn btn-primary" onClick={save} disabled={saving}>
+            <div className="btn-row notif-footer-actions">
+                <button className="btn btn-primary notif-save-btn" onClick={save} disabled={saving}>
                     {saving ? 'Saving...' : 'Save'}
                 </button>
-                <button className="btn btn-ghost" onClick={test} disabled={testing || !config.enabled}>
+                <button className="btn btn-ghost notif-test-btn" onClick={test} disabled={testing || !config.enabled}>
                     {testing ? 'Sending...' : 'Test notification'}
                 </button>
             </div>
