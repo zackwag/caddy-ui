@@ -50,6 +50,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Dark/Light Theme** — Toggle between dark and warm off-white themes, persisted across sessions
 - **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
 - **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
+- **Multi-Instance** — Manage multiple Caddy instances from a single UI with an instance switcher in the sidebar, per-instance online/offline status, and automatic data reload on switch
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
 ## Architecture
@@ -66,6 +67,7 @@ graph LR
     HX[("History\n/etc/caddy-ui/history")]
     RN[("Route Notes\n/etc/caddy-ui")]
     NT[("Notifications\n/etc/caddy-ui")]
+    IN[("Instances\n/etc/caddy-ui")]
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
@@ -80,6 +82,7 @@ graph LR
     BE <-->|"snapshot / restore"| HX
     BE <-->|"read / write"| RN
     BE <-->|"read / write"| NT
+    BE <-->|"read / write"| IN
     CA <-->|"reload from"| CF
 ```
 
@@ -204,6 +207,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
+| `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](#multi-instance)) |
 | `JWT_SECRET` | — | Secret key for signing JWT tokens |
 | `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
 | `NOTIFICATIONS_CONFIG_PATH` | `/etc/caddy-ui/notifications.json` | Path to the notification settings file |
@@ -214,6 +218,41 @@ All backend variables have sensible defaults. Only set what you need to override
 ## Authentication
 
 Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. All API endpoints are protected and the login screen appears automatically.
+
+## Multi-Instance
+
+By default caddy/ui manages a single Caddy instance using the environment variables above. To manage multiple Caddy instances, create an `instances.json` file (or use the `POST /api/instances` endpoint):
+
+```json
+[
+  {
+    "id": "production",
+    "name": "Production",
+    "adminUrl": "http://caddy:2019",
+    "configPath": "/etc/caddy/Caddyfile",
+    "logPath": "/var/log/caddy/access.log",
+    "dataPath": "/data/caddy/caddy",
+    "containerName": "caddy",
+    "serverName": "srv0"
+  },
+  {
+    "id": "staging",
+    "name": "Staging",
+    "adminUrl": "http://caddy-staging:2019",
+    "configPath": "/etc/caddy-staging/Caddyfile",
+    "logPath": "/var/log/caddy-staging/access.log",
+    "dataPath": "/data/caddy-staging/caddy",
+    "containerName": "caddy-staging",
+    "serverName": "srv0"
+  }
+]
+```
+
+Place this file at `/etc/caddy-ui/instances.json` (or set `INSTANCES_PATH`). When more than one instance is configured, an instance switcher appears in the sidebar showing each instance with its online/offline status. Switching instances reloads all tabs with data from the selected instance.
+
+Each instance needs its own volumes mounted into the backend container — Caddyfile, logs, and data paths must be accessible at the paths specified in the config. Each Caddy instance's admin API must be reachable from the backend container over the Docker network.
+
+If no `instances.json` exists, a single default instance is created automatically from the environment variables — no configuration required.
 
 ## Caddyfile Titles
 
@@ -321,14 +360,17 @@ caddy-ui/
 │   │   ├── caddy.js
 │   │   ├── caddyfileTitles.js
 │   │   ├── docker.js
+│   │   ├── instances.js
 │   │   ├── logger.js
 │   │   ├── notifications.js
 │   │   ├── middleware/
-│   │   │   └── auth.js
+│   │   │   ├── auth.js
+│   │   │   └── instance.js
 │   │   └── routes/
 │   │       ├── auth.js
 │   │       ├── caddyfile.js
 │   │       ├── health.js
+│   │       ├── instances.js
 │   │       ├── logs.js
 │   │       ├── metrics.js
 │   │       ├── notifications.js
