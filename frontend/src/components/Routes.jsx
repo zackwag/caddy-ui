@@ -494,7 +494,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
             {editModal && (
                 <EditModal
                     route={editModal.route}
-                    initialNote={editModal.caddyfileTitle !== null ? (editModal.caddyfileTitle || "") : (notes[editModal.domain] || "")}
+                    initialNote={editModal.caddyfileTitle || notes[editModal.domain] || ""}
                     isCaddyfileManaged={editModal.isCaddyfileManaged}
                     initialContent={editModal.content || ""}
                     titleNeedsMigration={editModal.isCaddyfileManaged && editModal.caddyfileTitle !== null && !editModal.caddyfileTitle && !!notes[editModal.domain]}
