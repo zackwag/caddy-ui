@@ -79,7 +79,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
     return <div ref={containerRef} className="modal-editor-wrap" style={{ minHeight: 180, background: theme === 'dark' ? "#0a0c0f" : "#f0ebe4" }} />;
 }
 
-function EditModal({ route, initialNote, isCaddyfileManaged, initialContent, onSave, onDelete, onClose, theme }) {
+function EditModal({ route, initialNote, isCaddyfileManaged, initialContent, titleNeedsMigration, onSave, onDelete, onClose, theme }) {
     const [form, setForm] = useState({
         domain: route.domain || "",
         upstream: route.upstream || "",
@@ -112,7 +112,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, initialContent, onS
                 <div className="field">
                     <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Home Assistant, media server..." onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }} />
                 </div>
-                <div className="modal-hint">Leave blank to clear the title.</div>
+                <div className="modal-hint">{titleNeedsMigration ? "Save to store this title as a comment in your Caddyfile." : "Leave blank to clear the title."}</div>
 
                 {isCaddyfileManaged ? (
                     <>
@@ -497,6 +497,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                     initialNote={editModal.caddyfileTitle !== null ? (editModal.caddyfileTitle || "") : (notes[editModal.domain] || "")}
                     isCaddyfileManaged={editModal.isCaddyfileManaged}
                     initialContent={editModal.content || ""}
+                    titleNeedsMigration={editModal.isCaddyfileManaged && editModal.caddyfileTitle !== null && !editModal.caddyfileTitle && !!notes[editModal.domain]}
                     onSave={handleEditSave}
                     onDelete={() => deleteCaddyfileBlock(editModal.domain)}
                     onClose={() => setEditModal(null)}

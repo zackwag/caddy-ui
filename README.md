@@ -194,6 +194,7 @@ All backend variables have sensible defaults. Only set what you need to override
 |----------|---------|-------------|
 | `APP_VERSION` | `dev` | caddy-ui's own version, exposed at `GET /api/version` and shown in the sidebar. Baked in automatically by the release build (`docker build --build-arg APP_VERSION=...`) — no need to set by hand unless building from source and want the UI to report a specific version. |
 | `CADDY_ADMIN_URL` | `http://caddy:2019` | URL of Caddy's admin API |
+| `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](#caddyfile-titles)) |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the container |
 | `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy container (used for `docker exec`) |
 | `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory |
@@ -213,6 +214,23 @@ All backend variables have sensible defaults. Only set what you need to override
 ## Authentication
 
 Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. All API endpoints are protected and the login screen appears automatically.
+
+## Caddyfile Titles
+
+When enabled, route titles are stored as `#` comments inside each site block in your Caddyfile instead of in `route-notes.json`. This keeps titles co-located with the routes they describe and follows caddy/ui's principle of using the Caddyfile as the source of truth.
+
+```caddyfile
+blog.example.com {
+    # My Blog
+    reverse_proxy 192.168.4.88:8250
+}
+```
+
+The first `#` comment inside a site block is treated as the title. It appears in the Route Manager search results and in the edit modal's Title field.
+
+**Auto-detection (default):** On startup, if `route-notes.json` has existing entries, Caddyfile titles are disabled so nothing changes. On a fresh install with no notes, it is enabled automatically.
+
+**Manual override:** Set the `CADDYFILE_TITLES` environment variable to `true` or `false` to force the behavior. When switching from `route-notes.json` to Caddyfile titles, existing notes will appear as the default title in the edit modal — save the route to write the title into the Caddyfile.
 
 ## Environment Variables in Caddyfile
 
@@ -301,6 +319,7 @@ caddy-ui/
 │   ├── src/
 │   │   ├── index.js
 │   │   ├── caddy.js
+│   │   ├── caddyfileTitles.js
 │   │   ├── docker.js
 │   │   ├── logger.js
 │   │   ├── notifications.js
