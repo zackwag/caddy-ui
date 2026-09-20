@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/zackwag/caddy-ui/compare/v1.21.2...v1.22.0) (2026-09-20)
+
+
+### Features
+
+* add sortable Title column to route table ([#71](https://github.com/zackwag/caddy-ui/issues/71)) ([8116634](https://github.com/zackwag/caddy-ui/commit/81166345ed72363e700a7e176ac6ef70978f46f9))
+
 ## [1.21.2](https://github.com/zackwag/caddy-ui/compare/v1.21.1...v1.21.2) (2026-09-20)
 
 
