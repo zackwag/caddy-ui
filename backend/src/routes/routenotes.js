@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
+import { caddyGet } from '../caddy.js';
+import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
+import logger from '../logger.js';
 
 const router = Router();
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
+const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 
 async function readNotes() {
     try {
@@ -20,6 +24,17 @@ async function writeNotes(notes) {
 // GET /api/route-notes
 router.get('/', async (req, res) => {
     const notes = await readNotes();
+
+    if (caddyfileTitlesEnabled()) {
+        try {
+            const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
+            const titles = parseCaddyfileTitles(caddyfile);
+            for (const [domain, title] of Object.entries(titles)) {
+                if (title) notes[domain] = title;
+            }
+        } catch { /* caddyfile unreadable — return notes only */ }
+    }
+
     res.json(notes);
 });
 
@@ -36,5 +51,41 @@ router.put('/:domain', async (req, res) => {
     await writeNotes(notes);
     res.json({ ok: true });
 });
+
+export async function cleanupOrphanedNotes() {
+    try {
+        const notes = await readNotes();
+        const domains = Object.keys(notes);
+        if (domains.length === 0) return;
+
+        const activeDomains = new Set();
+        const servers = await caddyGet('/config/apps/http/servers').catch(() => null);
+        if (!servers) return;
+
+        for (const server of Object.values(servers)) {
+            for (const route of server.routes || []) {
+                const hosts = route.match?.find(m => m.host)?.host || [];
+                for (const h of hosts) activeDomains.add(h);
+            }
+        }
+
+        let removed = 0;
+        for (const domain of domains) {
+            const domainParts = domain.split(', ');
+            const stillActive = domainParts.some(d => activeDomains.has(d));
+            if (!stillActive) {
+                delete notes[domain];
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            await writeNotes(notes);
+            logger.info(`Cleaned up orphaned route notes`, { removed });
+        }
+    } catch (e) {
+        logger.warn(`Route notes cleanup failed`, { error: e.message });
+    }
+}
 
 export default router;

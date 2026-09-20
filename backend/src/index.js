@@ -10,7 +10,8 @@ import healthRouter from './routes/health.js';
 import logsRouter from './routes/logs.js';
 import metricsRouter from './routes/metrics.js';
 import notificationsRouter from './routes/notifications.js';
-import routenotesRouter from './routes/routenotes.js';
+import { initCaddyfileTitles } from './caddyfileTitles.js';
+import routenotesRouter, { cleanupOrphanedNotes } from './routes/routenotes.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
@@ -104,4 +105,5 @@ app.listen(PORT, () => {
     logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });
     logger.info(`Public metrics`, { enabled: publicMetrics });
     initMonitor();
+    initCaddyfileTitles().then(() => cleanupOrphanedNotes());
 });

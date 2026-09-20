@@ -1,8 +1,85 @@
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiFetch } from "../utils/api.js";
 
-function EditModal({ route, initialNote, isCaddyfileManaged, onSaveRoute, onSaveNote, onClose, onGoToCaddyfile }) {
+function MiniCodeMirror({ value, onChange, theme }) {
+    const containerRef = useRef(null);
+    const viewRef = useRef(null);
+    const onChangeRef = useRef(onChange);
+
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+        let view;
+
+        async function init() {
+            const { EditorView, keymap, lineNumbers, highlightActiveLineGutter, drawSelection, highlightSpecialChars } = await import("@codemirror/view");
+            const { EditorState } = await import("@codemirror/state");
+            const { defaultKeymap, historyKeymap, history } = await import("@codemirror/commands");
+            const { StreamLanguage, syntaxHighlighting, indentOnInput, bracketMatching } = await import("@codemirror/language");
+            const { classHighlighter } = await import("@lezer/highlight");
+            const { caddyfile } = await import("../lib/caddyfileMode.js");
+
+            const isDark = theme === 'dark';
+
+            const editorTheme = EditorView.theme({
+                "&": { background: isDark ? "#0a0c0f" : "#f0ebe4", color: isDark ? "#c9d1e0" : "#2c2825", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace" },
+                ".cm-content": { padding: "12px", caretColor: "var(--accent)", lineHeight: "1.7" },
+                ".cm-gutters": { background: isDark ? "#0d0f12" : "#e8e2db", color: isDark ? "#586275" : "#8a7f75", border: "none", borderRight: `1px solid ${isDark ? "#1e2329" : "#d0c8c0"}`, paddingRight: "8px" },
+                ".cm-activeLineGutter": { background: isDark ? "rgba(0,229,160,0.05)" : "rgba(0,149,107,0.05)" },
+                ".cm-activeLine": { background: isDark ? "rgba(0,229,160,0.03)" : "rgba(0,149,107,0.03)" },
+                ".cm-cursor": { borderLeftColor: "var(--accent)" },
+                ".cm-selectionBackground, ::selection": { background: isDark ? "rgba(0,153,255,0.2) !important" : "rgba(0,119,204,0.15) !important" },
+                ".cm-line": { padding: "0 4px" },
+                ".tok-keyword": { color: isDark ? "#00e5a0" : "#00956b" },
+                ".tok-string": { color: isDark ? "#ffb830" : "#b36000" },
+                ".tok-comment": { color: isDark ? "#586275" : "#8a7f75", fontStyle: "italic" },
+                ".tok-number": { color: isDark ? "#0099ff" : "#0077cc" },
+                ".tok-operator": { color: isDark ? "#c9d1e0" : "#2c2825" },
+                ".tok-variableName": { color: isDark ? "#ff4d6a" : "#cc2233" },
+                ".tok-typeName": { color: isDark ? "#00e5a0" : "#00956b" },
+                ".tok-atom": { color: isDark ? "#ffb830" : "#b36000" },
+                ".tok-propertyName": { color: isDark ? "#0099ff" : "#0077cc" },
+                ".tok-variableName2": { color: isDark ? "#b388ff" : "#7c4dff" },
+                "& .cm-scroller": { overflow: "auto" },
+            }, { dark: isDark });
+
+            const startState = EditorState.create({
+                doc: value,
+                extensions: [
+                    lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
+                    history(), drawSelection(), indentOnInput(), bracketMatching(),
+                    syntaxHighlighting(classHighlighter),
+                    StreamLanguage.define(caddyfile), editorTheme,
+                    keymap.of([...defaultKeymap, ...historyKeymap]),
+                    EditorView.updateListener.of(update => {
+                        if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+                    }),
+                    EditorView.lineWrapping,
+                ],
+            });
+
+            view = new EditorView({ state: startState, parent: containerRef.current });
+            viewRef.current = view;
+        }
+
+        init();
+        return () => { view?.destroy(); viewRef.current = null; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [theme]);
+
+    useEffect(() => {
+        const view = viewRef.current;
+        if (!view) return;
+        const current = view.state.doc.toString();
+        if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+    }, [value]);
+
+    return <div ref={containerRef} className="modal-editor-wrap" style={{ minHeight: 180, background: theme === 'dark' ? "#0a0c0f" : "#f0ebe4" }} />;
+}
+
+function EditModal({ route, initialNote, isCaddyfileManaged, initialContent, onSave, onDelete, onClose, theme }) {
     const [form, setForm] = useState({
         domain: route.domain || "",
         upstream: route.upstream || "",
@@ -10,23 +87,43 @@ function EditModal({ route, initialNote, isCaddyfileManaged, onSaveRoute, onSave
         _id: route._id || null,
         _originalDomain: route._originalDomain || null,
     });
-    const [note, setNote] = useState(initialNote || "");
+    const [title, setTitle] = useState(initialNote || "");
+    const [content, setContent] = useState(initialContent || "");
+    const [saving, setSaving] = useState(false);
     const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+    const canSave = isCaddyfileManaged ? content.trim().length > 0 : !!form.upstream;
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await onSave({ form, title, content });
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={isCaddyfileManaged ? { width: 560 } : undefined}>
                 <div className="modal-title">Edit Route</div>
+
+                <div className="modal-section-label">Title</div>
+                <div className="field">
+                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Home Assistant, media server..." onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }} />
+                </div>
+                <div className="modal-hint">Leave blank to clear the title.</div>
 
                 {isCaddyfileManaged ? (
                     <>
-                        <div className="caddyfile-notice">
-                            This route is defined in the Caddyfile and cannot be edited here.
+                        <div className="modal-section-label">Caddyfile</div>
+                        <div className="editor-wrap" style={{ marginBottom: 16 }}>
+                            <MiniCodeMirror value={content} onChange={setContent} theme={theme} />
                         </div>
-                        <button className="btn btn-ghost btn--sm" style={{ marginBottom: 20 }} onClick={onGoToCaddyfile}>⌗ Edit in Caddyfile →</button>
                     </>
                 ) : (
                     <>
+                        <div className="modal-section-divider" />
                         <div className="field">
                             <label>Domain</label>
                             <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" disabled={!form._id} />
@@ -39,23 +136,17 @@ function EditModal({ route, initialNote, isCaddyfileManaged, onSaveRoute, onSave
                             <label>Strip Prefix (optional)</label>
                             <input value={form.stripPrefix} onChange={set("stripPrefix")} placeholder="/api" />
                         </div>
-                        <div className="btn-row flex-end" style={{ marginBottom: 20 }}>
-                            <button className="btn btn-primary" onClick={() => onSaveRoute(form)} disabled={!form.upstream}>
-                                Save Route
-                            </button>
-                        </div>
                     </>
                 )}
 
-                <div className="modal-section-divider" />
-                <div className="modal-section-label">Note</div>
-                <div className="field">
-                    <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Home Assistant, media server..." onKeyDown={e => e.key === 'Enter' && onSaveNote(note)} />
-                </div>
-                <div className="modal-hint">Leave blank to clear the note.</div>
-                <div className="btn-row flex-end">
-                    <button className="btn btn-ghost" onClick={onClose}>Close</button>
-                    <button className="btn btn-primary" onClick={() => onSaveNote(note)}>Save Note</button>
+                <div className="btn-row" style={{ justifyContent: "space-between" }}>
+                    {isCaddyfileManaged ? (
+                        <button className="btn btn-danger" onClick={onDelete}>Delete</button>
+                    ) : <span />}
+                    <div className="btn-row">
+                        <button className="btn btn-ghost" onClick={onClose}>Close</button>
+                        <button className="btn btn-primary" onClick={handleSave} disabled={!canSave || saving}>{saving ? "Saving..." : "Save"}</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -93,8 +184,7 @@ function NewRouteModal({ onSave, onClose }) {
     );
 }
 
-export default function Routes({ toast, onUnauth, confirm }) {
-    const navigate = useNavigate();
+export default function Routes({ toast, onUnauth, confirm, theme }) {
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
@@ -149,28 +239,47 @@ export default function Routes({ toast, onUnauth, confirm }) {
         } catch (e) { toast.error(e.message); }
     };
 
-    const editRoute = async (form) => {
+    const deleteCaddyfileBlock = async (domain) => {
+        if (!await confirm("Delete this route? This will remove the site block from the Caddyfile.", { confirmLabel: "Delete", danger: true })) return;
         try {
-            await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
-            toast.success("Route updated");
+            await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "DELETE" }, onUnauth);
+            if (notes[domain]) {
+                await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "" }) }, onUnauth).catch(() => {});
+                setNotes(n => { const u = { ...n }; delete u[domain]; return u; });
+            }
+            toast.success("Route removed");
             setEditModal(null); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
 
-    const deleteRoute = async (id) => {
-        if (!await confirm("Delete this route?", { confirmLabel: "Delete", danger: true })) return;
+    const handleEditSave = async ({ form, title, content }) => {
+        const domain = editModal.domain;
+        const usesCaddyfileTitles = editModal.caddyfileTitle !== null;
         try {
-            await apiFetch(`/routes/${id}`, { method: "DELETE" }, onUnauth);
-            toast.success("Route removed"); load(); loadHealth();
+            if (editModal.isCaddyfileManaged) {
+                await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, title }) }, onUnauth);
+                toast.success("Caddyfile updated");
+            } else {
+                await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
+                toast.success("Route updated");
+            }
+            if (!editModal.isCaddyfileManaged || !usesCaddyfileTitles) {
+                await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: title }) }, onUnauth);
+            }
+            setNotes(n => { const u = { ...n }; if (title.trim()) u[domain] = title.trim(); else delete u[domain]; return u; });
+            setEditModal(null); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
 
-    const saveNote = async (domain, note) => {
+    const deleteRoute = async (id, domain) => {
+        if (!await confirm("Delete this route?", { confirmLabel: "Delete", danger: true })) return;
         try {
-            await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note }) }, onUnauth);
-            setNotes(n => { const u = { ...n }; if (note.trim()) u[domain] = note.trim(); else delete u[domain]; return u; });
-            toast.success(note.trim() ? "Note saved" : "Note cleared");
-            setEditModal(null);
+            await apiFetch(`/routes/${id}`, { method: "DELETE" }, onUnauth);
+            if (domain && notes[domain]) {
+                await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "" }) }, onUnauth).catch(() => {});
+                setNotes(n => { const u = { ...n }; delete u[domain]; return u; });
+            }
+            toast.success("Route removed"); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
 
@@ -194,9 +303,24 @@ export default function Routes({ toast, onUnauth, confirm }) {
 
     const getStripPrefix = (route) => (route.match?.find(m => m.path)?.path?.[0] || "").replace("/*", "");
 
-    const openEdit = (route) => {
+    const openEdit = async (route) => {
         const domain = getHost(route);
         const hasId = !!route["@id"];
+        const isCaddyfileManaged = !hasId;
+
+        let content = "";
+        let caddyfileTitle = null;
+        if (isCaddyfileManaged) {
+            try {
+                const result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, {}, onUnauth);
+                content = result.content || "";
+                if (result.title !== undefined) caddyfileTitle = result.title;
+            } catch (e) {
+                toast.error(`Failed to load site block: ${e.message}`);
+                return;
+            }
+        }
+
         setEditModal({
             route: {
                 domain,
@@ -206,7 +330,9 @@ export default function Routes({ toast, onUnauth, confirm }) {
                 _originalDomain: domain,
             },
             domain,
-            isCaddyfileManaged: !hasId,
+            isCaddyfileManaged,
+            content,
+            caddyfileTitle,
         });
     };
 
@@ -274,13 +400,16 @@ export default function Routes({ toast, onUnauth, confirm }) {
             <div className="gap-16">
                 <div className="flex-between routes-toolbar">
                     <div className="flex-center" style={{ gap: 12 }}>
-                        <input className="search-input" placeholder="Filter by domain, upstream, note, or server..." value={search} onChange={e => setSearch(e.target.value)} />
+                        <div className="search-wrap">
+                            <input className="search-input search-input--clearable" placeholder="Filter by domain, upstream, note, or server..." value={search} onChange={e => setSearch(e.target.value)} />
+                            {search && <button className="search-clear" onClick={() => setSearch("")} title="Clear filter">✕</button>}
+                        </div>
                         <span className="section-label">
                             {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} routes online`}
                         </span>
                     </div>
                     <div className="btn-row routes-toolbar-actions">
-                        <button className="btn btn-ghost btn--sm" onClick={loadHealth} disabled={healthLoading}>↺ Refresh</button>
+                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading}>↺ Refresh</button>
                         <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ Add Route</button>
                     </div>
                 </div>
@@ -350,7 +479,7 @@ export default function Routes({ toast, onUnauth, confirm }) {
                                                             onClick={() => openEdit(r)}
                                                             title="Edit route"
                                                         >✎</button>
-                                                        {hasId && <button className="btn btn-danger btn--icon" onClick={() => deleteRoute(r["@id"])}>✕</button>}
+                                                        {hasId && <button className="btn btn-danger btn--icon" onClick={() => deleteRoute(r["@id"], domain)}>✕</button>}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -365,12 +494,13 @@ export default function Routes({ toast, onUnauth, confirm }) {
             {editModal && (
                 <EditModal
                     route={editModal.route}
-                    initialNote={notes[editModal.domain] || ""}
+                    initialNote={editModal.caddyfileTitle !== null ? (editModal.caddyfileTitle || "") : (notes[editModal.domain] || "")}
                     isCaddyfileManaged={editModal.isCaddyfileManaged}
-                    onSaveRoute={editRoute}
-                    onSaveNote={(note) => saveNote(editModal.domain, note)}
-                    onGoToCaddyfile={() => { setEditModal(null); navigate("/caddyfile"); }}
+                    initialContent={editModal.content || ""}
+                    onSave={handleEditSave}
+                    onDelete={() => deleteCaddyfileBlock(editModal.domain)}
                     onClose={() => setEditModal(null)}
+                    theme={theme}
                 />
             )}
             {newModal && <NewRouteModal onSave={addRoute} onClose={() => setNewModal(false)} />}

@@ -116,7 +116,7 @@ export default function App() {
                                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                                 <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} />} />
-                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
+                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} />} />
                                 <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
                                 <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} />} />
