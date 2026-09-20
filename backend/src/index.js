@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import logger from './logger.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
 import { initMonitor } from './notifications.js';
@@ -38,8 +39,26 @@ app.use((req, res, next) => {
     next();
 });
 
+const apiLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 200,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later' },
+});
+
+const authLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 15,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts, please try again later' },
+});
+
+app.use('/api', apiLimiter);
+
 // Auth routes are always public
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authLimiter, authRouter);
 
 // GET /api/version -- always public, non-sensitive
 app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
