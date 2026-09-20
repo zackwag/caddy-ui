@@ -972,12 +972,14 @@ export const css = `
   .health-dot--none    { background: var(--border2); }
   .health-dot--pending { background: var(--muted); }
 
-  .route-note {
+  .route-note--mobile {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     color: var(--muted);
     margin-top: 2px;
+    display: none;
   }
+  .col-title { font-size: 12px; }
 
   .route-domain-cell { display: flex; align-items: center; gap: 8px; }
 
@@ -1101,6 +1103,8 @@ export const css = `
     .log-save-btn { width: 100%; justify-content: center; }
     .log-line-count--desktop { display: none; }
     .log-line-count--mobile { display: inline; margin-left: auto; }
+    .col-title { display: none; }
+    .route-note--mobile { display: block; }
     .routes-toolbar { flex-direction: column; align-items: stretch; }
     .routes-toolbar .flex-center { width: 100%; }
     .routes-toolbar-actions .btn-ghost { flex: 1 1 0; }

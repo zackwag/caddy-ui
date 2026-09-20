@@ -390,6 +390,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
     const sorted = [...filtered].sort((a, b) => {
         let valA, valB;
         if (sortCol === "domain") { valA = getHost(a); valB = getHost(b); }
+        else if (sortCol === "title") { valA = notes[getHost(a)] || ""; valB = notes[getHost(b)] || ""; }
         else if (sortCol === "upstream") { valA = getUpstream(a); valB = getUpstream(b); }
         else { valA = a._server || ""; valB = b._server || ""; }
         return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
@@ -431,6 +432,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                 <thead>
                                     <tr>
                                         <th className="th-sortable" onClick={() => handleSort("domain")}>Domain <SortIcon col="domain" /></th>
+                                        <th className="th-sortable col-title" onClick={() => handleSort("title")}>Title <SortIcon col="title" /></th>
                                         <th className="th-sortable" onClick={() => handleSort("upstream")}>Upstream <SortIcon col="upstream" /></th>
                                         <th className="th-sortable" onClick={() => handleSort("server")}>Server <SortIcon col="server" /></th>
                                         <th>ID</th>
@@ -462,10 +464,11 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                                                     </span>
                                                                 );
                                                             }) : <span className="mono">{domain}</span>}
-                                                            {note && <div className="route-note">{note}</div>}
+                                                            {note && <div className="route-note route-note--mobile">{note}</div>}
                                                         </div>
                                                     </div>
                                                 </td>
+                                                <td className="col-title cell-muted">{note || "—"}</td>
                                                 <td>
                                                     {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
                                                 </td>
