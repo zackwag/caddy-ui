@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.1](https://github.com/zackwag/caddy-ui/compare/v1.21.0...v1.21.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* set trust proxy for rate limiter behind Caddy ([#66](https://github.com/zackwag/caddy-ui/issues/66)) ([05225f6](https://github.com/zackwag/caddy-ui/commit/05225f61a9728c8f56f664978878de9d403f7d7c))
+
 ## [1.21.0](https://github.com/zackwag/caddy-ui/compare/v1.20.1...v1.21.0) (2026-09-20)
 
 
