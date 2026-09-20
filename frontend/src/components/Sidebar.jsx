@@ -23,17 +23,13 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
 
     useEffect(() => {
         apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
-        loadInstances();
-    }, [onUnauth]);
-
-    function loadInstances() {
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
         apiFetch("/instances/status", {}, onUnauth).then(results => {
             const map = {};
             for (const r of results) map[r.id] = r.online;
             setInstanceStatus(map);
         }).catch(() => { });
-    }
+    }, [onUnauth]);
 
     const switchInstance = (id) => {
         setInstanceId(id);
