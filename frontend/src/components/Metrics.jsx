@@ -23,7 +23,7 @@ export default function Metrics({ toast, onUnauth }) {
         fetch(`${API}/auth/status`).then(r => r.json()).then(d => setPublicMetrics(d.publicMetrics || false)).catch(() => { });
         const t = setInterval(load, 30000);
         return () => clearInterval(t);
-    }, [load]);
+    }, [load, onUnauth]);
 
     const toggleMetrics = async (enabled) => {
         setSavingMetrics(true);
@@ -61,7 +61,7 @@ export default function Metrics({ toast, onUnauth }) {
                                 <span className="field-label">Caddy Metrics</span>
                                 <div className="hint" style={{ marginBottom: 0 }}>Enables the Prometheus metrics endpoint on Caddy's admin API</div>
                             </div>
-                            <button className={`btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`} onClick={() => toggleMetrics(!metricsConfig?.enabled)} disabled={savingMetrics}>
+                            <button className={`btn metrics-toggle-btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`} onClick={() => toggleMetrics(!metricsConfig?.enabled)} disabled={savingMetrics}>
                                 {savingMetrics ? "Saving..." : metricsConfig?.enabled ? "Disable" : "Enable"}
                             </button>
                         </div>
@@ -73,7 +73,9 @@ export default function Metrics({ toast, onUnauth }) {
                                         {publicMetrics ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics/raw</span></> : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"}
                                     </div>
                                 </div>
-                                <span className={`badge ${publicMetrics ? "badge-green" : "badge-muted"}`}>{publicMetrics ? "ENABLED" : "DISABLED"}</span>
+                                <span className="metrics-status-text" style={{ color: publicMetrics ? "var(--accent)" : "var(--muted)" }}>
+                                    {publicMetrics ? "Enabled" : "Disabled"}
+                                </span>
                             </div>
                         </div>
                     </div>

@@ -17,12 +17,14 @@ export default function Logs({ toast, onUnauth }) {
     useEffect(() => {
         apiFetch("/logs", {}, onUnauth).then(data => setLines(data.lines || [])).catch(e => toast.error(e.message));
         apiFetch("/logs/config", {}, onUnauth).then(setLogConfig).catch(e => toast.error(e.message));
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount only; toast isn't stable across renders
+    }, [onUnauth]);
 
     useEffect(() => {
         if (!logSearch && levelFilter === "all") {
             if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: "smooth" });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only auto-scroll when new lines arrive, not on every search/filter keystroke
     }, [lines]);
 
     const toggleLive = () => {
@@ -44,6 +46,7 @@ export default function Logs({ toast, onUnauth }) {
         const l = line.toLowerCase();
         if (l.includes('"level":"error"') || l.includes('error')) return 'err';
         if (l.includes('"level":"warn"') || l.includes('warn')) return 'warn';
+        if (l.includes('"level":"info"')) return 'info';
         return '';
     };
 
@@ -56,6 +59,8 @@ export default function Logs({ toast, onUnauth }) {
     };
 
     const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
+
+    const lineCountText = `${filteredLines.length}${logSearch || levelFilter !== "all" ? ` / ${lines.length}` : ""} lines`;
 
     const exportLogs = () => {
         const linesToExport = (logSearch || levelFilter !== "all") && filteredLines.length > 0 ? filteredLines : lines;
@@ -88,10 +93,10 @@ export default function Logs({ toast, onUnauth }) {
         finally { setSavingConfig(false); }
     };
 
-    const levelBtn = (level, label, color) => (
+    const levelBtn = (level, label) => (
         <button
-            className="btn btn-ghost btn--icon"
-            style={{ fontSize: 10, borderColor: levelFilter === level ? color : "var(--border2)", color: levelFilter === level ? color : "var(--muted)" }}
+            className={`btn btn-ghost btn--icon level-btn level-btn--${level} ${levelFilter === level ? "is-active" : ""}`}
+            style={{ fontSize: 10 }}
             onClick={() => setLevelFilter(levelFilter === level ? "all" : level)}
         >
             {label}
@@ -114,12 +119,15 @@ export default function Logs({ toast, onUnauth }) {
                 {configOpen && logConfig && (
                     <div className="card-body">
                         <div className="config-grid">
-                            <div>
+                            <div className="log-config-enabled">
                                 <span className="field-label">Logging</span>
-                                <label className="config-checkbox-label">
-                                    <input type="checkbox" className="config-checkbox" checked={logConfig.enabled} onChange={e => updateConfig("enabled", e.target.checked)} />
-                                    {logConfig.enabled ? "Enabled" : "Disabled"}
-                                </label>
+                                <button
+                                    type="button"
+                                    className={`btn log-enabled-btn ${logConfig.enabled ? "btn-danger" : "btn-primary"}`}
+                                    onClick={() => updateConfig("enabled", !logConfig.enabled)}
+                                >
+                                    {logConfig.enabled ? "Disable" : "Enable"}
+                                </button>
                             </div>
                             <div>
                                 <span className="field-label">Format</span>
@@ -151,7 +159,7 @@ export default function Logs({ toast, onUnauth }) {
                             </div>
                         </div>
                         <div className="flex-end">
-                            <button className="btn btn-primary" onClick={saveConfig} disabled={savingConfig || !configDirty}>{savingConfig ? "Saving..." : "↑ Save Config"}</button>
+                            <button className="btn btn-primary log-save-btn" onClick={saveConfig} disabled={savingConfig || !configDirty}>{savingConfig ? "Saving..." : "↑ Save"}</button>
                         </div>
                     </div>
                 )}
@@ -160,14 +168,13 @@ export default function Logs({ toast, onUnauth }) {
             <div className="log-toolbar">
                 <div className="btn-row">
                     <input className="search-input" placeholder="Search logs..." value={logSearch} onChange={e => setLogSearch(e.target.value)} />
-                    {levelBtn("error", "ERROR", "var(--danger)")}
-                    {levelBtn("warn", "WARN", "var(--warn)")}
-                    {levelBtn("info", "INFO", "var(--accent2)")}
+                    {levelBtn("error", "ERROR")}
+                    {levelBtn("warn", "WARN")}
+                    {levelBtn("info", "INFO")}
+                    <span className="log-line-count log-line-count--mobile">{lineCountText}</span>
                 </div>
                 <div className="btn-row">
-                    <span className="log-line-count">
-                        {filteredLines.length}{logSearch || levelFilter !== "all" ? ` / ${lines.length}` : ""} lines
-                    </span>
+                    <span className="log-line-count log-line-count--desktop">{lineCountText}</span>
                     {live && <div className="live-dot" />}
                     <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>{live ? "■ Stop" : "▶ Live"}</button>
                     <button className="btn btn-ghost" onClick={refreshLogs} disabled={refreshing}>↺ {refreshing ? "Refreshing..." : "Refresh"}</button>

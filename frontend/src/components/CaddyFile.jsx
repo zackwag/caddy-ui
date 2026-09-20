@@ -66,6 +66,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
 
         init();
         return () => { view?.destroy(); viewRef.current = null; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme change; including `value` would tear it down on every keystroke
     }, [theme]);
 
     useEffect(() => {
@@ -78,7 +79,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
     return <div ref={containerRef} style={{ minHeight: 420, background: theme === 'dark' ? "#0a0c0f" : "#f0ebe4" }} />;
 }
 
-export default function CaddyFile({ toast, onUnauth, theme }) {
+export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
     const [loading, setLoading] = useState(true);
@@ -91,7 +92,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [previewEntry, setPreviewEntry] = useState(null);
     const [previewContent, setPreviewContent] = useState("");
-    const fileInputRef = useRef(null);
+    const importInputRef = useRef(null);
     const historyRef = useRef(null);
 
     useEffect(() => {
@@ -99,7 +100,8 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
             .then(t => { setContent(t); setOriginal(t); })
             .catch(e => toast.error(e.message))
             .finally(() => setLoading(false));
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount only; toast isn't stable across renders
+    }, [onUnauth]);
 
     const loadHistory = () => {
         setHistoryLoading(true);
@@ -125,7 +127,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     };
 
     const restoreSnapshot = async (entry) => {
-        if (!confirm(`Restore Caddyfile from ${formatTs(entry.timestamp)}? The current file will be snapshotted first.`)) return;
+        if (!await confirm(`Restore Caddyfile from ${formatTs(entry.timestamp)}? The current file will be snapshotted first.`, { confirmLabel: "Restore" })) return;
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
@@ -137,7 +139,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     };
 
     const deleteSnapshot = async (entry) => {
-        if (!confirm(`Delete snapshot from ${formatTs(entry.timestamp)}?`)) return;
+        if (!await confirm(`Delete snapshot from ${formatTs(entry.timestamp)}?`, { confirmLabel: "Delete", danger: true })) return;
         try {
             await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
             toast.success("Snapshot deleted");
@@ -158,7 +160,7 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
     };
 
     const save = async ({ force = false } = {}) => {
-        if (force && !confirm("Force save skips validation and writes the Caddyfile to disk even if Caddy can't load it. Continue?")) return;
+        if (force && !await confirm("Force save skips validation and writes the Caddyfile to disk even if Caddy can't load it. Continue?", { confirmLabel: "Force save", danger: true })) return;
         setSaving(true);
         try {
             const q = `fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`;
@@ -177,23 +179,23 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
         catch (e) { toast.error(e.message); }
     };
 
-    const download = () => {
+    const exportFile = () => {
         const token = getToken();
         window.open(token ? `/api/caddyfile?download=true&token=${token}` : `/api/caddyfile?download=true`, '_blank');
     };
 
-    const restore = (e) => {
+    const importFile = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = async (ev) => {
             const text = ev.target.result;
-            if (!confirm("Restore this Caddyfile? This will validate, reload Caddy, and overwrite the current file.")) return;
+            if (!await confirm("Import this Caddyfile? This will validate, reload Caddy, and overwrite the current file.", { confirmLabel: "Import" })) return;
             try {
                 await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
                 const fresh = await apiFetch("/caddyfile", {}, onUnauth);
                 setContent(fresh); setOriginal(fresh);
-                toast.success("Caddyfile restored and reloaded");
+                toast.success("Caddyfile imported and reloaded");
                 if (historyOpen) loadHistory();
             } catch (err) { toast.error(err.message); }
         };
@@ -219,14 +221,15 @@ export default function CaddyFile({ toast, onUnauth, theme }) {
                             <input type="checkbox" className="editor-checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} />
                             sort entries
                         </label>
+                        <span className="editor-hint editor-hint--mobile">{isDirty ? "● unsaved changes" : "✓ up to date"}</span>
                     </div>
-                    <div className="btn-row">
-                        <span className="editor-hint">{isDirty ? "● unsaved changes" : "✓ up to date"}</span>
+                    <div className="btn-row editor-toolbar-actions">
+                        <span className="editor-hint editor-hint--desktop">{isDirty ? "● unsaved changes" : "✓ up to date"}</span>
                         <button className="btn btn-ghost" onClick={validate} disabled={validating}>{validating ? "Validating..." : "✓ Validate"}</button>
                         <button className="btn btn-ghost" onClick={toggleHistory}>⊙ History{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}</button>
-                        <button className="btn btn-ghost" onClick={download}>↓ Backup</button>
-                        <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()}>↑ Restore</button>
-                        <input ref={fileInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={restore} />
+                        <button className="btn btn-ghost" onClick={exportFile}>↓ Export</button>
+                        <button className="btn btn-ghost" onClick={() => importInputRef.current?.click()}>↑ Import</button>
+                        <input ref={importInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={importFile} />
                         <button className="btn btn-ghost" onClick={reload}>↺ Reload</button>
                         <button className="btn btn-ghost" onClick={() => save({ force: true })} disabled={saving || !isDirty} title="Skip validation and write to disk even if Caddy rejects it">{saving ? "..." : "⚠ Force save"}</button>
                         <button className="btn btn-primary" onClick={() => save()} disabled={saving || !isDirty}>{saving ? "Saving..." : "↑ Save"}</button>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../utils/api.js";
 
@@ -93,7 +93,7 @@ function NewRouteModal({ onSave, onClose }) {
     );
 }
 
-export default function Routes({ toast, onUnauth }) {
+export default function Routes({ toast, onUnauth, confirm }) {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
@@ -112,15 +112,17 @@ export default function Routes({ toast, onUnauth }) {
     useEffect(() => {
         const f = searchParams.get("filter");
         if (f) setSearch(f);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only read the filter param once on initial load, not on every URL change
     }, []);
 
-    const load = () => {
+    const load = useCallback(() => {
         apiFetch("/routes", {}, onUnauth).then(setRoutes).catch(e => toast.error(e.message)).finally(() => setLoading(false));
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
         apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
+    }, [onUnauth]);
 
-    const loadHealth = () => {
+    const loadHealth = useCallback(() => {
         setHealthLoading(true);
         apiFetch("/health", {}, onUnauth)
             .then(results => {
@@ -131,13 +133,13 @@ export default function Routes({ toast, onUnauth }) {
             .catch(() => { })
             .finally(() => setHealthLoading(false));
         apiFetch("/health/uptime", {}, onUnauth).then(setUptime).catch(() => { });
-    };
+    }, [onUnauth]);
 
     useEffect(() => {
         load(); loadHealth();
         const t = setInterval(loadHealth, 30000);
         return () => clearInterval(t);
-    }, []);
+    }, [load, loadHealth]);
 
     const addRoute = async (form) => {
         try {
@@ -156,7 +158,7 @@ export default function Routes({ toast, onUnauth }) {
     };
 
     const deleteRoute = async (id) => {
-        if (!confirm("Delete this route?")) return;
+        if (!await confirm("Delete this route?", { confirmLabel: "Delete", danger: true })) return;
         try {
             await apiFetch(`/routes/${id}`, { method: "DELETE" }, onUnauth);
             toast.success("Route removed"); load(); loadHealth();
@@ -270,14 +272,14 @@ export default function Routes({ toast, onUnauth }) {
     return (
         <>
             <div className="gap-16">
-                <div className="flex-between">
+                <div className="flex-between routes-toolbar">
                     <div className="flex-center" style={{ gap: 12 }}>
                         <input className="search-input" placeholder="Filter by domain, upstream, note, or server..." value={search} onChange={e => setSearch(e.target.value)} />
                         <span className="section-label">
-                            {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} online`}
+                            {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} routes online`}
                         </span>
                     </div>
-                    <div className="btn-row">
+                    <div className="btn-row routes-toolbar-actions">
                         <button className="btn btn-ghost btn--sm" onClick={loadHealth} disabled={healthLoading}>↺ Refresh</button>
                         <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ Add Route</button>
                     </div>

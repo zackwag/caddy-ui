@@ -25,7 +25,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
         loadProcess();
         const t = setInterval(loadProcess, 30000);
         return () => clearInterval(t);
-    }, [loadProcess]);
+    }, [loadProcess, onUnauth]);
 
     const openEdit = (server) => { setEditingServer(server); setEditName(names[server.name] || ""); };
 
