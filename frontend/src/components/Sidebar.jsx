@@ -15,7 +15,7 @@ const NAV = [
     { path: "/instances", label: "Instances", icon: "⊞" },
 ];
 
-export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange }) {
+export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange, instanceListVersion }) {
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
     const [instances, setInstances] = useState([]);
@@ -23,8 +23,11 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
 
     useEffect(() => {
         apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
-        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
     }, [onUnauth]);
+
+    useEffect(() => {
+        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
+    }, [onUnauth, instanceListVersion]);
 
     useEffect(() => {
         const fetchStatus = () =>

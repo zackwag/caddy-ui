@@ -33,6 +33,7 @@ export default function App() {
     const [noInstances, setNoInstances] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [instanceKey, setInstanceKey] = useState(getInstanceId);
+    const [instanceListVersion, setInstanceListVersion] = useState(0);
     const [authEnabled, setAuthEnabledState] = useState(false);
     const [authed, setAuthed] = useState(() => {
         const cached = getAuthEnabled();
@@ -92,6 +93,7 @@ export default function App() {
 
     const handleInstanceChange = useCallback((id) => {
         if (id) setInstanceKey(id);
+        setInstanceListVersion(v => v + 1);
         setNoInstances(false);
         setStatus(null);
         fetchStatus();
@@ -122,6 +124,7 @@ export default function App() {
                         setSidebarOpen={setSidebarOpen}
                         selectedInstanceId={instanceKey}
                         onInstanceChange={handleInstanceChange}
+                        instanceListVersion={instanceListVersion}
                     />
 
                     <div className="main">
