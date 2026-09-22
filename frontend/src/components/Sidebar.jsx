@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, getInstanceId, setInstanceId } from "../utils/api.js";
+import { apiFetch, setInstanceId } from "../utils/api.js";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 
@@ -14,12 +14,11 @@ const NAV = [
     { path: "/notifications", label: "Notifications", icon: "⊘" },
 ];
 
-export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, onInstanceChange }) {
+export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange }) {
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
     const [instances, setInstances] = useState([]);
     const [instanceStatus, setInstanceStatus] = useState({});
-    const [selectedId, setSelectedId] = useState(getInstanceId);
 
     useEffect(() => {
         apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
@@ -40,7 +39,6 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
 
     const switchInstance = (id) => {
         setInstanceId(id);
-        setSelectedId(id);
         if (onInstanceChange) onInstanceChange(id);
     };
 
@@ -70,7 +68,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                     {instances.map(inst => (
                         <div
                             key={inst.id}
-                            className={`instance-item ${selectedId === inst.id ? "active" : ""}`}
+                            className={`instance-item ${selectedInstanceId === inst.id ? "active" : ""}`}
                             onClick={() => switchInstance(inst.id)}
                         >
                             <div className={`status-dot ${instanceStatus[inst.id] === true ? "online" : instanceStatus[inst.id] === false ? "offline" : ""}`} />

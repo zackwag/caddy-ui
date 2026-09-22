@@ -10,35 +10,43 @@ const router = Router();
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
 const MAX_HISTORY = 20;
 
-async function ensureHistoryDir() {
+function instanceHistoryDir(instanceId) {
+    return instanceId && instanceId !== 'default'
+        ? join(HISTORY_PATH, instanceId)
+        : HISTORY_PATH;
+}
+
+async function ensureHistoryDir(instanceId) {
     try {
-        await mkdir(HISTORY_PATH, { recursive: true });
+        await mkdir(instanceHistoryDir(instanceId), { recursive: true });
     } catch { }
 }
 
-async function snapshotCaddyfile(configPath) {
+async function snapshotCaddyfile(configPath, instanceId) {
     try {
-        await ensureHistoryDir();
+        await ensureHistoryDir(instanceId);
+        const dir = instanceHistoryDir(instanceId);
         const content = await readFile(configPath, 'utf8');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const filename = `Caddyfile-${timestamp}`;
-        await writeFile(join(HISTORY_PATH, filename), content, 'utf8');
-        await pruneHistory();
-        logger.info(`Caddyfile snapshot created`, { filename });
+        await writeFile(join(dir, filename), content, 'utf8');
+        await pruneHistory(instanceId);
+        logger.info(`Caddyfile snapshot created`, { filename, instanceId });
     } catch (err) {
         logger.warn(`Failed to snapshot Caddyfile`, { error: err.message });
     }
 }
 
-async function pruneHistory() {
+async function pruneHistory(instanceId) {
     try {
-        const files = await readdir(HISTORY_PATH);
+        const dir = instanceHistoryDir(instanceId);
+        const files = await readdir(dir);
         const sorted = files
             .filter(f => f.startsWith('Caddyfile-'))
             .sort()
             .reverse();
         for (const file of sorted.slice(MAX_HISTORY)) {
-            await unlink(join(HISTORY_PATH, file)).catch(() => { });
+            await unlink(join(dir, file)).catch(() => { });
         }
     } catch { }
 }
@@ -233,9 +241,10 @@ router.get('/', async (req, res) => {
 
 // GET /api/caddyfile/history
 router.get('/history', async (req, res) => {
-    await ensureHistoryDir();
+    const dir = instanceHistoryDir(req.instance.id);
+    await ensureHistoryDir(req.instance.id);
     try {
-        const files = await readdir(HISTORY_PATH);
+        const files = await readdir(dir);
         const snapshots = files
             .filter(f => f.startsWith('Caddyfile-'))
             .sort()
@@ -258,7 +267,8 @@ router.get('/history/:filename', async (req, res) => {
     if (filename.includes('..') || filename.includes('/')) {
         return res.status(400).json({ error: 'Invalid filename' });
     }
-    const content = await readFile(join(HISTORY_PATH, filename), 'utf8');
+    const dir = instanceHistoryDir(req.instance.id);
+    const content = await readFile(join(dir, filename), 'utf8');
     res.type('text/plain').send(content);
 });
 
@@ -268,7 +278,8 @@ router.delete('/history/:filename', async (req, res) => {
     if (filename.includes('..') || filename.includes('/')) {
         return res.status(400).json({ error: 'Invalid filename' });
     }
-    await unlink(join(HISTORY_PATH, filename));
+    const dir = instanceHistoryDir(req.instance.id);
+    await unlink(join(dir, filename));
     res.json({ ok: true });
 });
 
@@ -345,7 +356,7 @@ router.put('/', async (req, res) => {
         }
     }
 
-    await snapshotCaddyfile(configPath);
+    await snapshotCaddyfile(configPath, req.instance.id);
 
     let final = content;
     if (fmt) {

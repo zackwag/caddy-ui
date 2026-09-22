@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
 import logger from '../logger.js';
+import { validatePath, validateUrl } from '../validation.js';
 
 const router = Router();
 
@@ -12,17 +13,18 @@ function generateId(name, existingIds) {
     return `${base}-${suffix}`;
 }
 
-function validateAdminUrl(url) {
-    let parsed;
-    try {
-        parsed = new URL(url);
-    } catch {
-        throw new Error(`Invalid admin URL: ${url}`);
+function validateInstanceFields(fields) {
+    const errors = [];
+    if (fields.adminUrl !== undefined) {
+        try { fields.adminUrl = validateUrl(fields.adminUrl); } catch (e) { errors.push(e.message); }
     }
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-        throw new Error('Admin URL must use http or https');
+    for (const key of ['configPath', 'logPath', 'dataPath']) {
+        if (fields[key] !== undefined) {
+            try { fields[key] = validatePath(fields[key]); } catch (e) { errors.push(`${key}: ${e.message}`); }
+        }
     }
-    return parsed.href;
+    if (errors.length) throw new Error(errors.join('; '));
+    return fields;
 }
 
 // GET /api/instances
@@ -35,7 +37,7 @@ router.get('/status', async (req, res) => {
     const instances = getInstances();
     const results = await Promise.all(instances.map(async (inst) => {
         try {
-            const url = validateAdminUrl(inst.adminUrl);
+            const url = validateUrl(inst.adminUrl);
             const r = await fetch(`${url}/config/`, {
                 headers: { 'Origin': 'http://0.0.0.0:2019' },
                 signal: AbortSignal.timeout(3000),
@@ -54,9 +56,14 @@ router.post('/', async (req, res) => {
     if (!name || !adminUrl) {
         return res.status(400).json({ error: 'name and adminUrl are required' });
     }
-    let validatedUrl;
+    let fields;
     try {
-        validatedUrl = validateAdminUrl(adminUrl);
+        fields = validateInstanceFields({
+            adminUrl,
+            configPath: configPath || '/etc/caddy/Caddyfile',
+            logPath: logPath || '/var/log/caddy/access.log',
+            dataPath: dataPath || '/data/caddy/caddy',
+        });
     } catch (err) {
         return res.status(400).json({ error: err.message });
     }
@@ -66,10 +73,7 @@ router.post('/', async (req, res) => {
         const instance = await addInstance({
             id,
             name,
-            adminUrl: validatedUrl,
-            configPath: configPath || '/etc/caddy/Caddyfile',
-            logPath: logPath || '/var/log/caddy/access.log',
-            dataPath: dataPath || '/data/caddy/caddy',
+            ...fields,
             containerName: containerName || 'caddy',
             serverName: serverName || 'srv0',
         });
@@ -84,20 +88,17 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { name, adminUrl, configPath, logPath, dataPath, containerName, serverName } = req.body;
-    let validatedUrl;
-    if (adminUrl) {
-        try {
-            validatedUrl = validateAdminUrl(adminUrl);
-        } catch (err) {
-            return res.status(400).json({ error: err.message });
-        }
-    }
-    const updates = Object.fromEntries(
-        Object.entries({ name, adminUrl: validatedUrl ?? adminUrl, configPath, logPath, dataPath, containerName, serverName })
+    const raw = Object.fromEntries(
+        Object.entries({ name, adminUrl, configPath, logPath, dataPath, containerName, serverName })
             .filter(([, v]) => v !== undefined)
     );
     try {
-        const instance = await updateInstance(id, updates);
+        validateInstanceFields(raw);
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+    try {
+        const instance = await updateInstance(id, raw);
         res.json(instance);
     } catch (err) {
         logger.error('Failed to update instance', { id, error: err.message });

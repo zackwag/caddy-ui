@@ -74,8 +74,8 @@ export function injectTitleComment(blockContent, title) {
     return lines.join('\n');
 }
 
-export async function parseCaddyfileTitles(caddyfileContent) {
-    const env = await getCaddyEnv();
+export async function parseCaddyfileTitles(caddyfileContent, containerName) {
+    const env = await getCaddyEnv(containerName);
     const titles = {};
     const lines = caddyfileContent.split('\n');
     let i = 0;

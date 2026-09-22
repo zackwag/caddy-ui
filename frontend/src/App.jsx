@@ -103,6 +103,7 @@ export default function App() {
                         onUnauth={onUnauth}
                         sidebarOpen={sidebarOpen}
                         setSidebarOpen={setSidebarOpen}
+                        selectedInstanceId={instanceKey}
                         onInstanceChange={handleInstanceChange}
                     />
 

@@ -2,11 +2,9 @@ import { createConnection } from 'net';
 import { X509Certificate } from 'crypto';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
-import { CADDY_ADMIN_URL, caddyGet } from './caddy.js';
+import { caddyGet } from './caddy.js';
+import { getInstances } from './instances.js';
 import logger from './logger.js';
-
-const CADDY_DATA_PATH = process.env.CADDY_DATA_PATH || '/data/caddy/caddy';
-const CERTS_PATH = join(CADDY_DATA_PATH, 'certificates');
 const CHECK_INTERVAL_MS = 30_000;
 const TIMEOUT_MS = 3000;
 
@@ -67,118 +65,127 @@ async function runChecks() {
 const upstreamState = new Map(); // upstream -> boolean (online)
 
 async function checkUpstreams() {
-    let servers;
-    try {
-        servers = await caddyGet('/config/apps/http/servers');
-    } catch {
-        return;
-    }
-
-    const checks = [];
-    for (const [, server] of Object.entries(servers || {})) {
-        for (const route of server.routes || []) {
-            const domain = route.match?.find(m => m.host)?.host?.[0] || null;
-            const upstreams = extractUpstreams(route);
-            for (const upstream of upstreams) {
-                const [host, port] = upstream.split(':');
-                if (host && port) checks.push({ domain, upstream, host, port });
-            }
-        }
-    }
-
-    let caddyPool = {};
-    try {
-        const poolRes = await fetch(`${CADDY_ADMIN_URL}/reverse_proxy/upstreams`, {
-            headers: { 'Origin': 'http://0.0.0.0:2019' },
-        });
-        if (poolRes.ok) {
-            const pool = await poolRes.json();
-            for (const entry of pool) {
-                if (entry.address) caddyPool[entry.address] = entry;
-            }
-        }
-    } catch { }
-
-    for (const check of checks) {
-        let online;
-        if (check.upstream in caddyPool) {
-            online = caddyPool[check.upstream].fails === 0;
-        } else {
-            online = await checkTCP(check.host, check.port);
+    for (const inst of getInstances()) {
+        let servers;
+        try {
+            servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
+        } catch {
+            continue;
         }
 
-        const prev = upstreamState.get(check.upstream);
-        upstreamState.set(check.upstream, online);
-
-        if (prev === undefined) continue; // first check, no transition
-
-        const label = check.domain ? `${check.domain} (${check.upstream})` : check.upstream;
-
-        if (prev && !online && config.triggers.upstreamOffline) {
-            const key = `offline:${check.upstream}`;
-            if (!isDebouncedKey(key)) {
-                markSent(key);
-                await sendNotification(config, {
-                    title: 'Upstream offline',
-                    message: `${label} is unreachable`,
-                    priority: 'high',
-                });
+        const checks = [];
+        for (const [, server] of Object.entries(servers || {})) {
+            for (const route of server.routes || []) {
+                const domain = route.match?.find(m => m.host)?.host?.[0] || null;
+                const upstreams = extractUpstreams(route);
+                for (const upstream of upstreams) {
+                    const [host, port] = upstream.split(':');
+                    if (host && port) checks.push({ domain, upstream, host, port });
+                }
             }
         }
 
-        if (!prev && online && config.triggers.upstreamOnline) {
-            const key = `online:${check.upstream}`;
-            if (!isDebouncedKey(key)) {
-                markSent(key);
-                await sendNotification(config, {
-                    title: 'Upstream recovered',
-                    message: `${label} is back online`,
-                    priority: 'default',
-                });
+        let caddyPool = {};
+        try {
+            const poolRes = await fetch(`${inst.adminUrl}/reverse_proxy/upstreams`, {
+                headers: { 'Origin': 'http://0.0.0.0:2019' },
+                signal: AbortSignal.timeout(3000),
+            });
+            if (poolRes.ok) {
+                const pool = await poolRes.json();
+                for (const entry of pool) {
+                    if (entry.address) caddyPool[entry.address] = entry;
+                }
+            }
+        } catch { }
+
+        for (const check of checks) {
+            let online;
+            if (check.upstream in caddyPool) {
+                online = caddyPool[check.upstream].fails === 0;
+            } else {
+                online = await checkTCP(check.host, check.port);
+            }
+
+            const stateKey = `${inst.id}:${check.upstream}`;
+            const prev = upstreamState.get(stateKey);
+            upstreamState.set(stateKey, online);
+
+            if (prev === undefined) continue;
+
+            const instLabel = getInstances().length > 1 ? `[${inst.name}] ` : '';
+            const label = check.domain ? `${instLabel}${check.domain} (${check.upstream})` : `${instLabel}${check.upstream}`;
+
+            if (prev && !online && config.triggers.upstreamOffline) {
+                const key = `offline:${stateKey}`;
+                if (!isDebouncedKey(key)) {
+                    markSent(key);
+                    await sendNotification(config, {
+                        title: 'Upstream offline',
+                        message: `${label} is unreachable`,
+                        priority: 'high',
+                    });
+                }
+            }
+
+            if (!prev && online && config.triggers.upstreamOnline) {
+                const key = `online:${stateKey}`;
+                if (!isDebouncedKey(key)) {
+                    markSent(key);
+                    await sendNotification(config, {
+                        title: 'Upstream recovered',
+                        message: `${label} is back online`,
+                        priority: 'default',
+                    });
+                }
             }
         }
     }
 }
 
 async function checkCerts() {
-    let issuers;
-    try {
-        issuers = await readdir(CERTS_PATH);
-    } catch {
-        return;
-    }
-
-    for (const issuer of issuers) {
-        if (issuer === 'local') continue;
-        const issuerPath = join(CERTS_PATH, issuer);
-        let domains;
+    for (const inst of getInstances()) {
+        const certsPath = join(inst.dataPath, 'certificates');
+        let issuers;
         try {
-            domains = await readdir(issuerPath);
+            issuers = await readdir(certsPath);
         } catch {
             continue;
         }
 
-        for (const domain of domains) {
-            const certFile = join(issuerPath, domain, `${domain}.crt`);
+        for (const issuer of issuers) {
+            if (issuer === 'local') continue;
+            const issuerPath = join(certsPath, issuer);
+            let domains;
             try {
-                const pem = await readFile(certFile, 'utf8');
-                const cert = new X509Certificate(pem);
-                const validTo = new Date(cert.validTo);
-                const daysRemaining = Math.floor((validTo - Date.now()) / (1000 * 60 * 60 * 24));
-
-                if (daysRemaining <= 14 && daysRemaining >= 0) {
-                    const key = `cert-expiring:${domain}`;
-                    if (!isDebouncedKey(key)) {
-                        markSent(key);
-                        await sendNotification(config, {
-                            title: 'Certificate expiring',
-                            message: `${domain} expires in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
-                            priority: 'high',
-                        });
-                    }
-                }
+                domains = await readdir(issuerPath);
             } catch {
                 continue;
+            }
+
+            for (const domain of domains) {
+                const certFile = join(issuerPath, domain, `${domain}.crt`);
+                try {
+                    const pem = await readFile(certFile, 'utf8');
+                    const cert = new X509Certificate(pem);
+                    const validTo = new Date(cert.validTo);
+                    const daysRemaining = Math.floor((validTo - Date.now()) / (1000 * 60 * 60 * 24));
+
+                    if (daysRemaining <= 14 && daysRemaining >= 0) {
+                        const key = `cert-expiring:${inst.id}:${domain}`;
+                        if (!isDebouncedKey(key)) {
+                            markSent(key);
+                            const instLabel = getInstances().length > 1 ? `[${inst.name}] ` : '';
+                            await sendNotification(config, {
+                                title: 'Certificate expiring',
+                                message: `${instLabel}${domain} expires in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
+                                priority: 'high',
+                            });
+                        }
+                    }
+                } catch {
+                    continue;
+                }
             }
         }
     }
