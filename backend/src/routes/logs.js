@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { createReadStream, unwatchFile, watchFile } from 'fs';
-import { readFile, stat, writeFile } from 'fs/promises';
 import { caddyLoad } from '../caddy.js';
+import { readContainerFile, writeContainerFile } from '../containerFs.js';
+import { dockerExec } from '../docker.js';
 import logger from '../logger.js';
 const router = Router();
 const TAIL_LINES = 200;
@@ -111,7 +111,7 @@ function updateGlobalBlock(content, logConfig) {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 router.get('/config', async (req, res) => {
-    const content = await readFile(req.instance.configPath, 'utf8');
+    const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
     const config = parseLogConfig(content);
     res.json(config);
 });
@@ -122,9 +122,9 @@ router.put('/config', async (req, res) => {
         return res.status(400).json({ error: 'Invalid log config' });
     }
 
-    const adminUrl = req.instance.adminUrl;
+    const { adminUrl, containerName, configPath } = req.instance;
     logger.info(`Log config update requested`, { enabled: config.enabled });
-    const content = await readFile(req.instance.configPath, 'utf8');
+    const content = await readContainerFile(containerName, configPath);
     const updated = updateGlobalBlock(content, config);
 
     try {
@@ -145,80 +145,56 @@ router.put('/config', async (req, res) => {
         return res.status(422).json({ errors: [err.message] });
     }
 
-    await writeFile(req.instance.configPath, updated, 'utf8');
+    await writeContainerFile(containerName, configPath, updated);
     await caddyLoad(updated, adminUrl);
     logger.info(`Log config saved and reloaded`);
     res.json({ ok: true, message: 'Log config saved and reloaded' });
 });
 
 router.get('/', async (req, res) => {
-    const logPath = req.instance.logPath;
+    const { logPath, containerName } = req.instance;
     try {
-        await stat(logPath);
+        const { stdout } = await dockerExec(['tail', '-n', String(TAIL_LINES), logPath], undefined, containerName);
+        const lines = stdout.split('\n').filter(Boolean);
+        res.json({ lines, path: logPath });
     } catch {
-        return res.json({ lines: [], error: `Log file not found at ${logPath}` });
+        res.json({ lines: [], error: `Log file not found at ${logPath}` });
     }
-    const lines = await tailFile(logPath, TAIL_LINES);
-    res.json({ lines, path: logPath });
 });
 
 router.get('/stream', async (req, res) => {
-    const logPath = req.instance.logPath;
+    const { logPath, containerName } = req.instance;
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    let fileSize;
-    try {
-        const s = await stat(logPath);
-        fileSize = s.size;
-    } catch {
+    const { spawn } = await import('child_process');
+    const proc = spawn('docker', ['exec', containerName, 'tail', '-n', '0', '-f', logPath]);
+    let buffer = '';
+
+    proc.stdout.on('data', (chunk) => {
+        buffer += chunk.toString();
+        const parts = buffer.split('\n');
+        buffer = parts.pop();
+        for (const line of parts.filter(Boolean)) {
+            res.write(`data: ${JSON.stringify({ line })}\n\n`);
+        }
+    });
+
+    proc.stderr.on('data', (chunk) => {
+        const msg = chunk.toString().trim();
+        if (msg) res.write(`data: ${JSON.stringify({ error: msg })}\n\n`);
+    });
+
+    proc.on('error', () => {
         res.write(`data: ${JSON.stringify({ error: `Log file not found at ${logPath}` })}\n\n`);
         res.end();
-        return;
-    }
-
-    const onFileChange = async () => {
-        try {
-            const s = await stat(logPath);
-            if (s.size <= fileSize) return;
-            const stream = createReadStream(logPath, { start: fileSize, end: s.size });
-            let buffer = '';
-            stream.on('data', chunk => { buffer += chunk.toString(); });
-            stream.on('end', () => {
-                fileSize = s.size;
-                const newLines = buffer.split('\n').filter(Boolean);
-                for (const line of newLines) {
-                    res.write(`data: ${JSON.stringify({ line })}\n\n`);
-                }
-            });
-        } catch (err) {
-            res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-        }
-    };
-
-    watchFile(logPath, { interval: 1000 }, onFileChange);
-    req.on('close', () => { unwatchFile(logPath, onFileChange); });
-});
-
-async function tailFile(filePath, numLines) {
-    return new Promise((resolve, reject) => {
-        const lines = [];
-        let remainder = '';
-        const stream = createReadStream(filePath, { encoding: 'utf8' });
-        stream.on('data', chunk => {
-            const parts = (remainder + chunk).split('\n');
-            remainder = parts.pop();
-            lines.push(...parts.filter(Boolean));
-        });
-        stream.on('end', () => {
-            if (remainder) lines.push(remainder);
-            resolve(lines.slice(-numLines));
-        });
-        stream.on('error', reject);
     });
-}
+
+    proc.on('close', () => { if (!res.writableEnded) res.end(); });
+    req.on('close', () => { proc.kill(); });
+});
 
 export default router;
 export { parseLogConfig, buildLogBlock, updateGlobalBlock };

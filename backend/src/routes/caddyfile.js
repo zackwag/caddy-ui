@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { createReadStream } from 'fs';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
 import { caddyLoad, withTimeout } from '../caddy.js';
+import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { dockerExec } from '../docker.js';
 import logger from '../logger.js';
 
@@ -22,11 +22,11 @@ async function ensureHistoryDir(instanceId) {
     } catch { }
 }
 
-async function snapshotCaddyfile(configPath, instanceId) {
+async function snapshotCaddyfile(configPath, containerName, instanceId) {
     try {
         await ensureHistoryDir(instanceId);
         const dir = instanceHistoryDir(instanceId);
-        const content = await readFile(configPath, 'utf8');
+        const content = await readContainerFile(containerName, configPath);
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const filename = `Caddyfile-${timestamp}`;
         await writeFile(join(dir, filename), content, 'utf8');
@@ -227,13 +227,13 @@ function sortCaddyfile(content) {
 // GET /api/caddyfile
 // GET /api/caddyfile?download=true
 router.get('/', async (req, res) => {
-    const configPath = req.instance.configPath;
-    const content = await readFile(configPath, 'utf8');
+    const { configPath, containerName } = req.instance;
+    const content = await readContainerFile(containerName, configPath);
     if (req.query.download === 'true') {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);
         res.setHeader('Content-Type', 'text/plain');
-        createReadStream(configPath).pipe(res);
+        res.send(content);
         return;
     }
     res.type('text/plain').send(content);
@@ -322,7 +322,7 @@ router.post('/validations', async (req, res) => {
 // POST /api/caddyfile/reloads
 router.post('/reloads', async (req, res) => {
     logger.info(`Caddyfile reload requested`);
-    const content = await readFile(req.instance.configPath, 'utf8');
+    const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
     await reloadCaddy(content, req.instance);
     res.json({ ok: true, message: 'Caddy reloaded from disk' });
 });
@@ -356,7 +356,7 @@ router.put('/', async (req, res) => {
         }
     }
 
-    await snapshotCaddyfile(configPath, req.instance.id);
+    await snapshotCaddyfile(configPath, containerName, req.instance.id);
 
     let final = content;
     if (fmt) {
@@ -373,14 +373,14 @@ router.put('/', async (req, res) => {
         logger.info(`Caddyfile sorted`);
     }
 
-    const previous = await readFile(configPath, 'utf8').catch(() => null);
-    await writeFile(configPath, final, 'utf8');
+    const previous = await readContainerFile(containerName, configPath).catch(() => null);
+    await writeContainerFile(containerName, configPath, final);
 
     try {
         await reloadCaddy(final, req.instance);
     } catch (err) {
         if (!skipValidation) {
-            if (previous !== null) await writeFile(configPath, previous, 'utf8').catch(() => { });
+            if (previous !== null) await writeContainerFile(containerName, configPath, previous).catch(() => { });
             logger.warn(`Caddy reload failed, save rolled back`, { error: err.message });
             return res.status(422).json({ valid: false, errors: [`Caddy reload failed: ${err.message}`] });
         }

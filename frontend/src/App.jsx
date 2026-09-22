@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import CaddyFile from "./components/CaddyFile.jsx";
 import { ConfirmDialog, useConfirm } from "./components/Confirm.jsx";
 import Dashboard from "./components/Dashboard.jsx";
@@ -28,7 +28,9 @@ const TITLES = {
 
 export default function App() {
     const location = useLocation();
+    const navigate = useNavigate();
     const [status, setStatus] = useState(null);
+    const [noInstances, setNoInstances] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [instanceKey, setInstanceKey] = useState(getInstanceId);
     const [authEnabled, setAuthEnabledState] = useState(false);
@@ -67,8 +69,19 @@ export default function App() {
     }, []);
 
     const fetchStatus = useCallback(() => {
-        apiFetch("/status", {}, onUnauth).then(setStatus).catch(() => setStatus({ online: false, error: "Could not reach backend" }));
-    }, [onUnauth]);
+        apiFetch("/status", {}, onUnauth).then((s) => {
+            setStatus(s);
+            setNoInstances(false);
+        }).catch((err) => {
+            if (err.code === 'NO_INSTANCES') {
+                setNoInstances(true);
+                setStatus(null);
+                navigate('/instances', { replace: true });
+            } else {
+                setStatus({ online: false, error: "Could not reach backend" });
+            }
+        });
+    }, [onUnauth, navigate]);
 
     useEffect(() => {
         if (!authed) return;
@@ -78,9 +91,11 @@ export default function App() {
     }, [authed, fetchStatus, instanceKey]);
 
     const handleInstanceChange = useCallback((id) => {
-        setInstanceKey(id);
+        if (id) setInstanceKey(id);
+        setNoInstances(false);
         setStatus(null);
-    }, []);
+        fetchStatus();
+    }, [fetchStatus]);
 
     const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
@@ -123,7 +138,7 @@ export default function App() {
                         </div>
                         <div className="content" key={instanceKey}>
                             <Routes>
-                                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                                <Route path="/" element={<Navigate to={noInstances ? "/instances" : "/dashboard"} replace />} />
                                 <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} />} />
                                 <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} />} />

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { caddyGet } from '../caddy.js';
 import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
+import { readContainerFile } from '../containerFs.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
 
@@ -27,7 +28,7 @@ router.get('/', async (req, res) => {
 
     if (caddyfileTitlesEnabled()) {
         try {
-            const caddyfile = await readFile(req.instance.configPath, 'utf8');
+            const caddyfile = await readContainerFile(req.instance.containerName, req.instance.configPath);
             const titles = await parseCaddyfileTitles(caddyfile, req.instance.containerName);
             for (const [domain, title] of Object.entries(titles)) {
                 if (title) notes[domain] = title;

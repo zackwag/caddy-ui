@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { readFile, writeFile } from 'fs/promises';
+import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { caddyLoad } from '../caddy.js';
 import logger from '../logger.js';
 
@@ -111,7 +111,7 @@ router.get('/', async (req, res) => {
 // GET /api/metrics/config
 router.get('/config', async (req, res) => {
     try {
-        const content = await readFile(req.instance.configPath, 'utf8');
+        const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
         const enabled = /^\s*metrics\s*$/m.test(content);
         res.json({ enabled });
     } catch (err) {
@@ -122,9 +122,9 @@ router.get('/config', async (req, res) => {
 // PUT /api/metrics/config
 router.put('/config', async (req, res) => {
     const { enabled } = req.body;
-    const configPath = req.instance.configPath;
+    const { configPath, containerName } = req.instance;
     try {
-        let content = await readFile(configPath, 'utf8');
+        let content = await readContainerFile(containerName, configPath);
         if (enabled) {
             if (/^\s*metrics\s*$/m.test(content)) return res.json({ ok: true, message: 'Metrics already enabled' });
             content = content.replace(/^(\s*\{)/m, '$1\n    metrics');
@@ -132,7 +132,7 @@ router.put('/config', async (req, res) => {
             content = content.replace(/^\s*metrics\s*\n?/m, '');
         }
         logger.info(`Metrics config update requested`, { enabled });
-        await writeFile(configPath, content, 'utf8');
+        await writeContainerFile(containerName, configPath, content);
         await caddyLoad(content, req.instance.adminUrl);
         logger.info(`Metrics config saved and reloaded`, { enabled });
         res.json({ ok: true, enabled });

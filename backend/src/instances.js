@@ -4,30 +4,34 @@ import logger from './logger.js';
 
 const INSTANCES_PATH = process.env.INSTANCES_PATH || '/etc/caddy-ui/instances.json';
 
-const DEFAULT_INSTANCE = {
-    id: 'default',
-    name: 'Default',
-    adminUrl: process.env.CADDY_ADMIN_URL || 'http://caddy:2019',
-    configPath: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile',
-    logPath: process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log',
-    dataPath: process.env.CADDY_DATA_PATH || '/data/caddy/caddy',
-    containerName: process.env.CADDY_CONTAINER_NAME || 'caddy',
-    serverName: process.env.CADDY_SERVER_NAME || 'srv0',
-};
-
 let _instances = null;
 let _writeLock = Promise.resolve();
+
+function buildDefaultInstance() {
+    if (!process.env.CADDY_ADMIN_URL) return null;
+    return {
+        id: 'default',
+        name: 'Default',
+        adminUrl: process.env.CADDY_ADMIN_URL,
+        configPath: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile',
+        logPath: process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log',
+        dataPath: process.env.CADDY_DATA_PATH || '/data/caddy/caddy',
+        containerName: process.env.CADDY_CONTAINER_NAME || 'caddy',
+        serverName: process.env.CADDY_SERVER_NAME || 'srv0',
+    };
+}
 
 export async function loadInstances() {
     try {
         const raw = await readFile(INSTANCES_PATH, 'utf8');
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
             _instances = parsed;
             return _instances;
         }
     } catch { }
-    _instances = [DEFAULT_INSTANCE];
+    const defaultInst = buildDefaultInstance();
+    _instances = defaultInst ? [defaultInst] : [];
     return _instances;
 }
 
@@ -41,7 +45,7 @@ export async function saveInstances(instances) {
 }
 
 export function getInstances() {
-    return _instances || [DEFAULT_INSTANCE];
+    return _instances || [];
 }
 
 export function getInstance(id) {
@@ -72,7 +76,6 @@ export async function updateInstance(id, updates) {
 
 export async function removeInstance(id) {
     const instances = getInstances();
-    if (instances.length <= 1) throw new Error('Cannot remove the last instance');
     const idx = instances.findIndex(i => i.id === id);
     if (idx === -1) throw new Error(`Instance "${id}" not found`);
     instances.splice(idx, 1);

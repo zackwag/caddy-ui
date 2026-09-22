@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { discoverCaddyContainers } from '../dockerDiscovery.js';
 import { addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
 import logger from '../logger.js';
 import { validatePath, validateUrl } from '../validation.js';
@@ -48,6 +49,19 @@ router.get('/status', async (req, res) => {
         }
     }));
     res.json(results);
+});
+
+// GET /api/instances/discover -- find Caddy containers via Docker
+router.get('/discover', async (req, res) => {
+    try {
+        const containers = await discoverCaddyContainers();
+        const registered = new Set(getInstances().map(i => i.containerName));
+        const unregistered = containers.filter(c => !registered.has(c.containerName));
+        res.json(unregistered);
+    } catch (err) {
+        logger.error('Docker discovery failed', { error: err.message });
+        res.status(500).json({ error: 'Docker discovery failed' });
+    }
 });
 
 // POST /api/instances

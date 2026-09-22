@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../utils/api.js";
 
 const EMPTY_FORM = {
@@ -18,13 +18,24 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
+    const [discovered, setDiscovered] = useState(null);
+    const [discovering, setDiscovering] = useState(false);
 
     const load = useCallback(() => {
         setLoading(true);
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(e => toast.error(e.message)).finally(() => setLoading(false));
     }, [onUnauth, toast]);
 
+    const didAutoDiscover = useRef(false);
+
     useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+        if (!loading && instances.length === 0 && !didAutoDiscover.current) {
+            didAutoDiscover.current = true;
+            discover();
+        }
+    }, [loading, instances.length]);
 
     useEffect(() => {
         const fetchStatus = () =>
@@ -37,6 +48,33 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         const t = setInterval(fetchStatus, 15000);
         return () => clearInterval(t);
     }, [onUnauth]);
+
+    const discover = async () => {
+        setDiscovering(true);
+        try {
+            const containers = await apiFetch("/instances/discover", {}, onUnauth);
+            setDiscovered(containers);
+            if (containers.length === 0) toast.success("No new Caddy containers found");
+        } catch (e) {
+            toast.error(e.message);
+            setDiscovered(null);
+        } finally {
+            setDiscovering(false);
+        }
+    };
+
+    const addDiscovered = (container) => {
+        setEditing("new");
+        setForm({
+            name: container.containerName.charAt(0).toUpperCase() + container.containerName.slice(1),
+            adminUrl: container.adminUrl,
+            configPath: container.configPath,
+            logPath: container.logPath,
+            dataPath: container.dataPath,
+            containerName: container.containerName,
+            serverName: container.serverName,
+        });
+    };
 
     const openAdd = () => {
         setEditing("new");
@@ -79,6 +117,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                 toast.success("Instance updated");
             }
             setEditing(null);
+            setDiscovered(null);
             load();
             if (onInstanceChange) onInstanceChange();
         } catch (e) {
@@ -108,11 +147,37 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         <>
             <div className="gap-16">
                 <div className="card">
-                    <div className="flex-between" style={{ marginBottom: instances.length > 0 ? 0 : undefined }}>
+                    <div className="flex-between" style={{ marginBottom: 0 }}>
                         <div className="card-title" style={{ marginBottom: 0 }}>Instances</div>
-                        <button className="btn btn-primary btn--sm" onClick={openAdd}>+ Add Instance</button>
+                        <div className="btn-row">
+                            <button className="btn btn-ghost btn--sm" onClick={discover} disabled={discovering}>
+                                {discovering ? "Scanning..." : "Discover"}
+                            </button>
+                            <button className="btn btn-primary btn--sm" onClick={openAdd}>+ Add Instance</button>
+                        </div>
                     </div>
                 </div>
+
+                {discovered && discovered.length > 0 && (
+                    <div className="card">
+                        <div className="card-title">Discovered Containers</div>
+                        <div className="hint" style={{ marginTop: -8, marginBottom: 12 }}>
+                            Caddy containers found on the Docker network that aren't registered yet.
+                        </div>
+                        {discovered.map(c => (
+                            <div key={c.containerId} className="server-row">
+                                <div>
+                                    <div className="flex-center" style={{ gap: 8 }}>
+                                        <span style={{ fontFamily: "var(--mono)", fontWeight: 500, fontSize: 13 }}>{c.containerName}</span>
+                                        <span className="badge badge-blue">{c.image}</span>
+                                    </div>
+                                    <div className="server-meta">{c.adminUrl}</div>
+                                </div>
+                                <button className="btn btn-primary btn--sm" onClick={() => addDiscovered(c)}>Add</button>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 {instances.map(inst => (
                     <div key={inst.id} className="card">
@@ -124,9 +189,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             </div>
                             <div className="btn-row">
                                 <button className="btn btn-ghost btn--sm" onClick={() => openEdit(inst)}>Edit</button>
-                                {instances.length > 1 && (
-                                    <button className="btn btn-danger btn--sm" onClick={() => remove(inst)}>Remove</button>
-                                )}
+                                <button className="btn btn-danger btn--sm" onClick={() => remove(inst)}>Remove</button>
                             </div>
                         </div>
                         <div className="instance-details-grid">
@@ -158,9 +221,18 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                     </div>
                 ))}
 
-                {instances.length === 0 && (
-                    <div className="card">
-                        <div className="card-empty">No instances configured</div>
+                {instances.length === 0 && !discovered?.length && !discovering && (
+                    <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 18, fontWeight: 600, color: "var(--accent)", marginBottom: 8 }}>
+                            Welcome to caddy/ui
+                        </div>
+                        <div className="hint" style={{ marginBottom: 20, maxWidth: 400, marginInline: "auto" }}>
+                            No Caddy instances configured yet. Click Discover to find Caddy containers on your Docker network, or add one manually.
+                        </div>
+                        <div className="btn-row" style={{ justifyContent: "center" }}>
+                            <button className="btn btn-primary" onClick={discover}>Discover Containers</button>
+                            <button className="btn btn-ghost" onClick={openAdd}>Add Manually</button>
+                        </div>
                     </div>
                 )}
             </div>

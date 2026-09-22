@@ -33,6 +33,11 @@ export async function apiFetch(path, opts = {}, onUnauth) {
         const ct = res.headers.get("content-type") || "";
         if (ct.includes("application/json")) {
             const body = await res.json();
+            if (body.code === 'NO_INSTANCES') {
+                const err = new Error(body.error);
+                err.code = 'NO_INSTANCES';
+                throw err;
+            }
             if (body.errors?.length) throw new Error(body.errors.join('\n'));
             throw new Error(body.error || res.statusText);
         }

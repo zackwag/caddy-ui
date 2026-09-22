@@ -1,7 +1,7 @@
 import { createConnection, isIP } from 'net';
 import { X509Certificate } from 'crypto';
-import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
+import { listContainerDir, readContainerFile } from './containerFs.js';
 import { promises as dns } from 'dns';
 import { caddyGet } from './caddy.js';
 import { getInstances } from './instances.js';
@@ -147,27 +147,19 @@ async function checkUpstreams() {
 async function checkCerts() {
     for (const inst of getInstances()) {
         const certsPath = join(inst.dataPath, 'certificates');
-        let issuers;
-        try {
-            issuers = await readdir(certsPath);
-        } catch {
-            continue;
-        }
+        const issuers = await listContainerDir(inst.containerName, certsPath);
+        if (!issuers.length) continue;
 
         for (const issuer of issuers) {
             if (issuer === 'local') continue;
             const issuerPath = join(certsPath, issuer);
-            let domains;
-            try {
-                domains = await readdir(issuerPath);
-            } catch {
-                continue;
-            }
+            const domains = await listContainerDir(inst.containerName, issuerPath);
+            if (!domains.length) continue;
 
             for (const domain of domains) {
                 const certFile = join(issuerPath, domain, `${domain}.crt`);
                 try {
-                    const pem = await readFile(certFile, 'utf8');
+                    const pem = await readContainerFile(inst.containerName, certFile);
                     const cert = new X509Certificate(pem);
                     const validTo = new Date(cert.validTo);
                     const daysRemaining = Math.floor((validTo - Date.now()) / (1000 * 60 * 60 * 24));
