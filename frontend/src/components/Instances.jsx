@@ -51,6 +51,15 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         return () => clearInterval(t);
     }, [onUnauth]);
 
+    useEffect(() => {
+        const poll = () =>
+            apiFetch("/instances/discover", {}, onUnauth)
+                .then(setDiscovered)
+                .catch(() => { });
+        const t = setInterval(poll, 30000);
+        return () => clearInterval(t);
+    }, [onUnauth]);
+
     const discover = async () => {
         setDiscovering(true);
         try {
