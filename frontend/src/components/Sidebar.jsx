@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch, setInstanceId } from "../utils/api.js";
 
@@ -20,6 +20,8 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
     const [backendVersion, setBackendVersion] = useState(null);
     const [instances, setInstances] = useState([]);
     const [instanceStatus, setInstanceStatus] = useState({});
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
 
     useEffect(() => {
         apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
@@ -41,8 +43,18 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
         return () => clearInterval(t);
     }, [onUnauth]);
 
+    useEffect(() => {
+        if (!dropdownOpen) return;
+        const handleClick = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdownOpen(false);
+        };
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+    }, [dropdownOpen]);
+
     const switchInstance = (id) => {
         setInstanceId(id);
+        setDropdownOpen(false);
         if (onInstanceChange) onInstanceChange(id);
     };
 
@@ -66,21 +78,32 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                     <button className="status-refresh" onClick={onRefreshStatus} title="Refresh status">↺</button>
                 </div>
             </div>
-            {showSwitcher && (
-                <div className="instance-switcher">
-                    <div className="instance-switcher-label">Instances</div>
-                    {instances.map(inst => (
-                        <div
-                            key={inst.id}
-                            className={`instance-item ${selectedInstanceId === inst.id ? "active" : ""}`}
-                            onClick={() => switchInstance(inst.id)}
-                        >
-                            <div className={`status-dot ${instanceStatus[inst.id] === true ? "online" : instanceStatus[inst.id] === false ? "offline" : ""}`} />
-                            <span className="instance-name">{inst.name}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
+            {showSwitcher && (() => {
+                const selected = instances.find(i => i.id === selectedInstanceId) || instances[0];
+                return (
+                    <div className="instance-dropdown" ref={dropdownRef}>
+                        <button className="instance-dropdown-trigger" onClick={() => setDropdownOpen(o => !o)}>
+                            <div className={`status-dot ${instanceStatus[selected?.id] === true ? "online" : instanceStatus[selected?.id] === false ? "offline" : ""}`} />
+                            <span className="instance-dropdown-name">{selected?.name || "Select instance"}</span>
+                            <span className={`instance-dropdown-chevron ${dropdownOpen ? "open" : ""}`}>▾</span>
+                        </button>
+                        {dropdownOpen && (
+                            <div className="instance-dropdown-menu">
+                                {instances.map(inst => (
+                                    <div
+                                        key={inst.id}
+                                        className={`instance-dropdown-item ${selectedInstanceId === inst.id ? "active" : ""}`}
+                                        onClick={() => switchInstance(inst.id)}
+                                    >
+                                        <div className={`status-dot ${instanceStatus[inst.id] === true ? "online" : instanceStatus[inst.id] === false ? "offline" : ""}`} />
+                                        <span className="instance-name">{inst.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
             <nav className="nav">
                 {NAV.map(n => (
                     <div

@@ -126,41 +126,77 @@ export const css = `
   }
   .status-refresh:hover { color: var(--text); background: rgba(255,255,255,0.06); }
 
-  .instance-switcher {
-    padding: 12px 16px;
+  .instance-dropdown {
+    position: relative;
+    padding: 8px 16px;
     border-bottom: 1px solid var(--border);
   }
 
-  .instance-switcher-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-
-  .instance-item {
+  .instance-dropdown-trigger {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 8px;
-    border-radius: 4px;
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .instance-dropdown-trigger:hover { border-color: var(--accent); }
+
+  .instance-dropdown-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .instance-dropdown-chevron {
+    font-size: 10px;
+    color: var(--muted);
+    transition: transform 0.15s;
+  }
+  .instance-dropdown-chevron.open { transform: rotate(180deg); }
+
+  .instance-dropdown-menu {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: calc(100% - 2px);
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 100;
+    overflow: hidden;
+  }
+
+  .instance-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
     cursor: pointer;
     font-size: 12px;
     color: var(--muted);
     transition: all 0.15s;
   }
 
-  .instance-item:hover { color: var(--text); background: rgba(0,0,0,0.04); }
+  .instance-dropdown-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
 
-  .instance-item.active {
+  .instance-dropdown-item.active {
     color: var(--accent);
-    background: rgba(0,149,107,0.07);
+    background: rgba(0,229,160,0.07);
   }
 
   .instance-name {
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--mono);
     font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
