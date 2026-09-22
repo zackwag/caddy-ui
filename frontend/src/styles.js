@@ -167,6 +167,18 @@ export const css = `
     white-space: nowrap;
   }
 
+  .instance-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 24px;
+  }
+
+  .instance-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+  }
+
   .nav { padding: 12px 0; flex: 1; }
 
   .nav-item {
@@ -1160,6 +1172,8 @@ export const css = `
     .metrics-toggle-btn { flex: 1 1 100%; justify-content: center; }
     .metrics-status-text { display: block; width: 100%; margin-top: 8px; }
     .notifications-enabled-btn { width: 100%; justify-content: center; }
+    .instance-details-grid { grid-template-columns: 1fr; }
+    .instance-form-grid { grid-template-columns: 1fr; }
     .notif-test-btn { order: 1; flex: 1 1 0; justify-content: center; }
     .notif-save-btn { order: 2; flex: 2 1 0; justify-content: center; }
 

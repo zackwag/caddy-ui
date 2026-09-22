@@ -12,6 +12,7 @@ const NAV = [
     { path: "/logs", label: "Logs", icon: "≡" },
     { path: "/metrics", label: "Metrics", icon: "∿" },
     { path: "/notifications", label: "Notifications", icon: "⊘" },
+    { path: "/instances", label: "Instances", icon: "⊞" },
 ];
 
 export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange }) {
