@@ -222,7 +222,8 @@ function validateWebhookUrl(url) {
     } catch {
         throw new Error(`Invalid webhook URL: ${url}`);
     }
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
+    const protocol = parsed.protocol;
+    if (protocol !== 'http:' && protocol !== 'https:') {
         throw new Error(`Webhook URL must use http or https: ${url}`);
     }
     const host = parsed.hostname.toLowerCase();
@@ -232,7 +233,8 @@ function validateWebhookUrl(url) {
         || host.endsWith('.internal') || host === 'metadata.google.internal') {
         throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
     }
-    return parsed.href;
+    const port = parsed.port ? `:${parsed.port}` : '';
+    return `${protocol}//${host}${port}${parsed.pathname}${parsed.search}`;
 }
 
 export async function sendNotification(cfg, { title, message, priority }) {
