@@ -9,7 +9,7 @@ A modern web interface for managing your [Caddy](https://caddyserver.com) server
 
 ## Overview
 
-caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker containers alongside your existing Caddy instance and communicates with Caddy's built-in admin API. Your Caddyfile remains the source of truth — the UI reads from it, writes to it, and never takes ownership away from you.
+caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker containers alongside your Caddy instance(s) and communicates with Caddy's built-in admin API. Your Caddyfile remains the source of truth — the UI reads from it, writes to it, and never takes ownership away from you. Manage one Caddy server or many from a single interface.
 
 ## Screenshots
 
@@ -50,7 +50,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Dark/Light Theme** — Toggle between dark and warm off-white themes, persisted across sessions
 - **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
 - **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
-- **Multi-Instance** — Manage multiple Caddy instances from a single UI with an instance switcher in the sidebar, per-instance online/offline status, and automatic data reload on switch
+- **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
 ## Architecture
@@ -59,15 +59,9 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 graph LR
     FE["caddy/ui frontend\nReact + Nginx\n:9877"]
     BE["caddy/ui backend\nNode.js + Express\n:9876"]
+    DS[("Docker Socket\n/var/run/docker.sock")]
     CA["Caddy\n:2019 admin API\n:80 / :443"]
-    CF[("Caddyfile\n/etc/caddy/Caddyfile")]
-    LG[("Access Logs\n/var/log/caddy")]
-    SN[("Server Names\n/etc/caddy-ui")]
-    TLS[("Certificates\n/data/caddy/caddy")]
-    HX[("History\n/etc/caddy-ui/history")]
-    RN[("Route Notes\n/etc/caddy-ui")]
-    NT[("Notifications\n/etc/caddy-ui")]
-    IN[("Instances\n/etc/caddy-ui")]
+    UI_DATA[("caddy-ui data\n/etc/caddy-ui")]
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
@@ -75,15 +69,10 @@ graph LR
     BE -->|"Prometheus metrics"| CA
     BE -->|"/adapt validation"| CA
     BE -->|"/pki/ca/local"| CA
-    BE <-->|"read / write / backup"| CF
-    BE <-->|"read / stream / export"| LG
-    BE <-->|"read / write"| SN
-    BE <-->|"read / delete"| TLS
-    BE <-->|"snapshot / restore"| HX
-    BE <-->|"read / write"| RN
-    BE <-->|"read / write"| NT
-    BE <-->|"read / write"| IN
-    CA <-->|"reload from"| CF
+    BE <-->|"docker exec\nCaddyfile, logs, certs"| DS
+    DS <-->|"read / write / stream"| CA
+    BE <-->|"container discovery"| DS
+    BE <-->|"instances, history,\nnotes, config"| UI_DATA
 ```
 
 ## Quick Start
@@ -156,10 +145,8 @@ services:
       - CADDY_UI_PASSWORD=yourpassword
       - JWT_SECRET=your-long-random-secret
     volumes:
-      - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - /docker/caddy/logs:/var/log/caddy
+      - /var/run/docker.sock:/var/run/docker.sock
       - /docker/caddy-ui:/etc/caddy-ui
-      - /docker/caddy/data:/data/caddy
     networks:
       - caddy-ui
     depends_on:
@@ -181,6 +168,8 @@ networks:
     driver: bridge
 ```
 
+The backend only needs two volumes: the **Docker socket** (to interact with Caddy containers via `docker exec` and discover new instances) and its own **config directory** (for instance registry, history, and settings). No Caddy volume mounts required — all Caddyfile, log, and certificate operations go through the Docker socket.
+
 ### 5. Deploy
 
 ```bash
@@ -196,16 +185,17 @@ All backend variables have sensible defaults. Only set what you need to override
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APP_VERSION` | `dev` | caddy-ui's own version, exposed at `GET /api/version` and shown in the sidebar. Baked in automatically by the release build (`docker build --build-arg APP_VERSION=...`) — no need to set by hand unless building from source and want the UI to report a specific version. |
-| `CADDY_ADMIN_URL` | `http://caddy:2019` | URL of Caddy's admin API |
+| `CADDY_ADMIN_URL` | — | URL of Caddy's admin API. If set, a default instance is auto-created on first startup. If unset, caddy/ui starts with no instances and guides you through discovery. |
 | `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](#caddyfile-titles)) |
-| `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the container |
-| `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy container (used for `docker exec`) |
-| `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory |
-| `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log |
-| `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes |
+| `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the Caddy container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy Docker container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
+| `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
 | `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](#multi-instance)) |
 | `JWT_SECRET` | — | Secret key for signing JWT tokens |
@@ -221,7 +211,40 @@ Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`,
 
 ## Multi-Instance
 
-By default caddy/ui manages a single Caddy instance using the environment variables above. To manage multiple Caddy instances, create an `instances.json` file (or use the `POST /api/instances` endpoint):
+caddy/ui can manage multiple Caddy instances from a single interface. All file operations (Caddyfile, logs, certificates) go through `docker exec` via the Docker socket — no volume mounts needed per instance.
+
+### Setup
+
+On first launch with no `CADDY_ADMIN_URL` set and no `instances.json`, caddy/ui starts with zero instances and redirects to the **Instances** page. From there:
+
+1. Click **Discover** — caddy/ui scans the Docker network for running Caddy containers
+2. Click **Add** on a discovered container — the form is pre-filled with the container's name, admin URL, and environment variables
+3. Review and save
+
+That's it. The instance appears in the sidebar and all pages load its data.
+
+### Adding more instances
+
+To add a second Caddy server, add the service to your compose file on the same Docker network:
+
+```yaml
+  caddy-staging:
+    image: caddy:latest
+    container_name: caddy-staging
+    # ... ports, volumes, environment for the staging Caddy
+    networks:
+      - caddy-ui
+```
+
+Run `docker compose up -d`, then click **Discover** on the Instances page. The new container appears automatically.
+
+### Instance switcher
+
+When more than one instance is configured, an instance switcher appears in the sidebar showing each instance with its online/offline status. Switching instances reloads all pages with data from the selected instance.
+
+### Manual configuration
+
+Instances can also be configured via the REST API (`POST /api/instances`) or by placing an `instances.json` file at `/etc/caddy-ui/instances.json`:
 
 ```json
 [
@@ -234,25 +257,13 @@ By default caddy/ui manages a single Caddy instance using the environment variab
     "dataPath": "/data/caddy/caddy",
     "containerName": "caddy",
     "serverName": "srv0"
-  },
-  {
-    "id": "staging",
-    "name": "Staging",
-    "adminUrl": "http://caddy-staging:2019",
-    "configPath": "/etc/caddy-staging/Caddyfile",
-    "logPath": "/var/log/caddy-staging/access.log",
-    "dataPath": "/data/caddy-staging/caddy",
-    "containerName": "caddy-staging",
-    "serverName": "srv0"
   }
 ]
 ```
 
-Place this file at `/etc/caddy-ui/instances.json` (or set `INSTANCES_PATH`). When more than one instance is configured, an instance switcher appears in the sidebar showing each instance with its online/offline status. Switching instances reloads all tabs with data from the selected instance.
+### Backward compatibility
 
-Each instance needs its own volumes mounted into the backend container — Caddyfile, logs, and data paths must be accessible at the paths specified in the config. Each Caddy instance's admin API must be reachable from the backend container over the Docker network.
-
-If no `instances.json` exists, a single default instance is created automatically from the environment variables — no configuration required.
+Setting `CADDY_ADMIN_URL` still creates a default instance on startup for existing deployments. Remove it to use discovery-based setup instead.
 
 ## Caddyfile Titles
 
@@ -359,7 +370,9 @@ caddy-ui/
 │   │   ├── index.js
 │   │   ├── caddy.js
 │   │   ├── caddyfileTitles.js
+│   │   ├── containerFs.js         ← docker exec wrapper for file ops inside Caddy containers
 │   │   ├── docker.js
+│   │   ├── dockerDiscovery.js     ← auto-discover Caddy containers via Docker socket
 │   │   ├── instances.js
 │   │   ├── logger.js
 │   │   ├── notifications.js
@@ -387,6 +400,7 @@ caddy-ui/
 │   │   ├── components/
 │   │   │   ├── CaddyFile.jsx
 │   │   │   ├── Dashboard.jsx
+│   │   │   ├── Instances.jsx      ← instance management page with discovery
 │   │   │   ├── Login.jsx
 │   │   │   ├── Logs.jsx
 │   │   │   ├── Metrics.jsx
@@ -413,6 +427,7 @@ caddy-ui/
 │   └── package.json
 ├── .github/
 │   └── workflows/
+│       ├── beta.yml
 │       └── release.yml
 └── README.md
 ```
