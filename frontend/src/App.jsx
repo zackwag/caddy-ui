@@ -92,12 +92,15 @@ export default function App() {
     }, [authed, fetchStatus, instanceKey]);
 
     const handleInstanceChange = useCallback((id) => {
-        if (id) setInstanceKey(id);
+        if (id) {
+            setInstanceKey(id);
+            navigate('/dashboard', { replace: true });
+        }
         setInstanceListVersion(v => v + 1);
         setNoInstances(false);
         setStatus(null);
         fetchStatus();
-    }, [fetchStatus]);
+    }, [fetchStatus, navigate]);
 
     const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
