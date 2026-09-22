@@ -278,12 +278,11 @@ async function validateWebhookUrl(url) {
     return `${parsed.protocol}//${host}${port}${parsed.pathname}${parsed.search}`;
 }
 
-async function webhookFetch(url, opts) {
+async function sanitizeWebhookUrl(url) {
     const validated = await validateWebhookUrl(url);
     const m = /^(https?):\/\/([a-zA-Z0-9][a-zA-Z0-9._:-]*)(\/[^\s]*)?$/.exec(validated);
     if (!m) throw new Error('Invalid webhook URL');
-    const safeUrl = `${m[1]}://${m[2]}${m[3] || '/'}`;
-    return fetch(safeUrl, opts);
+    return `${m[1]}://${m[2]}${m[3] || '/'}`;
 }
 
 export async function sendNotification(cfg, { title, message, priority }) {
@@ -291,7 +290,8 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     if (provider === 'ntfy') {
         if (!cfg.ntfy?.url) throw new Error('ntfy URL not configured');
-        const res = await webhookFetch(cfg.ntfy.url, {
+        const ntfyUrl = await sanitizeWebhookUrl(cfg.ntfy.url);
+        const res = await fetch(ntfyUrl, {
             method: 'POST',
             headers: {
                 'Title': title,
@@ -307,8 +307,9 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'discord') {
         if (!cfg.discord?.webhookUrl) throw new Error('Discord webhook URL not configured');
+        const discordUrl = await sanitizeWebhookUrl(cfg.discord.webhookUrl);
         const color = priority === 'high' ? 0xff4d6a : 0x00e5a0;
-        const res = await webhookFetch(cfg.discord.webhookUrl, {
+        const res = await fetch(discordUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -329,8 +330,9 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'slack') {
         if (!cfg.slack?.webhookUrl) throw new Error('Slack webhook URL not configured');
+        const slackUrl = await sanitizeWebhookUrl(cfg.slack.webhookUrl);
         const emoji = priority === 'high' ? ':rotating_light:' : ':white_check_mark:';
-        const res = await webhookFetch(cfg.slack.webhookUrl, {
+        const res = await fetch(slackUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -365,7 +367,8 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'custom') {
         if (!cfg.custom?.url) throw new Error('Custom webhook URL not configured');
-        const res = await webhookFetch(cfg.custom.url, {
+        const customUrl = await sanitizeWebhookUrl(cfg.custom.url);
+        const res = await fetch(customUrl, {
             method: cfg.custom.method || 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, message, priority, timestamp: new Date().toISOString() }),

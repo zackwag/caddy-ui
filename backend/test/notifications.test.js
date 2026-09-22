@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('dns', () => ({
+    promises: {
+        lookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]),
+    },
+}));
+
 describe('sendNotification', () => {
     async function loadNotifications() {
         vi.resetModules();
