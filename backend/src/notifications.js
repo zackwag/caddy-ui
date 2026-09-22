@@ -1,7 +1,8 @@
-import { createConnection } from 'net';
+import { createConnection, isIP } from 'net';
 import { X509Certificate } from 'crypto';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
+import { promises as dns } from 'dns';
 import { caddyGet } from './caddy.js';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
@@ -215,7 +216,37 @@ function checkTCP(host, port) {
     });
 }
 
-function validateWebhookUrl(url) {
+function isUnsafeIPv4(ip) {
+    const parts = ip.split('.').map((p) => Number.parseInt(p, 10));
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+    const [a, b] = parts;
+    return a === 0
+        || a === 10
+        || a === 127
+        || (a === 169 && b === 254)
+        || (a === 172 && b >= 16 && b <= 31)
+        || (a === 192 && b === 168)
+        || a >= 224;
+}
+
+function isUnsafeIPv6(ip) {
+    const normalized = ip.toLowerCase();
+    return normalized === '::'
+        || normalized === '::1'
+        || normalized.startsWith('fe80:')
+        || normalized.startsWith('fc')
+        || normalized.startsWith('fd')
+        || normalized.startsWith('ff');
+}
+
+function isUnsafeIpAddress(ip) {
+    const version = isIP(ip);
+    if (version === 4) return isUnsafeIPv4(ip);
+    if (version === 6) return isUnsafeIPv6(ip);
+    return true;
+}
+
+async function validateWebhookUrl(url) {
     let parsed;
     try {
         parsed = new URL(url);
@@ -225,19 +256,30 @@ function validateWebhookUrl(url) {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         throw new Error(`Webhook URL must use http or https: ${url}`);
     }
+
     const host = parsed.hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0'
-        || host.startsWith('10.') || host.startsWith('192.168.')
-        || /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-        || host.endsWith('.internal') || host === 'metadata.google.internal') {
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host === 'metadata.google.internal') {
         throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
     }
+
+    if (isIP(host) && isUnsafeIpAddress(host)) {
+        throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
+    }
+
+    const records = await dns.lookup(host, { all: true, verbatim: true });
+    if (!records.length) {
+        throw new Error(`Webhook URL host does not resolve: ${host}`);
+    }
+    if (records.some((r) => isUnsafeIpAddress(r.address))) {
+        throw new Error(`Webhook URL must not resolve to internal/private addresses: ${host}`);
+    }
+
     const port = parsed.port ? `:${parsed.port}` : '';
     return `${parsed.protocol}//${host}${port}${parsed.pathname}${parsed.search}`;
 }
 
-function webhookFetch(url, opts) {
-    const validated = validateWebhookUrl(url);
+async function webhookFetch(url, opts) {
+    const validated = await validateWebhookUrl(url);
     const m = /^(https?):\/\/([a-zA-Z0-9][a-zA-Z0-9._:-]*)(\/[^\s]*)?$/.exec(validated);
     if (!m) throw new Error('Invalid webhook URL');
     const safeUrl = `${m[1]}://${m[2]}${m[3] || '/'}`;
