@@ -21,10 +21,12 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     const [discovered, setDiscovered] = useState(null);
     const [discovering, setDiscovering] = useState(false);
 
+    const toastRef = useRef(toast);
+    toastRef.current = toast;
+
     const load = useCallback(() => {
-        setLoading(true);
-        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(e => toast.error(e.message)).finally(() => setLoading(false));
-    }, [onUnauth, toast]);
+        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(e => toastRef.current.error(e.message)).finally(() => setLoading(false));
+    }, [onUnauth]);
 
     const didAutoDiscover = useRef(false);
 
