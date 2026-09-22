@@ -238,8 +238,10 @@ function validateWebhookUrl(url) {
 
 function webhookFetch(url, opts) {
     const validated = validateWebhookUrl(url);
-    if (!/^https?:\/\/[^/]/.test(validated)) throw new Error('Invalid webhook URL');
-    return fetch(validated, opts);
+    const m = /^(https?):\/\/([a-zA-Z0-9][a-zA-Z0-9._:-]*)(\/[^\s]*)?$/.exec(validated);
+    if (!m) throw new Error('Invalid webhook URL');
+    const safeUrl = `${m[1]}://${m[2]}${m[3] || '/'}`;
+    return fetch(safeUrl, opts);
 }
 
 export async function sendNotification(cfg, { title, message, priority }) {
