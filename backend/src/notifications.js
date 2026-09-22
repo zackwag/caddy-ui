@@ -222,8 +222,7 @@ function validateWebhookUrl(url) {
     } catch {
         throw new Error(`Invalid webhook URL: ${url}`);
     }
-    const protocol = parsed.protocol;
-    if (protocol !== 'http:' && protocol !== 'https:') {
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         throw new Error(`Webhook URL must use http or https: ${url}`);
     }
     const host = parsed.hostname.toLowerCase();
@@ -234,7 +233,13 @@ function validateWebhookUrl(url) {
         throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
     }
     const port = parsed.port ? `:${parsed.port}` : '';
-    return `${protocol}//${host}${port}${parsed.pathname}${parsed.search}`;
+    return `${parsed.protocol}//${host}${port}${parsed.pathname}${parsed.search}`;
+}
+
+function webhookFetch(url, opts) {
+    const validated = validateWebhookUrl(url);
+    if (!/^https?:\/\/[^/]/.test(validated)) throw new Error('Invalid webhook URL');
+    return fetch(validated, opts);
 }
 
 export async function sendNotification(cfg, { title, message, priority }) {
@@ -242,8 +247,7 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     if (provider === 'ntfy') {
         if (!cfg.ntfy?.url) throw new Error('ntfy URL not configured');
-        const validatedUrl = validateWebhookUrl(cfg.ntfy.url);
-        const res = await fetch(validatedUrl, {
+        const res = await webhookFetch(cfg.ntfy.url, {
             method: 'POST',
             headers: {
                 'Title': title,
@@ -259,9 +263,8 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'discord') {
         if (!cfg.discord?.webhookUrl) throw new Error('Discord webhook URL not configured');
-        const validatedDiscordUrl = validateWebhookUrl(cfg.discord.webhookUrl);
         const color = priority === 'high' ? 0xff4d6a : 0x00e5a0;
-        const res = await fetch(validatedDiscordUrl, {
+        const res = await webhookFetch(cfg.discord.webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -282,9 +285,8 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'slack') {
         if (!cfg.slack?.webhookUrl) throw new Error('Slack webhook URL not configured');
-        const validatedSlackUrl = validateWebhookUrl(cfg.slack.webhookUrl);
         const emoji = priority === 'high' ? ':rotating_light:' : ':white_check_mark:';
-        const res = await fetch(validatedSlackUrl, {
+        const res = await webhookFetch(cfg.slack.webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -319,8 +321,7 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'custom') {
         if (!cfg.custom?.url) throw new Error('Custom webhook URL not configured');
-        const validatedCustomUrl = validateWebhookUrl(cfg.custom.url);
-        const res = await fetch(validatedCustomUrl, {
+        const res = await webhookFetch(cfg.custom.url, {
             method: cfg.custom.method || 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, message, priority, timestamp: new Date().toISOString() }),
