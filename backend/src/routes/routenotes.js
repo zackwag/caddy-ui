@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { caddyGet } from '../caddy.js';
 import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
-import { getInstance } from '../instances.js';
+import { getInstances } from '../instances.js';
 import logger from '../logger.js';
 
 const router = Router();
@@ -52,21 +52,21 @@ router.put('/:domain', async (req, res) => {
     res.json({ ok: true });
 });
 
-export async function cleanupOrphanedNotes(instance) {
+export async function cleanupOrphanedNotes() {
     try {
-        const inst = instance || getInstance('default');
         const notes = await readNotes();
         const domains = Object.keys(notes);
         if (domains.length === 0) return;
 
         const activeDomains = new Set();
-        const servers = await caddyGet('/config/apps/http/servers', inst.adminUrl).catch(() => null);
-        if (!servers) return;
-
-        for (const server of Object.values(servers)) {
-            for (const route of server.routes || []) {
-                const hosts = route.match?.find(m => m.host)?.host || [];
-                for (const h of hosts) activeDomains.add(h);
+        for (const inst of getInstances()) {
+            const servers = await caddyGet('/config/apps/http/servers', inst.adminUrl).catch(() => null);
+            if (!servers) continue;
+            for (const server of Object.values(servers)) {
+                for (const route of server.routes || []) {
+                    const hosts = route.match?.find(m => m.host)?.host || [];
+                    for (const h of hosts) activeDomains.add(h);
+                }
             }
         }
 

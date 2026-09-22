@@ -110,8 +110,9 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
-app.listen(PORT, async () => {
-    await loadInstances();
+await loadInstances();
+
+app.listen(PORT, () => {
     logger.info(`Caddy UI backend running`, { port: PORT, version: APP_VERSION });
     logger.info(`Caddy admin API`, { url: CADDY_ADMIN_URL });
     logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });

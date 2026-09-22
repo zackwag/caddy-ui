@@ -4,8 +4,12 @@ import logger from '../logger.js';
 
 const router = Router();
 
-function generateId(name) {
-    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `instance-${Date.now()}`;
+function generateId(name, existingIds) {
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'instance';
+    if (!existingIds.has(base)) return base;
+    let suffix = 2;
+    while (existingIds.has(`${base}-${suffix}`)) suffix++;
+    return `${base}-${suffix}`;
 }
 
 function validateAdminUrl(url) {
@@ -56,7 +60,8 @@ router.post('/', async (req, res) => {
     } catch (err) {
         return res.status(400).json({ error: err.message });
     }
-    const id = generateId(name);
+    const existingIds = new Set(getInstances().map(i => i.id));
+    const id = generateId(name, existingIds);
     try {
         const instance = await addInstance({
             id,
@@ -79,15 +84,20 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { name, adminUrl, configPath, logPath, dataPath, containerName, serverName } = req.body;
+    let validatedUrl;
     if (adminUrl) {
         try {
-            validateAdminUrl(adminUrl);
+            validatedUrl = validateAdminUrl(adminUrl);
         } catch (err) {
             return res.status(400).json({ error: err.message });
         }
     }
+    const updates = Object.fromEntries(
+        Object.entries({ name, adminUrl: validatedUrl ?? adminUrl, configPath, logPath, dataPath, containerName, serverName })
+            .filter(([, v]) => v !== undefined)
+    );
     try {
-        const instance = await updateInstance(id, { name, adminUrl, configPath, logPath, dataPath, containerName, serverName });
+        const instance = await updateInstance(id, updates);
         res.json(instance);
     } catch (err) {
         logger.error('Failed to update instance', { id, error: err.message });

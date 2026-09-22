@@ -16,6 +16,7 @@ const DEFAULT_INSTANCE = {
 };
 
 let _instances = null;
+let _writeLock = Promise.resolve();
 
 export async function loadInstances() {
     try {
@@ -31,9 +32,12 @@ export async function loadInstances() {
 }
 
 export async function saveInstances(instances) {
-    await mkdir(dirname(INSTANCES_PATH), { recursive: true });
-    await writeFile(INSTANCES_PATH, JSON.stringify(instances, null, 2), 'utf8');
-    _instances = instances;
+    _writeLock = _writeLock.then(async () => {
+        await mkdir(dirname(INSTANCES_PATH), { recursive: true });
+        await writeFile(INSTANCES_PATH, JSON.stringify(instances, null, 2), 'utf8');
+        _instances = instances;
+    });
+    return _writeLock;
 }
 
 export function getInstances() {

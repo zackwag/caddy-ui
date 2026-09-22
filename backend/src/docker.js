@@ -4,10 +4,12 @@ import logger from './logger.js';
 export const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
 
 const _envCaches = new Map();
+const ENV_CACHE_TTL = 5 * 60 * 1000;
 
 export async function getCaddyEnv(containerName) {
     const container = containerName || CADDY_CONTAINER;
-    if (_envCaches.has(container)) return _envCaches.get(container);
+    const cached = _envCaches.get(container);
+    if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) return cached.env;
     try {
         const { stdout } = await dockerExec(['env'], undefined, container);
         const env = {};
@@ -15,7 +17,7 @@ export async function getCaddyEnv(containerName) {
             const eq = line.indexOf('=');
             if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
         }
-        _envCaches.set(container, env);
+        _envCaches.set(container, { env, ts: Date.now() });
         logger.debug('Cached Caddy container env vars', { container, count: Object.keys(env).length });
         return env;
     } catch {

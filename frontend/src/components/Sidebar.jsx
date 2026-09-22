@@ -24,11 +24,18 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
     useEffect(() => {
         apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
-        apiFetch("/instances/status", {}, onUnauth).then(results => {
-            const map = {};
-            for (const r of results) map[r.id] = r.online;
-            setInstanceStatus(map);
-        }).catch(() => { });
+    }, [onUnauth]);
+
+    useEffect(() => {
+        const fetchStatus = () =>
+            apiFetch("/instances/status", {}, onUnauth).then(results => {
+                const map = {};
+                for (const r of results) map[r.id] = r.online;
+                setInstanceStatus(map);
+            }).catch(() => { });
+        fetchStatus();
+        const t = setInterval(fetchStatus, 15000);
+        return () => clearInterval(t);
     }, [onUnauth]);
 
     const switchInstance = (id) => {
