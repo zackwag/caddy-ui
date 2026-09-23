@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { createReadStream } from 'fs';
+import { stat } from 'fs/promises';
 import { caddyLoad } from '../caddy.js';
 import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { dockerExec } from '../docker.js';
@@ -154,8 +156,19 @@ router.put('/config', async (req, res) => {
 router.get('/', async (req, res) => {
     const { logPath, containerName } = req.instance;
     try {
-        const { stdout } = await dockerExec(['tail', '-n', String(TAIL_LINES), logPath], undefined, containerName);
-        const lines = stdout.split('\n').filter(Boolean);
+        if (containerName) {
+            const { stdout } = await dockerExec(['tail', '-n', String(TAIL_LINES), logPath], undefined, containerName);
+            const lines = stdout.split('\n').filter(Boolean);
+            return res.json({ lines, path: logPath });
+        }
+        const { spawn } = await import('child_process');
+        const lines = await new Promise((resolve, reject) => {
+            const proc = spawn('tail', ['-n', String(TAIL_LINES), logPath]);
+            let out = '';
+            proc.stdout.on('data', d => { out += d; });
+            proc.on('close', code => code === 0 ? resolve(out.split('\n').filter(Boolean)) : reject());
+            proc.on('error', reject);
+        });
         res.json({ lines, path: logPath });
     } catch {
         res.json({ lines: [], error: `Log file not found at ${logPath}` });
@@ -170,7 +183,9 @@ router.get('/stream', async (req, res) => {
     res.flushHeaders();
 
     const { spawn } = await import('child_process');
-    const proc = spawn('docker', ['exec', containerName, 'tail', '-n', '0', '-f', logPath]);
+    const proc = containerName
+        ? spawn('docker', ['exec', containerName, 'tail', '-n', '0', '-f', logPath])
+        : spawn('tail', ['-n', '0', '-f', logPath]);
     let buffer = '';
 
     proc.stdout.on('data', (chunk) => {

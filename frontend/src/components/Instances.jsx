@@ -7,7 +7,7 @@ const EMPTY_FORM = {
     configPath: "/etc/caddy/Caddyfile",
     logPath: "/var/log/caddy/access.log",
     dataPath: "/data/caddy/caddy",
-    containerName: "caddy",
+    containerName: "",
     serverName: "srv0",
 };
 
@@ -100,7 +100,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             configPath: inst.configPath || "/etc/caddy/Caddyfile",
             logPath: inst.logPath || "/var/log/caddy/access.log",
             dataPath: inst.dataPath || "/data/caddy/caddy",
-            containerName: inst.containerName || "caddy",
+            containerName: inst.containerName || "",
             serverName: inst.serverName || "srv0",
         });
     };
@@ -210,7 +210,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             </div>
                             <div>
                                 <span className="field-label">Container</span>
-                                <div className="data-val mono">{inst.containerName || "caddy"}</div>
+                                <div className="data-val mono">{inst.containerName || "local"}</div>
                             </div>
                             <div>
                                 <span className="field-label">Config Path</span>
@@ -280,8 +280,9 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                 <input
                                     value={form.containerName}
                                     onChange={e => update({ containerName: e.target.value })}
-                                    placeholder="caddy"
+                                    placeholder="Leave empty for local mode"
                                 />
+                                <div className="hint" style={{ marginTop: 4 }}>Leave empty if Caddy files are mounted locally instead of accessed via Docker.</div>
                             </div>
                             <div className="field">
                                 <label>Server Name</label>

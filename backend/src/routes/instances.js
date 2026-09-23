@@ -88,7 +88,7 @@ router.post('/', async (req, res) => {
             id,
             name,
             ...fields,
-            containerName: containerName || 'caddy',
+            containerName: containerName != null ? containerName : 'caddy',
             serverName: serverName || 'srv0',
         });
         res.status(201).json(instance);

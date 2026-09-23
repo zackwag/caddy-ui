@@ -53,8 +53,21 @@ async function pruneHistory(instanceId) {
 
 async function fmtCaddyfile(content, containerName) {
     try {
-        const { stdout } = await dockerExec(['caddy', 'fmt', '-'], content, containerName);
-        return stdout || content;
+        if (containerName) {
+            const { stdout } = await dockerExec(['caddy', 'fmt', '-'], content, containerName);
+            return stdout || content;
+        }
+        const { spawn } = await import('child_process');
+        const result = await new Promise((resolve, reject) => {
+            const proc = spawn('caddy', ['fmt', '-']);
+            let out = '';
+            proc.stdout.on('data', d => { out += d; });
+            proc.on('close', code => code === 0 ? resolve(out) : reject(new Error('caddy fmt failed')));
+            proc.on('error', reject);
+            proc.stdin.write(content);
+            proc.stdin.end();
+        });
+        return result || content;
     } catch (err) {
         logger.warn('caddy fmt failed', { error: err.message });
         return content;
@@ -96,7 +109,20 @@ async function adaptViaAdminApi(content, adminUrl) {
 async function adaptViaCaddyBinary(content, configPath, containerName) {
     const tmp = join(dirname(configPath), `.caddy-ui-adapt-${process.pid}-${Date.now()}.tmp`);
     const script = `cat > '${tmp}' && caddy adapt --config '${tmp}' --adapter caddyfile > /dev/null; rc=$?; rm -f '${tmp}'; exit $rc`;
-    await dockerExec(['sh', '-c', script], content, containerName);
+    if (containerName) {
+        await dockerExec(['sh', '-c', script], content, containerName);
+        return;
+    }
+    const { spawn } = await import('child_process');
+    await new Promise((resolve, reject) => {
+        const proc = spawn('sh', ['-c', script]);
+        let stderr = '';
+        proc.stderr.on('data', d => { stderr += d; });
+        proc.on('close', code => code === 0 ? resolve() : reject(Object.assign(new Error(stderr.trim()), { stderr, stdout: '', code })));
+        proc.on('error', reject);
+        proc.stdin.write(content);
+        proc.stdin.end();
+    });
 }
 
 async function validateCaddyfile(content, { adminUrl, configPath, containerName }) {
@@ -116,7 +142,18 @@ async function validateCaddyfile(content, { adminUrl, configPath, containerName 
 }
 
 async function reloadViaCaddyBinary(configPath, containerName) {
-    await dockerExec(['caddy', 'reload', '--config', configPath, '--adapter', 'caddyfile'], undefined, containerName);
+    if (containerName) {
+        await dockerExec(['caddy', 'reload', '--config', configPath, '--adapter', 'caddyfile'], undefined, containerName);
+        return;
+    }
+    const { spawn } = await import('child_process');
+    await new Promise((resolve, reject) => {
+        const proc = spawn('caddy', ['reload', '--config', configPath, '--adapter', 'caddyfile']);
+        let stderr = '';
+        proc.stderr.on('data', d => { stderr += d; });
+        proc.on('close', code => code === 0 ? resolve() : reject(new Error(stderr.trim())));
+        proc.on('error', reject);
+    });
 }
 
 async function reloadCaddy(content, { adminUrl, configPath, containerName }) {

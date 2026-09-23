@@ -7,8 +7,20 @@ const router = Router();
 
 async function getCaddyVersion(containerName) {
     try {
-        const { stdout } = await dockerExec(['caddy', 'version'], undefined, containerName);
-        const version = stdout.trim().split(' ')[0] || 'unknown';
+        if (containerName) {
+            const { stdout } = await dockerExec(['caddy', 'version'], undefined, containerName);
+            const version = stdout.trim().split(' ')[0] || 'unknown';
+            logger.debug(`Caddy version detected`, { version });
+            return version;
+        }
+        const { spawn } = await import('child_process');
+        const version = await new Promise((resolve) => {
+            const proc = spawn('caddy', ['version']);
+            let out = '';
+            proc.stdout.on('data', d => { out += d; });
+            proc.on('close', code => resolve(code === 0 ? out.trim().split(' ')[0] || 'unknown' : 'unknown'));
+            proc.on('error', () => resolve('unknown'));
+        });
         logger.debug(`Caddy version detected`, { version });
         return version;
     } catch (err) {

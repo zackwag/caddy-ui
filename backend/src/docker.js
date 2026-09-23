@@ -7,7 +7,8 @@ const _envCaches = new Map();
 const ENV_CACHE_TTL = 5 * 60 * 1000;
 
 export async function getCaddyEnv(containerName) {
-    const container = containerName || CADDY_CONTAINER;
+    if (!containerName) return { ...process.env };
+    const container = containerName;
     const cached = _envCaches.get(container);
     if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) return cached.env;
     try {
