@@ -211,9 +211,18 @@ Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`,
 
 ## Multi-Instance
 
-caddy/ui can manage multiple Caddy instances from a single interface. All file operations (Caddyfile, logs, certificates) go through `docker exec` via the Docker socket — no volume mounts needed per instance.
+caddy/ui can manage multiple Caddy instances from a single interface. There are two modes for accessing Caddy's files, and you can mix them per-instance:
 
-### Setup
+| | Docker mode | Local mode |
+|---|---|---|
+| **How it works** | `docker exec` via the Docker socket | Direct filesystem reads/writes |
+| **Volumes needed** | Docker socket only | Caddy's Caddyfile, logs, and data dirs mounted into the backend |
+| **Auto-discovery** | Yes | No |
+| **Container Name field** | Set to the Caddy container name | Leave empty |
+
+### Docker mode (recommended)
+
+Mount the Docker socket into the backend and let caddy/ui talk to Caddy containers via `docker exec`. No per-instance volume mounts needed.
 
 On first launch with no `CADDY_ADMIN_URL` set and no `instances.json`, caddy/ui starts with zero instances and redirects to the **Instances** page. From there:
 
@@ -221,11 +230,9 @@ On first launch with no `CADDY_ADMIN_URL` set and no `instances.json`, caddy/ui 
 2. Click **Add** on a discovered container — the form is pre-filled with the container's name, admin URL, and environment variables
 3. Review and save
 
-That's it. The instance appears in the sidebar and all pages load its data.
+That's it. The instance appears in the sidebar and all pages load its data. Discovery also polls automatically every 30 seconds, so new containers appear on their own.
 
-### Adding more instances
-
-To add a second Caddy server, add the service to your compose file on the same Docker network:
+To add more instances, put them on the same Docker network and they'll show up in discovery:
 
 ```yaml
   caddy-staging:
@@ -236,11 +243,28 @@ To add a second Caddy server, add the service to your compose file on the same D
       - caddy-ui
 ```
 
-Run `docker compose up -d`, then click **Discover** on the Instances page. The new container appears automatically.
+### Local mode (no Docker socket)
+
+If you can't or don't want to mount the Docker socket, leave the **Container Name** field empty when adding an instance. caddy/ui will access Caddyfiles, logs, and certificates directly from the filesystem and use the bundled `caddy` binary for formatting, validation, and reload.
+
+This requires mounting each Caddy instance's files into the backend container:
+
+```yaml
+  caddy-ui-backend:
+    volumes:
+      - /docker/caddy-ui:/etc/caddy-ui
+      - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - /docker/caddy/logs:/var/log/caddy
+      - /docker/caddy/data:/data/caddy
+```
+
+Then add the instance manually on the Instances page with Container Name left empty. The paths in the instance config must match where the files are mounted in the backend container.
+
+> **Note:** When managing multiple instances in local mode, the mount paths can't collide. Two Caddy instances both using `/etc/caddy/Caddyfile` inside their own containers would need to be mounted to different paths in the backend (e.g., `/etc/caddy-prod/Caddyfile` and `/etc/caddy-staging/Caddyfile`).
 
 ### Instance switcher
 
-When more than one instance is configured, an instance switcher appears in the sidebar showing each instance with its online/offline status. Switching instances reloads all pages with data from the selected instance.
+When more than one instance is configured, an instance switcher dropdown appears in the sidebar showing each instance with its online/offline status. Switching instances navigates to the Dashboard and reloads all data from the selected instance.
 
 ### Manual configuration
 
@@ -257,9 +281,21 @@ Instances can also be configured via the REST API (`POST /api/instances`) or by 
     "dataPath": "/data/caddy/caddy",
     "containerName": "caddy",
     "serverName": "srv0"
+  },
+  {
+    "id": "local-caddy",
+    "name": "Local Caddy",
+    "adminUrl": "http://localhost:2019",
+    "configPath": "/etc/caddy-local/Caddyfile",
+    "logPath": "/var/log/caddy-local/access.log",
+    "dataPath": "/data/caddy-local/caddy",
+    "containerName": "",
+    "serverName": "srv0"
   }
 ]
 ```
+
+Set `containerName` to the Docker container name for Docker mode, or `""` for local mode.
 
 ### Backward compatibility
 
