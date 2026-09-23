@@ -1,6 +1,4 @@
 import { Router } from 'express';
-import { createReadStream } from 'fs';
-import { stat } from 'fs/promises';
 import { caddyLoad } from '../caddy.js';
 import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { dockerExec } from '../docker.js';
