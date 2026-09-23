@@ -78,7 +78,7 @@ export async function discoverCaddyContainers() {
     const results = [];
     for (const c of containers) {
         const image = c.Image || '';
-        if (!image.match(/^caddy[:/]|\/caddy[:/]|\/caddy$/)) continue;
+        if (!/caddy/i.test(image) || /caddy-ui/i.test(image)) continue;
 
         const name = (c.Names || [])[0]?.replace(/^\//, '') || c.Id?.slice(0, 12);
 
