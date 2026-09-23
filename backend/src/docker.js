@@ -25,6 +25,7 @@ export async function getCaddyEnv(containerName) {
     }
 }
 
+// Substitutes Caddy-style {$VAR} placeholders with values from the container's environment
 export function resolveEnvVars(str, env) {
     return str.replace(/\{\$([A-Z_][A-Z0-9_]*)\}/g, (_, name) => env[name] || '');
 }
