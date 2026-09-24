@@ -366,14 +366,17 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
         if (!checked) return <span className="health-dot health-dot--pending" title="Checking..." />;
         const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
         const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
-        const stats = uptime[upstreams[0]];
-        const uptimeLabel = stats && stats.total > 1 ? `${stats.pct}%` : null;
         return (
-            <div className="health-dot-wrap">
-                <span className="health-dot" style={{ background: color, boxShadow: shadow }} title={allOnline ? "Online" : anyOnline ? "Partial" : "Offline"} />
-                {uptimeLabel && <span className="uptime-label">{uptimeLabel}</span>}
-            </div>
+            <span className="health-dot" style={{ background: color, boxShadow: shadow }} title={allOnline ? "Online" : anyOnline ? "Partial" : "Offline"} />
         );
+    };
+
+    const getUptimePct = (route) => {
+        const upstream = getUpstream(route);
+        if (upstream === "—") return null;
+        const upstreams = upstream.split(", ");
+        const stats = uptime[upstreams[0]];
+        return stats && stats.total > 1 ? stats.pct : null;
     };
 
     const handleSort = (col) => {
@@ -392,6 +395,11 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
         if (sortCol === "domain") { valA = getHost(a); valB = getHost(b); }
         else if (sortCol === "title") { valA = notes[getHost(a)] || ""; valB = notes[getHost(b)] || ""; }
         else if (sortCol === "upstream") { valA = getUpstream(a); valB = getUpstream(b); }
+        else if (sortCol === "uptime") {
+            valA = getUptimePct(a) ?? 101;
+            valB = getUptimePct(b) ?? 101;
+            return sortDir === "asc" ? valA - valB : valB - valA;
+        }
         else { valA = a._server || ""; valB = b._server || ""; }
         return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
     });
@@ -434,6 +442,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                         <th className="th-sortable" onClick={() => handleSort("domain")}>Domain <SortIcon col="domain" /></th>
                                         <th className="th-sortable col-title" onClick={() => handleSort("title")}>Title <SortIcon col="title" /></th>
                                         <th className="th-sortable" onClick={() => handleSort("upstream")}>Upstream <SortIcon col="upstream" /></th>
+                                        <th className="th-sortable" onClick={() => handleSort("uptime")}>Uptime <SortIcon col="uptime" /></th>
                                         <th className="th-sortable" onClick={() => handleSort("server")}>Server <SortIcon col="server" /></th>
                                         <th>ID</th>
                                         <th></th>
@@ -472,6 +481,12 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                                 <td>
                                                     {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
                                                 </td>
+                                                <td className="mono cell-muted">{(() => {
+                                                    const pct = getUptimePct(r);
+                                                    if (pct === null) return "—";
+                                                    const color = pct >= 99 ? "var(--accent)" : pct >= 90 ? "var(--warn)" : "var(--danger)";
+                                                    return <span style={{ color }}>{pct}%</span>;
+                                                })()}</td>
                                                 <td
                                                     className="mono cell-muted"
                                                     style={{ cursor: r._server ? "pointer" : "default" }}
