@@ -76,7 +76,7 @@ router.post('/', async (req, res) => {
             adminUrl,
             configPath: configPath || '/etc/caddy/Caddyfile',
             logPath: logPath || '/var/log/caddy/access.log',
-            dataPath: dataPath || '/data/caddy/caddy',
+            dataPath: dataPath || '/data/caddy',
         });
     } catch (err) {
         return res.status(400).json({ error: err.message });

@@ -189,7 +189,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](#caddyfile-titles)) |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the Caddy container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy Docker container (only used with `CADDY_ADMIN_URL`) |
-| `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
@@ -278,7 +278,7 @@ Instances can also be configured via the REST API (`POST /api/instances`) or by 
     "adminUrl": "http://caddy:2019",
     "configPath": "/etc/caddy/Caddyfile",
     "logPath": "/var/log/caddy/access.log",
-    "dataPath": "/data/caddy/caddy",
+    "dataPath": "/data/caddy",
     "containerName": "caddy",
     "serverName": "srv0"
   },

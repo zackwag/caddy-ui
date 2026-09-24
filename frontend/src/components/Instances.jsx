@@ -6,7 +6,7 @@ const EMPTY_FORM = {
     adminUrl: "",
     configPath: "/etc/caddy/Caddyfile",
     logPath: "/var/log/caddy/access.log",
-    dataPath: "/data/caddy/caddy",
+    dataPath: "/data/caddy",
     containerName: "",
     serverName: "srv0",
 };
@@ -99,7 +99,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             adminUrl: inst.adminUrl,
             configPath: inst.configPath || "/etc/caddy/Caddyfile",
             logPath: inst.logPath || "/var/log/caddy/access.log",
-            dataPath: inst.dataPath || "/data/caddy/caddy",
+            dataPath: inst.dataPath || "/data/caddy",
             containerName: inst.containerName || "",
             serverName: inst.serverName || "srv0",
         });
@@ -317,7 +317,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             <input
                                 value={form.dataPath}
                                 onChange={e => update({ dataPath: e.target.value })}
-                                placeholder="/data/caddy/caddy"
+                                placeholder="/data/caddy"
                             />
                         </div>
 

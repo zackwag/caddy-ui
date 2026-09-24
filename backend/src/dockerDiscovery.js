@@ -100,7 +100,7 @@ export async function discoverCaddyContainers() {
             adminUrl,
             configPath: extractEnvVar(detail, 'CADDY_CONFIG_PATH') || '/etc/caddy/Caddyfile',
             logPath: extractEnvVar(detail, 'CADDY_LOG_PATH') || '/var/log/caddy/access.log',
-            dataPath: '/data/caddy/caddy',
+            dataPath: '/data/caddy',
             serverName: extractEnvVar(detail, 'CADDY_SERVER_NAME') || 'srv0',
         });
     }

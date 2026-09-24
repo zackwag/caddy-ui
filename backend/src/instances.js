@@ -15,7 +15,7 @@ function buildDefaultInstance() {
         adminUrl: process.env.CADDY_ADMIN_URL,
         configPath: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile',
         logPath: process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log',
-        dataPath: process.env.CADDY_DATA_PATH || '/data/caddy/caddy',
+        dataPath: process.env.CADDY_DATA_PATH || '/data/caddy',
         containerName: process.env.CADDY_CONTAINER_NAME || 'caddy',
         serverName: process.env.CADDY_SERVER_NAME || 'srv0',
     };
