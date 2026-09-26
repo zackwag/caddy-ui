@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { readFile, writeFile } from 'fs/promises';
 import { caddyGet } from '../caddy.js';
 import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
+import { readContainerFile } from '../containerFs.js';
+import { getInstances } from '../instances.js';
 import logger from '../logger.js';
 
 const router = Router();
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
-const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 
 async function readNotes() {
     try {
@@ -27,8 +28,8 @@ router.get('/', async (req, res) => {
 
     if (caddyfileTitlesEnabled()) {
         try {
-            const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
-            const titles = await parseCaddyfileTitles(caddyfile);
+            const caddyfile = await readContainerFile(req.instance.containerName, req.instance.configPath);
+            const titles = await parseCaddyfileTitles(caddyfile, req.instance.containerName);
             for (const [domain, title] of Object.entries(titles)) {
                 if (title) notes[domain] = title;
             }
@@ -59,13 +60,14 @@ export async function cleanupOrphanedNotes() {
         if (domains.length === 0) return;
 
         const activeDomains = new Set();
-        const servers = await caddyGet('/config/apps/http/servers').catch(() => null);
-        if (!servers) return;
-
-        for (const server of Object.values(servers)) {
-            for (const route of server.routes || []) {
-                const hosts = route.match?.find(m => m.host)?.host || [];
-                for (const h of hosts) activeDomains.add(h);
+        for (const inst of getInstances()) {
+            const servers = await caddyGet('/config/apps/http/servers', inst.adminUrl).catch(() => null);
+            if (!servers) continue;
+            for (const server of Object.values(servers)) {
+                for (const route of server.routes || []) {
+                    const hosts = route.match?.find(m => m.host)?.host || [];
+                    for (const h of hosts) activeDomains.add(h);
+                }
             }
         }
 

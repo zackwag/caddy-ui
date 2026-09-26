@@ -15,10 +15,14 @@ export function setAuthEnabled(v) { localStorage.setItem('caddy_ui_auth_enabled'
 export function getTheme() { return localStorage.getItem('caddy_ui_theme') || 'dark'; }
 export function saveTheme(theme) { localStorage.setItem('caddy_ui_theme', theme); }
 
+export function getInstanceId() { return localStorage.getItem('caddy_ui_instance') || 'default'; }
+export function setInstanceId(id) { localStorage.setItem('caddy_ui_instance', id); }
+
 export async function apiFetch(path, opts = {}, onUnauth) {
     const token = getToken();
     const headers = { ...(opts.headers || {}) };
     if (token) headers['Authorization'] = `Bearer ${token}`;
+    headers['X-Instance-Id'] = getInstanceId();
     const res = await fetch(`${API}${path}`, { ...opts, headers });
     if (res.status === 401) {
         setToken(null);
@@ -29,6 +33,11 @@ export async function apiFetch(path, opts = {}, onUnauth) {
         const ct = res.headers.get("content-type") || "";
         if (ct.includes("application/json")) {
             const body = await res.json();
+            if (body.code === 'NO_INSTANCES') {
+                const err = new Error(body.error);
+                err.code = 'NO_INSTANCES';
+                throw err;
+            }
             if (body.errors?.length) throw new Error(body.errors.join('\n'));
             throw new Error(body.error || res.statusText);
         }

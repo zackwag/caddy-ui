@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('dns', () => ({
+    promises: {
+        lookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]),
+    },
+}));
+
 describe('sendNotification', () => {
     async function loadNotifications() {
         vi.resetModules();
@@ -184,7 +190,7 @@ describe('sendNotification', () => {
             { title: 'Custom', message: 'test', priority: 'default' }
         );
 
-        expect(mockFetch.mock.calls[0][0]).toBe('https://webhook.example.com');
+        expect(mockFetch.mock.calls[0][0]).toBe('https://webhook.example.com/');
         expect(mockFetch.mock.calls[0][1].method).toBe('PUT');
         const body = JSON.parse(mockFetch.mock.calls[0][1].body);
         expect(body.title).toBe('Custom');

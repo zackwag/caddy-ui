@@ -3,19 +3,23 @@ import logger from './logger.js';
 
 export const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
 
-let _envCache = null;
+const _envCaches = new Map();
+const ENV_CACHE_TTL = 5 * 60 * 1000;
 
-export async function getCaddyEnv() {
-    if (_envCache) return _envCache;
+export async function getCaddyEnv(containerName) {
+    if (!containerName) return { ...process.env };
+    const container = containerName;
+    const cached = _envCaches.get(container);
+    if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) return cached.env;
     try {
-        const { stdout } = await dockerExec(['env']);
+        const { stdout } = await dockerExec(['env'], undefined, container);
         const env = {};
         for (const line of stdout.split('\n')) {
             const eq = line.indexOf('=');
             if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
         }
-        _envCache = env;
-        logger.debug('Cached Caddy container env vars', { count: Object.keys(env).length });
+        _envCaches.set(container, { env, ts: Date.now() });
+        logger.debug('Cached Caddy container env vars', { container, count: Object.keys(env).length });
         return env;
     } catch {
         return {};
@@ -27,9 +31,10 @@ export function resolveEnvVars(str, env) {
     return str.replace(/\{\$([A-Z_][A-Z0-9_]*)\}/g, (_, name) => env[name] || '');
 }
 
-export function dockerExec(args, input) {
+export function dockerExec(args, input, containerName) {
+    const container = containerName || CADDY_CONTAINER;
     return new Promise((resolve, reject) => {
-        const proc = spawn('docker', ['exec', '-i', CADDY_CONTAINER, ...args]);
+        const proc = spawn('docker', ['exec', '-i', container, ...args]);
         let stdout = '';
         let stderr = '';
         proc.stdout.on('data', d => { stdout += d; });

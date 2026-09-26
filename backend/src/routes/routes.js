@@ -1,14 +1,11 @@
 import { Router } from 'express';
-import { readFile, writeFile } from 'fs/promises';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
+import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { getCaddyEnv, resolveEnvVars } from '../docker.js';
 import logger from '../logger.js';
 
 const router = Router();
-
-const PRIMARY_SERVER = process.env.CADDY_SERVER_NAME || 'srv0';
-const CADDY_CONFIG_PATH = process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile';
 
 function buildReverseProxyRoute({ id, domain, upstream, stripPrefix }) {
     const matchers = [{ host: [domain] }];
@@ -130,7 +127,6 @@ function extractSiteBlock(caddyfile, domain, env) {
 }
 
 function isSimpleReverseProxy(route) {
-    // Check if route is a simple reverse_proxy with no complex matchers
     const subroute = route.handle?.find(h => h.handler === 'subroute');
     if (!subroute) return false;
     const innerRoutes = subroute.routes ?? [];
@@ -140,9 +136,9 @@ function isSimpleReverseProxy(route) {
     return handles[0].handler === 'reverse_proxy';
 }
 
-async function getAllServers() {
+async function getAllServers(adminUrl) {
     try {
-        const config = await caddyGet('/config/apps/http/servers');
+        const config = await caddyGet('/config/apps/http/servers', adminUrl);
         return config || {};
     } catch {
         return {};
@@ -152,7 +148,7 @@ async function getAllServers() {
 // GET /api/routes
 router.get('/', async (req, res) => {
     try {
-        const servers = await getAllServers();
+        const servers = await getAllServers(req.instance.adminUrl);
         const allRoutes = [];
 
         for (const [serverName, server] of Object.entries(servers)) {
@@ -182,18 +178,20 @@ router.post('/', async (req, res) => {
 
     const id = `route-${Date.now()}`;
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
+    const primaryServer = req.instance.serverName;
+    const configPath = req.instance.configPath;
 
-    const routesPath = `/config/apps/http/servers/${PRIMARY_SERVER}/routes`;
-    const existing = await caddyGet(routesPath).catch(() => null);
+    const routesPath = `/config/apps/http/servers/${primaryServer}/routes`;
+    const existing = await caddyGet(routesPath, req.instance.adminUrl).catch(() => null);
     if (existing === null) {
-        await caddyPut(routesPath, [route]);
+        await caddyPut(routesPath, [route], req.instance.adminUrl);
     } else {
-        await caddyPost(routesPath, route);
+        await caddyPost(routesPath, route, req.instance.adminUrl);
     }
 
-    const caddyfile = await readFile(CADDY_CONFIG_PATH, 'utf8');
+    const caddyfile = await readContainerFile(req.instance.containerName, configPath);
     const block = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-    await writeFile(CADDY_CONFIG_PATH, `${caddyfile.trimEnd()}\n\n${block}\n`, 'utf8');
+    await writeContainerFile(req.instance.containerName, configPath, `${caddyfile.trimEnd()}\n\n${block}\n`);
 
     logger.info(`Route added`, { id, domain, upstream });
     res.status(201).json({ ok: true, id, route });
@@ -203,7 +201,10 @@ router.post('/', async (req, res) => {
 router.get('/caddyfile/:domain', async (req, res) => {
     const { domain } = req.params;
     try {
-        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const [caddyfile, env] = await Promise.all([
+            readContainerFile(req.instance.containerName, req.instance.configPath),
+            getCaddyEnv(req.instance.containerName),
+        ]);
         const block = extractSiteBlock(caddyfile, domain, env);
         if (!block) return res.status(404).json({ error: 'site block not found' });
 
@@ -228,7 +229,10 @@ router.patch('/caddyfile/:domain', async (req, res) => {
     }
 
     try {
-        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const [caddyfile, env] = await Promise.all([
+            readContainerFile(req.instance.containerName, req.instance.configPath),
+            getCaddyEnv(req.instance.containerName),
+        ]);
         const existing = extractSiteBlock(caddyfile, domain, env);
         if (!existing) return res.status(404).json({ error: 'site block not found' });
 
@@ -239,10 +243,10 @@ router.patch('/caddyfile/:domain', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${finalContent}\n`;
-        await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
+        await writeContainerFile(req.instance.containerName, req.instance.configPath, updated);
 
         const { caddyLoad } = await import('../caddy.js');
-        await caddyLoad(updated);
+        await caddyLoad(updated, req.instance.adminUrl);
 
         logger.info('Caddyfile site block updated', { domain });
         res.json({ ok: true, domain });
@@ -256,15 +260,18 @@ router.patch('/caddyfile/:domain', async (req, res) => {
 router.delete('/caddyfile/:domain', async (req, res) => {
     const { domain } = req.params;
     try {
-        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const [caddyfile, env] = await Promise.all([
+            readContainerFile(req.instance.containerName, req.instance.configPath),
+            getCaddyEnv(req.instance.containerName),
+        ]);
         const existing = extractSiteBlock(caddyfile, domain, env);
         if (!existing) return res.status(404).json({ error: 'site block not found' });
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await writeFile(CADDY_CONFIG_PATH, cleaned, 'utf8');
+        await writeContainerFile(req.instance.containerName, req.instance.configPath, cleaned);
 
         const { caddyLoad } = await import('../caddy.js');
-        await caddyLoad(cleaned);
+        await caddyLoad(cleaned, req.instance.adminUrl);
 
         logger.info('Caddyfile site block deleted', { domain });
         res.json({ ok: true, domain });
@@ -285,21 +292,23 @@ router.patch('/:id', async (req, res) => {
 
     let oldDomain = null;
     try {
-        const oldRoute = await caddyGet(`/id/${id}`);
+        const oldRoute = await caddyGet(`/id/${id}`, req.instance.adminUrl);
         oldDomain = oldRoute?.match?.[0]?.host?.[0] || null;
     } catch {
         logger.warn(`Could not fetch old route for update`, { id });
     }
 
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
-    await caddyPatch(`/id/${id}`, route);
+    await caddyPatch(`/id/${id}`, route, req.instance.adminUrl);
 
-    // Update Caddyfile block
     if (oldDomain) {
-        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const [caddyfile, env] = await Promise.all([
+            readContainerFile(req.instance.containerName, req.instance.configPath),
+            getCaddyEnv(req.instance.containerName),
+        ]);
         const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
         const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock, env);
-        await writeFile(CADDY_CONFIG_PATH, updated, 'utf8');
+        await writeContainerFile(req.instance.containerName, req.instance.configPath, updated);
     }
 
     logger.info(`Route updated`, { id, domain, upstream });
@@ -313,18 +322,21 @@ router.delete('/:id', async (req, res) => {
 
     let domain = null;
     try {
-        const route = await caddyGet(`/id/${id}`);
+        const route = await caddyGet(`/id/${id}`, req.instance.adminUrl);
         domain = route?.match?.[0]?.host?.[0] || null;
     } catch {
         logger.warn(`Could not fetch route for deletion`, { id });
     }
 
-    await caddyDelete(`/id/${id}`);
+    await caddyDelete(`/id/${id}`, req.instance.adminUrl);
 
     if (domain) {
-        const [caddyfile, env] = await Promise.all([readFile(CADDY_CONFIG_PATH, 'utf8'), getCaddyEnv()]);
+        const [caddyfile, env] = await Promise.all([
+            readContainerFile(req.instance.containerName, req.instance.configPath),
+            getCaddyEnv(req.instance.containerName),
+        ]);
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await writeFile(CADDY_CONFIG_PATH, cleaned, 'utf8');
+        await writeContainerFile(req.instance.containerName, req.instance.configPath, cleaned);
     }
 
     logger.info(`Route deleted`, { id, domain });

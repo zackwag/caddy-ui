@@ -18,10 +18,11 @@ export function withTimeout(promise, ms, label) {
     ]);
 }
 
-async function caddyRequest(method, path, body) {
-    const url = `${CADDY_ADMIN_URL}${path}`;
+async function caddyRequest(method, path, body, adminUrl) {
+    const base = adminUrl || CADDY_ADMIN_URL;
+    const url = `${base}${path}`;
     const start = Date.now();
-    logger.debug(`Caddy API request`, { method, path });
+    logger.debug(`Caddy API request`, { method, path, adminUrl: base });
 
     try {
         const res = await withTimeout(
@@ -55,16 +56,17 @@ async function caddyRequest(method, path, body) {
     }
 }
 
-export const caddyGet = (path) => caddyRequest('GET', path);
-export const caddyPut = (path, body) => caddyRequest('PUT', path, body);
-export const caddyPost = (path, body) => caddyRequest('POST', path, body);
-export const caddyPatch = (path, body) => caddyRequest('PATCH', path, body);
-export const caddyDelete = (path) => caddyRequest('DELETE', path);
+export const caddyGet = (path, adminUrl) => caddyRequest('GET', path, undefined, adminUrl);
+export const caddyPut = (path, body, adminUrl) => caddyRequest('PUT', path, body, adminUrl);
+export const caddyPost = (path, body, adminUrl) => caddyRequest('POST', path, body, adminUrl);
+export const caddyPatch = (path, body, adminUrl) => caddyRequest('PATCH', path, body, adminUrl);
+export const caddyDelete = (path, adminUrl) => caddyRequest('DELETE', path, undefined, adminUrl);
 
-export async function caddyLoad(caddyfileContent) {
-    const url = `${CADDY_ADMIN_URL}/load`;
+export async function caddyLoad(caddyfileContent, adminUrl) {
+    const base = adminUrl || CADDY_ADMIN_URL;
+    const url = `${base}/load`;
     const start = Date.now();
-    logger.info(`Caddy reload initiated`);
+    logger.info(`Caddy reload initiated`, { adminUrl: base });
 
     try {
         const res = await withTimeout(

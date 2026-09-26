@@ -1,17 +1,15 @@
 import { X509Certificate } from 'crypto';
 import { Router } from 'express';
-import { readdir, readFile, rm } from 'fs/promises';
 import { join } from 'path';
-import { CADDY_ADMIN_URL, caddyGet } from '../caddy.js';
+import { caddyGet } from '../caddy.js';
+import { listContainerDir, readContainerFile, removeContainerPath } from '../containerFs.js';
 import logger from '../logger.js';
 
 const router = Router();
-const CADDY_DATA_PATH = process.env.CADDY_DATA_PATH || '/data/caddy/caddy';
-const CERTS_PATH = join(CADDY_DATA_PATH, 'certificates');
 
-async function parseCert(certPath) {
+async function parseCert(containerName, certPath) {
     try {
-        const pem = await readFile(certPath, 'utf8');
+        const pem = await readContainerFile(containerName, certPath);
         const cert = new X509Certificate(pem);
         return { validFrom: cert.validFrom, validTo: cert.validTo, subject: cert.subject, issuer: cert.issuer };
     } catch {
@@ -19,9 +17,9 @@ async function parseCert(certPath) {
     }
 }
 
-async function getManagedDomains() {
+async function getManagedDomains(adminUrl) {
     try {
-        const tls = await caddyGet('/config/apps/tls');
+        const tls = await caddyGet('/config/apps/tls', adminUrl);
         const domains = new Set();
         for (const policy of tls?.automation?.policies || []) {
             for (const subject of policy.subjects || []) domains.add(subject);
@@ -32,32 +30,26 @@ async function getManagedDomains() {
     }
 }
 
-async function getCerts() {
+async function getCerts(containerName, certsPath, adminUrl) {
     const results = [];
-    const managedDomains = await getManagedDomains();
+    const managedDomains = await getManagedDomains(adminUrl);
 
-    let issuers;
-    try {
-        issuers = await readdir(CERTS_PATH);
-    } catch {
-        logger.warn(`Could not read certs path`, { path: CERTS_PATH });
+    const issuers = await listContainerDir(containerName, certsPath);
+    if (!issuers.length) {
+        logger.warn(`Could not read certs path`, { path: certsPath });
         return [];
     }
 
     for (const issuer of issuers) {
-        const issuerPath = join(CERTS_PATH, issuer);
-        let domains;
-        try {
-            domains = await readdir(issuerPath);
-        } catch {
-            continue;
-        }
+        const issuerPath = join(certsPath, issuer);
+        const domains = await listContainerDir(containerName, issuerPath);
+        if (!domains.length) continue;
 
         const isInternal = issuer === 'local';
 
         for (const domain of domains) {
             const certFile = join(issuerPath, domain, `${domain}.crt`);
-            const info = await parseCert(certFile);
+            const info = await parseCert(containerName, certFile);
             if (!info) continue;
 
             const validTo = new Date(info.validTo);
@@ -92,7 +84,8 @@ async function getCerts() {
 
 // GET /api/tls
 router.get('/', async (req, res) => {
-    const certs = await getCerts();
+    const certsPath = join(req.instance.dataPath, 'certificates');
+    const certs = await getCerts(req.instance.containerName, certsPath, req.instance.adminUrl);
     logger.info(`TLS certs listed`, { count: certs.length });
     res.json(certs);
 });
@@ -106,7 +99,9 @@ router.delete('/:domain', async (req, res) => {
         return res.status(400).json({ error: 'Invalid domain' });
     }
 
-    const certs = await getCerts();
+    const { containerName } = req.instance;
+    const certsPath = join(req.instance.dataPath, 'certificates');
+    const certs = await getCerts(containerName, certsPath, req.instance.adminUrl);
     const internalCert = certs.find(c => c.domain === domain && c.isInternal);
     const acmeCert = certs.find(c => c.domain === domain && !c.isInternal);
 
@@ -119,10 +114,10 @@ router.delete('/:domain', async (req, res) => {
     }
 
     const target = canDeleteInternal ? internalCert : acmeCert;
-    const certDir = join(CERTS_PATH, target.issuerDir, domain);
+    const certDir = join(certsPath, target.issuerDir, domain);
 
     try {
-        await rm(certDir, { recursive: true, force: true });
+        await removeContainerPath(containerName, certDir);
         logger.info(`TLS cert deleted`, { domain, certDir });
         res.json({ ok: true, message: `Deleted cert for ${domain}` });
     } catch (err) {
@@ -133,9 +128,10 @@ router.delete('/:domain', async (req, res) => {
 
 // GET /api/tls/ca
 router.get('/ca', async (req, res) => {
+    const adminUrl = req.instance.adminUrl;
     logger.info(`Root CA download requested`);
     try {
-        const caRes = await fetch(`${CADDY_ADMIN_URL}/pki/ca/local`, {
+        const caRes = await fetch(`${adminUrl}/pki/ca/local`, {
             headers: { 'Origin': 'http://0.0.0.0:2019' },
         });
         if (!caRes.ok) throw new Error(`Caddy PKI API returned ${caRes.status}`);

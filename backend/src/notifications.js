@@ -1,12 +1,11 @@
-import { createConnection } from 'net';
+import { createConnection, isIP } from 'net';
 import { X509Certificate } from 'crypto';
-import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
-import { CADDY_ADMIN_URL, caddyGet } from './caddy.js';
+import { listContainerDir, readContainerFile } from './containerFs.js';
+import { promises as dns } from 'dns';
+import { caddyGet } from './caddy.js';
+import { getInstances } from './instances.js';
 import logger from './logger.js';
-
-const CADDY_DATA_PATH = process.env.CADDY_DATA_PATH || '/data/caddy/caddy';
-const CERTS_PATH = join(CADDY_DATA_PATH, 'certificates');
 const CHECK_INTERVAL_MS = 30_000;
 const TIMEOUT_MS = 3000;
 
@@ -67,118 +66,119 @@ async function runChecks() {
 const upstreamState = new Map(); // upstream -> boolean (online)
 
 async function checkUpstreams() {
-    let servers;
-    try {
-        servers = await caddyGet('/config/apps/http/servers');
-    } catch {
-        return;
-    }
-
-    const checks = [];
-    for (const [, server] of Object.entries(servers || {})) {
-        for (const route of server.routes || []) {
-            const domain = route.match?.find(m => m.host)?.host?.[0] || null;
-            const upstreams = extractUpstreams(route);
-            for (const upstream of upstreams) {
-                const [host, port] = upstream.split(':');
-                if (host && port) checks.push({ domain, upstream, host, port });
-            }
-        }
-    }
-
-    let caddyPool = {};
-    try {
-        const poolRes = await fetch(`${CADDY_ADMIN_URL}/reverse_proxy/upstreams`, {
-            headers: { 'Origin': 'http://0.0.0.0:2019' },
-        });
-        if (poolRes.ok) {
-            const pool = await poolRes.json();
-            for (const entry of pool) {
-                if (entry.address) caddyPool[entry.address] = entry;
-            }
-        }
-    } catch { }
-
-    for (const check of checks) {
-        let online;
-        if (check.upstream in caddyPool) {
-            online = caddyPool[check.upstream].fails === 0;
-        } else {
-            online = await checkTCP(check.host, check.port);
+    for (const inst of getInstances()) {
+        let servers;
+        try {
+            servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
+        } catch {
+            continue;
         }
 
-        const prev = upstreamState.get(check.upstream);
-        upstreamState.set(check.upstream, online);
-
-        if (prev === undefined) continue; // first check, no transition
-
-        const label = check.domain ? `${check.domain} (${check.upstream})` : check.upstream;
-
-        if (prev && !online && config.triggers.upstreamOffline) {
-            const key = `offline:${check.upstream}`;
-            if (!isDebouncedKey(key)) {
-                markSent(key);
-                await sendNotification(config, {
-                    title: 'Upstream offline',
-                    message: `${label} is unreachable`,
-                    priority: 'high',
-                });
+        const checks = [];
+        for (const [, server] of Object.entries(servers || {})) {
+            for (const route of server.routes || []) {
+                const domain = route.match?.find(m => m.host)?.host?.[0] || null;
+                const upstreams = extractUpstreams(route);
+                for (const upstream of upstreams) {
+                    const [host, port] = upstream.split(':');
+                    if (host && port) checks.push({ domain, upstream, host, port });
+                }
             }
         }
 
-        if (!prev && online && config.triggers.upstreamOnline) {
-            const key = `online:${check.upstream}`;
-            if (!isDebouncedKey(key)) {
-                markSent(key);
-                await sendNotification(config, {
-                    title: 'Upstream recovered',
-                    message: `${label} is back online`,
-                    priority: 'default',
-                });
+        let caddyPool = {};
+        try {
+            const poolRes = await fetch(`${inst.adminUrl}/reverse_proxy/upstreams`, {
+                headers: { 'Origin': 'http://0.0.0.0:2019' },
+                signal: AbortSignal.timeout(3000),
+            });
+            if (poolRes.ok) {
+                const pool = await poolRes.json();
+                for (const entry of pool) {
+                    if (entry.address) caddyPool[entry.address] = entry;
+                }
+            }
+        } catch { }
+
+        for (const check of checks) {
+            let online;
+            if (check.upstream in caddyPool) {
+                online = caddyPool[check.upstream].fails === 0;
+            } else {
+                online = await checkTCP(check.host, check.port);
+            }
+
+            const stateKey = `${inst.id}:${check.upstream}`;
+            const prev = upstreamState.get(stateKey);
+            upstreamState.set(stateKey, online);
+
+            if (prev === undefined) continue;
+
+            const instLabel = getInstances().length > 1 ? `[${inst.name}] ` : '';
+            const label = check.domain ? `${instLabel}${check.domain} (${check.upstream})` : `${instLabel}${check.upstream}`;
+
+            if (prev && !online && config.triggers.upstreamOffline) {
+                const key = `offline:${stateKey}`;
+                if (!isDebouncedKey(key)) {
+                    markSent(key);
+                    await sendNotification(config, {
+                        title: 'Upstream offline',
+                        message: `${label} is unreachable`,
+                        priority: 'high',
+                    });
+                }
+            }
+
+            if (!prev && online && config.triggers.upstreamOnline) {
+                const key = `online:${stateKey}`;
+                if (!isDebouncedKey(key)) {
+                    markSent(key);
+                    await sendNotification(config, {
+                        title: 'Upstream recovered',
+                        message: `${label} is back online`,
+                        priority: 'default',
+                    });
+                }
             }
         }
     }
 }
 
 async function checkCerts() {
-    let issuers;
-    try {
-        issuers = await readdir(CERTS_PATH);
-    } catch {
-        return;
-    }
+    for (const inst of getInstances()) {
+        const certsPath = join(inst.dataPath, 'certificates');
+        const issuers = await listContainerDir(inst.containerName, certsPath);
+        if (!issuers.length) continue;
 
-    for (const issuer of issuers) {
-        if (issuer === 'local') continue;
-        const issuerPath = join(CERTS_PATH, issuer);
-        let domains;
-        try {
-            domains = await readdir(issuerPath);
-        } catch {
-            continue;
-        }
+        for (const issuer of issuers) {
+            if (issuer === 'local') continue;
+            const issuerPath = join(certsPath, issuer);
+            const domains = await listContainerDir(inst.containerName, issuerPath);
+            if (!domains.length) continue;
 
-        for (const domain of domains) {
-            const certFile = join(issuerPath, domain, `${domain}.crt`);
-            try {
-                const pem = await readFile(certFile, 'utf8');
-                const cert = new X509Certificate(pem);
-                const validTo = new Date(cert.validTo);
-                const daysRemaining = Math.floor((validTo - Date.now()) / (1000 * 60 * 60 * 24));
+            for (const domain of domains) {
+                const certFile = join(issuerPath, domain, `${domain}.crt`);
+                try {
+                    const pem = await readContainerFile(inst.containerName, certFile);
+                    const cert = new X509Certificate(pem);
+                    const validTo = new Date(cert.validTo);
+                    const daysRemaining = Math.floor((validTo - Date.now()) / (1000 * 60 * 60 * 24));
 
-                if (daysRemaining <= 14 && daysRemaining >= 0) {
-                    const key = `cert-expiring:${domain}`;
-                    if (!isDebouncedKey(key)) {
-                        markSent(key);
-                        await sendNotification(config, {
-                            title: 'Certificate expiring',
-                            message: `${domain} expires in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
-                            priority: 'high',
-                        });
+                    if (daysRemaining <= 14 && daysRemaining >= 0) {
+                        const key = `cert-expiring:${inst.id}:${domain}`;
+                        if (!isDebouncedKey(key)) {
+                            markSent(key);
+                            const instLabel = getInstances().length > 1 ? `[${inst.name}] ` : '';
+                            await sendNotification(config, {
+                                title: 'Certificate expiring',
+                                message: `${instLabel}${domain} expires in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
+                                priority: 'high',
+                            });
+                        }
                     }
+                } catch {
+                    continue;
                 }
-            } catch {
-                continue;
             }
         }
     }
@@ -208,12 +208,82 @@ function checkTCP(host, port) {
     });
 }
 
+function isUnsafeIPv4(ip) {
+    const parts = ip.split('.').map((p) => Number.parseInt(p, 10));
+    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+    const [a, b] = parts;
+    return a === 0
+        || a === 10
+        || a === 127
+        || (a === 169 && b === 254)
+        || (a === 172 && b >= 16 && b <= 31)
+        || (a === 192 && b === 168)
+        || a >= 224;
+}
+
+function isUnsafeIPv6(ip) {
+    const normalized = ip.toLowerCase();
+    return normalized === '::'
+        || normalized === '::1'
+        || normalized.startsWith('fe80:')
+        || normalized.startsWith('fc')
+        || normalized.startsWith('fd')
+        || normalized.startsWith('ff');
+}
+
+function isUnsafeIpAddress(ip) {
+    const version = isIP(ip);
+    if (version === 4) return isUnsafeIPv4(ip);
+    if (version === 6) return isUnsafeIPv6(ip);
+    return true;
+}
+
+async function validateWebhookUrl(url) {
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch {
+        throw new Error(`Invalid webhook URL: ${url}`);
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error(`Webhook URL must use http or https: ${url}`);
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host === 'metadata.google.internal') {
+        throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
+    }
+
+    if (isIP(host) && isUnsafeIpAddress(host)) {
+        throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
+    }
+
+    const records = await dns.lookup(host, { all: true, verbatim: true });
+    if (!records.length) {
+        throw new Error(`Webhook URL host does not resolve: ${host}`);
+    }
+    if (records.some((r) => isUnsafeIpAddress(r.address))) {
+        throw new Error(`Webhook URL must not resolve to internal/private addresses: ${host}`);
+    }
+
+    const port = parsed.port ? `:${parsed.port}` : '';
+    return `${parsed.protocol}//${host}${port}${parsed.pathname}${parsed.search}`;
+}
+
+async function sanitizeWebhookUrl(url) {
+    const validated = await validateWebhookUrl(url);
+    const m = /^(https?):\/\/([a-zA-Z0-9][a-zA-Z0-9._:-]*)(\/[^\s]*)?$/.exec(validated);
+    if (!m) throw new Error('Invalid webhook URL');
+    return `${m[1]}://${m[2]}${m[3] || '/'}`;
+}
+
 export async function sendNotification(cfg, { title, message, priority }) {
     const provider = cfg.provider;
 
     if (provider === 'ntfy') {
         if (!cfg.ntfy?.url) throw new Error('ntfy URL not configured');
-        const res = await fetch(cfg.ntfy.url, {
+        const ntfyUrl = await sanitizeWebhookUrl(cfg.ntfy.url);
+        const res = await fetch(ntfyUrl, {
             method: 'POST',
             headers: {
                 'Title': title,
@@ -229,8 +299,9 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'discord') {
         if (!cfg.discord?.webhookUrl) throw new Error('Discord webhook URL not configured');
+        const discordUrl = await sanitizeWebhookUrl(cfg.discord.webhookUrl);
         const color = priority === 'high' ? 0xff4d6a : 0x00e5a0;
-        const res = await fetch(cfg.discord.webhookUrl, {
+        const res = await fetch(discordUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -251,8 +322,9 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'slack') {
         if (!cfg.slack?.webhookUrl) throw new Error('Slack webhook URL not configured');
+        const slackUrl = await sanitizeWebhookUrl(cfg.slack.webhookUrl);
         const emoji = priority === 'high' ? ':rotating_light:' : ':white_check_mark:';
-        const res = await fetch(cfg.slack.webhookUrl, {
+        const res = await fetch(slackUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -287,7 +359,8 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     } else if (provider === 'custom') {
         if (!cfg.custom?.url) throw new Error('Custom webhook URL not configured');
-        const res = await fetch(cfg.custom.url, {
+        const customUrl = await sanitizeWebhookUrl(cfg.custom.url);
+        const res = await fetch(customUrl, {
             method: cfg.custom.method || 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, message, priority, timestamp: new Date().toISOString() }),

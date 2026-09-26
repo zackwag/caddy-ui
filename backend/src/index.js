@@ -1,12 +1,15 @@
 import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
+import { loadInstances } from './instances.js';
 import logger from './logger.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
+import { instanceMiddleware } from './middleware/instance.js';
 import { initMonitor } from './notifications.js';
 import authRouter from './routes/auth.js';
 import caddyfileRouter from './routes/caddyfile.js';
 import healthRouter from './routes/health.js';
+import instancesRouter from './routes/instances.js';
 import logsRouter from './routes/logs.js';
 import metricsRouter from './routes/metrics.js';
 import notificationsRouter from './routes/notifications.js';
@@ -65,11 +68,18 @@ app.use('/api/auth', authLimiter, authRouter);
 // GET /api/version -- always public, non-sensitive
 app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
 
+// Instance routes require auth but not instance middleware
+app.use('/api/instances', authMiddleware, instancesRouter);
+
+// Instance middleware for all other routes
+app.use('/api', instanceMiddleware);
+
 // GET /api/metrics/raw -- Prometheus scrape endpoint
 // Public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
 app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, async (req, res) => {
     try {
-        const metricsRes = await fetch(`${CADDY_ADMIN_URL}/metrics`, {
+        const adminUrl = req.instance.adminUrl;
+        const metricsRes = await fetch(`${adminUrl}/metrics`, {
             headers: { 'Origin': 'http://0.0.0.0:2019' },
         });
         if (!metricsRes.ok) throw new Error(`Metrics unavailable: ${metricsRes.status}`);
@@ -99,6 +109,8 @@ app.use((err, req, res, next) => {
     logger.error(`Unhandled error`, { method: req.method, path: req.path, error: err.message, stack: err.stack });
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
+
+await loadInstances();
 
 app.listen(PORT, () => {
     logger.info(`Caddy UI backend running`, { port: PORT, version: APP_VERSION });

@@ -188,6 +188,25 @@ function NewRouteModal({ onSave, onClose }) {
     );
 }
 
+const COLUMNS_STORAGE_KEY = "caddy_ui_routes_columns";
+const TOGGLEABLE_COLUMNS = [
+    { key: "status", label: "Status" },
+    { key: "title", label: "Title" },
+    { key: "upstream", label: "Upstream" },
+    { key: "server", label: "Server" },
+    { key: "id", label: "ID" },
+];
+const DEFAULT_COLUMNS = Object.fromEntries(TOGGLEABLE_COLUMNS.map(c => [c.key, true]));
+
+function loadColumnPrefs() {
+    try {
+        const raw = localStorage.getItem(COLUMNS_STORAGE_KEY);
+        return raw ? { ...DEFAULT_COLUMNS, ...JSON.parse(raw) } : DEFAULT_COLUMNS;
+    } catch {
+        return DEFAULT_COLUMNS;
+    }
+}
+
 export default function Routes({ toast, onUnauth, confirm, theme }) {
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
@@ -202,6 +221,25 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
     const [search, setSearch] = useState(searchParams.get("filter") || "");
+    const [columns, setColumns] = useState(loadColumnPrefs);
+    const [colMenuOpen, setColMenuOpen] = useState(false);
+    const colMenuRef = useRef(null);
+
+    useEffect(() => {
+        try { localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(columns)); } catch { /* ignore */ }
+    }, [columns]);
+
+    useEffect(() => {
+        if (!colMenuOpen) return;
+        const handleClick = (e) => {
+            if (colMenuRef.current && !colMenuRef.current.contains(e.target)) setColMenuOpen(false);
+        };
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+    }, [colMenuOpen]);
+
+    const toggleColumn = (key) => setColumns(c => ({ ...c, [key]: !c[key] }));
+    const columnsHidden = TOGGLEABLE_COLUMNS.some(c => !columns[c.key]);
 
     useEffect(() => {
         const f = searchParams.get("filter");
@@ -356,23 +394,36 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
 
     const upstreamLink = (upstream) => upstream === "—" ? null : `http://${upstream}`;
 
+    const getUptimePct = (route) => {
+        const upstream = getUpstream(route);
+        if (upstream === "—") return null;
+        const upstreams = upstream.split(", ");
+        const stats = uptime[upstreams[0]];
+        return stats && stats.total > 1 ? stats.pct : null;
+    };
+
     const getHealthDot = (route) => {
         const upstream = getUpstream(route);
-        if (upstream === "—") return <span className="health-dot health-dot--none" title="No upstream" />;
+        const pct = getUptimePct(route);
+        const pctText = pct !== null ? `${pct}%` : "N/A";
+        if (upstream === "—") {
+            return <span className="health-dot health-dot--none" title="No upstream"><span className="sr-only">No upstream, {pctText}</span></span>;
+        }
         const upstreams = upstream.split(", ");
         const allOnline = upstreams.every(u => health[u] === true);
         const anyOnline = upstreams.some(u => health[u] === true);
         const checked = upstreams.some(u => u in health);
-        if (!checked) return <span className="health-dot health-dot--pending" title="Checking..." />;
+        if (!checked) {
+            return <span className="health-dot health-dot--pending" title="Checking..."><span className="sr-only">Checking, {pctText}</span></span>;
+        }
         const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
         const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
-        const stats = uptime[upstreams[0]];
-        const uptimeLabel = stats && stats.total > 1 ? `${stats.pct}%` : null;
+        const status = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
+        const title = pct !== null ? `${status} — ${pctText} uptime` : status;
         return (
-            <div className="health-dot-wrap">
-                <span className="health-dot" style={{ background: color, boxShadow: shadow }} title={allOnline ? "Online" : anyOnline ? "Partial" : "Offline"} />
-                {uptimeLabel && <span className="uptime-label">{uptimeLabel}</span>}
-            </div>
+            <span className="health-dot" style={{ background: color, boxShadow: shadow }} title={title}>
+                <span className="sr-only">{status}, {pctText}</span>
+            </span>
         );
     };
 
@@ -392,6 +443,12 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
         if (sortCol === "domain") { valA = getHost(a); valB = getHost(b); }
         else if (sortCol === "title") { valA = notes[getHost(a)] || ""; valB = notes[getHost(b)] || ""; }
         else if (sortCol === "upstream") { valA = getUpstream(a); valB = getUpstream(b); }
+        else if (sortCol === "uptime") {
+            valA = getUptimePct(a) ?? 101;
+            valB = getUptimePct(b) ?? 101;
+            const diff = sortDir === "asc" ? valA - valB : valB - valA;
+            return diff !== 0 ? diff : getHost(a).localeCompare(getHost(b));
+        }
         else { valA = a._server || ""; valB = b._server || ""; }
         return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
     });
@@ -417,6 +474,23 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                         </span>
                     </div>
                     <div className="btn-row routes-toolbar-actions">
+                        <div className="col-picker" ref={colMenuRef}>
+                            <button className="btn btn-ghost col-picker-trigger" onClick={() => setColMenuOpen(o => !o)}>
+                                ⚙ Columns
+                                {columnsHidden && <span className="col-picker-badge" title="Some columns are hidden" />}
+                            </button>
+                            {colMenuOpen && (
+                                <div className="col-picker-menu">
+                                    {TOGGLEABLE_COLUMNS.map(c => (
+                                        <label key={c.key} className="col-picker-item">
+                                            <input type="checkbox" checked={columns[c.key]} onChange={() => toggleColumn(c.key)} />
+                                            {c.label}
+                                        </label>
+                                    ))}
+                                    <div className="col-picker-note">Domain &amp; actions are always shown</div>
+                                </div>
+                            )}
+                        </div>
                         <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading}>↺ Refresh</button>
                         <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ Add Route</button>
                     </div>
@@ -431,11 +505,12 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                             <table className="table">
                                 <thead>
                                     <tr>
+                                        {columns.status && <th className="th-sortable col-status" onClick={() => handleSort("uptime")}>Status <SortIcon col="uptime" /></th>}
                                         <th className="th-sortable" onClick={() => handleSort("domain")}>Domain <SortIcon col="domain" /></th>
-                                        <th className="th-sortable col-title" onClick={() => handleSort("title")}>Title <SortIcon col="title" /></th>
-                                        <th className="th-sortable" onClick={() => handleSort("upstream")}>Upstream <SortIcon col="upstream" /></th>
-                                        <th className="th-sortable" onClick={() => handleSort("server")}>Server <SortIcon col="server" /></th>
-                                        <th>ID</th>
+                                        {columns.title && <th className="th-sortable col-title" onClick={() => handleSort("title")}>Title <SortIcon col="title" /></th>}
+                                        {columns.upstream && <th className="th-sortable" onClick={() => handleSort("upstream")}>Upstream <SortIcon col="upstream" /></th>}
+                                        {columns.server && <th className="th-sortable" onClick={() => handleSort("server")}>Server <SortIcon col="server" /></th>}
+                                        {columns.id && <th>ID</th>}
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -449,9 +524,9 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                         const note = notes[domain];
                                         return (
                                             <tr key={r["@id"] || i}>
+                                                {columns.status && <td className="col-status">{getHealthDot(r)}</td>}
                                                 <td>
                                                     <div className="route-domain-cell">
-                                                        {getHealthDot(r)}
                                                         <div>
                                                             {hosts.length > 0 ? hosts.map((h, hi) => {
                                                                 const hLink = domainLink(h);
@@ -468,19 +543,20 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="col-title cell-muted">{note || "—"}</td>
-                                                <td>
-                                                    {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
-                                                </td>
-                                                <td
-                                                    className="mono cell-muted"
-                                                    style={{ cursor: r._server ? "pointer" : "default" }}
-                                                    onClick={() => r._server && setSearch(r._server)}
-                                                    title={r._server ? `Filter by ${r._server}` : undefined}
-                                                    onMouseEnter={e => { if (r._server) e.target.style.color = "var(--accent)"; }}
-                                                    onMouseLeave={e => { if (r._server) e.target.style.color = "var(--muted)"; }}
-                                                >{r._server || "—"}</td>
-                                                <td className="mono cell-muted">{r["@id"] || "—"}</td>
+                                                {columns.title && <td className="col-title cell-muted">{note || "—"}</td>}
+                                                {columns.upstream && (
+                                                    <td>
+                                                        {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
+                                                    </td>
+                                                )}
+                                                {columns.server && (
+                                                    <td
+                                                        className={`mono cell-muted${r._server ? " server-cell--filterable" : ""}`}
+                                                        onClick={() => r._server && setSearch(r._server)}
+                                                        title={r._server ? `Filter by ${r._server}` : undefined}
+                                                    >{r._server || "—"}</td>
+                                                )}
+                                                {columns.id && <td className="mono cell-muted">{r["@id"] || "—"}</td>}
                                                 <td className="col-actions">
                                                     <div className="btn-row flex-end">
                                                         <button

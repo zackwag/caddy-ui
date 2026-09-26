@@ -126,6 +126,95 @@ export const css = `
   }
   .status-refresh:hover { color: var(--text); background: rgba(255,255,255,0.06); }
 
+  .instance-dropdown {
+    position: relative;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .instance-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .instance-dropdown-trigger:hover { border-color: var(--accent); }
+
+  .instance-dropdown-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .instance-dropdown-chevron {
+    font-size: 10px;
+    color: var(--muted);
+    transition: transform 0.15s;
+  }
+  .instance-dropdown-chevron.open { transform: rotate(180deg); }
+
+  .instance-dropdown-menu {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: calc(100% - 2px);
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 100;
+    overflow: hidden;
+  }
+
+  .instance-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+
+  .instance-dropdown-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+
+  .instance-dropdown-item.active {
+    color: var(--accent);
+    background: rgba(0,229,160,0.07);
+  }
+
+  .instance-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .instance-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 24px;
+  }
+
+  .instance-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+  }
+
   .nav { padding: 12px 0; flex: 1; }
 
   .nav-item {
@@ -471,6 +560,58 @@ export const css = `
     border-radius: 2px;
   }
   .search-clear:hover { color: var(--text); }
+
+  .col-picker { position: relative; }
+
+  .col-picker-trigger { position: relative; }
+
+  .col-picker-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+  }
+
+  .col-picker-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 140px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 100;
+    padding: 6px;
+  }
+
+  .col-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .col-picker-item:hover { background: rgba(255,255,255,0.04); }
+  .col-picker-item input { cursor: pointer; }
+
+  .col-picker-note {
+    padding: 8px 8px 2px;
+    font-size: 10px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .server-cell--filterable { cursor: pointer; }
+  .server-cell--filterable:hover { color: var(--accent); }
 
   .modal-overlay {
     position: fixed; inset: 0;
@@ -954,13 +1095,6 @@ export const css = `
 
   /* ── Utility: Health dot ──────────────────────────────────────────────────── */
 
-  .health-dot-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex-shrink: 0;
-  }
-
   .health-dot {
     display: inline-block;
     width: 8px;
@@ -971,6 +1105,20 @@ export const css = `
 
   .health-dot--none    { background: var(--border2); }
   .health-dot--pending { background: var(--muted); }
+
+  .col-status { width: 1%; white-space: nowrap; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 
   .route-note--mobile {
     font-family: 'IBM Plex Mono', monospace;
@@ -1005,17 +1153,6 @@ export const css = `
     color: var(--muted);
     font-size: 11px;
     font-family: 'IBM Plex Mono', monospace;
-  }
-
-  /* ── Utility: Uptime label ────────────────────────────────────────────────── */
-
-  .uptime-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 9px;
-    color: var(--muted);
-    margin-top: 2px;
-    line-height: 1;
-    white-space: nowrap;
   }
 
   /* ── Utility: Log toolbar ─────────────────────────────────────────────────── */
@@ -1119,6 +1256,8 @@ export const css = `
     .metrics-toggle-btn { flex: 1 1 100%; justify-content: center; }
     .metrics-status-text { display: block; width: 100%; margin-top: 8px; }
     .notifications-enabled-btn { width: 100%; justify-content: center; }
+    .instance-details-grid { grid-template-columns: 1fr; }
+    .instance-form-grid { grid-template-columns: 1fr; }
     .notif-test-btn { order: 1; flex: 1 1 0; justify-content: center; }
     .notif-save-btn { order: 2; flex: 2 1 0; justify-content: center; }
 
