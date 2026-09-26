@@ -34,7 +34,9 @@ jobs:
         id: meta
         with:
           images: zackwag/caddy-ui-backend
-          tags: type=raw,value=beta
+          tags: |
+            type=raw,value=beta
+            type=raw,value=edge
 
       - uses: docker/build-push-action@v7
         with:
@@ -69,7 +71,9 @@ jobs:
         id: meta
         with:
           images: zackwag/caddy-ui-frontend
-          tags: type=raw,value=beta
+          tags: |
+            type=raw,value=beta
+            type=raw,value=edge
 
       - uses: docker/build-push-action@v7
         with:
