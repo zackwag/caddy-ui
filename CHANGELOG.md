@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.23.0](https://github.com/zackwag/caddy-ui/compare/v1.22.0...v1.23.0) (2026-09-26)
+
+
+### Features
+
+* add :edge Docker tag built on every push to main ([#89](https://github.com/zackwag/caddy-ui/issues/89)) ([779b828](https://github.com/zackwag/caddy-ui/commit/779b828fa8557390c3c08dae889a802b69688184))
+
+
+### Bug Fixes
+
+* add ref input to beta workflow ([#75](https://github.com/zackwag/caddy-ui/issues/75)) ([56fd55c](https://github.com/zackwag/caddy-ui/commit/56fd55c2f0cfbe5e2bb1662f72be47e0e4872b9d))
+* clarify misleading "new installation" log reason ([#88](https://github.com/zackwag/caddy-ui/issues/88)) ([b09df85](https://github.com/zackwag/caddy-ui/commit/b09df855d8f65aed1f37f3fe9065a91de4be46b7))
+* use short SHA for beta version string ([41e66e8](https://github.com/zackwag/caddy-ui/commit/41e66e8786ed18bbe1ace5855028f9562bd09619))
+* use short SHA for beta version string ([#77](https://github.com/zackwag/caddy-ui/issues/77)) ([cc5ab3b](https://github.com/zackwag/caddy-ui/commit/cc5ab3bbd7678176669fcb78e04006d7b478d04a))
+
 ## [1.22.0](https://github.com/zackwag/caddy-ui/compare/v1.21.2...v1.22.0) (2026-09-20)
 
 
