@@ -366,26 +366,25 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
 
     const getHealthDot = (route) => {
         const upstream = getUpstream(route);
+        const pct = getUptimePct(route);
+        const pctText = pct !== null ? `${pct}%` : "N/A";
         if (upstream === "—") {
-            const label = "No upstream";
-            return <span className="health-dot health-dot--none" title={label}><span className="sr-only">{label}</span></span>;
+            return <span className="health-dot health-dot--none" title="No upstream"><span className="sr-only">No upstream, {pctText}</span></span>;
         }
         const upstreams = upstream.split(", ");
         const allOnline = upstreams.every(u => health[u] === true);
         const anyOnline = upstreams.some(u => health[u] === true);
         const checked = upstreams.some(u => u in health);
         if (!checked) {
-            const label = "Checking...";
-            return <span className="health-dot health-dot--pending" title={label}><span className="sr-only">{label}</span></span>;
+            return <span className="health-dot health-dot--pending" title="Checking..."><span className="sr-only">Checking, {pctText}</span></span>;
         }
         const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
         const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
         const status = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
-        const pct = getUptimePct(route);
-        const label = pct !== null ? `${status} — ${pct}% uptime` : status;
+        const title = pct !== null ? `${status} — ${pctText} uptime` : status;
         return (
-            <span className="health-dot" style={{ background: color, boxShadow: shadow }} title={label}>
-                <span className="sr-only">{label}</span>
+            <span className="health-dot" style={{ background: color, boxShadow: shadow }} title={title}>
+                <span className="sr-only">{status}, {pctText}</span>
             </span>
         );
     };
@@ -450,10 +449,10 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                             <table className="table">
                                 <thead>
                                     <tr>
+                                        <th className="th-sortable col-status" onClick={() => handleSort("uptime")}>Status <SortIcon col="uptime" /></th>
                                         <th className="th-sortable" onClick={() => handleSort("domain")}>Domain <SortIcon col="domain" /></th>
                                         <th className="th-sortable col-title" onClick={() => handleSort("title")}>Title <SortIcon col="title" /></th>
                                         <th className="th-sortable" onClick={() => handleSort("upstream")}>Upstream <SortIcon col="upstream" /></th>
-                                        <th className="th-sortable col-status" onClick={() => handleSort("uptime")}>Status <SortIcon col="uptime" /></th>
                                         <th className="th-sortable" onClick={() => handleSort("server")}>Server <SortIcon col="server" /></th>
                                         <th>ID</th>
                                         <th></th>
@@ -469,6 +468,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                         const note = notes[domain];
                                         return (
                                             <tr key={r["@id"] || i}>
+                                                <td className="col-status">{getHealthDot(r)}</td>
                                                 <td>
                                                     <div className="route-domain-cell">
                                                         <div>
@@ -491,7 +491,6 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                                 <td>
                                                     {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
                                                 </td>
-                                                <td className="col-status">{getHealthDot(r)}</td>
                                                 <td
                                                     className="mono cell-muted"
                                                     style={{ cursor: r._server ? "pointer" : "default" }}
