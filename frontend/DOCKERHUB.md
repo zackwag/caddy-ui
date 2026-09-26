@@ -50,6 +50,7 @@ volumes:
 | Tag | Description |
 |-----|-------------|
 | `latest` | Most recent stable build |
+| `edge` | Latest build from `main`, may be unstable |
 | `v1.12` | Notifications settings panel |
 | `v1.11` | Caddy version display restored, superseded cert detection |
 | `v1.10.1` | Validate checkbox for `caddy fmt` |
