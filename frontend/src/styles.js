@@ -1043,13 +1043,6 @@ export const css = `
 
   /* ── Utility: Health dot ──────────────────────────────────────────────────── */
 
-  .health-dot-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex-shrink: 0;
-  }
-
   .health-dot {
     display: inline-block;
     width: 8px;
@@ -1060,6 +1053,20 @@ export const css = `
 
   .health-dot--none    { background: var(--border2); }
   .health-dot--pending { background: var(--muted); }
+
+  .col-status { text-align: center; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 
   .route-note--mobile {
     font-family: 'IBM Plex Mono', monospace;
@@ -1094,17 +1101,6 @@ export const css = `
     color: var(--muted);
     font-size: 11px;
     font-family: 'IBM Plex Mono', monospace;
-  }
-
-  /* ── Utility: Uptime label ────────────────────────────────────────────────── */
-
-  .uptime-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 9px;
-    color: var(--muted);
-    margin-top: 2px;
-    line-height: 1;
-    white-space: nowrap;
   }
 
   /* ── Utility: Log toolbar ─────────────────────────────────────────────────── */
