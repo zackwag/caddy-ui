@@ -408,7 +408,8 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
         else if (sortCol === "uptime") {
             valA = getUptimePct(a) ?? 101;
             valB = getUptimePct(b) ?? 101;
-            return sortDir === "asc" ? valA - valB : valB - valA;
+            const diff = sortDir === "asc" ? valA - valB : valB - valA;
+            return diff !== 0 ? diff : getHost(a).localeCompare(getHost(b));
         }
         else { valA = a._server || ""; valB = b._server || ""; }
         return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);

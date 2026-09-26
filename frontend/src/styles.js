@@ -1054,7 +1054,7 @@ export const css = `
   .health-dot--none    { background: var(--border2); }
   .health-dot--pending { background: var(--muted); }
 
-  .col-status { text-align: center; }
+  .col-status { width: 1%; white-space: nowrap; }
 
   .sr-only {
     position: absolute;
