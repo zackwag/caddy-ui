@@ -1,23 +1,56 @@
-name: Beta
+name: Edge
 
 on:
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch or tag to build from (defaults to the selected branch)"
-        required: false
-        type: string
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: edge-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  docker-backend:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.diff.outputs.backend }}
+      frontend: ${{ steps.diff.outputs.frontend }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: diff
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED=$(git diff --name-only $(git rev-list --max-parents=0 HEAD) HEAD)
+          else
+            CHANGED=$(git diff --name-only "$BEFORE" HEAD)
+          fi
+          echo "$CHANGED"
+
+          if echo "$CHANGED" | grep -q '^backend/'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+          if echo "$CHANGED" | grep -q '^frontend/'; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  docker-backend:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    steps:
+      - uses: actions/checkout@v7
 
       - name: Resolve short SHA
         id: sha
@@ -34,9 +67,7 @@ jobs:
         id: meta
         with:
           images: zackwag/caddy-ui-backend
-          tags: |
-            type=raw,value=beta
-            type=raw,value=edge
+          tags: type=raw,value=edge
 
       - uses: docker/build-push-action@v7
         with:
@@ -45,16 +76,16 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=beta-${{ steps.sha.outputs.short }}
+            APP_VERSION=edge-${{ steps.sha.outputs.short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   docker-frontend:
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.ref }}
 
       - name: Resolve short SHA
         id: sha
@@ -71,9 +102,7 @@ jobs:
         id: meta
         with:
           images: zackwag/caddy-ui-frontend
-          tags: |
-            type=raw,value=beta
-            type=raw,value=edge
+          tags: type=raw,value=edge
 
       - uses: docker/build-push-action@v7
         with:
@@ -82,6 +111,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=beta-${{ steps.sha.outputs.short }}
+            APP_VERSION=edge-${{ steps.sha.outputs.short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

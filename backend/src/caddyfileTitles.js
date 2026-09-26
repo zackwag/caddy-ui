@@ -14,6 +14,7 @@ export async function initCaddyfileTitles() {
         return;
     }
 
+    let reason = 'no route-notes.json file found';
     try {
         const data = await readFile(ROUTE_NOTES_PATH, 'utf8');
         const notes = JSON.parse(data);
@@ -22,12 +23,13 @@ export async function initCaddyfileTitles() {
             logger.info('Caddyfile titles', { enabled: false, source: 'auto', reason: 'existing route-notes.json entries found' });
             return;
         }
+        reason = 'route-notes.json has no entries';
     } catch {
-        // file doesn't exist or is invalid — new installation
+        // file doesn't exist or is invalid
     }
 
     _enabled = true;
-    logger.info('Caddyfile titles', { enabled: true, source: 'auto', reason: 'new installation' });
+    logger.info('Caddyfile titles', { enabled: true, source: 'auto', reason });
 }
 
 export function caddyfileTitlesEnabled() {

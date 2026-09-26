@@ -206,6 +206,7 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | Tag | Description |
 |-----|-------------|
 | `latest` | Most recent stable build |
+| `edge` | Latest build from `main`, may be unstable |
 | `v1.12` | Push notifications, release workflow |
 | `v1.11` | Caddy binary bundled, upstream pool health checks, PKI API |
 | `v1.10.1` | Caddy `/adapt` API validation, Docker socket removal |
