@@ -239,6 +239,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
     }, [colMenuOpen]);
 
     const toggleColumn = (key) => setColumns(c => ({ ...c, [key]: !c[key] }));
+    const columnsHidden = TOGGLEABLE_COLUMNS.some(c => !columns[c.key]);
 
     useEffect(() => {
         const f = searchParams.get("filter");
@@ -474,7 +475,10 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                     </div>
                     <div className="btn-row routes-toolbar-actions">
                         <div className="col-picker" ref={colMenuRef}>
-                            <button className="btn btn-ghost" onClick={() => setColMenuOpen(o => !o)}>⚙ Columns</button>
+                            <button className="btn btn-ghost col-picker-trigger" onClick={() => setColMenuOpen(o => !o)}>
+                                ⚙ Columns
+                                {columnsHidden && <span className="col-picker-badge" title="Some columns are hidden" />}
+                            </button>
                             {colMenuOpen && (
                                 <div className="col-picker-menu">
                                     {TOGGLEABLE_COLUMNS.map(c => (
@@ -483,6 +487,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                             {c.label}
                                         </label>
                                     ))}
+                                    <div className="col-picker-note">Domain &amp; actions are always shown</div>
                                 </div>
                             )}
                         </div>
@@ -546,12 +551,9 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                                 )}
                                                 {columns.server && (
                                                     <td
-                                                        className="mono cell-muted"
-                                                        style={{ cursor: r._server ? "pointer" : "default" }}
+                                                        className={`mono cell-muted${r._server ? " server-cell--filterable" : ""}`}
                                                         onClick={() => r._server && setSearch(r._server)}
                                                         title={r._server ? `Filter by ${r._server}` : undefined}
-                                                        onMouseEnter={e => { if (r._server) e.target.style.color = "var(--accent)"; }}
-                                                        onMouseLeave={e => { if (r._server) e.target.style.color = "var(--muted)"; }}
                                                     >{r._server || "—"}</td>
                                                 )}
                                                 {columns.id && <td className="mono cell-muted">{r["@id"] || "—"}</td>}

@@ -563,6 +563,19 @@ export const css = `
 
   .col-picker { position: relative; }
 
+  .col-picker-trigger { position: relative; }
+
+  .col-picker-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+  }
+
   .col-picker-menu {
     position: absolute;
     top: calc(100% + 4px);
@@ -588,6 +601,17 @@ export const css = `
   }
   .col-picker-item:hover { background: rgba(255,255,255,0.04); }
   .col-picker-item input { cursor: pointer; }
+
+  .col-picker-note {
+    padding: 8px 8px 2px;
+    font-size: 10px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .server-cell--filterable { cursor: pointer; }
+  .server-cell--filterable:hover { color: var(--accent); }
 
   .modal-overlay {
     position: fixed; inset: 0;
