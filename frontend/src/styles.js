@@ -606,6 +606,10 @@ export const css = `
     ${themeVars(THEME_LIST[0])}
     --mono: 'IBM Plex Mono', monospace;
     --sans: 'IBM Plex Sans', sans-serif;
+    color-scheme: dark;
+  }
+  :root.light {
+    color-scheme: light;
   }
   ${paletteBlocks}
 
