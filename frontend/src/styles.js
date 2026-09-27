@@ -30,7 +30,7 @@ export const THEME_LIST = [
         },
     },
     {
-        id: 'coarse-everywhere', label: 'CoarseEverywhere', mode: 'light', vars: {
+        id: 'dune', label: 'Dune', mode: 'light', vars: {
             '--bg': '#f5f0eb',
             '--surface': '#faf7f4',
             '--border': '#e0d8d0',

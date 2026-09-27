@@ -6,7 +6,7 @@ const LIGHT_THEMES = THEME_LIST.filter(t => t.mode === 'light').sort((a, b) => a
 
 export default function ThemeWelcome({ onComplete }) {
     const [dark, setDark] = useState('vt2026');
-    const [light, setLight] = useState('coarse-everywhere');
+    const [light, setLight] = useState('dune');
     const [preview, setPreview] = useState('dark');
 
     const activeId = preview === 'dark' ? dark : light;

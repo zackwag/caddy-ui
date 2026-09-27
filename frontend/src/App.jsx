@@ -23,7 +23,7 @@ const DEFAULTS = {
     firstTimeRun: true,
     theme: 'dark',
     darkPalette: 'vt2026',
-    lightPalette: 'coarse-everywhere',
+    lightPalette: 'dune',
     routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
 };
 
