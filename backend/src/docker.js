@@ -23,6 +23,18 @@ function assertSafeArgs(args) {
     }
 }
 
+function assertSafePathArg(pathArg) {
+    if (
+        typeof pathArg !== 'string' ||
+        pathArg.length === 0 ||
+        pathArg.includes('\0') ||
+        pathArg.includes('..') ||
+        /[\r\n\t]/.test(pathArg)
+    ) {
+        throw new Error('Invalid path argument');
+    }
+}
+
 export async function getCaddyEnv(containerName) {
     if (!containerName) return { ...process.env };
     const container = containerName;
@@ -50,6 +62,25 @@ export function resolveEnvVars(str, env) {
 
 export function dockerExec(args, input, containerName) {
     const container = containerName || CADDY_CONTAINER;
+    assertSafeCommand(container);
+    assertSafeArgs(args);
+    if (args.length === 0) {
+        throw new Error('Missing docker exec command');
+    }
+    assertSafeCommand(args[0]);
+
+    const pathArgIndexesByCmd = {
+        cat: [1],
+        tee: [1],
+        ls: [2],
+        rm: [2],
+        test: [2],
+    };
+    const pathIndexes = pathArgIndexesByCmd[args[0]] || [];
+    for (const idx of pathIndexes) {
+        if (idx < args.length) assertSafePathArg(args[idx]);
+    }
+
     return execAndCollect('docker', ['exec', '-i', container, ...args], input);
 }
 
