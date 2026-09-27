@@ -6,6 +6,23 @@ export const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
 const _envCaches = new Map();
 const ENV_CACHE_TTL = 5 * 60 * 1000;
 
+function assertSafeCommand(cmd) {
+    if (typeof cmd !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(cmd)) {
+        throw new Error('Invalid command');
+    }
+}
+
+function assertSafeArgs(args) {
+    if (!Array.isArray(args)) {
+        throw new Error('Arguments must be an array');
+    }
+    for (const arg of args) {
+        if (typeof arg !== 'string' || arg.includes('\0')) {
+            throw new Error('Invalid command argument');
+        }
+    }
+}
+
 export async function getCaddyEnv(containerName) {
     if (!containerName) return { ...process.env };
     const container = containerName;
@@ -52,13 +69,17 @@ export function execInInstance(containerName, cmd, args, input) {
 // Returns the raw spawned process (for streaming use cases like `tail -f`) rather
 // than collecting output into a Promise.
 export function spawnInInstance(containerName, cmd, args) {
-    if (containerName) return spawn('docker', ['exec', containerName, cmd, ...args]);
-    return spawn(cmd, args);
+    assertSafeCommand(cmd);
+    assertSafeArgs(args);
+    if (containerName) return spawn('docker', ['exec', containerName, cmd, ...args], { shell: false });
+    return spawn(cmd, args, { shell: false });
 }
 
 function execAndCollect(cmd, args, input) {
     return new Promise((resolve, reject) => {
-        const proc = spawn(cmd, args);
+        assertSafeCommand(cmd);
+        assertSafeArgs(args);
+        const proc = spawn(cmd, args, { shell: false });
         let stdout = '';
         let stderr = '';
         proc.stdout.on('data', d => { stdout += d; });
