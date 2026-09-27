@@ -104,7 +104,7 @@ export default function Logs({ toast, onUnauth }) {
     );
 
     return (
-        <div className="gap-16">
+        <div className="gap-16 logs-page">
             <div className="card card-flush">
                 <div className={`card-header--clickable ${configOpen ? "is-open" : ""}`} onClick={() => setConfigOpen(o => !o)}>
                     <span className="section-label">Log Configuration</span>

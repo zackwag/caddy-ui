@@ -670,11 +670,14 @@ export const css = `
   .field input:focus { border-color: var(--accent); }
   .field input:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  .logs-page { height: 100%; }
+
   .log-wrap {
     background: var(--log-bg);
     border: 1px solid var(--border);
     border-radius: 6px;
-    height: 420px;
+    flex: 1;
+    min-height: 300px;
     overflow-y: auto;
     padding: 12px;
     font-family: 'IBM Plex Mono', monospace;
@@ -1233,7 +1236,7 @@ export const css = `
     .editor-hint--desktop { display: none; }
     .editor-hint--mobile { display: inline; margin-left: auto; }
     .editor-toolbar-actions .btn { flex: 1 1 90px; }
-    .log-wrap { height: 340px; }
+    .log-wrap { flex: none; height: 340px; min-height: 0; }
     .search-wrap { width: 100%; }
     .search-input { width: 100%; }
     .log-toolbar { flex-direction: column; align-items: stretch; }
