@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/zackwag/caddy-ui/compare/v2.2.0...v2.2.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* prevent empty scrollable space below content on short pages ([#98](https://github.com/zackwag/caddy-ui/issues/98)) ([2e41c76](https://github.com/zackwag/caddy-ui/commit/2e41c762d4503633d554c410df0965b6e017375f))
+
 ## [2.2.0](https://github.com/zackwag/caddy-ui/compare/v2.1.0...v2.2.0) (2026-09-27)
 
 
