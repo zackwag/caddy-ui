@@ -53,6 +53,7 @@ export const css = `
     font-size: 14px;
     line-height: 1.6;
     min-height: 100vh;
+    min-height: 100dvh;
     transition: background 0.2s, color 0.2s;
   }
 
