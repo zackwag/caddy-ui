@@ -37,6 +37,14 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 ![Metrics](screenshots/metrics.png)
 
+### Notifications
+
+![Notifications](screenshots/notifications.png)
+
+### Instances
+
+![Instances](screenshots/instances.png)
+
 ## Features
 
 - **Dashboard** — Live server status, TLS state, server block summary with custom display names, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
