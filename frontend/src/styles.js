@@ -868,7 +868,7 @@ export const css = `
   }
 
   .content {
-    flex: 1 1 0;
+    flex: 1;
     overflow-y: auto;
     padding: 28px;
   }
@@ -1759,10 +1759,6 @@ export const css = `
   .server-row--clickable { cursor: pointer; }
 
   .chevron { color: var(--muted); font-size: 12px; }
-    color: var(--muted);
-    font-size: 11px;
-    font-family: 'IBM Plex Mono', monospace;
-  }
 
   /* ── Utility: Log toolbar ─────────────────────────────────────────────────── */
 
