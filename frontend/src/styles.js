@@ -609,14 +609,14 @@ export const css = `
   }
   ${paletteBlocks}
 
+  html, body { height: 100%; height: 100dvh; overflow: hidden; }
+
   body {
     background: var(--bg);
     color: var(--text);
     font-family: 'IBM Plex Sans', sans-serif;
     font-size: 14px;
     line-height: 1.6;
-    min-height: 100vh;
-    min-height: 100dvh;
     transition: background 0.2s, color 0.2s;
   }
 
