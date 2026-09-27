@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/zackwag/caddy-ui/compare/v1.23.0...v2.0.0) (2026-09-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* add multi-Caddy instance support ([#73](https://github.com/zackwag/caddy-ui/issues/73))
+
+### Features
+
+* add multi-Caddy instance support ([#73](https://github.com/zackwag/caddy-ui/issues/73)) ([5a99b7b](https://github.com/zackwag/caddy-ui/commit/5a99b7bd6383014af43296103c55edc344a71b9b))
+
 ## [1.23.0](https://github.com/zackwag/caddy-ui/compare/v1.22.0...v1.23.0) (2026-09-26)
 
 
