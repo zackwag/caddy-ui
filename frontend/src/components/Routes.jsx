@@ -402,26 +402,38 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
         return stats && stats.total > 1 ? stats.pct : null;
     };
 
+    const getHealthTitle = (route) => {
+        const upstream = getUpstream(route);
+        if (upstream === "—") return "No upstream";
+        const upstreams = upstream.split(", ");
+        const allOnline = upstreams.every(u => health[u] === true);
+        const anyOnline = upstreams.some(u => health[u] === true);
+        const checked = upstreams.some(u => u in health);
+        if (!checked) return "Checking...";
+        const status = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
+        const pct = getUptimePct(route);
+        return pct !== null ? `${status} — ${pct}% uptime` : status;
+    };
+
     const getHealthDot = (route) => {
         const upstream = getUpstream(route);
         const pct = getUptimePct(route);
         const pctText = pct !== null ? `${pct}%` : "N/A";
         if (upstream === "—") {
-            return <span className="health-dot health-dot--none" title="No upstream"><span className="sr-only">No upstream, {pctText}</span></span>;
+            return <span className="health-dot health-dot--none"><span className="sr-only">No upstream, {pctText}</span></span>;
         }
         const upstreams = upstream.split(", ");
         const allOnline = upstreams.every(u => health[u] === true);
         const anyOnline = upstreams.some(u => health[u] === true);
         const checked = upstreams.some(u => u in health);
         if (!checked) {
-            return <span className="health-dot health-dot--pending" title="Checking..."><span className="sr-only">Checking, {pctText}</span></span>;
+            return <span className="health-dot health-dot--pending"><span className="sr-only">Checking, {pctText}</span></span>;
         }
         const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
         const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
         const status = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
-        const title = pct !== null ? `${status} — ${pctText} uptime` : status;
         return (
-            <span className="health-dot" style={{ background: color, boxShadow: shadow }} title={title}>
+            <span className="health-dot" style={{ background: color, boxShadow: shadow }}>
                 <span className="sr-only">{status}, {pctText}</span>
             </span>
         );
@@ -524,7 +536,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
                                         const note = notes[domain];
                                         return (
                                             <tr key={r["@id"] || i}>
-                                                {columns.status && <td className="col-status">{getHealthDot(r)}</td>}
+                                                {columns.status && <td className="col-status" title={getHealthTitle(r)}>{getHealthDot(r)}</td>}
                                                 <td>
                                                     <div className="route-domain-cell">
                                                         <div>
