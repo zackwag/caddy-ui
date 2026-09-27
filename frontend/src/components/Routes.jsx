@@ -24,25 +24,28 @@ function MiniCodeMirror({ value, onChange, theme }) {
 
             const isDark = theme === 'dark';
 
+            // Colors read from the CSS theme variables (see styles.js) rather than
+            // being hardcoded per-theme here, so a new theme needs no changes in
+            // this file -- only a new entry in the THEMES registry.
             const editorTheme = EditorView.theme({
-                "&": { background: isDark ? "#0a0c0f" : "#f0ebe4", color: isDark ? "#c9d1e0" : "#2c2825", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace" },
+                "&": { background: "var(--editor-bg)", color: "var(--text)", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace" },
                 ".cm-content": { padding: "12px", caretColor: "var(--accent)", lineHeight: "1.7" },
-                ".cm-gutters": { background: isDark ? "#0d0f12" : "#e8e2db", color: isDark ? "#586275" : "#8a7f75", border: "none", borderRight: `1px solid ${isDark ? "#1e2329" : "#d0c8c0"}`, paddingRight: "8px" },
-                ".cm-activeLineGutter": { background: isDark ? "rgba(0,229,160,0.05)" : "rgba(0,149,107,0.05)" },
-                ".cm-activeLine": { background: isDark ? "rgba(0,229,160,0.03)" : "rgba(0,149,107,0.03)" },
+                ".cm-gutters": { background: "var(--editor-gutter)", color: "var(--muted)", border: "none", borderRight: "1px solid var(--editor-border)", paddingRight: "8px" },
+                ".cm-activeLineGutter": { background: "var(--editor-active-gutter)" },
+                ".cm-activeLine": { background: "var(--editor-active-line)" },
                 ".cm-cursor": { borderLeftColor: "var(--accent)" },
-                ".cm-selectionBackground, ::selection": { background: isDark ? "rgba(0,153,255,0.2) !important" : "rgba(0,119,204,0.15) !important" },
+                ".cm-selectionBackground, ::selection": { background: "var(--editor-selection) !important" },
                 ".cm-line": { padding: "0 4px" },
-                ".tok-keyword": { color: isDark ? "#00e5a0" : "#00956b" },
-                ".tok-string": { color: isDark ? "#ffb830" : "#b36000" },
-                ".tok-comment": { color: isDark ? "#586275" : "#8a7f75", fontStyle: "italic" },
-                ".tok-number": { color: isDark ? "#0099ff" : "#0077cc" },
-                ".tok-operator": { color: isDark ? "#c9d1e0" : "#2c2825" },
-                ".tok-variableName": { color: isDark ? "#ff4d6a" : "#cc2233" },
-                ".tok-typeName": { color: isDark ? "#00e5a0" : "#00956b" },
-                ".tok-atom": { color: isDark ? "#ffb830" : "#b36000" },
-                ".tok-propertyName": { color: isDark ? "#0099ff" : "#0077cc" },
-                ".tok-variableName2": { color: isDark ? "#b388ff" : "#7c4dff" },
+                ".tok-keyword": { color: "var(--accent)" },
+                ".tok-string": { color: "var(--warn)" },
+                ".tok-comment": { color: "var(--muted)", fontStyle: "italic" },
+                ".tok-number": { color: "var(--accent2)" },
+                ".tok-operator": { color: "var(--text)" },
+                ".tok-variableName": { color: "var(--danger)" },
+                ".tok-typeName": { color: "var(--accent)" },
+                ".tok-atom": { color: "var(--warn)" },
+                ".tok-propertyName": { color: "var(--accent2)" },
+                ".tok-variableName2": { color: "var(--accent3)" },
                 "& .cm-scroller": { overflow: "auto" },
             }, { dark: isDark });
 
@@ -77,7 +80,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
         if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
     }, [value]);
 
-    return <div ref={containerRef} className="modal-editor-wrap" style={{ minHeight: 180, background: theme === 'dark' ? "#0a0c0f" : "#f0ebe4" }} />;
+    return <div ref={containerRef} className="modal-editor-wrap" style={{ minHeight: 180, background: "var(--editor-bg)" }} />;
 }
 
 function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, onSave, onDelete, onClose, theme }) {

@@ -1,36 +1,55 @@
-const darkTheme = `
-  --bg:       #0d0f12;
-  --surface:  #13161b;
-  --border:   #1e2329;
-  --border2:  #2a3040;
-  --text:     #c9d1e0;
-  --muted:    #586275;
-  --accent:   #00e5a0;
-  --accent2:  #0099ff;
-  --danger:   #ff4d6a;
-  --warn:     #ffb830;
-  --editor-bg:    #0a0c0f;
-  --editor-gutter:#0d0f12;
-  --editor-text:  #a8d8a8;
-  --log-bg:       #0a0c0f;
-`;
+// Named palettes. Adding a new theme is just adding an entry here (and a
+// place to select it) -- every rule in this stylesheet and every editor
+// color in CaddyfileCodeMirror/MiniCodeMirror reads from these variables
+// rather than hardcoding colors, so a new theme needs no other changes.
+const THEMES = {
+    dark: {
+        '--bg': '#0d0f12',
+        '--surface': '#13161b',
+        '--border': '#1e2329',
+        '--border2': '#2a3040',
+        '--text': '#c9d1e0',
+        '--muted': '#586275',
+        '--accent': '#00e5a0',
+        '--accent2': '#0099ff',
+        '--accent3': '#b388ff',
+        '--danger': '#ff4d6a',
+        '--warn': '#ffb830',
+        '--editor-bg': '#0a0c0f',
+        '--editor-gutter': '#0d0f12',
+        '--editor-border': '#1e2329',
+        '--editor-text': '#a8d8a8',
+        '--editor-active-gutter': 'rgba(0,229,160,0.05)',
+        '--editor-active-line': 'rgba(0,229,160,0.03)',
+        '--editor-selection': 'rgba(0,153,255,0.2)',
+        '--log-bg': '#0a0c0f',
+    },
+    light: {
+        '--bg': '#f5f0eb',
+        '--surface': '#faf7f4',
+        '--border': '#e0d8d0',
+        '--border2': '#ccc4ba',
+        '--text': '#2c2825',
+        '--muted': '#8a7f75',
+        '--accent': '#00956b',
+        '--accent2': '#0077cc',
+        '--accent3': '#7c4dff',
+        '--danger': '#cc2233',
+        '--warn': '#b36000',
+        '--editor-bg': '#f0ebe4',
+        '--editor-gutter': '#e8e2db',
+        '--editor-border': '#d0c8c0',
+        '--editor-text': '#3a5c3a',
+        '--editor-active-gutter': 'rgba(0,149,107,0.05)',
+        '--editor-active-line': 'rgba(0,149,107,0.03)',
+        '--editor-selection': 'rgba(0,119,204,0.15)',
+        '--log-bg': '#f0ebe4',
+    },
+};
 
-const lightTheme = `
-  --bg:       #f5f0eb;
-  --surface:  #faf7f4;
-  --border:   #e0d8d0;
-  --border2:  #ccc4ba;
-  --text:     #2c2825;
-  --muted:    #8a7f75;
-  --accent:   #00956b;
-  --accent2:  #0077cc;
-  --danger:   #cc2233;
-  --warn:     #b36000;
-  --editor-bg:    #f0ebe4;
-  --editor-gutter:#e8e2db;
-  --editor-text:  #3a5c3a;
-  --log-bg:       #f0ebe4;
-`;
+function themeVars(name) {
+    return Object.entries(THEMES[name]).map(([key, value]) => `${key}: ${value};`).join('\n    ');
+}
 
 export const css = `
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
@@ -38,12 +57,12 @@ export const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    ${darkTheme}
+    ${themeVars('dark')}
     --mono: 'IBM Plex Mono', monospace;
     --sans: 'IBM Plex Sans', sans-serif;
   }
   :root.light {
-    ${lightTheme}
+    ${themeVars('light')}
   }
 
   body {
