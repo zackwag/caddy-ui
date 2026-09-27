@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
 import { caddyLoad, withTimeout } from '../caddy.js';
-import { readContainerFile, writeContainerFile } from '../containerFs.js';
+import { readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
 import { execInInstance } from '../docker.js';
 import { DEFAULT_INSTANCE_ID } from '../instances.js';
 import logger from '../logger.js';
@@ -94,10 +94,19 @@ async function adaptViaAdminApi(content, adminUrl) {
 
 // Adapt through the caddy binary in the Caddy container, writing the buffer to a
 // temp file next to the real Caddyfile so relative `import` paths resolve.
+//
+// Runs as separate array-argument exec calls (no shell) rather than a single
+// interpolated `sh -c` script, since configPath -- and therefore tmp -- isn't
+// validated against shell metacharacters and previously would have let a
+// crafted instance config break out of the script's quoting.
 async function adaptViaCaddyBinary(content, configPath, containerName) {
     const tmp = join(dirname(configPath), `.caddy-ui-adapt-${process.pid}-${Date.now()}.tmp`);
-    const script = `cat > '${tmp}' && caddy adapt --config '${tmp}' --adapter caddyfile > /dev/null; rc=$?; rm -f '${tmp}'; exit $rc`;
-    await execInInstance(containerName, 'sh', ['-c', script], content);
+    await writeContainerFile(containerName, tmp, content);
+    try {
+        await execInInstance(containerName, 'caddy', ['adapt', '--config', tmp, '--adapter', 'caddyfile']);
+    } finally {
+        await removeContainerPath(containerName, tmp).catch(() => { });
+    }
 }
 
 async function validateCaddyfile(content, { adminUrl, configPath, containerName }) {
