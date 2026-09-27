@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/zackwag/caddy-ui/compare/v2.1.0...v2.2.0) (2026-09-27)
+
+
+### Features
+
+* theme picker with 26 palettes, server-side settings, and first-run welcome ([#96](https://github.com/zackwag/caddy-ui/issues/96)) ([30bfc8a](https://github.com/zackwag/caddy-ui/commit/30bfc8ac971e0fb41f2850541c39efa768463748))
+
 ## [2.1.0](https://github.com/zackwag/caddy-ui/compare/v2.0.0...v2.1.0) (2026-09-27)
 
 
