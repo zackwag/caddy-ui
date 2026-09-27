@@ -1333,6 +1333,74 @@ export const css = `
   .modal--confirm { width: 380px; }
   .modal--confirm .modal-title { font-weight: 400; line-height: 1.5; }
 
+  /* ── Utility: Route status history modal ──────────────────────────────────── */
+
+  .history-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .history-range-picker { display: flex; gap: 4px; }
+
+  .history-auto-refresh {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .history-auto-refresh input { cursor: pointer; }
+
+  .history-timeline {
+    display: flex;
+    height: 32px;
+    border-radius: 4px;
+    overflow: hidden;
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .history-segment--online  { background: var(--accent); }
+  .history-segment--offline { background: var(--danger); }
+  .history-segment--unknown { background: var(--border2); }
+
+  .history-timeline-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .history-stats {
+    display: flex;
+    gap: 24px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .history-stat-label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .history-stat-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    color: var(--text);
+  }
+
   .field { margin-bottom: 14px; }
   .field label {
     display: block;
@@ -1810,6 +1878,8 @@ export const css = `
   .health-dot--pending { background: var(--muted); }
 
   .col-status { width: 1%; white-space: nowrap; }
+  .col-status--clickable { cursor: pointer; }
+  .col-status--clickable:hover .health-dot { outline: 2px solid var(--border2); outline-offset: 2px; }
 
   .sr-only {
     position: absolute;
