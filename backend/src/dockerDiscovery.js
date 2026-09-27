@@ -23,14 +23,10 @@ function dockerGet(path) {
     });
 }
 
-function extractAdminPort(container) {
-    const config = container.Config || {};
-    const ports = config.ExposedPorts || {};
-    if ('2019/tcp' in ports) return 2019;
-    for (const key of Object.keys(ports)) {
-        const p = parseInt(key);
-        if (p === 2019) return p;
-    }
+// Caddy's admin API always binds to 2019 unless the Caddyfile's global
+// `admin` directive overrides it, which isn't visible from container
+// metadata -- so this is a fixed value, not a detected one.
+function extractAdminPort() {
     return 2019;
 }
 
@@ -75,35 +71,36 @@ export async function discoverCaddyContainers() {
         }
     }
 
-    const results = [];
-    for (const c of containers) {
+    const candidates = containers.filter(c => {
         const image = c.Image || '';
-        if (!/caddy/i.test(image) || /caddy-ui/i.test(image)) continue;
+        return /caddy/i.test(image) && !/caddy-ui/i.test(image);
+    });
 
+    const results = await Promise.all(candidates.map(async c => {
         const name = (c.Names || [])[0]?.replace(/^\//, '') || c.Id?.slice(0, 12);
 
         let detail;
         try {
             detail = await dockerGet(`/containers/${c.Id}/json`);
         } catch {
-            continue;
+            return null;
         }
 
         const ip = findContainerIP(detail, [...backendNetworks]);
-        const port = extractAdminPort(detail);
+        const port = extractAdminPort();
         const adminUrl = ip ? `http://${ip}:${port}` : `http://${name}:${port}`;
 
-        results.push({
+        return {
             containerId: c.Id?.slice(0, 12),
             containerName: name,
-            image,
+            image: c.Image || '',
             adminUrl,
             configPath: extractEnvVar(detail, 'CADDY_CONFIG_PATH') || '/etc/caddy/Caddyfile',
             logPath: extractEnvVar(detail, 'CADDY_LOG_PATH') || '/var/log/caddy/access.log',
             dataPath: '/data/caddy',
             serverName: extractEnvVar(detail, 'CADDY_SERVER_NAME') || 'srv0',
-        });
-    }
+        };
+    }));
 
-    return results;
+    return results.filter(Boolean);
 }

@@ -1,14 +1,13 @@
-import { getInstances } from '../instances.js';
+import { DEFAULT_INSTANCE_ID, getInstance, getInstances } from '../instances.js';
 import { validateContainerName, validatePath, validateServerName, validateUrl } from '../validation.js';
 
 export function instanceMiddleware(req, res, next) {
-    const instances = getInstances();
-    if (instances.length === 0) {
+    if (getInstances().length === 0) {
         return res.status(503).json({ error: 'No instances configured', code: 'NO_INSTANCES' });
     }
 
-    const instanceId = req.headers['x-instance-id'] || 'default';
-    const instance = instances.find(i => i.id === instanceId) || instances[0];
+    const instanceId = req.headers['x-instance-id'] || DEFAULT_INSTANCE_ID;
+    const instance = getInstance(instanceId);
 
     try {
         req.instance = {

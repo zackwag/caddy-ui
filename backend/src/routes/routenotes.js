@@ -60,16 +60,16 @@ export async function cleanupOrphanedNotes() {
         if (domains.length === 0) return;
 
         const activeDomains = new Set();
-        for (const inst of getInstances()) {
+        await Promise.all(getInstances().map(async inst => {
             const servers = await caddyGet('/config/apps/http/servers', inst.adminUrl).catch(() => null);
-            if (!servers) continue;
+            if (!servers) return;
             for (const server of Object.values(servers)) {
                 for (const route of server.routes || []) {
                     const hosts = route.match?.find(m => m.host)?.host || [];
                     for (const h of hosts) activeDomains.add(h);
                 }
             }
-        }
+        }));
 
         let removed = 0;
         for (const domain of domains) {

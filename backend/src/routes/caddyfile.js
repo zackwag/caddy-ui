@@ -3,7 +3,8 @@ import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
 import { caddyLoad, withTimeout } from '../caddy.js';
 import { readContainerFile, writeContainerFile } from '../containerFs.js';
-import { dockerExec } from '../docker.js';
+import { execInInstance } from '../docker.js';
+import { DEFAULT_INSTANCE_ID } from '../instances.js';
 import logger from '../logger.js';
 
 const router = Router();
@@ -11,7 +12,7 @@ const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
 const MAX_HISTORY = 20;
 
 function instanceHistoryDir(instanceId) {
-    return instanceId && instanceId !== 'default'
+    return instanceId && instanceId !== DEFAULT_INSTANCE_ID
         ? join(HISTORY_PATH, instanceId)
         : HISTORY_PATH;
 }
@@ -53,21 +54,8 @@ async function pruneHistory(instanceId) {
 
 async function fmtCaddyfile(content, containerName) {
     try {
-        if (containerName) {
-            const { stdout } = await dockerExec(['caddy', 'fmt', '-'], content, containerName);
-            return stdout || content;
-        }
-        const { spawn } = await import('child_process');
-        const result = await new Promise((resolve, reject) => {
-            const proc = spawn('caddy', ['fmt', '-']);
-            let out = '';
-            proc.stdout.on('data', d => { out += d; });
-            proc.on('close', code => code === 0 ? resolve(out) : reject(new Error('caddy fmt failed')));
-            proc.on('error', reject);
-            proc.stdin.write(content);
-            proc.stdin.end();
-        });
-        return result || content;
+        const { stdout } = await execInInstance(containerName, 'caddy', ['fmt', '-'], content);
+        return stdout || content;
     } catch (err) {
         logger.warn('caddy fmt failed', { error: err.message });
         return content;
@@ -109,20 +97,7 @@ async function adaptViaAdminApi(content, adminUrl) {
 async function adaptViaCaddyBinary(content, configPath, containerName) {
     const tmp = join(dirname(configPath), `.caddy-ui-adapt-${process.pid}-${Date.now()}.tmp`);
     const script = `cat > '${tmp}' && caddy adapt --config '${tmp}' --adapter caddyfile > /dev/null; rc=$?; rm -f '${tmp}'; exit $rc`;
-    if (containerName) {
-        await dockerExec(['sh', '-c', script], content, containerName);
-        return;
-    }
-    const { spawn } = await import('child_process');
-    await new Promise((resolve, reject) => {
-        const proc = spawn('sh', ['-c', script]);
-        let stderr = '';
-        proc.stderr.on('data', d => { stderr += d; });
-        proc.on('close', code => code === 0 ? resolve() : reject(Object.assign(new Error(stderr.trim()), { stderr, stdout: '', code })));
-        proc.on('error', reject);
-        proc.stdin.write(content);
-        proc.stdin.end();
-    });
+    await execInInstance(containerName, 'sh', ['-c', script], content);
 }
 
 async function validateCaddyfile(content, { adminUrl, configPath, containerName }) {
@@ -142,18 +117,7 @@ async function validateCaddyfile(content, { adminUrl, configPath, containerName 
 }
 
 async function reloadViaCaddyBinary(configPath, containerName) {
-    if (containerName) {
-        await dockerExec(['caddy', 'reload', '--config', configPath, '--adapter', 'caddyfile'], undefined, containerName);
-        return;
-    }
-    const { spawn } = await import('child_process');
-    await new Promise((resolve, reject) => {
-        const proc = spawn('caddy', ['reload', '--config', configPath, '--adapter', 'caddyfile']);
-        let stderr = '';
-        proc.stderr.on('data', d => { stderr += d; });
-        proc.on('close', code => code === 0 ? resolve() : reject(new Error(stderr.trim())));
-        proc.on('error', reject);
-    });
+    await execInInstance(containerName, 'caddy', ['reload', '--config', configPath, '--adapter', 'caddyfile']);
 }
 
 async function reloadCaddy(content, { adminUrl, configPath, containerName }) {

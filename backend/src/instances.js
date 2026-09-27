@@ -4,13 +4,17 @@ import logger from './logger.js';
 
 const INSTANCES_PATH = process.env.INSTANCES_PATH || '/etc/caddy-ui/instances.json';
 
+// The bootstrap instance's id when no instances.json exists yet, and the fallback
+// used when a request doesn't specify X-Instance-Id.
+export const DEFAULT_INSTANCE_ID = 'default';
+
 let _instances = null;
 let _writeLock = Promise.resolve();
 
 function buildDefaultInstance() {
     if (!process.env.CADDY_ADMIN_URL) return null;
     return {
-        id: 'default',
+        id: DEFAULT_INSTANCE_ID,
         name: 'Default',
         adminUrl: process.env.CADDY_ADMIN_URL,
         configPath: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile',

@@ -33,8 +33,32 @@ export function resolveEnvVars(str, env) {
 
 export function dockerExec(args, input, containerName) {
     const container = containerName || CADDY_CONTAINER;
+    return execAndCollect('docker', ['exec', '-i', container, ...args], input);
+}
+
+// Runs a command directly on the host (local filesystem mode, no Docker), collecting
+// output the same way dockerExec does so both branches behave identically on failure.
+export function execLocal(cmd, args, input) {
+    return execAndCollect(cmd, args, input);
+}
+
+// Picks Docker-exec vs local-spawn based on whether an instance has a container name,
+// mirroring the same dispatch containerFs.js already uses for file I/O.
+export function execInInstance(containerName, cmd, args, input) {
+    if (containerName) return dockerExec([cmd, ...args], input, containerName);
+    return execLocal(cmd, args, input);
+}
+
+// Returns the raw spawned process (for streaming use cases like `tail -f`) rather
+// than collecting output into a Promise.
+export function spawnInInstance(containerName, cmd, args) {
+    if (containerName) return spawn('docker', ['exec', containerName, cmd, ...args]);
+    return spawn(cmd, args);
+}
+
+function execAndCollect(cmd, args, input) {
     return new Promise((resolve, reject) => {
-        const proc = spawn('docker', ['exec', '-i', container, ...args]);
+        const proc = spawn(cmd, args);
         let stdout = '';
         let stderr = '';
         proc.stdout.on('data', d => { stdout += d; });

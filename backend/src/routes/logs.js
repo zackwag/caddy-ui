@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { caddyLoad } from '../caddy.js';
 import { readContainerFile, writeContainerFile } from '../containerFs.js';
-import { dockerExec } from '../docker.js';
+import { execInInstance, spawnInInstance } from '../docker.js';
 import logger from '../logger.js';
 const router = Router();
 const TAIL_LINES = 200;
@@ -154,19 +154,8 @@ router.put('/config', async (req, res) => {
 router.get('/', async (req, res) => {
     const { logPath, containerName } = req.instance;
     try {
-        if (containerName) {
-            const { stdout } = await dockerExec(['tail', '-n', String(TAIL_LINES), logPath], undefined, containerName);
-            const lines = stdout.split('\n').filter(Boolean);
-            return res.json({ lines, path: logPath });
-        }
-        const { spawn } = await import('child_process');
-        const lines = await new Promise((resolve, reject) => {
-            const proc = spawn('tail', ['-n', String(TAIL_LINES), logPath]);
-            let out = '';
-            proc.stdout.on('data', d => { out += d; });
-            proc.on('close', code => code === 0 ? resolve(out.split('\n').filter(Boolean)) : reject());
-            proc.on('error', reject);
-        });
+        const { stdout } = await execInInstance(containerName, 'tail', ['-n', String(TAIL_LINES), logPath]);
+        const lines = stdout.split('\n').filter(Boolean);
         res.json({ lines, path: logPath });
     } catch {
         res.json({ lines: [], error: `Log file not found at ${logPath}` });
@@ -180,10 +169,7 @@ router.get('/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const { spawn } = await import('child_process');
-    const proc = containerName
-        ? spawn('docker', ['exec', containerName, 'tail', '-n', '0', '-f', logPath])
-        : spawn('tail', ['-n', '0', '-f', logPath]);
+    const proc = spawnInInstance(containerName, 'tail', ['-n', '0', '-f', logPath]);
     let buffer = '';
 
     proc.stdout.on('data', (chunk) => {

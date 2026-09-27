@@ -65,120 +65,130 @@ async function runChecks() {
 // Track previous upstream state to detect transitions
 const upstreamState = new Map(); // upstream -> boolean (online)
 
+// Prefixes a notification message with the instance name, but only when there's
+// more than one instance configured -- no point labeling in the common case.
+function instanceLabel(inst) {
+    return getInstances().length > 1 ? `[${inst.name}] ` : '';
+}
+
 async function checkUpstreams() {
-    for (const inst of getInstances()) {
-        let servers;
-        try {
-            servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
-        } catch {
-            continue;
-        }
+    await Promise.all(getInstances().map(checkUpstreamsForInstance));
+}
 
-        const checks = [];
-        for (const [, server] of Object.entries(servers || {})) {
-            for (const route of server.routes || []) {
-                const domain = route.match?.find(m => m.host)?.host?.[0] || null;
-                const upstreams = extractUpstreams(route);
-                for (const upstream of upstreams) {
-                    const [host, port] = upstream.split(':');
-                    if (host && port) checks.push({ domain, upstream, host, port });
-                }
+async function checkUpstreamsForInstance(inst) {
+    let servers;
+    try {
+        servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
+    } catch {
+        return;
+    }
+
+    const checks = [];
+    for (const [, server] of Object.entries(servers || {})) {
+        for (const route of server.routes || []) {
+            const domain = route.match?.find(m => m.host)?.host?.[0] || null;
+            const upstreams = extractUpstreams(route);
+            for (const upstream of upstreams) {
+                const [host, port] = upstream.split(':');
+                if (host && port) checks.push({ domain, upstream, host, port });
             }
         }
+    }
 
-        let caddyPool = {};
-        try {
-            const poolRes = await fetch(`${inst.adminUrl}/reverse_proxy/upstreams`, {
-                headers: { 'Origin': 'http://0.0.0.0:2019' },
-                signal: AbortSignal.timeout(3000),
-            });
-            if (poolRes.ok) {
-                const pool = await poolRes.json();
-                for (const entry of pool) {
-                    if (entry.address) caddyPool[entry.address] = entry;
-                }
+    let caddyPool = {};
+    try {
+        const poolRes = await fetch(`${inst.adminUrl}/reverse_proxy/upstreams`, {
+            headers: { 'Origin': 'http://0.0.0.0:2019' },
+            signal: AbortSignal.timeout(3000),
+        });
+        if (poolRes.ok) {
+            const pool = await poolRes.json();
+            for (const entry of pool) {
+                if (entry.address) caddyPool[entry.address] = entry;
             }
-        } catch { }
+        }
+    } catch { }
 
-        for (const check of checks) {
-            let online;
-            if (check.upstream in caddyPool) {
-                online = caddyPool[check.upstream].fails === 0;
-            } else {
-                online = await checkTCP(check.host, check.port);
+    for (const check of checks) {
+        let online;
+        if (check.upstream in caddyPool) {
+            online = caddyPool[check.upstream].fails === 0;
+        } else {
+            online = await checkTCP(check.host, check.port);
+        }
+
+        const stateKey = `${inst.id}:${check.upstream}`;
+        const prev = upstreamState.get(stateKey);
+        upstreamState.set(stateKey, online);
+
+        if (prev === undefined) continue;
+
+        const instLabel = instanceLabel(inst);
+        const label = check.domain ? `${instLabel}${check.domain} (${check.upstream})` : `${instLabel}${check.upstream}`;
+
+        if (prev && !online && config.triggers.upstreamOffline) {
+            const key = `offline:${stateKey}`;
+            if (!isDebouncedKey(key)) {
+                markSent(key);
+                await sendNotification(config, {
+                    title: 'Upstream offline',
+                    message: `${label} is unreachable`,
+                    priority: 'high',
+                });
             }
+        }
 
-            const stateKey = `${inst.id}:${check.upstream}`;
-            const prev = upstreamState.get(stateKey);
-            upstreamState.set(stateKey, online);
-
-            if (prev === undefined) continue;
-
-            const instLabel = getInstances().length > 1 ? `[${inst.name}] ` : '';
-            const label = check.domain ? `${instLabel}${check.domain} (${check.upstream})` : `${instLabel}${check.upstream}`;
-
-            if (prev && !online && config.triggers.upstreamOffline) {
-                const key = `offline:${stateKey}`;
-                if (!isDebouncedKey(key)) {
-                    markSent(key);
-                    await sendNotification(config, {
-                        title: 'Upstream offline',
-                        message: `${label} is unreachable`,
-                        priority: 'high',
-                    });
-                }
-            }
-
-            if (!prev && online && config.triggers.upstreamOnline) {
-                const key = `online:${stateKey}`;
-                if (!isDebouncedKey(key)) {
-                    markSent(key);
-                    await sendNotification(config, {
-                        title: 'Upstream recovered',
-                        message: `${label} is back online`,
-                        priority: 'default',
-                    });
-                }
+        if (!prev && online && config.triggers.upstreamOnline) {
+            const key = `online:${stateKey}`;
+            if (!isDebouncedKey(key)) {
+                markSent(key);
+                await sendNotification(config, {
+                    title: 'Upstream recovered',
+                    message: `${label} is back online`,
+                    priority: 'default',
+                });
             }
         }
     }
 }
 
 async function checkCerts() {
-    for (const inst of getInstances()) {
-        const certsPath = join(inst.dataPath, 'certificates');
-        const issuers = await listContainerDir(inst.containerName, certsPath);
-        if (!issuers.length) continue;
+    await Promise.all(getInstances().map(checkCertsForInstance));
+}
 
-        for (const issuer of issuers) {
-            if (issuer === 'local') continue;
-            const issuerPath = join(certsPath, issuer);
-            const domains = await listContainerDir(inst.containerName, issuerPath);
-            if (!domains.length) continue;
+async function checkCertsForInstance(inst) {
+    const certsPath = join(inst.dataPath, 'certificates');
+    const issuers = await listContainerDir(inst.containerName, certsPath);
+    if (!issuers.length) return;
 
-            for (const domain of domains) {
-                const certFile = join(issuerPath, domain, `${domain}.crt`);
-                try {
-                    const pem = await readContainerFile(inst.containerName, certFile);
-                    const cert = new X509Certificate(pem);
-                    const validTo = new Date(cert.validTo);
-                    const daysRemaining = Math.floor((validTo - Date.now()) / (1000 * 60 * 60 * 24));
+    const instLabel = instanceLabel(inst);
+    for (const issuer of issuers) {
+        if (issuer === 'local') continue;
+        const issuerPath = join(certsPath, issuer);
+        const domains = await listContainerDir(inst.containerName, issuerPath);
+        if (!domains.length) continue;
 
-                    if (daysRemaining <= 14 && daysRemaining >= 0) {
-                        const key = `cert-expiring:${inst.id}:${domain}`;
-                        if (!isDebouncedKey(key)) {
-                            markSent(key);
-                            const instLabel = getInstances().length > 1 ? `[${inst.name}] ` : '';
-                            await sendNotification(config, {
-                                title: 'Certificate expiring',
-                                message: `${instLabel}${domain} expires in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
-                                priority: 'high',
-                            });
-                        }
+        for (const domain of domains) {
+            const certFile = join(issuerPath, domain, `${domain}.crt`);
+            try {
+                const pem = await readContainerFile(inst.containerName, certFile);
+                const cert = new X509Certificate(pem);
+                const validTo = new Date(cert.validTo);
+                const daysRemaining = Math.floor((validTo - Date.now()) / (1000 * 60 * 60 * 24));
+
+                if (daysRemaining <= 14 && daysRemaining >= 0) {
+                    const key = `cert-expiring:${inst.id}:${domain}`;
+                    if (!isDebouncedKey(key)) {
+                        markSent(key);
+                        await sendNotification(config, {
+                            title: 'Certificate expiring',
+                            message: `${instLabel}${domain} expires in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
+                            priority: 'high',
+                        });
                     }
-                } catch {
-                    continue;
                 }
+            } catch {
+                continue;
             }
         }
     }
