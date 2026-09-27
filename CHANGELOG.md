@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/zackwag/caddy-ui/compare/v2.0.0...v2.1.0) (2026-09-27)
+
+
+### Features
+
+* persist per-instance uptime history with configurable retention ([#93](https://github.com/zackwag/caddy-ui/issues/93)) ([2455e68](https://github.com/zackwag/caddy-ui/commit/2455e683ee25fc8d3f41577cf70d0d570148a985))
+
 ## [2.0.0](https://github.com/zackwag/caddy-ui/compare/v1.23.0...v2.0.0) (2026-09-27)
 
 
