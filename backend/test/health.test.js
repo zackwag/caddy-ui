@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { extractUpstreams, formatDuration, getHost, getUptimeStats, recordCheck } from '../src/routes/health.js';
+import { describe, expect, it } from 'vitest';
+import { extractUpstreams, getHost } from '../src/routes/health.js';
 
 describe('extractUpstreams', () => {
     it('extracts dial addresses from reverse_proxy handlers', () => {
@@ -75,89 +75,5 @@ describe('getHost', () => {
 
     it('returns null when no match', () => {
         expect(getHost({})).toBeNull();
-    });
-});
-
-describe('formatDuration', () => {
-    it('formats seconds only', () => {
-        expect(formatDuration(30)).toBe('30s');
-    });
-
-    it('formats minutes', () => {
-        expect(formatDuration(120)).toBe('2m');
-    });
-
-    it('formats hours and minutes', () => {
-        expect(formatDuration(3660)).toBe('1h 1m');
-    });
-
-    it('formats days and hours', () => {
-        expect(formatDuration(90000)).toBe('1d 1h');
-    });
-
-    it('formats zero', () => {
-        expect(formatDuration(0)).toBe('0s');
-    });
-});
-
-describe('recordCheck / getUptimeStats', () => {
-    beforeEach(() => {
-        // Record a unique upstream per test to avoid state leaking
-    });
-
-    it('returns null for unknown upstream', () => {
-        expect(getUptimeStats('never-seen:1234')).toBeNull();
-    });
-
-    it('tracks online checks correctly', () => {
-        const key = `test-online-${Date.now()}`;
-        recordCheck(key, true);
-        recordCheck(key, true);
-        recordCheck(key, true);
-        const stats = getUptimeStats(key);
-        expect(stats.pct).toBe(100);
-        expect(stats.total).toBe(3);
-        expect(stats.online).toBe(3);
-        expect(stats.currentlyOnline).toBe(true);
-        expect(stats.streak).toBe(3);
-    });
-
-    it('tracks mixed checks correctly', () => {
-        const key = `test-mixed-${Date.now()}`;
-        recordCheck(key, true);
-        recordCheck(key, false);
-        recordCheck(key, false);
-        const stats = getUptimeStats(key);
-        expect(stats.pct).toBeCloseTo(33.3, 0);
-        expect(stats.total).toBe(3);
-        expect(stats.online).toBe(1);
-        expect(stats.currentlyOnline).toBe(false);
-        expect(stats.streak).toBe(2);
-    });
-
-    it('computes streak from end of results', () => {
-        const key = `test-streak-${Date.now()}`;
-        recordCheck(key, false);
-        recordCheck(key, false);
-        recordCheck(key, true);
-        recordCheck(key, true);
-        recordCheck(key, true);
-        const stats = getUptimeStats(key);
-        expect(stats.streak).toBe(3);
-        expect(stats.currentlyOnline).toBe(true);
-    });
-
-    it('includes a streakLabel', () => {
-        const key = `test-label-${Date.now()}`;
-        recordCheck(key, true);
-        const stats = getUptimeStats(key);
-        expect(stats.streakLabel).toBe('30s');
-    });
-
-    it('includes firstSeen date', () => {
-        const key = `test-firstseen-${Date.now()}`;
-        recordCheck(key, true);
-        const stats = getUptimeStats(key);
-        expect(stats.firstSeen).toBeInstanceOf(Date);
     });
 });

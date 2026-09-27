@@ -1,52 +1,10 @@
 import { Router } from 'express';
 import { createConnection } from 'net';
 import { caddyGet } from '../caddy.js';
+import { getHistory, getStatsForInstance, recordCheck } from '../uptimeHistory.js';
 
 const router = Router();
 const TIMEOUT_MS = 3000;
-const WINDOW_SIZE = 288; // ~2.5 hours at 30s intervals
-
-// In-memory uptime tracking
-const uptimeHistory = {}; // upstream -> { results: boolean[], firstSeen: Date }
-
-function recordCheck(upstream, online) {
-    if (!uptimeHistory[upstream]) {
-        uptimeHistory[upstream] = { results: [], firstSeen: new Date() };
-    }
-    const entry = uptimeHistory[upstream];
-    entry.results.push(online);
-    if (entry.results.length > WINDOW_SIZE) entry.results.shift();
-}
-
-function getUptimeStats(upstream) {
-    const entry = uptimeHistory[upstream];
-    if (!entry || entry.results.length === 0) return null;
-    const total = entry.results.length;
-    const online = entry.results.filter(Boolean).length;
-    const pct = Math.round((online / total) * 1000) / 10;
-    const currentlyOnline = entry.results[entry.results.length - 1];
-
-    let streak = 0;
-    for (let i = entry.results.length - 1; i >= 0; i--) {
-        if (entry.results[i] === currentlyOnline) streak++;
-        else break;
-    }
-
-    const streakSeconds = streak * 30;
-    const streakLabel = formatDuration(streakSeconds);
-
-    return { pct, total, online, currentlyOnline, streak, streakSeconds, streakLabel, firstSeen: entry.firstSeen };
-}
-
-function formatDuration(seconds) {
-    const d = Math.floor(seconds / 86400);
-    const h = Math.floor((seconds % 86400) / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    if (d > 0) return `${d}d ${h}h`;
-    if (h > 0) return `${h}h ${m}m`;
-    if (m > 0) return `${m}m`;
-    return `${seconds}s`;
-}
 
 function checkTCP(host, port) {
     return new Promise((resolve) => {
@@ -78,7 +36,7 @@ function getHost(route) {
 
 // GET /api/health
 router.get('/', async (req, res) => {
-    const adminUrl = req.instance.adminUrl;
+    const { adminUrl, id: instanceId } = req.instance;
     try {
         const servers = await caddyGet('/config/apps/http/servers', adminUrl);
 
@@ -119,7 +77,7 @@ router.get('/', async (req, res) => {
                     online = await checkTCP(check.host, check.port);
                 }
 
-                recordCheck(check.upstream, online);
+                recordCheck(instanceId, check.upstream, online);
                 return {
                     domain: check.domain,
                     upstream: check.upstream,
@@ -138,12 +96,17 @@ router.get('/', async (req, res) => {
 
 // GET /api/health/uptime -- uptime stats per upstream
 router.get('/uptime', async (req, res) => {
-    const stats = {};
-    for (const [upstream] of Object.entries(uptimeHistory)) {
-        stats[upstream] = getUptimeStats(upstream);
-    }
-    res.json(stats);
+    res.json(getStatsForInstance(req.instance.id));
+});
+
+// GET /api/health/history?upstream=<upstream>&since=<epochMs> -- raw timestamped
+// checks for the route status history modal
+router.get('/history', async (req, res) => {
+    const { upstream, since } = req.query;
+    if (!upstream) return res.status(400).json({ error: 'upstream is required' });
+    const sinceMs = since ? Number(since) : undefined;
+    res.json(getHistory(req.instance.id, upstream, { sinceMs }));
 });
 
 export default router;
-export { extractUpstreams, formatDuration, recordCheck, getUptimeStats, getHost };
+export { extractUpstreams, getHost };

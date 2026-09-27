@@ -14,7 +14,7 @@ The API backend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-fronten
 - Appends, updates, and removes site blocks when routes are managed via the UI
 - Fetches routes from all server blocks with recursive upstream extraction for complex route structures
 - Health checks use Caddy's reverse proxy upstream pool API as primary source, with TCP fallback for upstreams not yet in the pool
-- In-memory rolling uptime tracking per upstream (288-check window, ~2.5 hours)
+- Persisted per-upstream uptime history with a configurable retention window (default 7 days)
 - Push notifications via ntfy, Discord, Slack, Pushover, or custom webhook — triggered on upstream offline/online and cert expiry
 - Configurable notification debounce to suppress repeat alerts
 - Reads TLS certificate files from disk and parses expiry dates
@@ -83,6 +83,8 @@ All variables have sensible defaults. Only set what you need to override.
 | `PORT` | `3001` | Port the backend listens on |
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
 | `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the server display names file |
+| `UPTIME_HISTORY_PATH` | `/etc/caddy-ui/uptime-history.json` | Path to the persisted upstream uptime history file |
+| `UPTIME_HISTORY_RETENTION_DAYS` | `7` | How many days of upstream health checks to retain |
 
 ## Authentication
 
@@ -186,7 +188,8 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | `GET` | `/api/route-notes` | Read all route notes |
 | `PUT` | `/api/route-notes/:domain` | Set or clear a route note |
 | `GET` | `/api/health` | Check upstream health via Caddy pool API with TCP fallback |
-| `GET` | `/api/health/uptime` | Uptime stats per upstream from rolling history |
+| `GET` | `/api/health/uptime` | Uptime stats per upstream from persisted history |
+| `GET` | `/api/health/history` | Raw timestamped checks for one upstream, for the route status history view |
 | `GET` | `/api/tls` | List all certificates with expiry and status |
 | `DELETE` | `/api/tls/:domain` | Delete an orphaned, superseded, or expired internal cert |
 | `GET` | `/api/tls/ca` | Download Caddy's root CA certificate |
