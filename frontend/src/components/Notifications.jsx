@@ -78,17 +78,20 @@ export default function Notifications({ toast, onUnauth }) {
                 <div className="config-grid">
                     <div>
                         <label className="field-label">Provider</label>
-                        <select
-                            className="config-select"
-                            value={config.provider}
-                            onChange={e => update({ provider: e.target.value })}
-                        >
-                            <option value="ntfy">ntfy</option>
-                            <option value="discord">Discord</option>
-                            <option value="slack">Slack</option>
-                            <option value="pushover">Pushover</option>
-                            <option value="custom">Custom Webhook</option>
-                        </select>
+                        <div className="select-wrap">
+                            <select
+                                className="config-select"
+                                value={config.provider}
+                                onChange={e => update({ provider: e.target.value })}
+                            >
+                                <option value="ntfy">ntfy</option>
+                                <option value="discord">Discord</option>
+                                <option value="slack">Slack</option>
+                                <option value="pushover">Pushover</option>
+                                <option value="custom">Custom Webhook</option>
+                            </select>
+                            <span className="select-arrow">▾</span>
+                        </div>
                     </div>
                 </div>
 
@@ -186,14 +189,17 @@ export default function Notifications({ toast, onUnauth }) {
                             </div>
                             <div>
                                 <label className="field-label">HTTP Method</label>
-                                <select
-                                    className="config-select"
-                                    value={config.custom?.method || 'POST'}
-                                    onChange={e => updateCustom({ method: e.target.value })}
-                                >
-                                    <option value="POST">POST</option>
-                                    <option value="PUT">PUT</option>
-                                </select>
+                                <div className="select-wrap">
+                                    <select
+                                        className="config-select"
+                                        value={config.custom?.method || 'POST'}
+                                        onChange={e => updateCustom({ method: e.target.value })}
+                                    >
+                                        <option value="POST">POST</option>
+                                        <option value="PUT">PUT</option>
+                                    </select>
+                                    <span className="select-arrow">▾</span>
+                                </div>
                             </div>
                         </div>
                         <div style={{ marginTop: '12px' }}>

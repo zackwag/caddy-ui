@@ -1670,15 +1670,26 @@ export const css = `
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23586275' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
     padding-right: 28px;
   }
-  :root.light .config-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a7f75' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  }
   .config-select:disabled, .config-input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Plain-text chevron instead of a background-image SVG -- some browser
+     dark-mode extensions (e.g. Dark Reader-style forced-dark tooling) treat
+     any element with a background-image as "media" to re-invert, which
+     was corrupting the select into a garbled dither pattern. */
+  .select-wrap { position: relative; }
+  .select-wrap .config-select { width: 100%; }
+  .select-arrow {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1;
+  }
 
   .config-grid {
     display: grid;

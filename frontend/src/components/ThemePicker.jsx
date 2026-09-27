@@ -20,15 +20,21 @@ export default function ThemePicker({ mode, onToggleMode, darkPalette, lightPale
                 <div className="theme-picker-menu">
                     <div className="theme-picker-row">
                         <label>Dark theme</label>
-                        <select className="config-select" value={darkPalette} onChange={e => onDarkPaletteChange(e.target.value)}>
-                            {DARK_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                        </select>
+                        <div className="select-wrap">
+                            <select className="config-select" value={darkPalette} onChange={e => onDarkPaletteChange(e.target.value)}>
+                                {DARK_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                            </select>
+                            <span className="select-arrow">▾</span>
+                        </div>
                     </div>
                     <div className="theme-picker-row">
                         <label>Light theme</label>
-                        <select className="config-select" value={lightPalette} onChange={e => onLightPaletteChange(e.target.value)}>
-                            {LIGHT_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                        </select>
+                        <div className="select-wrap">
+                            <select className="config-select" value={lightPalette} onChange={e => onLightPaletteChange(e.target.value)}>
+                                {LIGHT_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                            </select>
+                            <span className="select-arrow">▾</span>
+                        </div>
                     </div>
                 </div>
             )}

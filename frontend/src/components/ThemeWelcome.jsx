@@ -31,15 +31,18 @@ export default function ThemeWelcome({ onComplete }) {
 
                 <div style={{ marginBottom: 16 }}>
                     <label className="field-label">{preview === 'dark' ? 'Dark theme' : 'Light theme'}</label>
-                    <select
-                        className="config-select"
-                        value={preview === 'dark' ? dark : light}
-                        onChange={e => preview === 'dark' ? setDark(e.target.value) : setLight(e.target.value)}
-                    >
-                        {(preview === 'dark' ? DARK_THEMES : LIGHT_THEMES).map(t =>
-                            <option key={t.id} value={t.id}>{t.label}</option>
-                        )}
-                    </select>
+                    <div className="select-wrap">
+                        <select
+                            className="config-select"
+                            value={preview === 'dark' ? dark : light}
+                            onChange={e => preview === 'dark' ? setDark(e.target.value) : setLight(e.target.value)}
+                        >
+                            {(preview === 'dark' ? DARK_THEMES : LIGHT_THEMES).map(t =>
+                                <option key={t.id} value={t.id}>{t.label}</option>
+                            )}
+                        </select>
+                        <span className="select-arrow">▾</span>
+                    </div>
                 </div>
 
                 <div style={{

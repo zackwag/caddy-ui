@@ -131,19 +131,25 @@ export default function Logs({ toast, onUnauth }) {
                             </div>
                             <div>
                                 <span className="field-label">Format</span>
-                                <select className="config-select" value={logConfig.format} onChange={e => updateConfig("format", e.target.value)} disabled={!logConfig.enabled}>
-                                    <option value="json">json</option>
-                                    <option value="console">console</option>
-                                </select>
+                                <div className="select-wrap">
+                                    <select className="config-select" value={logConfig.format} onChange={e => updateConfig("format", e.target.value)} disabled={!logConfig.enabled}>
+                                        <option value="json">json</option>
+                                        <option value="console">console</option>
+                                    </select>
+                                    <span className="select-arrow">▾</span>
+                                </div>
                             </div>
                             <div>
                                 <span className="field-label">Level</span>
-                                <select className="config-select" value={logConfig.level} onChange={e => updateConfig("level", e.target.value)} disabled={!logConfig.enabled}>
-                                    <option value="DEBUG">DEBUG</option>
-                                    <option value="INFO">INFO</option>
-                                    <option value="WARN">WARN</option>
-                                    <option value="ERROR">ERROR</option>
-                                </select>
+                                <div className="select-wrap">
+                                    <select className="config-select" value={logConfig.level} onChange={e => updateConfig("level", e.target.value)} disabled={!logConfig.enabled}>
+                                        <option value="DEBUG">DEBUG</option>
+                                        <option value="INFO">INFO</option>
+                                        <option value="WARN">WARN</option>
+                                        <option value="ERROR">ERROR</option>
+                                    </select>
+                                    <span className="select-arrow">▾</span>
+                                </div>
                             </div>
                             <div className="config-grid-full">
                                 <span className="field-label">Log File Path</span>
