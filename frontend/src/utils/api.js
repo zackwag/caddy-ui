@@ -12,14 +12,17 @@ export function getAuthEnabled() {
 }
 export function setAuthEnabled(v) { localStorage.setItem('caddy_ui_auth_enabled', String(v)); }
 
-export function getTheme() { return localStorage.getItem('caddy_ui_theme') || 'dark'; }
-export function saveTheme(theme) { localStorage.setItem('caddy_ui_theme', theme); }
+export async function fetchSettings(onUnauth) {
+    return apiFetch('/settings', {}, onUnauth);
+}
 
-// Which named palette (see THEME_LIST in styles.js) is used for each mode.
-export function getDarkPalette() { return localStorage.getItem('caddy_ui_theme_dark') || 'dark'; }
-export function saveDarkPalette(id) { localStorage.setItem('caddy_ui_theme_dark', id); }
-export function getLightPalette() { return localStorage.getItem('caddy_ui_theme_light') || 'light'; }
-export function saveLightPalette(id) { localStorage.setItem('caddy_ui_theme_light', id); }
+export async function saveSettings(updates, onUnauth) {
+    return apiFetch('/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+    }, onUnauth);
+}
 
 export function getInstanceId() { return localStorage.getItem('caddy_ui_instance') || 'default'; }
 export function setInstanceId(id) { localStorage.setItem('caddy_ui_instance', id); }

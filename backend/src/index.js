@@ -13,12 +13,14 @@ import instancesRouter from './routes/instances.js';
 import logsRouter from './routes/logs.js';
 import metricsRouter from './routes/metrics.js';
 import notificationsRouter from './routes/notifications.js';
+import settingsRouter from './routes/settings.js';
 import { initCaddyfileTitles } from './caddyfileTitles.js';
 import routenotesRouter, { cleanupOrphanedNotes } from './routes/routenotes.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
+import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 
 const app = express();
@@ -69,8 +71,9 @@ app.use('/api/auth', authLimiter, authRouter);
 // GET /api/version -- always public, non-sensitive
 app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
 
-// Instance routes require auth but not instance middleware
+// Instance and settings routes require auth but not instance middleware
 app.use('/api/instances', authMiddleware, instancesRouter);
+app.use('/api/settings', authMiddleware, settingsRouter);
 
 // Instance middleware for all other routes
 app.use('/api', instanceMiddleware);
@@ -112,6 +115,7 @@ app.use((err, req, res, next) => {
 });
 
 await loadInstances();
+await loadSettings();
 await initUptimeHistory();
 
 app.listen(PORT, () => {

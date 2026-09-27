@@ -192,7 +192,6 @@ function NewRouteModal({ onSave, onClose }) {
     );
 }
 
-const COLUMNS_STORAGE_KEY = "caddy_ui_routes_columns";
 const TOGGLEABLE_COLUMNS = [
     { key: "status", label: "Status" },
     { key: "title", label: "Title" },
@@ -200,18 +199,8 @@ const TOGGLEABLE_COLUMNS = [
     { key: "server", label: "Server" },
     { key: "id", label: "ID" },
 ];
-const DEFAULT_COLUMNS = Object.fromEntries(TOGGLEABLE_COLUMNS.map(c => [c.key, true]));
 
-function loadColumnPrefs() {
-    try {
-        const raw = localStorage.getItem(COLUMNS_STORAGE_KEY);
-        return raw ? { ...DEFAULT_COLUMNS, ...JSON.parse(raw) } : DEFAULT_COLUMNS;
-    } catch {
-        return DEFAULT_COLUMNS;
-    }
-}
-
-export default function Routes({ toast, onUnauth, confirm, theme }) {
+export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange }) {
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
@@ -225,17 +214,13 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
     const [search, setSearch] = useState(searchParams.get("filter") || "");
-    const [columns, setColumns] = useState(loadColumnPrefs);
+    const columns = routeColumns;
     const [colMenuOpen, setColMenuOpen] = useState(false);
     const colMenuRef = useRef(null);
 
-    useEffect(() => {
-        try { localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(columns)); } catch { /* ignore */ }
-    }, [columns]);
-
     useClickOutside(colMenuRef, () => setColMenuOpen(false), colMenuOpen);
 
-    const toggleColumn = (key) => setColumns(c => ({ ...c, [key]: !c[key] }));
+    const toggleColumn = (key) => onRouteColumnsChange({ ...columns, [key]: !columns[key] });
     const columnsHidden = TOGGLEABLE_COLUMNS.some(c => !columns[c.key]);
 
     useEffect(() => {

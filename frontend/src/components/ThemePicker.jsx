@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import { THEME_LIST } from "../styles.js";
 
-const DARK_THEMES = THEME_LIST.filter(t => t.mode === 'dark');
-const LIGHT_THEMES = THEME_LIST.filter(t => t.mode === 'light');
+const DARK_THEMES = THEME_LIST.filter(t => t.mode === 'dark').sort((a, b) => a.label.localeCompare(b.label));
+const LIGHT_THEMES = THEME_LIST.filter(t => t.mode === 'light').sort((a, b) => a.label.localeCompare(b.label));
 
 export default function ThemePicker({ mode, onToggleMode, darkPalette, lightPalette, onDarkPaletteChange, onLightPaletteChange }) {
     const [open, setOpen] = useState(false);
