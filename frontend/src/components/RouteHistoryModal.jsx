@@ -12,6 +12,7 @@ const RANGES = [
 // down, etc.) render as "unknown" instead of extending the last known status.
 const GAP_THRESHOLD_MS = 3 * 60 * 1000;
 const REFRESH_INTERVAL_MS = 30_000;
+const AXIS_TICK_COUNT = 4;
 
 // Turns a sparse list of point-in-time checks into contiguous timeline
 // segments spanning [rangeStart, rangeEnd], each labeled online/offline/unknown.
@@ -43,11 +44,44 @@ function buildSegments(entries, rangeStart, rangeEnd) {
     return segments.filter(s => s.end > s.start);
 }
 
+// Points where status actually changed, most recent first. The first known
+// check counts as a transition too, establishing the earliest known state.
+function buildTransitions(entries) {
+    const transitions = [];
+    for (let i = 0; i < entries.length; i++) {
+        if (i === 0 || entries[i].online !== entries[i - 1].online) transitions.push(entries[i]);
+    }
+    return transitions.reverse();
+}
+
+function buildAxisTicks(rangeStart, rangeEnd) {
+    const ticks = [];
+    for (let i = 0; i <= AXIS_TICK_COUNT; i++) {
+        ticks.push({ ms: rangeStart + ((rangeEnd - rangeStart) * i) / AXIS_TICK_COUNT, isNow: i === AXIS_TICK_COUNT });
+    }
+    return ticks;
+}
+
 function formatAxisTime(ms, rangeMs) {
     const d = new Date(ms);
     return rangeMs > 24 * 60 * 60 * 1000
         ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
         : d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function formatRelativeTime(ms) {
+    const diffSec = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (diffSec < 5) return "just now";
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.round(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return `${Math.round(diffHr / 24)}d ago`;
+}
+
+function formatActivityTime(ms) {
+    return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
 const STATUS_LABEL = { online: "Online", offline: "Offline", unknown: "No data" };
@@ -75,6 +109,8 @@ export default function RouteHistoryModal({ title, upstream, onUnauth, onClose }
     const rangeEnd = Date.now();
     const rangeStart = rangeEnd - range.ms;
     const segments = useMemo(() => buildSegments(entries || [], rangeStart, rangeEnd), [entries, rangeStart, rangeEnd]);
+    const ticks = useMemo(() => buildAxisTicks(rangeStart, rangeEnd), [rangeStart, rangeEnd]);
+    const transitions = useMemo(() => buildTransitions(entries || []), [entries]);
 
     const uptimePct = useMemo(() => {
         if (!entries || entries.length === 0) return null;
@@ -82,11 +118,27 @@ export default function RouteHistoryModal({ title, upstream, onUnauth, onClose }
         return Math.round((online / entries.length) * 1000) / 10;
     }, [entries]);
 
+    const lastCheck = entries && entries.length > 0 ? entries[entries.length - 1] : null;
+    const lastStatus = lastCheck ? (lastCheck.online ? "online" : "offline") : null;
+
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" style={{ width: 640 }} onClick={e => e.stopPropagation()}>
                 <div className="modal-title">{title || upstream}</div>
-                {title && <div className="modal-hint mono" style={{ marginTop: -14, marginBottom: 20 }}>{upstream}</div>}
+                {title && <div className="modal-hint mono" style={{ marginTop: -14, marginBottom: 8 }}>{upstream}</div>}
+
+                {entries && (
+                    <div className="history-header">
+                        <div className="history-header-left">
+                            <span
+                                className={lastStatus ? "health-dot" : "health-dot health-dot--none"}
+                                style={lastStatus ? { background: lastStatus === "online" ? "var(--accent)" : "var(--danger)" } : undefined}
+                            />
+                            <span className="history-header-relative">{lastCheck ? formatRelativeTime(lastCheck.at) : "No data yet"}</span>
+                        </div>
+                        {lastStatus && <span className={`history-header-status history-header-status--${lastStatus}`}>{STATUS_LABEL[lastStatus]}</span>}
+                    </div>
+                )}
 
                 <div className="history-controls">
                     <div className="history-range-picker">
@@ -117,12 +169,17 @@ export default function RouteHistoryModal({ title, upstream, onUnauth, onClose }
                                     className={`history-segment history-segment--${seg.status}`}
                                     style={{ flexGrow: seg.end - seg.start }}
                                     title={`${STATUS_LABEL[seg.status]} — ${new Date(seg.start).toLocaleString()} to ${new Date(seg.end).toLocaleString()}`}
-                                />
+                                >
+                                    <span className="history-segment-label">{STATUS_LABEL[seg.status]}</span>
+                                </div>
                             ))}
                         </div>
-                        <div className="history-timeline-labels">
-                            <span>{formatAxisTime(rangeStart, range.ms)}</span>
-                            <span>Now</span>
+                        <div className="history-timeline-axis">
+                            {ticks.map((t, i) => (
+                                <span key={i} className="history-axis-tick" style={{ left: `${(i / AXIS_TICK_COUNT) * 100}%` }}>
+                                    {t.isNow ? "Now" : formatAxisTime(t.ms, range.ms)}
+                                </span>
+                            ))}
                         </div>
 
                         <div className="history-stats">
@@ -134,6 +191,19 @@ export default function RouteHistoryModal({ title, upstream, onUnauth, onClose }
                                 <span className="history-stat-label">Checks</span>
                                 <span className="history-stat-val">{entries.length}</span>
                             </div>
+                        </div>
+
+                        <div className="history-section-label">Activity</div>
+                        <div className="history-activity-list">
+                            {transitions.length === 0 ? (
+                                <div className="history-activity-empty">No status changes in this range</div>
+                            ) : transitions.map((t, i) => (
+                                <div key={i} className="history-activity-item">
+                                    <span className={`history-activity-dot history-activity-dot--${t.online ? "online" : "offline"}`} />
+                                    <span className="history-activity-label">{t.online ? "Online" : "Offline"}</span>
+                                    <span className="history-activity-time">{formatActivityTime(t.at)}</span>
+                                </div>
+                            ))}
                         </div>
                     </>
                 )}
