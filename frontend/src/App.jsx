@@ -10,10 +10,11 @@ import Instances from "./components/Instances.jsx";
 import Notifications from "./components/Notifications.jsx";
 import RoutesPage from "./components/Routes.jsx";
 import Sidebar from "./components/Sidebar.jsx";
+import ThemePicker from "./components/ThemePicker.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
 import { css } from "./styles.js";
-import { API, apiFetch, getAuthEnabled, getInstanceId, getTheme, getToken, saveTheme, setAuthEnabled, setToken } from "./utils/api.js";
+import { API, apiFetch, getAuthEnabled, getDarkPalette, getInstanceId, getLightPalette, getTheme, getToken, saveDarkPalette, saveLightPalette, saveTheme, setAuthEnabled, setToken } from "./utils/api.js";
 
 const TITLES = {
     "/dashboard": "Dashboard",
@@ -42,6 +43,8 @@ export default function App() {
     });
     const [sessionExpired, setSessionExpired] = useState(false);
     const [theme, setTheme] = useState(getTheme);
+    const [darkPalette, setDarkPalette] = useState(getDarkPalette);
+    const [lightPalette, setLightPalette] = useState(getLightPalette);
     const toast = useToast();
     const { dialog: confirmDialog, confirm, resolve: resolveConfirm } = useConfirm();
 
@@ -55,8 +58,12 @@ export default function App() {
     useEffect(() => {
         if (theme === 'light') document.documentElement.classList.add('light');
         else document.documentElement.classList.remove('light');
+        document.documentElement.setAttribute('data-palette', theme === 'dark' ? darkPalette : lightPalette);
         saveTheme(theme);
-    }, [theme]);
+    }, [theme, darkPalette, lightPalette]);
+
+    const changeDarkPalette = (id) => { setDarkPalette(id); saveDarkPalette(id); };
+    const changeLightPalette = (id) => { setLightPalette(id); saveLightPalette(id); };
 
     useEffect(() => {
         fetch(`${API}/auth/status`)
@@ -137,9 +144,14 @@ export default function App() {
                                 <span className="page-title">{title}</span>
                             </div>
                             <div className="btn-row">
-                                <button className="theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-                                    {theme === 'dark' ? '☀︎' : '☾︎'}
-                                </button>
+                                <ThemePicker
+                                    mode={theme}
+                                    onToggleMode={toggleTheme}
+                                    darkPalette={darkPalette}
+                                    lightPalette={lightPalette}
+                                    onDarkPaletteChange={changeDarkPalette}
+                                    onLightPaletteChange={changeLightPalette}
+                                />
                             </div>
                         </div>
                         <div className="content" key={instanceKey}>

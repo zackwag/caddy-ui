@@ -1,55 +1,141 @@
-// Named palettes. Adding a new theme is just adding an entry here (and a
-// place to select it) -- every rule in this stylesheet and every editor
-// color in CaddyfileCodeMirror/MiniCodeMirror reads from these variables
-// rather than hardcoding colors, so a new theme needs no other changes.
-const THEMES = {
-    dark: {
-        '--bg': '#0d0f12',
-        '--surface': '#13161b',
-        '--border': '#1e2329',
-        '--border2': '#2a3040',
-        '--text': '#c9d1e0',
-        '--muted': '#586275',
-        '--accent': '#00e5a0',
-        '--accent2': '#0099ff',
-        '--accent3': '#b388ff',
-        '--danger': '#ff4d6a',
-        '--warn': '#ffb830',
-        '--editor-bg': '#0a0c0f',
-        '--editor-gutter': '#0d0f12',
-        '--editor-border': '#1e2329',
-        '--editor-text': '#a8d8a8',
-        '--editor-active-gutter': 'rgba(0,229,160,0.05)',
-        '--editor-active-line': 'rgba(0,229,160,0.03)',
-        '--editor-selection': 'rgba(0,153,255,0.2)',
-        '--log-bg': '#0a0c0f',
+// Named palettes. Each has a `mode` (dark or light) -- the app lets a user
+// pick one palette to use in dark mode and one to use in light mode, and
+// the existing dark/light toggle switches between whichever two are
+// selected. Adding a new theme is just adding an entry here; every rule in
+// this stylesheet and every editor color in CaddyfileCodeMirror/
+// MiniCodeMirror reads from these variables rather than hardcoding colors,
+// so a new theme needs no other changes.
+export const THEME_LIST = [
+    {
+        id: 'dark', label: 'Dark', mode: 'dark', vars: {
+            '--bg': '#0d0f12',
+            '--surface': '#13161b',
+            '--border': '#1e2329',
+            '--border2': '#2a3040',
+            '--text': '#c9d1e0',
+            '--muted': '#586275',
+            '--accent': '#00e5a0',
+            '--accent2': '#0099ff',
+            '--accent3': '#b388ff',
+            '--danger': '#ff4d6a',
+            '--warn': '#ffb830',
+            '--editor-bg': '#0a0c0f',
+            '--editor-gutter': '#0d0f12',
+            '--editor-border': '#1e2329',
+            '--editor-text': '#a8d8a8',
+            '--editor-active-gutter': 'rgba(0,229,160,0.05)',
+            '--editor-active-line': 'rgba(0,229,160,0.03)',
+            '--editor-selection': 'rgba(0,153,255,0.2)',
+            '--log-bg': '#0a0c0f',
+        },
     },
-    light: {
-        '--bg': '#f5f0eb',
-        '--surface': '#faf7f4',
-        '--border': '#e0d8d0',
-        '--border2': '#ccc4ba',
-        '--text': '#2c2825',
-        '--muted': '#8a7f75',
-        '--accent': '#00956b',
-        '--accent2': '#0077cc',
-        '--accent3': '#7c4dff',
-        '--danger': '#cc2233',
-        '--warn': '#b36000',
-        '--editor-bg': '#f0ebe4',
-        '--editor-gutter': '#e8e2db',
-        '--editor-border': '#d0c8c0',
-        '--editor-text': '#3a5c3a',
-        '--editor-active-gutter': 'rgba(0,149,107,0.05)',
-        '--editor-active-line': 'rgba(0,149,107,0.03)',
-        '--editor-selection': 'rgba(0,119,204,0.15)',
-        '--log-bg': '#f0ebe4',
+    {
+        id: 'light', label: 'Light', mode: 'light', vars: {
+            '--bg': '#f5f0eb',
+            '--surface': '#faf7f4',
+            '--border': '#e0d8d0',
+            '--border2': '#ccc4ba',
+            '--text': '#2c2825',
+            '--muted': '#8a7f75',
+            '--accent': '#00956b',
+            '--accent2': '#0077cc',
+            '--accent3': '#7c4dff',
+            '--danger': '#cc2233',
+            '--warn': '#b36000',
+            '--editor-bg': '#f0ebe4',
+            '--editor-gutter': '#e8e2db',
+            '--editor-border': '#d0c8c0',
+            '--editor-text': '#3a5c3a',
+            '--editor-active-gutter': 'rgba(0,149,107,0.05)',
+            '--editor-active-line': 'rgba(0,149,107,0.03)',
+            '--editor-selection': 'rgba(0,119,204,0.15)',
+            '--log-bg': '#f0ebe4',
+        },
     },
-};
+    {
+        id: 'nord', label: 'Nord', mode: 'dark', vars: {
+            '--bg': '#2e3440',
+            '--surface': '#3b4252',
+            '--border': '#434c5e',
+            '--border2': '#4c566a',
+            '--text': '#eceff4',
+            '--muted': '#4c566a',
+            '--accent': '#a3be8c',
+            '--accent2': '#81a1c1',
+            '--accent3': '#b48ead',
+            '--danger': '#bf616a',
+            '--warn': '#ebcb8b',
+            '--editor-bg': '#2e3440',
+            '--editor-gutter': '#3b4252',
+            '--editor-border': '#434c5e',
+            '--editor-text': '#a3be8c',
+            '--editor-active-gutter': 'rgba(163,190,140,0.08)',
+            '--editor-active-line': 'rgba(163,190,140,0.05)',
+            '--editor-selection': 'rgba(129,161,193,0.25)',
+            '--log-bg': '#2e3440',
+        },
+    },
+    {
+        id: 'solarized-dark', label: 'Solarized Dark', mode: 'dark', vars: {
+            '--bg': '#002b36',
+            '--surface': '#073642',
+            '--border': '#0a4552',
+            '--border2': '#0d5566',
+            '--text': '#839496',
+            '--muted': '#586e75',
+            '--accent': '#859900',
+            '--accent2': '#268bd2',
+            '--accent3': '#6c71c4',
+            '--danger': '#dc322f',
+            '--warn': '#b58900',
+            '--editor-bg': '#002b36',
+            '--editor-gutter': '#073642',
+            '--editor-border': '#0a4552',
+            '--editor-text': '#93a1a1',
+            '--editor-active-gutter': 'rgba(133,153,0,0.08)',
+            '--editor-active-line': 'rgba(133,153,0,0.05)',
+            '--editor-selection': 'rgba(38,139,210,0.25)',
+            '--log-bg': '#002b36',
+        },
+    },
+    {
+        id: 'solarized-light', label: 'Solarized Light', mode: 'light', vars: {
+            '--bg': '#fdf6e3',
+            '--surface': '#eee8d5',
+            '--border': '#e4dcc5',
+            '--border2': '#d7cfb8',
+            '--text': '#657b83',
+            '--muted': '#93a1a1',
+            '--accent': '#859900',
+            '--accent2': '#268bd2',
+            '--accent3': '#6c71c4',
+            '--danger': '#dc322f',
+            '--warn': '#b58900',
+            '--editor-bg': '#fdf6e3',
+            '--editor-gutter': '#eee8d5',
+            '--editor-border': '#ddd6c1',
+            '--editor-text': '#586e75',
+            '--editor-active-gutter': 'rgba(133,153,0,0.08)',
+            '--editor-active-line': 'rgba(133,153,0,0.05)',
+            '--editor-selection': 'rgba(38,139,210,0.15)',
+            '--log-bg': '#fdf6e3',
+        },
+    },
+];
 
-function themeVars(name) {
-    return Object.entries(THEMES[name]).map(([key, value]) => `${key}: ${value};`).join('\n    ');
+function themeVars(theme) {
+    return Object.entries(theme.vars).map(([key, value]) => `${key}: ${value};`).join('\n    ');
 }
+
+// Every palette's variables are scoped behind [data-palette="id"] on <html>
+// (set by ThemePicker), so any number of themes can coexist. The plain
+// :root block underneath is just a pre-JS fallback matching the default
+// dark theme.
+const paletteBlocks = THEME_LIST.map(t => `
+  :root[data-palette="${t.id}"] {
+    ${themeVars(t)}
+  }
+`).join('');
 
 export const css = `
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
@@ -57,13 +143,11 @@ export const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    ${themeVars('dark')}
+    ${themeVars(THEME_LIST[0])}
     --mono: 'IBM Plex Mono', monospace;
     --sans: 'IBM Plex Sans', sans-serif;
   }
-  :root.light {
-    ${themeVars('light')}
-  }
+  ${paletteBlocks}
 
   body {
     background: var(--bg);
@@ -473,10 +557,13 @@ export const css = `
 
   .btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
+  .theme-picker { position: relative; display: flex; flex-shrink: 0; }
+
   .theme-toggle {
     background: transparent;
     border: 1px solid var(--border2);
-    border-radius: 4px;
+    border-right: none;
+    border-radius: 4px 0 0 4px;
     color: var(--muted);
     cursor: pointer;
     padding: 6px 10px;
@@ -486,6 +573,45 @@ export const css = `
     flex-shrink: 0;
   }
   .theme-toggle:hover { color: var(--text); border-color: var(--muted); }
+
+  .theme-picker-trigger {
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 0 4px 4px 0;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 6px 6px;
+    font-size: 10px;
+    line-height: 1;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .theme-picker-trigger:hover { color: var(--text); border-color: var(--muted); }
+
+  .theme-picker-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 200px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 100;
+    padding: 12px;
+  }
+
+  .theme-picker-row { margin-bottom: 10px; }
+  .theme-picker-row:last-child { margin-bottom: 0; }
+  .theme-picker-row label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
 
   .toast-wrap {
     position: fixed;
