@@ -29,6 +29,20 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(e => toastRef.current.error(e.message)).finally(() => setLoading(false));
     }, [onUnauth]);
 
+    const discover = useCallback(async () => {
+        setDiscovering(true);
+        try {
+            const containers = await apiFetch("/instances/discover", {}, onUnauth);
+            setDiscovered(containers);
+            if (containers.length === 0) toastRef.current.success("No new Caddy containers found");
+        } catch (e) {
+            toastRef.current.error(e.message);
+            setDiscovered(null);
+        } finally {
+            setDiscovering(false);
+        }
+    }, [onUnauth]);
+
     const didAutoDiscover = useRef(false);
 
     useEffect(() => { load(); }, [load]);
@@ -38,7 +52,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             didAutoDiscover.current = true;
             discover();
         }
-    }, [loading, instances.length]);
+    }, [loading, instances.length, discover]);
 
     useEffect(() => {
         const poll = () =>
@@ -48,20 +62,6 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         const t = setInterval(poll, 30000);
         return () => clearInterval(t);
     }, [onUnauth]);
-
-    const discover = async () => {
-        setDiscovering(true);
-        try {
-            const containers = await apiFetch("/instances/discover", {}, onUnauth);
-            setDiscovered(containers);
-            if (containers.length === 0) toast.success("No new Caddy containers found");
-        } catch (e) {
-            toast.error(e.message);
-            setDiscovered(null);
-        } finally {
-            setDiscovering(false);
-        }
-    };
 
     const addDiscovered = (container) => {
         setEditing("new");
