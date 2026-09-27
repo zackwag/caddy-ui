@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/zackwag/caddy-ui/compare/v2.2.1...v2.2.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* declare color-scheme so browser dark-mode extensions back off ([#101](https://github.com/zackwag/caddy-ui/issues/101)) ([2a20007](https://github.com/zackwag/caddy-ui/commit/2a200074688432a844c90a40c820a9751107743c))
+
 ## [2.2.1](https://github.com/zackwag/caddy-ui/compare/v2.2.0...v2.2.1) (2026-09-27)
 
 
