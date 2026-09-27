@@ -55,7 +55,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
 - **Metrics** — Request count, RPS, avg response time, status code breakdown, and p50/p95/p99 percentiles powered by Caddy's built-in Prometheus endpoint
 - **Notifications** — Push alerts via ntfy, Discord, Slack, Pushover, or custom webhook when upstreams go offline/online or TLS certs are expiring. Configurable debounce and per-trigger opt-in
-- **Dark/Light Theme** — Toggle between dark and warm off-white themes, persisted across sessions
+- **26 Themes** — Choose from 13 dark and 13 light palettes (VT2026, Dracula, Nord, Catppuccin, Tokyo Night, Gruvbox, One Dark Pro, Solarized, Material, GitHub, Ayu, Night Owl, Metro, and more). Pick one palette for dark mode and one for light mode, then toggle between them with one click. First-run welcome modal helps new users choose. Preferences stored server-side in `settings.json`
 - **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
 - **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
@@ -80,7 +80,7 @@ graph LR
     BE <-->|"docker exec\nCaddyfile, logs, certs"| DS
     DS <-->|"read / write / stream"| CA
     BE <-->|"container discovery"| DS
-    BE <-->|"instances, history,\nnotes, config"| UI_DATA
+    BE <-->|"instances, history,\nnotes, settings, config"| UI_DATA
 ```
 
 ## Quick Start
@@ -212,6 +212,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `PORT` | `3001` | Port the backend listens on |
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
 | `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the server display names file |
+| `SETTINGS_PATH` | `/etc/caddy-ui/settings.json` | Path to the UI settings file (theme preferences, column visibility) |
 
 ## Authentication
 
@@ -420,6 +421,7 @@ caddy-ui/
 │   │   ├── instances.js
 │   │   ├── logger.js
 │   │   ├── notifications.js
+│   │   ├── settings.js
 │   │   ├── middleware/
 │   │   │   ├── auth.js
 │   │   │   └── instance.js
@@ -434,6 +436,7 @@ caddy-ui/
 │   │       ├── routenotes.js
 │   │       ├── routes.js
 │   │       ├── servernames.js
+│   │       ├── settings.js
 │   │       ├── status.js
 │   │       └── tls.js
 │   ├── Dockerfile
@@ -451,6 +454,8 @@ caddy-ui/
 │   │   │   ├── Notifications.jsx
 │   │   │   ├── Routes.jsx
 │   │   │   ├── Sidebar.jsx
+│   │   │   ├── ThemePicker.jsx
+│   │   │   ├── ThemeWelcome.jsx
 │   │   │   ├── TLS.jsx
 │   │   │   └── Toasts.jsx
 │   │   ├── hooks/
