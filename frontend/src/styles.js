@@ -868,7 +868,7 @@ export const css = `
   }
 
   .content {
-    flex: 1;
+    flex: 1 1 0;
     overflow-y: auto;
     padding: 28px;
   }
