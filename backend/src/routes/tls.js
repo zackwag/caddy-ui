@@ -1,6 +1,6 @@
 import { X509Certificate } from 'crypto';
 import { Router } from 'express';
-import { join } from 'path';
+import { join, resolve, relative } from 'path';
 import { caddyGet } from '../caddy.js';
 import { listContainerDir, readContainerFile, removeContainerPath } from '../containerFs.js';
 import logger from '../logger.js';
@@ -95,7 +95,8 @@ router.delete('/:domain', async (req, res) => {
     const { domain } = req.params;
     logger.info(`TLS cert deletion requested`, { domain });
 
-    if (domain.includes('..') || domain.includes('/')) {
+    const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-zA-Z0-9-]{1,63}\.)*[a-zA-Z0-9-]{1,63}$/;
+    if (!DOMAIN_RE.test(domain) || domain.includes('..') || domain.includes('/') || domain.includes('\\')) {
         return res.status(400).json({ error: 'Invalid domain' });
     }
 
@@ -114,7 +115,16 @@ router.delete('/:domain', async (req, res) => {
     }
 
     const target = canDeleteInternal ? internalCert : acmeCert;
-    const certDir = join(certsPath, target.issuerDir, domain);
+    if (!target?.issuerDir || target.issuerDir.includes('..') || target.issuerDir.includes('/') || target.issuerDir.includes('\\')) {
+        return res.status(400).json({ error: 'Invalid certificate target' });
+    }
+
+    const baseCertsDir = resolve(certsPath);
+    const certDir = resolve(baseCertsDir, target.issuerDir, domain);
+    const rel = relative(baseCertsDir, certDir);
+    if (rel.startsWith('..') || rel.startsWith('/') || rel === '') {
+        return res.status(400).json({ error: 'Invalid certificate path' });
+    }
 
     try {
         await removeContainerPath(containerName, certDir);
