@@ -579,7 +579,7 @@ export const css = `
   .col-picker-menu {
     position: absolute;
     top: calc(100% + 4px);
-    right: 0;
+    left: 0;
     min-width: 140px;
     background: var(--surface);
     border: 1px solid var(--border2);
