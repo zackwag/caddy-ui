@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch } from "../utils/api.js";
 
 const EMPTY_FORM = {
@@ -13,7 +14,7 @@ const EMPTY_FORM = {
 
 export default function Instances({ toast, onUnauth, confirm, onInstanceChange }) {
     const [instances, setInstances] = useState([]);
-    const [instanceStatus, setInstanceStatus] = useState({});
+    const instanceStatus = useInstanceStatus(onUnauth);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
@@ -38,18 +39,6 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             discover();
         }
     }, [loading, instances.length]);
-
-    useEffect(() => {
-        const fetchStatus = () =>
-            apiFetch("/instances/status", {}, onUnauth).then(results => {
-                const map = {};
-                for (const r of results) map[r.id] = r.online;
-                setInstanceStatus(map);
-            }).catch(() => { });
-        fetchStatus();
-        const t = setInterval(fetchStatus, 15000);
-        return () => clearInterval(t);
-    }, [onUnauth]);
 
     useEffect(() => {
         const poll = () =>

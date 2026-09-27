@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useClickOutside } from "../hooks/useClickOutside.js";
+import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch, setInstanceId } from "../utils/api.js";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
@@ -19,7 +21,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
     const [instances, setInstances] = useState([]);
-    const [instanceStatus, setInstanceStatus] = useState({});
+    const instanceStatus = useInstanceStatus(onUnauth);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -31,26 +33,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
     }, [onUnauth, instanceListVersion]);
 
-    useEffect(() => {
-        const fetchStatus = () =>
-            apiFetch("/instances/status", {}, onUnauth).then(results => {
-                const map = {};
-                for (const r of results) map[r.id] = r.online;
-                setInstanceStatus(map);
-            }).catch(() => { });
-        fetchStatus();
-        const t = setInterval(fetchStatus, 15000);
-        return () => clearInterval(t);
-    }, [onUnauth]);
-
-    useEffect(() => {
-        if (!dropdownOpen) return;
-        const handleClick = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdownOpen(false);
-        };
-        document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [dropdownOpen]);
+    useClickOutside(dropdownRef, () => setDropdownOpen(false), dropdownOpen);
 
     const switchInstance = (id) => {
         setInstanceId(id);

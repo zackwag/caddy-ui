@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useClickOutside } from "../hooks/useClickOutside.js";
 import { apiFetch } from "../utils/api.js";
 
 function MiniCodeMirror({ value, onChange, theme }) {
@@ -229,14 +230,7 @@ export default function Routes({ toast, onUnauth, confirm, theme }) {
         try { localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(columns)); } catch { /* ignore */ }
     }, [columns]);
 
-    useEffect(() => {
-        if (!colMenuOpen) return;
-        const handleClick = (e) => {
-            if (colMenuRef.current && !colMenuRef.current.contains(e.target)) setColMenuOpen(false);
-        };
-        document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [colMenuOpen]);
+    useClickOutside(colMenuRef, () => setColMenuOpen(false), colMenuOpen);
 
     const toggleColumn = (key) => setColumns(c => ({ ...c, [key]: !c[key] }));
     const columnsHidden = TOGGLEABLE_COLUMNS.some(c => !columns[c.key]);
