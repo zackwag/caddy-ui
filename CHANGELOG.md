@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/zackwag/caddy-ui/compare/v2.3.0...v2.3.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* derive hardcoded colors from theme variables app-wide ([#105](https://github.com/zackwag/caddy-ui/issues/105)) ([b0772b8](https://github.com/zackwag/caddy-ui/commit/b0772b8d0e995d139343df28b1f731ec3f4b4c95))
+
 ## [2.3.0](https://github.com/zackwag/caddy-ui/compare/v2.2.2...v2.3.0) (2026-09-28)
 
 
