@@ -696,7 +696,7 @@ export const css = `
     cursor: pointer;
     flex-shrink: 0;
   }
-  .status-refresh:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .status-refresh:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 
   .instance-dropdown {
     position: relative;
@@ -760,11 +760,11 @@ export const css = `
     transition: all 0.15s;
   }
 
-  .instance-dropdown-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .instance-dropdown-item:hover { color: var(--text); background: color-mix(in srgb, var(--text) 4%, transparent); }
 
   .instance-dropdown-item.active {
     color: var(--accent);
-    background: rgba(0,229,160,0.07);
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
 
   .instance-name {
@@ -803,12 +803,12 @@ export const css = `
     user-select: none;
   }
 
-  .nav-item:hover { color: var(--text); background: rgba(0,0,0,0.04); }
+  .nav-item:hover { color: var(--text); background: color-mix(in srgb, var(--text) 4%, transparent); }
 
   .nav-item.active {
     color: var(--accent);
     border-left-color: var(--accent);
-    background: rgba(0,149,107,0.07);
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
 
   .nav-icon { width: 16px; text-align: center; font-size: 14px; flex-shrink: 0; }
@@ -952,11 +952,11 @@ export const css = `
     font-weight: 500;
     white-space: nowrap;
   }
-  .badge-green  { background: rgba(0,149,107,0.1);  color: var(--accent);  border: 1px solid rgba(0,149,107,0.25); }
-  .badge-blue   { background: rgba(0,119,204,0.1);  color: var(--accent2); border: 1px solid rgba(0,119,204,0.25); }
-  .badge-red    { background: rgba(204,34,51,0.1);  color: var(--danger);  border: 1px solid rgba(204,34,51,0.25); }
-  .badge-yellow { background: rgba(179,96,0,0.1);   color: var(--warn);    border: 1px solid rgba(179,96,0,0.25); }
-  .badge-muted  { background: rgba(138,127,117,0.1);color: var(--muted);   border: 1px solid rgba(138,127,117,0.25); }
+  .badge-green  { background: color-mix(in srgb, var(--accent) 10%, transparent);  color: var(--accent);  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); }
+  .badge-blue   { background: color-mix(in srgb, var(--accent2) 10%, transparent); color: var(--accent2); border: 1px solid color-mix(in srgb, var(--accent2) 25%, transparent); }
+  .badge-red    { background: color-mix(in srgb, var(--danger) 10%, transparent);  color: var(--danger);  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); }
+  .badge-yellow { background: color-mix(in srgb, var(--warn) 10%, transparent);    color: var(--warn);    border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent); }
+  .badge-muted  { background: color-mix(in srgb, var(--muted) 10%, transparent);   color: var(--muted);   border: 1px solid color-mix(in srgb, var(--muted) 25%, transparent); }
 
   .server-edit-icon {
     display: inline-flex;
@@ -970,7 +970,7 @@ export const css = `
     cursor: pointer;
     flex-shrink: 0;
   }
-  .server-edit-icon:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .server-edit-icon:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 
   .editor-wrap {
     position: relative;
@@ -1020,8 +1020,8 @@ export const css = `
   .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
   .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
   .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
-  .btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(204,34,51,0.3); }
-  .btn-danger:hover:not(:disabled) { background: rgba(204,34,51,0.08); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); }
+  .btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 8%, transparent); }
 
   .btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
@@ -1099,9 +1099,9 @@ export const css = `
     max-width: 340px;
   }
 
-  .toast-success { background: rgba(0,149,107,0.12); border-color: var(--accent); color: var(--accent); }
-  .toast-error   { background: rgba(204,34,51,0.12);  border-color: var(--danger); color: var(--danger); }
-  .toast-info    { background: rgba(0,119,204,0.12);  border-color: var(--accent2); color: var(--accent2); }
+  .toast-success { background: color-mix(in srgb, var(--accent) 12%, transparent);  border-color: var(--accent); color: var(--accent); }
+  .toast-error   { background: color-mix(in srgb, var(--danger) 12%, transparent);  border-color: var(--danger); color: var(--danger); }
+  .toast-info    { background: color-mix(in srgb, var(--accent2) 12%, transparent); border-color: var(--accent2); color: var(--accent2); }
 
   @keyframes slideIn {
     from { transform: translateX(20px); opacity: 0; }
@@ -1129,7 +1129,7 @@ export const css = `
     vertical-align: middle;
   }
   .table tr:last-child td { border-bottom: none; }
-  .table tr:hover td { background: rgba(0,0,0,0.03); }
+  .table tr:hover td { background: color-mix(in srgb, var(--text) 3%, transparent); }
 
   .mono { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
 
@@ -1213,7 +1213,7 @@ export const css = `
     color: var(--text);
     cursor: pointer;
   }
-  .col-picker-item:hover { background: rgba(255,255,255,0.04); }
+  .col-picker-item:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
   .col-picker-item input { cursor: pointer; }
 
   .col-picker-note {
@@ -1299,17 +1299,17 @@ export const css = `
   }
 
   .log-line { padding: 1px 0; color: var(--muted); word-break: break-all; }
-  .log-line:hover { color: var(--text); background: rgba(0,0,0,0.04); }
+  .log-line:hover { color: var(--text); background: color-mix(in srgb, var(--text) 4%, transparent); }
   .log-line.err { color: var(--danger); }
   .log-line.warn { color: var(--warn); }
   .log-line.info { color: var(--accent2); }
   .log-line.err:hover,
   .log-line.warn:hover,
   .log-line.info:hover {
-    background: rgba(0,0,0,0.04);
+    background: color-mix(in srgb, var(--text) 4%, transparent);
     filter: brightness(1.35);
   }
-  .log-line.highlight { background: rgba(0,149,107,0.08); color: var(--text); }
+  .log-line.highlight { background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--text); }
 
   .log-toolbar {
     display: flex;
@@ -1353,7 +1353,7 @@ export const css = `
     gap: 8px;
   }
   .history-row:last-child { border-bottom: none; }
-  .history-row:hover { background: rgba(0,0,0,0.03); }
+  .history-row:hover { background: color-mix(in srgb, var(--text) 3%, transparent); }
 
   .history-preview {
     background: var(--editor-bg);
@@ -1418,8 +1418,8 @@ export const css = `
     color: var(--danger);
     margin-bottom: 12px;
     padding: 8px 12px;
-    background: rgba(204,34,51,0.08);
-    border: 1px solid rgba(204,34,51,0.2);
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent);
     border-radius: 4px;
   }
 
@@ -1480,7 +1480,7 @@ export const css = `
   .card-clickable { cursor: pointer; }
   .card-clickable:hover { border-color: var(--border2); }
 
-  .card-danger { border-color: rgba(204,34,51,0.3); }
+  .card-danger { border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
   .card-danger .card-title { color: var(--danger); }
 
   .card-flush { padding: 0; overflow: hidden; }
@@ -1618,7 +1618,7 @@ export const css = `
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     color: var(--muted);
-    background: rgba(0,0,0,0.15);
+    background: color-mix(in srgb, var(--text) 15%, transparent);
     border: 1px solid var(--border2);
     border-radius: 4px;
     padding: 12px;
