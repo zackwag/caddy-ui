@@ -587,6 +587,10 @@ function themeVars(theme) {
     return Object.entries(theme.vars).map(([key, value]) => `${key}: ${value};`).join('\n    ');
 }
 
+// Every variable a theme must define, for anything (custom theme apply
+// logic, validation) that needs the canonical set without duplicating it.
+export const THEME_VAR_KEYS = Object.keys(THEME_LIST[0].vars);
+
 // Every palette's variables are scoped behind [data-palette="id"] on <html>
 // (set by ThemePicker), so any number of themes can coexist. The plain
 // :root block underneath is just a pre-JS fallback matching the default

@@ -55,7 +55,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
 - **Metrics** — Request count, RPS, avg response time, status code breakdown, and p50/p95/p99 percentiles powered by Caddy's built-in Prometheus endpoint
 - **Notifications** — Push alerts via ntfy, Discord, Slack, Pushover, or custom webhook when upstreams go offline/online or TLS certs are expiring. Configurable debounce and per-trigger opt-in
-- **26 Themes** — Choose from 13 dark and 13 light palettes (VT2026, Dracula, Nord, Catppuccin, Tokyo Night, Gruvbox, One Dark Pro, Solarized, Material, GitHub, Ayu, Night Owl, Metro, and more). Pick one palette for dark mode and one for light mode, then toggle between them with one click. First-run welcome modal helps new users choose. Preferences stored server-side in `settings.json`
+- **26 Themes + Custom Themes** — Choose from 13 dark and 13 light palettes (VT2026, Dracula, Nord, Catppuccin, Tokyo Night, Gruvbox, One Dark Pro, Solarized, Material, GitHub, Ayu, Night Owl, Metro, and more), or drop your own into [`THEMES_PATH`](#custom-themes) for a fully custom palette. Pick one palette for dark mode and one for light mode, then toggle between them with one click. First-run welcome modal helps new users choose. Preferences stored server-side in `settings.json`
 - **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
 - **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
@@ -213,10 +213,17 @@ All backend variables have sensible defaults. Only set what you need to override
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
 | `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the server display names file |
 | `SETTINGS_PATH` | `/etc/caddy-ui/settings.json` | Path to the UI settings file (theme preferences, column visibility) |
+| `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](#custom-themes)) |
 
 ## Authentication
 
 Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. All API endpoints are protected and the login screen appears automatically.
+
+## Custom Themes
+
+Drop your own palette in `THEMES_PATH` (`/etc/caddy-ui/themes` by default) — no rebuild or in-app editor needed. On startup, caddy/ui creates `themes/dark/` and `themes/light/` (with a template `README.md` in each) and scans both for `.json` files.
+
+The folder a file lives in determines whether it shows up under "Dark theme" or "Light theme" in the picker; the filename becomes its id. Each file needs a `label` and a `vars` object defining all 18 required CSS variables (colors for background, surface, borders, text, accents, and the Caddyfile editor) — see the generated `README.md` for the full schema and an example. Invalid or incomplete files are skipped and logged, not fatal to startup.
 
 ## Multi-Instance
 

@@ -14,10 +14,8 @@ import ThemePicker from "./components/ThemePicker.jsx";
 import ThemeWelcome from "./components/ThemeWelcome.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
-import { css, THEME_LIST } from "./styles.js";
-import { API, apiFetch, fetchSettings, getAuthEnabled, getInstanceId, getToken, saveSettings, setAuthEnabled, setToken } from "./utils/api.js";
-
-const VALID_THEME_IDS = new Set(THEME_LIST.map(t => t.id));
+import { css, THEME_LIST, THEME_VAR_KEYS } from "./styles.js";
+import { API, apiFetch, fetchCustomThemes, fetchSettings, getAuthEnabled, getInstanceId, getToken, saveSettings, setAuthEnabled, setToken } from "./utils/api.js";
 
 const DEFAULTS = {
     firstTimeRun: true,
@@ -57,6 +55,7 @@ export default function App() {
     const [darkPalette, setDarkPalette] = useState(DEFAULTS.darkPalette);
     const [lightPalette, setLightPalette] = useState(DEFAULTS.lightPalette);
     const [routeColumns, setRouteColumns] = useState(DEFAULTS.routeColumns);
+    const [customThemes, setCustomThemes] = useState([]);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const [showThemeWelcome, setShowThemeWelcome] = useState(false);
     const toast = useToast();
@@ -71,9 +70,11 @@ export default function App() {
 
     useEffect(() => {
         if (!authed || settingsLoaded) return;
-        fetchSettings(onUnauth).then(s => {
-            const dk = VALID_THEME_IDS.has(s.darkPalette) ? s.darkPalette : DEFAULTS.darkPalette;
-            const lt = VALID_THEME_IDS.has(s.lightPalette) ? s.lightPalette : DEFAULTS.lightPalette;
+        Promise.all([fetchSettings(onUnauth), fetchCustomThemes(onUnauth).catch(() => [])]).then(([s, custom]) => {
+            setCustomThemes(custom);
+            const validIds = new Set([...THEME_LIST, ...custom].map(t => t.id));
+            const dk = validIds.has(s.darkPalette) ? s.darkPalette : DEFAULTS.darkPalette;
+            const lt = validIds.has(s.lightPalette) ? s.lightPalette : DEFAULTS.lightPalette;
             setTheme(s.theme === 'light' ? 'light' : 'dark');
             setDarkPalette(dk);
             setLightPalette(lt);
@@ -85,11 +86,24 @@ export default function App() {
         });
     }, [authed, settingsLoaded, onUnauth]);
 
+    const allThemes = [...THEME_LIST, ...customThemes];
+
     useEffect(() => {
         if (theme === 'light') document.documentElement.classList.add('light');
         else document.documentElement.classList.remove('light');
-        document.documentElement.setAttribute('data-palette', theme === 'dark' ? darkPalette : lightPalette);
-    }, [theme, darkPalette, lightPalette]);
+        const activeId = theme === 'dark' ? darkPalette : lightPalette;
+        document.documentElement.setAttribute('data-palette', activeId);
+
+        // Custom themes aren't in the static stylesheet, so apply their
+        // variables directly; inline styles beat any [data-palette] rule
+        // on specificity. Clear them when switching back to a built-in so
+        // a stale custom color doesn't linger.
+        const active = customThemes.find(t => t.id === activeId);
+        for (const key of THEME_VAR_KEYS) {
+            if (active) document.documentElement.style.setProperty(key, active.vars[key]);
+            else document.documentElement.style.removeProperty(key);
+        }
+    }, [theme, darkPalette, lightPalette, customThemes]);
 
     const persistSettings = useCallback((updates) => {
         saveSettings(updates, onUnauth).catch(() => {});
@@ -191,6 +205,7 @@ export default function App() {
                             </div>
                             <div className="btn-row">
                                 <ThemePicker
+                                    themes={allThemes}
                                     mode={theme}
                                     onToggleMode={toggleTheme}
                                     darkPalette={darkPalette}
@@ -217,7 +232,7 @@ export default function App() {
                     </div>
                     <Toasts toasts={toast.toasts} />
                     <ConfirmDialog dialog={confirmDialog} resolve={resolveConfirm} />
-                    {showThemeWelcome && <ThemeWelcome onComplete={handleThemeWelcome} />}
+                    {showThemeWelcome && <ThemeWelcome themes={allThemes} onComplete={handleThemeWelcome} />}
                 </div>
             )}
         </>

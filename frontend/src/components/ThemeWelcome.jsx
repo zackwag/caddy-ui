@@ -1,16 +1,19 @@
 import { useState } from "react";
-import { THEME_LIST } from "../styles.js";
 
-const DARK_THEMES = THEME_LIST.filter(t => t.mode === 'dark').sort((a, b) => a.label.localeCompare(b.label));
-const LIGHT_THEMES = THEME_LIST.filter(t => t.mode === 'light').sort((a, b) => a.label.localeCompare(b.label));
+function themeOptions(themes, mode) {
+    const builtIn = themes.filter(t => t.mode === mode && !t.custom).sort((a, b) => a.label.localeCompare(b.label));
+    const custom = themes.filter(t => t.mode === mode && t.custom).sort((a, b) => a.label.localeCompare(b.label));
+    return { builtIn, custom };
+}
 
-export default function ThemeWelcome({ onComplete }) {
+export default function ThemeWelcome({ themes, onComplete }) {
     const [dark, setDark] = useState('vt2026');
     const [light, setLight] = useState('coarse-everywhere');
     const [preview, setPreview] = useState('dark');
 
     const activeId = preview === 'dark' ? dark : light;
-    const activeTheme = THEME_LIST.find(t => t.id === activeId) || THEME_LIST[0];
+    const activeTheme = themes.find(t => t.id === activeId) || themes[0];
+    const options = themeOptions(themes, preview);
 
     return (
         <div className="modal-overlay">
@@ -37,8 +40,13 @@ export default function ThemeWelcome({ onComplete }) {
                             value={preview === 'dark' ? dark : light}
                             onChange={e => preview === 'dark' ? setDark(e.target.value) : setLight(e.target.value)}
                         >
-                            {(preview === 'dark' ? DARK_THEMES : LIGHT_THEMES).map(t =>
-                                <option key={t.id} value={t.id}>{t.label}</option>
+                            <optgroup label="Built-in">
+                                {options.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                            </optgroup>
+                            {options.custom.length > 0 && (
+                                <optgroup label="Custom">
+                                    {options.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                </optgroup>
                             )}
                         </select>
                         <span className="select-arrow">▾</span>

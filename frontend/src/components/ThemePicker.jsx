@@ -1,14 +1,19 @@
 import { useRef, useState } from "react";
 import { useClickOutside } from "../hooks/useClickOutside.js";
-import { THEME_LIST } from "../styles.js";
 
-const DARK_THEMES = THEME_LIST.filter(t => t.mode === 'dark').sort((a, b) => a.label.localeCompare(b.label));
-const LIGHT_THEMES = THEME_LIST.filter(t => t.mode === 'light').sort((a, b) => a.label.localeCompare(b.label));
+function themeOptions(themes, mode) {
+    const builtIn = themes.filter(t => t.mode === mode && !t.custom).sort((a, b) => a.label.localeCompare(b.label));
+    const custom = themes.filter(t => t.mode === mode && t.custom).sort((a, b) => a.label.localeCompare(b.label));
+    return { builtIn, custom };
+}
 
-export default function ThemePicker({ mode, onToggleMode, darkPalette, lightPalette, onDarkPaletteChange, onLightPaletteChange }) {
+export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, lightPalette, onDarkPaletteChange, onLightPaletteChange }) {
     const [open, setOpen] = useState(false);
     const menuRef = useRef(null);
     useClickOutside(menuRef, () => setOpen(false), open);
+
+    const dark = themeOptions(themes, 'dark');
+    const light = themeOptions(themes, 'light');
 
     return (
         <div className="theme-picker" ref={menuRef}>
@@ -22,7 +27,14 @@ export default function ThemePicker({ mode, onToggleMode, darkPalette, lightPale
                         <label>Dark theme</label>
                         <div className="select-wrap">
                             <select className="config-select" value={darkPalette} onChange={e => onDarkPaletteChange(e.target.value)}>
-                                {DARK_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                <optgroup label="Built-in">
+                                    {dark.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                </optgroup>
+                                {dark.custom.length > 0 && (
+                                    <optgroup label="Custom">
+                                        {dark.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                    </optgroup>
+                                )}
                             </select>
                             <span className="select-arrow">▾</span>
                         </div>
@@ -31,7 +43,14 @@ export default function ThemePicker({ mode, onToggleMode, darkPalette, lightPale
                         <label>Light theme</label>
                         <div className="select-wrap">
                             <select className="config-select" value={lightPalette} onChange={e => onLightPaletteChange(e.target.value)}>
-                                {LIGHT_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                <optgroup label="Built-in">
+                                    {light.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                </optgroup>
+                                {light.custom.length > 0 && (
+                                    <optgroup label="Custom">
+                                        {light.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                    </optgroup>
+                                )}
                             </select>
                             <span className="select-arrow">▾</span>
                         </div>

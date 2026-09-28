@@ -24,6 +24,11 @@ export async function saveSettings(updates, onUnauth) {
     }, onUnauth);
 }
 
+// Themes found under THEMES_PATH at startup -- read-only, managed as files.
+export async function fetchCustomThemes(onUnauth) {
+    return apiFetch('/custom-themes', {}, onUnauth);
+}
+
 export function getInstanceId() { return localStorage.getItem('caddy_ui_instance') || 'default'; }
 export function setInstanceId(id) { localStorage.setItem('caddy_ui_instance', id); }
 

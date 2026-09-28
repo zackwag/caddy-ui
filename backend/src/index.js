@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
+import { loadCustomThemes } from './customThemes.js';
 import { loadInstances } from './instances.js';
 import logger from './logger.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
@@ -8,6 +9,7 @@ import { instanceMiddleware } from './middleware/instance.js';
 import { initMonitor } from './notifications.js';
 import authRouter from './routes/auth.js';
 import caddyfileRouter from './routes/caddyfile.js';
+import customThemesRouter from './routes/customThemes.js';
 import healthRouter from './routes/health.js';
 import instancesRouter from './routes/instances.js';
 import logsRouter from './routes/logs.js';
@@ -71,9 +73,10 @@ app.use('/api/auth', authLimiter, authRouter);
 // GET /api/version -- always public, non-sensitive
 app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
 
-// Instance and settings routes require auth but not instance middleware
+// Instance, settings, and custom-theme routes require auth but not instance middleware
 app.use('/api/instances', authMiddleware, instancesRouter);
 app.use('/api/settings', authMiddleware, settingsRouter);
+app.use('/api/custom-themes', authMiddleware, customThemesRouter);
 
 // Instance middleware for all other routes
 app.use('/api', instanceMiddleware);
@@ -116,6 +119,7 @@ app.use((err, req, res, next) => {
 
 await loadInstances();
 await loadSettings();
+await loadCustomThemes();
 await initUptimeHistory();
 
 app.listen(PORT, () => {
