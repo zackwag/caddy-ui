@@ -1398,8 +1398,8 @@ export const css = `
     font-size: 10px;
     white-space: nowrap;
   }
-  .history-segment--online .history-segment-label,
-  .history-segment--offline .history-segment-label { color: rgba(0,0,0,0.65); }
+  .history-segment--online .history-segment-label  { color: var(--on-accent); }
+  .history-segment--offline .history-segment-label { color: var(--on-danger); }
   .history-segment--unknown .history-segment-label { color: var(--muted); }
 
   .history-timeline-axis {
