@@ -1378,7 +1378,6 @@ export const css = `
     height: 32px;
     border-radius: 4px;
     overflow: hidden;
-    gap: 1px;
     background: var(--border);
   }
 
