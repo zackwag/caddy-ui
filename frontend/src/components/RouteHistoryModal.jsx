@@ -10,7 +10,7 @@ const RANGES = [
 
 // Gaps in the recorded checks longer than this (backend restart, container
 // down, etc.) render as "unknown" instead of extending the last known status.
-const GAP_THRESHOLD_MS = 3 * 60 * 1000;
+const GAP_THRESHOLD_MS = 5 * 60 * 1000;
 const REFRESH_INTERVAL_MS = 30_000;
 const AXIS_TICK_COUNT = 4;
 
