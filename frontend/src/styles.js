@@ -27,6 +27,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(0,229,160,0.03)',
             '--editor-selection': 'rgba(0,153,255,0.2)',
             '--log-bg': '#0a0c0f',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -50,6 +53,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(0,149,107,0.03)',
             '--editor-selection': 'rgba(0,119,204,0.15)',
             '--log-bg': '#f0ebe4',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -73,6 +79,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(163,190,140,0.05)',
             '--editor-selection': 'rgba(129,161,193,0.25)',
             '--log-bg': '#2e3440',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -96,6 +105,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(133,153,0,0.05)',
             '--editor-selection': 'rgba(38,139,210,0.25)',
             '--log-bg': '#002b36',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -119,6 +131,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(133,153,0,0.05)',
             '--editor-selection': 'rgba(38,139,210,0.15)',
             '--log-bg': '#fdf6e3',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -142,6 +157,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(80,250,123,0.05)',
             '--editor-selection': 'rgba(139,233,253,0.25)',
             '--log-bg': '#282a36',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -165,6 +183,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(184,187,38,0.05)',
             '--editor-selection': 'rgba(131,165,152,0.25)',
             '--log-bg': '#1d2021',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -188,6 +209,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(166,227,161,0.05)',
             '--editor-selection': 'rgba(137,180,250,0.25)',
             '--log-bg': '#181825',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -211,6 +235,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(158,206,106,0.05)',
             '--editor-selection': 'rgba(122,162,247,0.25)',
             '--log-bg': '#1a1b26',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -234,6 +261,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(137,202,120,0.05)',
             '--editor-selection': 'rgba(97,175,239,0.25)',
             '--log-bg': '#282c34',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -257,6 +287,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(121,116,14,0.05)',
             '--editor-selection': 'rgba(7,102,120,0.2)',
             '--log-bg': '#f9f5d7',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -280,6 +313,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(64,160,43,0.05)',
             '--editor-selection': 'rgba(30,102,245,0.15)',
             '--log-bg': '#eff1f5',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -303,6 +339,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(40,105,131,0.05)',
             '--editor-selection': 'rgba(86,148,159,0.2)',
             '--log-bg': '#faf4ed',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -326,6 +365,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(3,218,198,0.05)',
             '--editor-selection': 'rgba(130,177,255,0.25)',
             '--log-bg': '#0e0e0e',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -349,6 +391,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(0,137,123,0.05)',
             '--editor-selection': 'rgba(25,118,210,0.15)',
             '--log-bg': '#f5f5f5',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -372,6 +417,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(26,127,55,0.05)',
             '--editor-selection': 'rgba(9,105,218,0.15)',
             '--log-bg': '#f6f8fa',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -395,6 +443,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(63,185,80,0.05)',
             '--editor-selection': 'rgba(88,166,255,0.25)',
             '--log-bg': '#0d1117',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -418,6 +469,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(170,217,76,0.05)',
             '--editor-selection': 'rgba(89,194,255,0.25)',
             '--log-bg': '#0b0e14',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -441,6 +495,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(134,179,0,0.05)',
             '--editor-selection': 'rgba(57,158,230,0.15)',
             '--log-bg': '#fafafa',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -464,6 +521,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(173,219,103,0.05)',
             '--editor-selection': 'rgba(130,170,255,0.25)',
             '--log-bg': '#011627',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -487,6 +547,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(0,120,212,0.05)',
             '--editor-selection': 'rgba(0,183,195,0.25)',
             '--log-bg': '#171717',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -510,6 +573,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(163,190,140,0.06)',
             '--editor-selection': 'rgba(94,129,172,0.2)',
             '--log-bg': '#eceff4',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -533,6 +599,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(42,162,152,0.05)',
             '--editor-selection': 'rgba(72,118,214,0.15)',
             '--log-bg': '#fbfbfb',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -556,6 +625,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(80,161,79,0.05)',
             '--editor-selection': 'rgba(64,120,242,0.15)',
             '--log-bg': '#fafafa',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
     {
@@ -579,6 +651,9 @@ export const THEME_LIST = [
             '--editor-active-line': 'rgba(88,117,57,0.05)',
             '--editor-selection': 'rgba(46,125,233,0.15)',
             '--log-bg': '#e1e2e7',
+            '--scrim': 'rgba(0,0,0,0.55)',
+            '--on-accent': '#fff',
+            '--on-danger': '#fff',
         },
     },
 ];
@@ -744,7 +819,7 @@ export const css = `
     background: var(--surface);
     border: 1px solid var(--border2);
     border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 30%, transparent);
     z-index: 100;
     overflow: hidden;
   }
@@ -885,7 +960,7 @@ export const css = `
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: var(--scrim);
     z-index: 150;
   }
 
@@ -1016,7 +1091,7 @@ export const css = `
   }
 
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary { background: var(--accent); color: var(--on-accent); }
   .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
   .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
   .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
@@ -1064,7 +1139,7 @@ export const css = `
     background: var(--surface);
     border: 1px solid var(--border2);
     border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 30%, transparent);
     z-index: 100;
     padding: 12px;
   }
@@ -1198,7 +1273,7 @@ export const css = `
     background: var(--surface);
     border: 1px solid var(--border2);
     border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 30%, transparent);
     z-index: 100;
     padding: 6px;
   }
@@ -1229,7 +1304,7 @@ export const css = `
 
   .modal-overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.5);
+    background: var(--scrim);
     display: flex; align-items: center; justify-content: center;
     z-index: 500;
     animation: fadeIn 0.15s ease;
@@ -1840,7 +1915,7 @@ export const css = `
       top: 0; left: 0; bottom: 0;
       transform: translateX(-100%);
     }
-    .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.4); }
+    .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px color-mix(in srgb, var(--text) 40%, transparent); }
     .sidebar-overlay.open { display: block; }
     .content { padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
     .topbar { padding: 12px 16px; }

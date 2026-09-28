@@ -21,6 +21,9 @@ const VALID_VARS = {
     '--editor-active-line': 'rgba(0,255,0,0.03)',
     '--editor-selection': 'rgba(0,255,255,0.2)',
     '--log-bg': '#101010',
+    '--scrim': 'rgba(0,0,0,0.55)',
+    '--on-accent': '#fff',
+    '--on-danger': '#fff',
 };
 
 describe('slugify', () => {
