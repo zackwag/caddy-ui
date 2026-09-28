@@ -1386,6 +1386,8 @@ export const css = `
     display: flex;
     align-items: center;
     overflow: hidden;
+    flex-basis: 0;
+    min-width: 0;
   }
 
   .history-segment--online  { background: var(--accent); }
