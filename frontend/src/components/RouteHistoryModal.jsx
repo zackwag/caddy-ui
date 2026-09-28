@@ -23,24 +23,33 @@ function buildSegments(entries, rangeStart, rangeEnd) {
     const segments = [];
     let cursor = rangeStart;
 
+    // Extends the previous segment instead of pushing a new one when the
+    // status matches and they're back-to-back, so a long run of same-status
+    // checks renders as one continuous bar rather than one sliver per check.
+    const emit = (status, start, end) => {
+        const last = segments[segments.length - 1];
+        if (last && last.status === status && last.end === start) last.end = end;
+        else segments.push({ status, start, end });
+    };
+
     for (let i = 0; i < points.length; i++) {
         const at = Math.max(points[i].at, rangeStart);
         const nextAt = Math.min(i + 1 < points.length ? points[i + 1].at : rangeEnd, rangeEnd);
 
-        if (at > cursor) segments.push({ status: "unknown", start: cursor, end: at });
+        if (at > cursor) emit("unknown", cursor, at);
 
         if (nextAt - at > GAP_THRESHOLD_MS) {
             const knownEnd = Math.min(at + GAP_THRESHOLD_MS, nextAt);
-            segments.push({ status: points[i].online ? "online" : "offline", start: at, end: knownEnd });
-            if (nextAt > knownEnd) segments.push({ status: "unknown", start: knownEnd, end: nextAt });
+            emit(points[i].online ? "online" : "offline", at, knownEnd);
+            if (nextAt > knownEnd) emit("unknown", knownEnd, nextAt);
         } else if (nextAt > at) {
-            segments.push({ status: points[i].online ? "online" : "offline", start: at, end: nextAt });
+            emit(points[i].online ? "online" : "offline", at, nextAt);
         }
 
         cursor = nextAt;
     }
 
-    if (cursor < rangeEnd) segments.push({ status: "unknown", start: cursor, end: rangeEnd });
+    if (cursor < rangeEnd) emit("unknown", cursor, rangeEnd);
     return segments.filter(s => s.end > s.start);
 }
 
