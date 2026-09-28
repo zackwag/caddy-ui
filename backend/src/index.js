@@ -24,6 +24,7 @@ import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
+import { startUpstreamMonitor } from './upstreamMonitor.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -121,6 +122,7 @@ await loadInstances();
 await loadSettings();
 await loadCustomThemes();
 await initUptimeHistory();
+startUpstreamMonitor();
 
 app.listen(PORT, () => {
     logger.info(`Caddy UI backend running`, { port: PORT, version: APP_VERSION });

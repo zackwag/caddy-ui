@@ -1,13 +1,12 @@
-import { createConnection, isIP } from 'net';
+import { isIP } from 'net';
 import { X509Certificate } from 'crypto';
 import { join } from 'path';
 import { listContainerDir, readContainerFile } from './containerFs.js';
 import { promises as dns } from 'dns';
-import { caddyGet } from './caddy.js';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
+import { checkInstanceUpstreams } from './upstreamChecks.js';
 const CHECK_INTERVAL_MS = 30_000;
-const TIMEOUT_MS = 3000;
 
 let config = null;
 let checkTimer = null;
@@ -76,47 +75,15 @@ async function checkUpstreams() {
 }
 
 async function checkUpstreamsForInstance(inst) {
-    let servers;
+    let checks;
     try {
-        servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
+        checks = await checkInstanceUpstreams(inst.adminUrl);
     } catch {
         return;
     }
 
-    const checks = [];
-    for (const [, server] of Object.entries(servers || {})) {
-        for (const route of server.routes || []) {
-            const domain = route.match?.find(m => m.host)?.host?.[0] || null;
-            const upstreams = extractUpstreams(route);
-            for (const upstream of upstreams) {
-                const [host, port] = upstream.split(':');
-                if (host && port) checks.push({ domain, upstream, host, port });
-            }
-        }
-    }
-
-    let caddyPool = {};
-    try {
-        const poolRes = await fetch(`${inst.adminUrl}/reverse_proxy/upstreams`, {
-            headers: { 'Origin': 'http://0.0.0.0:2019' },
-            signal: AbortSignal.timeout(3000),
-        });
-        if (poolRes.ok) {
-            const pool = await poolRes.json();
-            for (const entry of pool) {
-                if (entry.address) caddyPool[entry.address] = entry;
-            }
-        }
-    } catch { }
-
     for (const check of checks) {
-        let online;
-        if (check.upstream in caddyPool) {
-            online = caddyPool[check.upstream].fails === 0;
-        } else {
-            online = await checkTCP(check.host, check.port);
-        }
-
+        const online = check.online;
         const stateKey = `${inst.id}:${check.upstream}`;
         const prev = upstreamState.get(stateKey);
         upstreamState.set(stateKey, online);
@@ -192,30 +159,6 @@ async function checkCertsForInstance(inst) {
             }
         }
     }
-}
-
-function extractUpstreams(route) {
-    const results = [];
-    function walk(handles) {
-        for (const h of handles || []) {
-            if (h.handler === 'reverse_proxy' && h.upstreams) {
-                for (const u of h.upstreams) if (u.dial) results.push(u.dial);
-            }
-            if (h.routes) for (const r of h.routes) walk(r.handle);
-        }
-    }
-    walk(route.handle);
-    return results;
-}
-
-function checkTCP(host, port) {
-    return new Promise((resolve) => {
-        const socket = createConnection({ host, port: parseInt(port), timeout: TIMEOUT_MS });
-        const timer = setTimeout(() => { socket.destroy(); resolve(false); }, TIMEOUT_MS);
-        socket.on('connect', () => { clearTimeout(timer); socket.destroy(); resolve(true); });
-        socket.on('error', () => { clearTimeout(timer); resolve(false); });
-        socket.on('timeout', () => { clearTimeout(timer); socket.destroy(); resolve(false); });
-    });
 }
 
 function isUnsafeIPv4(ip) {

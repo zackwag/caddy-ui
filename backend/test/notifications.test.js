@@ -214,13 +214,3 @@ describe('sendNotification', () => {
         vi.unstubAllGlobals();
     });
 });
-
-describe('extractUpstreams (notifications)', () => {
-    it('extracts dial addresses from nested routes', async () => {
-        vi.resetModules();
-        const mod = await import('../src/notifications.js');
-        // extractUpstreams is not exported from notifications.js, but we can test
-        // the notification provider validation paths which is the real value here.
-        expect(mod.sendNotification).toBeDefined();
-    });
-});

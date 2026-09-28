@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractUpstreams, getHost } from '../src/routes/health.js';
+import { extractUpstreams, getHost } from '../src/upstreamChecks.js';
 
 describe('extractUpstreams', () => {
     it('extracts dial addresses from reverse_proxy handlers', () => {
