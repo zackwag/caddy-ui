@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/zackwag/caddy-ui/compare/v2.2.2...v2.3.0) (2026-09-28)
+
+
+### Features
+
+* support custom themes via THEMES_PATH folder scan ([#103](https://github.com/zackwag/caddy-ui/issues/103)) ([f74f073](https://github.com/zackwag/caddy-ui/commit/f74f07307248786f226a38c81ed6e008ec407065))
+
 ## [2.2.2](https://github.com/zackwag/caddy-ui/compare/v2.2.1...v2.2.2) (2026-09-27)
 
 
