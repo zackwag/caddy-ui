@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/zackwag/caddy-ui/compare/v2.3.1...v2.4.0) (2026-09-29)
+
+
+### Features
+
+* record upstream checks continuously, independent of the dashboard ([#112](https://github.com/zackwag/caddy-ui/issues/112)) ([77b3273](https://github.com/zackwag/caddy-ui/commit/77b32731ab68c4886d148e5ebf6dd9ad7695070d))
+
 ## [2.3.1](https://github.com/zackwag/caddy-ui/compare/v2.3.0...v2.3.1) (2026-09-28)
 
 
