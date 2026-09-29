@@ -33,7 +33,7 @@ There is no frontend test suite and no repo-wide lint/format command — `backen
 
 - If you changed `backend/src/**`, run `cd backend && npm test && npm run lint` and make sure both are green.
 - If you changed `frontend/src/**`, run `cd frontend && npm run lint`, and run the dev server to exercise the affected view in a browser. Don't claim a UI fix works without having rendered it — vitest doesn't cover the frontend.
-- If you touched code that changes user-visible behavior, consider whether the [README Changelog table](README.md#changelog) needs a new row (this repo bumps a version string per notable change).
+- Don't hand-edit `CHANGELOG.md` or bump versions — release-please generates both from Conventional Commit PR titles on `main`, so pick the prefix (`feat:` vs `fix:`, `!` for breaking) that matches the user-visible impact. The README Changelog table is frozen history for pre-`v1.18` releases.
 
 ## Things to know before editing
 

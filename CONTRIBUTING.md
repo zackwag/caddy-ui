@@ -63,7 +63,7 @@ Look at `git log` for more examples of the house style.
 1. Branch off `main`.
 2. Keep the diff focused on one change.
 3. Make sure `npm test` passes in `backend/` if you touched backend code, and `npm run lint` passes in `backend/`/`frontend/` for whichever side you touched.
-4. If your change is user-facing, consider adding a line to the [Changelog table](README.md#changelog) in the same PR (bump the version per the project's existing numbering).
+4. Don't edit `CHANGELOG.md` or bump versions by hand — [release-please](https://github.com/googleapis/release-please) generates the changelog and version from your PR title's Conventional Commit prefix once it's merged to `main`.
 5. Open the PR against `main` — the `Test` workflow will run automatically.
 
 ## Reporting issues

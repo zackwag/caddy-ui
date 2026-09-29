@@ -67,23 +67,28 @@ All variables have sensible defaults. Only set what you need to override.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CADDY_ADMIN_URL` | `http://caddy:2019` | URL of Caddy's admin API |
-| `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the container |
-| `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy container (used for `docker exec`) |
-| `CADDY_DATA_PATH` | `/data/caddy/caddy` | Path to Caddy's data directory containing certificates |
-| `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log |
-| `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes |
+| `APP_VERSION` | `dev` | caddy-ui's own version, exposed at `GET /api/version` and shown in the sidebar. Baked in automatically by the release build (`docker build --build-arg APP_VERSION=...`) — no need to set by hand unless building from source and want the UI to report a specific version. |
+| `CADDY_ADMIN_URL` | — | URL of Caddy's admin API. If set, a default instance is auto-created on first startup. If unset, caddy/ui starts with no instances and guides you through discovery. |
+| `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](https://github.com/zackwag/caddy-ui#caddyfile-titles)) |
+| `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the Caddy container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy Docker container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_SERVER_NAME` | `srv0` | Primary server block name for new routes (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
-| `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth for Prometheus scraping |
-| `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable auth) |
+| `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
+| `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
+| `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
+| `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://github.com/zackwag/caddy-ui#multi-instance)) |
 | `JWT_SECRET` | — | Secret key for signing JWT tokens |
 | `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
 | `NOTIFICATIONS_CONFIG_PATH` | `/etc/caddy-ui/notifications.json` | Path to the notification settings file |
 | `PORT` | `3001` | Port the backend listens on |
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
 | `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the server display names file |
-| `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (contains `dark/` and `light/` subfolders) |
+| `SETTINGS_PATH` | `/etc/caddy-ui/settings.json` | Path to the UI settings file (theme preferences, column visibility) |
+| `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](https://github.com/zackwag/caddy-ui#custom-themes)) |
 | `UPTIME_HISTORY_PATH` | `/etc/caddy-ui/uptime-history.json` | Path to the persisted upstream uptime history file |
 | `UPTIME_HISTORY_RETENTION_DAYS` | `7` | How many days of upstream health checks to retain |
 
