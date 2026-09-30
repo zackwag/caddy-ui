@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { API, apiFetch } from "../utils/api.js";
+import UpstreamUptime from "./UpstreamUptime.jsx";
 
 export default function Metrics({ toast, onUnauth }) {
     const [metrics, setMetrics] = useState(null);
@@ -162,6 +163,8 @@ export default function Metrics({ toast, onUnauth }) {
                     </div>
                 </>
             )}
+
+            <UpstreamUptime onUnauth={onUnauth} />
         </div>
     );
 }

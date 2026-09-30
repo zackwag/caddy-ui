@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
+import { getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 function MiniCodeMirror({ value, onChange, theme }) {
     const containerRef = useRef(null);
@@ -311,23 +312,9 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         } catch (e) { toast.error(e.message); }
     };
 
-    const getHost = (route) => route.match?.find(m => m.host)?.host?.join(", ") || "—";
+    const getHost = getRouteHost;
 
-    const getUpstream = (route) => {
-        const dials = [];
-        function walk(handles) {
-            for (const h of handles || []) {
-                if (h.handler === 'reverse_proxy' && h.upstreams) {
-                    for (const u of h.upstreams) if (u.dial) dials.push(u.dial);
-                }
-                if (h.routes) {
-                    for (const r of h.routes) walk(r.handle);
-                }
-            }
-        }
-        walk(route.handle);
-        return dials.join(", ") || "—";
-    };
+    const getUpstream = (route) => getRouteUpstreams(route).join(", ") || "—";
 
     const getStripPrefix = (route) => (route.match?.find(m => m.path)?.path?.[0] || "").replace("/*", "");
 
