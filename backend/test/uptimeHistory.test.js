@@ -83,6 +83,16 @@ describe('recordCheck / getUptimeStats', () => {
         expect(stats.firstSeen).toBeInstanceOf(Date);
     });
 
+    it('includes lastCheckAt as the most recent check time', () => {
+        const key = `test-lastcheck-${Date.now()}`;
+        const before = Date.now();
+        recordCheck(INSTANCE, key, true);
+        recordCheck(INSTANCE, key, false);
+        const stats = getUptimeStats(INSTANCE, key);
+        expect(stats.lastCheckAt).toBeInstanceOf(Date);
+        expect(stats.lastCheckAt.getTime()).toBeGreaterThanOrEqual(before);
+    });
+
     it('keeps the same upstream separate across instances', () => {
         const upstream = `shared-upstream-${Date.now()}`;
         recordCheck('instance-a', upstream, true);
