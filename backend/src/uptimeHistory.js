@@ -57,7 +57,8 @@ export function getUptimeStats(instanceId, upstream) {
     const total = entry.entries.length;
     const online = entry.entries.filter(e => e.online).length;
     const pct = Math.round((online / total) * 1000) / 10;
-    const currentlyOnline = entry.entries[entry.entries.length - 1].online;
+    const last = entry.entries[entry.entries.length - 1];
+    const currentlyOnline = last.online;
 
     let streak = 0;
     for (let i = entry.entries.length - 1; i >= 0; i--) {
@@ -68,7 +69,7 @@ export function getUptimeStats(instanceId, upstream) {
     const streakSeconds = Math.max(0, Math.round((Date.now() - streakStart) / 1000));
     const streakLabel = formatDuration(streakSeconds);
 
-    return { pct, total, online, currentlyOnline, streak, streakSeconds, streakLabel, firstSeen: new Date(entry.firstSeen) };
+    return { pct, total, online, currentlyOnline, streak, streakSeconds, streakLabel, firstSeen: new Date(entry.firstSeen), lastCheckAt: new Date(last.at) };
 }
 
 // Returns every upstream's stats for one instance, keyed by bare upstream
