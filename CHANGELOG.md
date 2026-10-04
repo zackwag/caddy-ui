@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/zackwag/caddy-ui/compare/v2.4.0...v2.4.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* Update Dockerfile to node:24-alpine ([#123](https://github.com/zackwag/caddy-ui/issues/123)) ([fd1d5ee](https://github.com/zackwag/caddy-ui/commit/fd1d5ee215268abd39a52c7c607a6c4d57015812))
+
 ## [2.4.0](https://github.com/zackwag/caddy-ui/compare/v2.3.1...v2.4.0) (2026-09-29)
 
 
