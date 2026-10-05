@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.3](https://github.com/zackwag/caddy-ui/compare/v2.6.2...v2.6.3) (2026-10-05)
+
+
+### Bug Fixes
+
+* keep last good metrics when a refresh fails ([#128](https://github.com/zackwag/caddy-ui/issues/128)) ([167c40d](https://github.com/zackwag/caddy-ui/commit/167c40dc894b4591d2b31a82846cb588a7b99ac9))
+* record shared upstreams once per check and drop admin URL trailing slash ([#133](https://github.com/zackwag/caddy-ui/issues/133)) ([d5377eb](https://github.com/zackwag/caddy-ui/commit/d5377eb452dc77c5ad4fbc2e2e1321e2b53a3bcb))
+
 ## [2.6.2](https://github.com/zackwag/caddy-ui/compare/v2.6.1...v2.6.2) (2026-10-05)
 
 
