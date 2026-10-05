@@ -1,6 +1,6 @@
 import { getInstances } from './instances.js';
 import logger from './logger.js';
-import { checkInstanceRoutes } from './routeChecks.js';
+import { checkInstanceRoutes, failureReason } from './routeChecks.js';
 import { getSettings } from './settings.js';
 import { recordCheck } from './uptimeHistory.js';
 
@@ -12,6 +12,14 @@ export const ROUTE_CHECK_INTERVAL_MS = 5 * 60_000;
 let timer = null;
 let running = null;
 
+// Why each route's latest check failed, keyed by instance id then host. Kept
+// in memory only: a restart re-runs the checks right away.
+const lastFailures = new Map();
+
+export function getRouteFailures(instanceId) {
+    return lastFailures.get(instanceId) || {};
+}
+
 async function checkAllInstances() {
     await Promise.all(getInstances().map(async (inst) => {
         let checks;
@@ -21,7 +29,13 @@ async function checkAllInstances() {
             logger.warn('Route monitor could not reach instance', { instance: inst.name, error: err.message });
             return;
         }
-        for (const check of checks) recordCheck(inst.id, check.host, check.online, 'route');
+        const failures = {};
+        for (const check of checks) {
+            recordCheck(inst.id, check.host, check.online, 'route');
+            const reason = failureReason(check);
+            if (reason) failures[check.host] = reason;
+        }
+        lastFailures.set(inst.id, failures);
     }));
 }
 

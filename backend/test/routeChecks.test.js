@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectRouteTargets, getListenPort, getServerScheme, isRouteUp } from '../src/routeChecks.js';
+import { collectRouteTargets, failureReason, getListenPort, getServerScheme, isRouteUp } from '../src/routeChecks.js';
 
 const route = (host, extra = {}) => ({ match: [{ host: [host] }], handle: [], ...extra });
 
@@ -87,5 +87,20 @@ describe('isRouteUp', () => {
 
     it('treats server errors and no response as down', () => {
         for (const code of [500, 502, 503, 504, 0, null, undefined]) expect(isRouteUp(code)).toBe(false);
+    });
+});
+
+describe('failureReason', () => {
+    it('is null for an online route', () => {
+        expect(failureReason({ online: true, statusCode: 200, error: null })).toBeNull();
+    });
+
+    it('reports the status code a route answered with', () => {
+        expect(failureReason({ online: false, statusCode: 500, error: null })).toBe('HTTP 500');
+    });
+
+    it('reports the error when nothing answered', () => {
+        expect(failureReason({ online: false, statusCode: null, error: 'certificate has expired' })).toBe('certificate has expired');
+        expect(failureReason({ online: false, statusCode: null, error: null })).toBe('No response');
     });
 });

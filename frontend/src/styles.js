@@ -1968,6 +1968,7 @@ export const css = `
   .uptime-row { cursor: pointer; }
   .uptime-row:hover .col-status .health-dot { outline: 2px solid var(--border2); outline-offset: 2px; }
   .uptime-upstream-dot { margin-right: 6px; vertical-align: middle; }
+  .uptime-failure { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .uptime-col-bar { width: 30%; min-width: 160px; }
   .metrics-bar-count.uptime-pct { width: 48px; }
   .uptime-lowest-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

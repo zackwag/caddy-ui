@@ -50,6 +50,7 @@ function buildRows(routes, uptime, routeUptime, notes, routeChecks) {
             // Route checks run every 5 minutes, so don't wait for a second one
             pct: stats && stats.total > (checkHost ? 0 : 1) ? stats.pct : null,
             streakLabel: stats?.streakLabel || null,
+            failure: status === "offline" ? routeStats?.lastFailure || null : null,
         });
     }
     // Worst uptime first; routes with no data yet sink to the bottom
@@ -217,6 +218,7 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                                 </td>
                                                 <td className="mono" style={{ color: s.color || "var(--muted)" }}>
                                                     {r.streakLabel ? `${s.label} · ${r.streakLabel}` : "—"}
+                                                    {r.failure && <div className="cell-muted uptime-failure" title={r.failure}>{r.failure}</div>}
                                                 </td>
                                             </tr>
                                         );

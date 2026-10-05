@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
+import { getRouteFailures, ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
 import { getHistory, getStatsForInstance, recordCheck } from '../uptimeHistory.js';
 import { checkInstanceUpstreams, resultsByUpstream } from '../upstreamChecks.js';
 import { CHECK_INTERVAL_MS } from '../upstreamMonitor.js';
@@ -28,7 +28,12 @@ router.get('/', async (req, res) => {
 // GET /api/health/uptime[?kind=route] -- uptime stats per upstream, or per
 // route host when route checks are on
 router.get('/uptime', async (req, res) => {
-    res.json(getStatsForInstance(req.instance.id, req.query.kind === 'route' ? 'route' : 'upstream'));
+    if (req.query.kind !== 'route') return res.json(getStatsForInstance(req.instance.id));
+    // Route stats also carry why the latest check failed, when it did
+    const stats = getStatsForInstance(req.instance.id, 'route');
+    const failures = getRouteFailures(req.instance.id);
+    for (const [host, s] of Object.entries(stats)) if (s && failures[host]) s.lastFailure = failures[host];
+    res.json(stats);
 });
 
 // GET /api/health/history?upstream=<upstream>|route=<host>&since=<epochMs> --

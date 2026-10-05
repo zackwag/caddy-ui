@@ -51,6 +51,13 @@ export function isRouteUp(statusCode) {
     return statusCode > 0 && statusCode < 500;
 }
 
+// Short explanation shown next to an offline route: the HTTP status it
+// answered with, or why no response came back (TLS error, timeout, refused).
+export function failureReason({ online, statusCode, error }) {
+    if (online) return null;
+    return statusCode ? `HTTP ${statusCode}` : error || 'No response';
+}
+
 // CAs a route's certificate may chain to: Node's defaults (bundled roots plus
 // NODE_EXTRA_CA_CERTS) and, when the instance has one, Caddy's local CA, which
 // signs the certificates for internal names like *.internal.
@@ -82,7 +89,9 @@ function probeRoute(connectHost, ca, { host, scheme, port }) {
             path: '/',
             method: 'GET',
             agent: false,
-            headers: { Host: host, 'User-Agent': USER_AGENT },
+            // Browser-like Accept: some apps only render their page for
+            // clients that ask for HTML (transfer.sh 500s on GET / otherwise)
+            headers: { Host: host, 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml,*/*;q=0.8' },
             // We connect to the instance's address, so check the certificate
             // against the route's host instead
             ...(scheme === 'https' && { ca, servername: isIP(host) ? undefined : host, checkServerIdentity: (_, cert) => tls.checkServerIdentity(host, cert) }),
