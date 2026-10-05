@@ -1,9 +1,82 @@
 import { Router } from 'express';
 import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { caddyLoad } from '../caddy.js';
+import { getInstances } from '../instances.js';
 import logger from '../logger.js';
+import { getStatsForInstance } from '../uptimeHistory.js';
 
 const router = Router();
+
+// Upstreams whose last recorded check is older than this are left out of the
+// scrape: they've been removed from the config or their instance is
+// unreachable, and exporting their last known state would read as current.
+const UPTIME_STALE_MS = 5 * 60 * 1000;
+
+const UPTIME_FAMILIES = [
+    { name: 'caddy_ui_upstream_up', help: 'Result of the most recent upstream check (1 = online, 0 = offline)', value: s => (s.currentlyOnline ? 1 : 0) },
+    { name: 'caddy_ui_upstream_uptime_ratio', help: 'Fraction of retained upstream checks that were online', value: s => s.online / s.total },
+    { name: 'caddy_ui_upstream_state_duration_seconds', help: 'Seconds the upstream has been in its current online/offline state', value: s => s.streakSeconds },
+];
+
+function escapeLabelValue(value) {
+    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+}
+
+function formatLabels(labels) {
+    return Object.entries(labels).map(([k, v]) => `${k}="${escapeLabelValue(v)}"`).join(',');
+}
+
+// Renders upstream uptime history as Prometheus text exposition. Takes
+// [{ id, name, stats }] where stats is getStatsForInstance()'s result.
+function formatUptimeMetrics(instances, now = Date.now()) {
+    const series = [];
+    for (const inst of instances) {
+        for (const [upstream, stats] of Object.entries(inst.stats)) {
+            if (!stats || now - stats.lastCheckAt.getTime() > UPTIME_STALE_MS) continue;
+            series.push({ labels: formatLabels({ instance_id: inst.id, instance_name: inst.name ?? '', upstream }), stats });
+        }
+    }
+    let out = '';
+    for (const family of UPTIME_FAMILIES) {
+        out += `# HELP ${family.name} ${family.help}\n# TYPE ${family.name} gauge\n`;
+        for (const { labels, stats } of series) out += `${family.name}{${labels}} ${family.value(stats)}\n`;
+    }
+    return out;
+}
+
+// Full /api/metrics/raw body: Caddy's own metrics for the requested instance
+// (when reachable), then caddy-ui's uptime series for every instance. Uptime
+// is served even when Caddy's metrics are off, with caddy_ui_caddy_metrics_up
+// standing in for the 503 this endpoint used to return.
+function buildRawMetrics({ instanceId, caddyText, caddyError, uptimeInstances, now = Date.now() }) {
+    let out = '';
+    if (caddyError) out += `# Caddy metrics unavailable: ${caddyError.replace(/\s+/g, ' ')}\n`;
+    else if (caddyText) out += caddyText.endsWith('\n') ? caddyText : `${caddyText}\n`;
+    out += '# HELP caddy_ui_caddy_metrics_up Whether Caddy\'s /metrics endpoint could be scraped for this instance\n';
+    out += '# TYPE caddy_ui_caddy_metrics_up gauge\n';
+    out += `caddy_ui_caddy_metrics_up{${formatLabels({ instance_id: instanceId })}} ${caddyError ? 0 : 1}\n`;
+    out += formatUptimeMetrics(uptimeInstances, now);
+    return out;
+}
+
+// GET /api/metrics/raw -- Prometheus scrape endpoint. Mounted directly in
+// index.js (not on this router) so it can skip auth for public metrics.
+export async function rawMetrics(req, res) {
+    let caddyText = '';
+    let caddyError = null;
+    try {
+        const metricsRes = await fetch(`${req.instance.adminUrl}/metrics`, {
+            headers: { 'Origin': 'http://0.0.0.0:2019' },
+        });
+        if (!metricsRes.ok) throw new Error(`Metrics unavailable: ${metricsRes.status}`);
+        caddyText = await metricsRes.text();
+    } catch (err) {
+        caddyError = err.message;
+    }
+    const uptimeInstances = getInstances().map(inst => ({ id: inst.id, name: inst.name, stats: getStatsForInstance(inst.id) }));
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+    res.send(buildRawMetrics({ instanceId: req.instance.id, caddyText, caddyError, uptimeInstances }));
+}
 
 // GET /api/metrics -- parsed metrics for the UI
 router.get('/', async (req, res) => {
@@ -141,4 +214,5 @@ router.put('/config', async (req, res) => {
     }
 });
 
+export { buildRawMetrics, formatUptimeMetrics };
 export default router;

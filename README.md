@@ -363,6 +363,17 @@ scrape_configs:
     metrics_path: /api/metrics/raw
 ```
 
+Alongside Caddy's own metrics, the endpoint serves caddy-ui's upstream uptime history for **every** instance (labeled `instance_id`, `instance_name`, `upstream`), even when Caddy's metrics are disabled:
+
+| Metric | Description |
+|---|---|
+| `caddy_ui_upstream_up` | Result of the most recent check (1 = online, 0 = offline) |
+| `caddy_ui_upstream_uptime_ratio` | Fraction of retained checks that were online (see `UPTIME_HISTORY_RETENTION_DAYS`) |
+| `caddy_ui_upstream_state_duration_seconds` | Time the upstream has been in its current state |
+| `caddy_ui_caddy_metrics_up` | Whether Caddy's `/metrics` could be scraped for the requested instance |
+
+Upstreams that haven't been checked in 5 minutes (removed from the config, or their instance is unreachable) are omitted.
+
 ## Homepage Widget
 
 The status endpoint returns enriched data for use with [Homepage](https://gethomepage.dev):

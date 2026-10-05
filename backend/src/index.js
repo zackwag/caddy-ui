@@ -13,7 +13,7 @@ import customThemesRouter from './routes/customThemes.js';
 import healthRouter from './routes/health.js';
 import instancesRouter from './routes/instances.js';
 import logsRouter from './routes/logs.js';
-import metricsRouter from './routes/metrics.js';
+import metricsRouter, { rawMetrics } from './routes/metrics.js';
 import notificationsRouter from './routes/notifications.js';
 import settingsRouter from './routes/settings.js';
 import { initCaddyfileTitles } from './caddyfileTitles.js';
@@ -84,20 +84,7 @@ app.use('/api', instanceMiddleware);
 
 // GET /api/metrics/raw -- Prometheus scrape endpoint
 // Public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
-app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, async (req, res) => {
-    try {
-        const adminUrl = req.instance.adminUrl;
-        const metricsRes = await fetch(`${adminUrl}/metrics`, {
-            headers: { 'Origin': 'http://0.0.0.0:2019' },
-        });
-        if (!metricsRes.ok) throw new Error(`Metrics unavailable: ${metricsRes.status}`);
-        const text = await metricsRes.text();
-        res.setHeader('Content-Type', 'text/plain; version=0.0.4');
-        res.send(text);
-    } catch (err) {
-        res.status(503).send(`# Metrics unavailable: ${err.message}\n`);
-    }
-});
+app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, rawMetrics);
 
 // All other /api/* routes require auth if enabled
 app.use('/api', authMiddleware);
