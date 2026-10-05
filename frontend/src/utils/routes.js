@@ -5,6 +5,13 @@ export function getRouteHost(route) {
     return route.match?.find(m => m.host)?.host?.join(", ") || "—";
 }
 
+// The host route checks request the route by (backend routeChecks.js
+// collectRouteTargets): its first host, unless that's a wildcard or placeholder.
+export function getRouteCheckHost(route) {
+    const host = route.match?.find(m => m.host)?.host?.[0];
+    return host && !host.includes("*") && !host.includes("{") ? host : null;
+}
+
 // Every reverse_proxy dial in the route, including ones nested in subroutes.
 export function getRouteUpstreams(route) {
     const dials = [];

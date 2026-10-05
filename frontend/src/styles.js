@@ -1966,7 +1966,8 @@ export const css = `
   .col-status--clickable:hover .health-dot { outline: 2px solid var(--border2); outline-offset: 2px; }
 
   .uptime-row { cursor: pointer; }
-  .uptime-row:hover .health-dot { outline: 2px solid var(--border2); outline-offset: 2px; }
+  .uptime-row:hover .col-status .health-dot { outline: 2px solid var(--border2); outline-offset: 2px; }
+  .uptime-upstream-dot { margin-right: 6px; vertical-align: middle; }
   .uptime-col-bar { width: 30%; min-width: 160px; }
   .metrics-bar-count.uptime-pct { width: 48px; }
   .uptime-lowest-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

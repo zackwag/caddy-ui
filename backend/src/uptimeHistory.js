@@ -12,8 +12,13 @@ const history = new Map();
 let dirty = false;
 let _writeLock = Promise.resolve();
 
-function historyKey(instanceId, upstream) {
-    return `${instanceId}:${upstream}`;
+// Upstream checks keep their original `<instance>:<upstream>` keys; route
+// checks (keyed by site host) use `#` as the separator instead, which
+// generated instance ids never contain, so the two never collide.
+const KIND_SEPARATORS = { upstream: ':', route: '#' };
+
+function historyKey(instanceId, target, kind = 'upstream') {
+    return `${instanceId}${KIND_SEPARATORS[kind]}${target}`;
 }
 
 export async function initUptimeHistory() {
@@ -37,8 +42,8 @@ function pruneOldEntries(entry, now) {
     if (i > 0) entry.entries.splice(0, i);
 }
 
-export function recordCheck(instanceId, upstream, online) {
-    const key = historyKey(instanceId, upstream);
+export function recordCheck(instanceId, target, online, kind = 'upstream') {
+    const key = historyKey(instanceId, target, kind);
     const now = Date.now();
     let entry = history.get(key);
     if (!entry) {
@@ -50,8 +55,8 @@ export function recordCheck(instanceId, upstream, online) {
     dirty = true;
 }
 
-export function getUptimeStats(instanceId, upstream) {
-    const entry = history.get(historyKey(instanceId, upstream));
+export function getUptimeStats(instanceId, target, kind = 'upstream') {
+    const entry = history.get(historyKey(instanceId, target, kind));
     if (!entry || entry.entries.length === 0) return null;
 
     const total = entry.entries.length;
@@ -72,23 +77,23 @@ export function getUptimeStats(instanceId, upstream) {
     return { pct, total, online, currentlyOnline, streak, streakSeconds, streakLabel, firstSeen: new Date(entry.firstSeen), lastCheckAt: new Date(last.at) };
 }
 
-// Returns every upstream's stats for one instance, keyed by bare upstream
-// (not the internal instance-prefixed key) -- what the routes table wants.
-export function getStatsForInstance(instanceId) {
-    const prefix = `${instanceId}:`;
+// Returns every upstream's (or route's) stats for one instance, keyed by bare
+// target (not the internal instance-prefixed key) -- what the routes table wants.
+export function getStatsForInstance(instanceId, kind = 'upstream') {
+    const prefix = historyKey(instanceId, '', kind);
     const stats = {};
     for (const key of history.keys()) {
         if (!key.startsWith(prefix)) continue;
-        const upstream = key.slice(prefix.length);
-        stats[upstream] = getUptimeStats(instanceId, upstream);
+        const target = key.slice(prefix.length);
+        stats[target] = getUptimeStats(instanceId, target, kind);
     }
     return stats;
 }
 
 // Raw timestamped checks for the history modal's timeline, optionally
 // trimmed to entries at or after sinceMs.
-export function getHistory(instanceId, upstream, { sinceMs } = {}) {
-    const entry = history.get(historyKey(instanceId, upstream));
+export function getHistory(instanceId, target, { sinceMs, kind = 'upstream' } = {}) {
+    const entry = history.get(historyKey(instanceId, target, kind));
     if (!entry) return { entries: [], firstSeen: null };
     const entries = sinceMs ? entry.entries.filter(e => e.at >= sinceMs) : entry.entries;
     return { entries, firstSeen: entry.firstSeen };

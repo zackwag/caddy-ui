@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
     darkPalette: 'vt2026',
     lightPalette: 'coarse-everywhere',
     routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
+    routeChecks: false,
 };
 
 let _settings = null;

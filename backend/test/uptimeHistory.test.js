@@ -142,3 +142,28 @@ describe('getHistory', () => {
         expect(getHistory(INSTANCE, key, { sinceMs: Date.now() + 60_000 }).entries).toHaveLength(0);
     });
 });
+
+describe('route checks', () => {
+    it('keeps route and upstream history separate', () => {
+        const instance = `kinds-${Date.now()}`;
+        recordCheck(instance, 'shared.example.com', true);
+        recordCheck(instance, 'shared.example.com', false, 'route');
+        expect(getUptimeStats(instance, 'shared.example.com').currentlyOnline).toBe(true);
+        expect(getUptimeStats(instance, 'shared.example.com', 'route').currentlyOnline).toBe(false);
+    });
+
+    it('lists only the requested kind per instance', () => {
+        const instance = `kinds-list-${Date.now()}`;
+        recordCheck(instance, 'app:3000', true);
+        recordCheck(instance, 'app.example.com', true, 'route');
+        expect(Object.keys(getStatsForInstance(instance))).toEqual(['app:3000']);
+        expect(Object.keys(getStatsForInstance(instance, 'route'))).toEqual(['app.example.com']);
+    });
+
+    it('returns route history by kind', () => {
+        const instance = `kinds-history-${Date.now()}`;
+        recordCheck(instance, 'app.example.com', true, 'route');
+        expect(getHistory(instance, 'app.example.com', { kind: 'route' }).entries).toHaveLength(1);
+        expect(getHistory(instance, 'app.example.com').entries).toHaveLength(0);
+    });
+});
