@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractUpstreamTargets, extractUpstreams, getHost, isUpstreamOnline } from '../src/upstreamChecks.js';
+import { extractUpstreamTargets, extractUpstreams, getHost, isUpstreamOnline, resultsByUpstream } from '../src/upstreamChecks.js';
 
 describe('extractUpstreams', () => {
     it('extracts dial addresses from reverse_proxy handlers', () => {
@@ -145,5 +145,29 @@ describe('getHost', () => {
 
     it('returns null when no match', () => {
         expect(getHost({})).toBeNull();
+    });
+});
+
+describe('resultsByUpstream', () => {
+    it('collapses routes sharing an upstream into one result', () => {
+        const checks = [
+            { domain: 'a.example.com', upstream: 'app:3000', online: true },
+            { domain: 'b.example.com', upstream: 'app:3000', online: true },
+            { domain: 'c.example.com', upstream: 'other:4000', online: false },
+        ];
+        expect([...resultsByUpstream(checks)]).toEqual([['app:3000', true], ['other:4000', false]]);
+    });
+
+    it('is offline if any route saw the upstream offline', () => {
+        const checks = [
+            { upstream: 'app:3000', online: true },
+            { upstream: 'app:3000', online: false },
+            { upstream: 'app:3000', online: true },
+        ];
+        expect(resultsByUpstream(checks).get('app:3000')).toBe(false);
+    });
+
+    it('returns nothing for no checks', () => {
+        expect(resultsByUpstream([]).size).toBe(0);
     });
 });

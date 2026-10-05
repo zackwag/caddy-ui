@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getHistory, getStatsForInstance, recordCheck } from '../uptimeHistory.js';
-import { checkInstanceUpstreams } from '../upstreamChecks.js';
+import { checkInstanceUpstreams, resultsByUpstream } from '../upstreamChecks.js';
 
 const router = Router();
 
@@ -10,16 +10,14 @@ router.get('/', async (req, res) => {
     try {
         const checks = await checkInstanceUpstreams(adminUrl);
         const checkedAt = new Date().toISOString();
-        res.json(checks.map((check) => {
-            recordCheck(instanceId, check.upstream, check.online);
-            return {
-                domain: check.domain,
-                upstream: check.upstream,
-                server: check.server,
-                online: check.online,
-                checkedAt,
-            };
-        }));
+        for (const [upstream, online] of resultsByUpstream(checks)) recordCheck(instanceId, upstream, online);
+        res.json(checks.map((check) => ({
+            domain: check.domain,
+            upstream: check.upstream,
+            server: check.server,
+            online: check.online,
+            checkedAt,
+        })));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

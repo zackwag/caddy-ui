@@ -12,7 +12,9 @@ export function validateUrl(url) {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         throw new Error('URL must use http or https');
     }
-    return parsed.href;
+    // URL.href always ends a bare origin with "/", and callers append paths
+    // like "/config/" -- drop it so requests don't go to "//config/"
+    return parsed.href.replace(/\/+$/, '');
 }
 
 export function validatePath(p) {

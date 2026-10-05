@@ -11,12 +11,18 @@ export const DEFAULT_INSTANCE_ID = 'default';
 let _instances = null;
 let _writeLock = Promise.resolve();
 
+// Instances saved before validateUrl dropped the trailing slash still have
+// one, and the background monitors use adminUrl without re-validating it.
+export function normalizeAdminUrl(url) {
+    return typeof url === 'string' ? url.replace(/\/+$/, '') : url;
+}
+
 function buildDefaultInstance() {
     if (!process.env.CADDY_ADMIN_URL) return null;
     return {
         id: DEFAULT_INSTANCE_ID,
         name: 'Default',
-        adminUrl: process.env.CADDY_ADMIN_URL,
+        adminUrl: normalizeAdminUrl(process.env.CADDY_ADMIN_URL),
         configPath: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile',
         logPath: process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log',
         dataPath: process.env.CADDY_DATA_PATH || '/data/caddy',
@@ -30,7 +36,7 @@ export async function loadInstances() {
         const raw = await readFile(INSTANCES_PATH, 'utf8');
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-            _instances = parsed;
+            _instances = parsed.map(inst => (inst && typeof inst === 'object' ? { ...inst, adminUrl: normalizeAdminUrl(inst.adminUrl) } : inst));
             return _instances;
         }
     } catch { }
