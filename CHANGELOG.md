@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.0](https://github.com/zackwag/caddy-ui/compare/v2.6.3...v2.7.0) (2026-10-05)
+
+
+### Features
+
+* optional route checks for end-to-end uptime ([#132](https://github.com/zackwag/caddy-ui/issues/132)) ([48952c4](https://github.com/zackwag/caddy-ui/commit/48952c4a19642ffa9ddbfdcb11384ae1c41e6d46))
+
+
+### Bug Fixes
+
+* say "routes" in the Routes Online card when route checks are on ([#136](https://github.com/zackwag/caddy-ui/issues/136)) ([99b6d09](https://github.com/zackwag/caddy-ui/commit/99b6d094e1584cb4fe00d3b9261810e7fcec2415))
+
 ## [2.6.3](https://github.com/zackwag/caddy-ui/compare/v2.6.2...v2.6.3) (2026-10-05)
 
 
