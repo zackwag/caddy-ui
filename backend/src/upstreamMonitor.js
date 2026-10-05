@@ -7,7 +7,7 @@ import { checkInstanceUpstreams, resultsByUpstream } from './upstreamChecks.js';
 // the dashboard open -- GET /api/health only records a check when a browser
 // happens to poll it, which means history (and %uptime) previously only
 // reflected periods someone was actively looking at the UI.
-const CHECK_INTERVAL_MS = 30_000;
+export const CHECK_INTERVAL_MS = 30_000;
 
 let timer = null;
 

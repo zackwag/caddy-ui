@@ -10,13 +10,15 @@ const RANGES = [
 
 // Gaps in the recorded checks longer than this (backend restart, container
 // down, etc.) render as "unknown" instead of extending the last known status.
+// Checks taken less often (route checks) get a proportionally longer threshold.
 const GAP_THRESHOLD_MS = 3 * 60 * 1000;
+const GAP_INTERVAL_MULTIPLIER = 2.5;
 const REFRESH_INTERVAL_MS = 30_000;
 const AXIS_TICK_COUNT = 4;
 
 // Turns a sparse list of point-in-time checks into contiguous timeline
 // segments spanning [rangeStart, rangeEnd], each labeled online/offline/unknown.
-function buildSegments(entries, rangeStart, rangeEnd) {
+function buildSegments(entries, rangeStart, rangeEnd, gapThresholdMs) {
     const points = entries.filter(e => e.at < rangeEnd);
     if (!points.length) return [{ status: "unknown", start: rangeStart, end: rangeEnd }];
 
@@ -38,8 +40,8 @@ function buildSegments(entries, rangeStart, rangeEnd) {
 
         if (at > cursor) emit("unknown", cursor, at);
 
-        if (nextAt - at > GAP_THRESHOLD_MS) {
-            const knownEnd = Math.min(at + GAP_THRESHOLD_MS, nextAt);
+        if (nextAt - at > gapThresholdMs) {
+            const knownEnd = Math.min(at + gapThresholdMs, nextAt);
             emit(points[i].online ? "online" : "offline", at, knownEnd);
             if (nextAt > knownEnd) emit("unknown", knownEnd, nextAt);
         } else if (nextAt > at) {
@@ -95,29 +97,35 @@ function formatActivityTime(ms) {
 
 const STATUS_LABEL = { online: "Online", offline: "Offline", unknown: "No data" };
 
-export default function RouteHistoryModal({ title, upstream, onUnauth, onClose }) {
+// Shows one target's history: an upstream, or a route host when route checks
+// are on (pass `route` instead of `upstream`).
+export default function RouteHistoryModal({ title, upstream, route, onUnauth, onClose }) {
     const [range, setRange] = useState(RANGES[2]);
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [entries, setEntries] = useState(null);
+    const [intervalMs, setIntervalMs] = useState(0);
     const [error, setError] = useState(null);
+    const target = route || upstream;
 
     useEffect(() => {
         let cancelled = false;
         const load = () => {
             const since = Date.now() - range.ms;
-            apiFetch(`/health/history?upstream=${encodeURIComponent(upstream)}&since=${since}`, {}, onUnauth)
-                .then(data => { if (!cancelled) { setEntries(data.entries); setError(null); } })
+            const param = route ? `route=${encodeURIComponent(route)}` : `upstream=${encodeURIComponent(upstream)}`;
+            apiFetch(`/health/history?${param}&since=${since}`, {}, onUnauth)
+                .then(data => { if (!cancelled) { setEntries(data.entries); setIntervalMs(data.intervalMs || 0); setError(null); } })
                 .catch(e => { if (!cancelled) setError(e.message); });
         };
         load();
         if (!autoRefresh) return () => { cancelled = true; };
         const t = setInterval(load, REFRESH_INTERVAL_MS);
         return () => { cancelled = true; clearInterval(t); };
-    }, [upstream, range, autoRefresh, onUnauth]);
+    }, [upstream, route, range, autoRefresh, onUnauth]);
 
     const rangeEnd = Date.now();
     const rangeStart = rangeEnd - range.ms;
-    const segments = useMemo(() => buildSegments(entries || [], rangeStart, rangeEnd), [entries, rangeStart, rangeEnd]);
+    const gapThresholdMs = Math.max(GAP_THRESHOLD_MS, intervalMs * GAP_INTERVAL_MULTIPLIER);
+    const segments = useMemo(() => buildSegments(entries || [], rangeStart, rangeEnd, gapThresholdMs), [entries, rangeStart, rangeEnd, gapThresholdMs]);
     const ticks = useMemo(() => buildAxisTicks(rangeStart, rangeEnd), [rangeStart, rangeEnd]);
     const transitions = useMemo(() => buildTransitions(entries || []), [entries]);
 
@@ -133,8 +141,8 @@ export default function RouteHistoryModal({ title, upstream, onUnauth, onClose }
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" style={{ width: 640 }} onClick={e => e.stopPropagation()}>
-                <div className="modal-title">{title || upstream}</div>
-                {title && <div className="modal-hint mono" style={{ marginTop: -14, marginBottom: 8 }}>{upstream}</div>}
+                <div className="modal-title">{title || target}</div>
+                {title && title !== target && <div className="modal-hint mono" style={{ marginTop: -14, marginBottom: 8 }}>{target}</div>}
 
                 {entries && (
                     <div className="history-header">

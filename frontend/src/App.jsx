@@ -23,6 +23,8 @@ const DEFAULTS = {
     darkPalette: 'vt2026',
     lightPalette: 'coarse-everywhere',
     routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
+    routeChecks: false,
+    routeCheckExcludes: [],
 };
 
 const TITLES = {
@@ -55,6 +57,8 @@ export default function App() {
     const [darkPalette, setDarkPalette] = useState(DEFAULTS.darkPalette);
     const [lightPalette, setLightPalette] = useState(DEFAULTS.lightPalette);
     const [routeColumns, setRouteColumns] = useState(DEFAULTS.routeColumns);
+    const [routeChecks, setRouteChecks] = useState(DEFAULTS.routeChecks);
+    const [routeCheckExcludes, setRouteCheckExcludes] = useState(DEFAULTS.routeCheckExcludes);
     const [customThemes, setCustomThemes] = useState([]);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const [showThemeWelcome, setShowThemeWelcome] = useState(false);
@@ -79,6 +83,8 @@ export default function App() {
             setDarkPalette(dk);
             setLightPalette(lt);
             setRouteColumns({ ...DEFAULTS.routeColumns, ...s.routeColumns });
+            setRouteChecks(s.routeChecks === true);
+            setRouteCheckExcludes(Array.isArray(s.routeCheckExcludes) ? s.routeCheckExcludes : []);
             setSettingsLoaded(true);
             if (s.firstTimeRun) setShowThemeWelcome(true);
         }).catch(() => {
@@ -112,6 +118,8 @@ export default function App() {
     const changeDarkPalette = (id) => { setDarkPalette(id); persistSettings({ darkPalette: id }); };
     const changeLightPalette = (id) => { setLightPalette(id); persistSettings({ lightPalette: id }); };
     const changeRouteColumns = (cols) => { setRouteColumns(cols); persistSettings({ routeColumns: cols }); };
+    const changeRouteChecks = (enabled) => { setRouteChecks(enabled); persistSettings({ routeChecks: enabled }); };
+    const changeRouteCheckExcludes = (hosts) => { setRouteCheckExcludes(hosts); persistSettings({ routeCheckExcludes: hosts }); };
 
     const handleThemeWelcome = (dark, light) => {
         setDarkPalette(dark);
@@ -223,7 +231,7 @@ export default function App() {
                                 <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} />} />
                                 <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
                                 <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} />} />
-                                <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} routeChecks={routeChecks} onRouteChecksChange={changeRouteChecks} routeCheckExcludes={routeCheckExcludes} onRouteCheckExcludesChange={changeRouteCheckExcludes} />} />
                                 <Route path="/notifications" element={<Notifications toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/instances" element={<Instances toast={toast} onUnauth={onUnauth} confirm={confirm} onInstanceChange={handleInstanceChange} />} />
                                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
