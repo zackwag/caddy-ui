@@ -1333,6 +1333,158 @@ export const css = `
   .modal--confirm { width: 380px; }
   .modal--confirm .modal-title { font-weight: 400; line-height: 1.5; }
 
+  /* ── Utility: Route status history modal ──────────────────────────────────── */
+
+  .history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .history-header-left { display: flex; align-items: center; gap: 8px; }
+
+  .history-header-relative { font-size: 12px; color: var(--muted); }
+
+  .history-header-status { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; }
+  .history-header-status--online  { color: var(--accent); }
+  .history-header-status--offline { color: var(--danger); }
+
+  .history-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .history-range-picker { display: flex; gap: 4px; }
+
+  .history-auto-refresh {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .history-auto-refresh input { cursor: pointer; }
+
+  .history-timeline {
+    display: flex;
+    height: 32px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--border);
+  }
+
+  .history-segment {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    flex-basis: 0;
+    min-width: 0;
+  }
+
+  .history-segment--online  { background: var(--accent); }
+  .history-segment--offline { background: var(--danger); }
+  .history-segment--unknown { background: var(--border2); }
+
+  .history-segment-label {
+    padding: 0 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .history-segment--online .history-segment-label  { color: var(--on-accent); }
+  .history-segment--offline .history-segment-label { color: var(--on-danger); }
+  .history-segment--unknown .history-segment-label { color: var(--muted); }
+
+  .history-timeline-axis {
+    position: relative;
+    height: 14px;
+    margin-top: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .history-axis-tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .history-axis-tick:first-child { transform: translateX(0); }
+  .history-axis-tick:last-child { transform: translateX(-100%); }
+
+  .history-stats {
+    display: flex;
+    gap: 24px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .history-stat-label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .history-stat-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    color: var(--text);
+  }
+
+  .history-section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 20px 0 8px;
+  }
+
+  .history-activity-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .history-activity-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .history-activity-item:last-child { border-bottom: none; }
+
+  .history-activity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .history-activity-dot--online  { background: var(--accent); }
+  .history-activity-dot--offline { background: var(--danger); }
+
+  .history-activity-label { flex: 1; color: var(--text); }
+
+  .history-activity-time { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); }
+
+  .history-activity-empty { padding: 16px; text-align: center; color: var(--muted); font-size: 12px; }
+
   .field { margin-bottom: 14px; }
   .field label {
     display: block;
@@ -1810,6 +1962,8 @@ export const css = `
   .health-dot--pending { background: var(--muted); }
 
   .col-status { width: 1%; white-space: nowrap; }
+  .col-status--clickable { cursor: pointer; }
+  .col-status--clickable:hover .health-dot { outline: 2px solid var(--border2); outline-offset: 2px; }
 
   .sr-only {
     position: absolute;

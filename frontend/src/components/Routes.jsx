@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useClickOutside } from "../hooks/useClickOutside.js";
+import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
 
 function MiniCodeMirror({ value, onChange, theme }) {
@@ -211,6 +212,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const [healthLoading, setHealthLoading] = useState(false);
     const [editModal, setEditModal] = useState(null);
     const [newModal, setNewModal] = useState(false);
+    const [historyModal, setHistoryModal] = useState(null);
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
     const [search, setSearch] = useState(searchParams.get("filter") || "");
@@ -518,7 +520,13 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                         const note = notes[domain];
                                         return (
                                             <tr key={r["@id"] || i}>
-                                                {columns.status && <td className="col-status" title={getHealthTitle(r)}>{getHealthDot(r)}</td>}
+                                                {columns.status && (
+                                                    <td
+                                                        className={`col-status${upstream !== "—" ? " col-status--clickable" : ""}`}
+                                                        title={getHealthTitle(r)}
+                                                        onClick={() => upstream !== "—" && setHistoryModal({ upstream: upstream.split(", ")[0], title: note || domain })}
+                                                    >{getHealthDot(r)}</td>
+                                                )}
                                                 <td>
                                                     <div className="route-domain-cell">
                                                         <div>
@@ -586,6 +594,14 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                 />
             )}
             {newModal && <NewRouteModal onSave={addRoute} onClose={() => setNewModal(false)} />}
+            {historyModal && (
+                <RouteHistoryModal
+                    upstream={historyModal.upstream}
+                    title={historyModal.title}
+                    onUnauth={onUnauth}
+                    onClose={() => setHistoryModal(null)}
+                />
+            )}
         </>
     );
 }
