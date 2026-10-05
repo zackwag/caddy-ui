@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { API, apiFetch } from "../utils/api.js";
 import UpstreamUptime from "./UpstreamUptime.jsx";
 
-export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksChange }) {
+export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
     const [configOpen, setConfigOpen] = useState(false);
@@ -172,7 +172,13 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                 </>
             )}
 
-            <UpstreamUptime onUnauth={onUnauth} routeChecks={routeChecks} onRouteChecksChange={onRouteChecksChange} />
+            <UpstreamUptime
+                onUnauth={onUnauth}
+                routeChecks={routeChecks}
+                onRouteChecksChange={onRouteChecksChange}
+                routeCheckExcludes={routeCheckExcludes}
+                onRouteCheckExcludesChange={onRouteCheckExcludesChange}
+            />
         </div>
     );
 }

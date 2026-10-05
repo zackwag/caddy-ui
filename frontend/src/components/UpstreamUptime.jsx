@@ -26,24 +26,28 @@ function upstreamStatus(upstreams, uptime) {
 // view, uptime % and history follow a route's first upstream, while status
 // considers all of them. With route checks on, routes that can be requested
 // by name use their own check instead, including routes with no upstream;
-// the rest (wildcards, catch-alls) keep the upstream view.
-function buildRows(routes, uptime, routeUptime, notes, routeChecks) {
+// the rest (wildcards, catch-alls) and excluded routes keep the upstream view.
+function buildRows(routes, uptime, routeUptime, notes, routeChecks, excludes) {
     const rows = [];
     for (const route of routes) {
         const upstreams = getRouteUpstreams(route);
-        const checkHost = routeChecks ? getRouteCheckHost(route) : null;
-        if (!upstreams.length && !checkHost) continue;
+        const probeHost = routeChecks ? getRouteCheckHost(route) : null;
+        const excluded = !!probeHost && excludes.has(probeHost.toLowerCase());
+        const checkHost = excluded ? null : probeHost;
+        if (!upstreams.length && !probeHost) continue;
         const domain = getRouteHost(route);
         const routeStats = checkHost ? routeUptime[checkHost] || null : null;
         const stats = checkHost ? routeStats : uptime[upstreams[0]] || null;
         const upstreamState = upstreams.length ? upstreamStatus(upstreams, uptime) : null;
-        const status = !checkHost ? upstreamState
+        const status = !checkHost ? upstreamState || "unknown"
             : !routeStats ? "unknown"
                 : routeStats.currentlyOnline ? "online" : "offline";
         rows.push({
             domain,
             title: notes[domain] || "",
             upstreams,
+            probeHost,
+            excluded,
             checkHost,
             status,
             upstreamState: checkHost ? upstreamState : null,
@@ -71,7 +75,7 @@ function summarize(rows) {
     };
 }
 
-export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksChange }) {
+export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
     const [routes, setRoutes] = useState(null);
     const [uptime, setUptime] = useState({});
     const [routeUptime, setRouteUptime] = useState({});
@@ -102,7 +106,13 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
         return () => clearTimeout(t);
     }, [routeChecks, load]);
 
-    const rows = useMemo(() => buildRows(routes || [], uptime, routeUptime, notes, routeChecks), [routes, uptime, routeUptime, notes, routeChecks]);
+    const excludes = useMemo(() => new Set(routeCheckExcludes), [routeCheckExcludes]);
+    const rows = useMemo(() => buildRows(routes || [], uptime, routeUptime, notes, routeChecks, excludes), [routes, uptime, routeUptime, notes, routeChecks, excludes]);
+
+    const toggleExclude = (host) => {
+        const key = host.toLowerCase();
+        onRouteCheckExcludesChange(excludes.has(key) ? routeCheckExcludes.filter(h => h !== key) : [...routeCheckExcludes, key]);
+    };
     const summary = useMemo(() => summarize(rows), [rows]);
 
     const onlineColor = !summary.tracked ? "var(--muted)"
@@ -167,6 +177,7 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                         <th>Upstream</th>
                                         <th className="uptime-col-bar">Uptime</th>
                                         <th>Current State For</th>
+                                        {routeChecks && <th className="col-status">Route Check</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -219,7 +230,21 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                                 <td className="mono" style={{ color: s.color || "var(--muted)" }}>
                                                     {r.streakLabel ? `${s.label} · ${r.streakLabel}` : "—"}
                                                     {r.failure && <div className="cell-muted uptime-failure" title={r.failure}>{r.failure}</div>}
+                                                    {r.excluded && <div className="cell-muted">Route check skipped</div>}
                                                 </td>
+                                                {routeChecks && (
+                                                    <td className="col-status">
+                                                        {r.probeHost && (
+                                                            <button
+                                                                className="btn btn-ghost btn--sm"
+                                                                title={r.excluded ? `Resume route checks for ${r.probeHost}` : `Stop requesting ${r.probeHost}; its status falls back to the upstream`}
+                                                                onClick={e => { e.stopPropagation(); toggleExclude(r.probeHost); }}
+                                                            >
+                                                                {r.excluded ? "Check" : "Skip"}
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                )}
                                             </tr>
                                         );
                                     })}

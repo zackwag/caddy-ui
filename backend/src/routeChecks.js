@@ -27,10 +27,24 @@ export function getServerScheme(server, port) {
     return 'https';
 }
 
+const MAX_EXCLUDES = 500;
+const MAX_HOST_LENGTH = 253;
+
+// The routeCheckExcludes setting as saved: unique, trimmed, lowercased hosts.
+export function sanitizeHostList(value) {
+    if (!Array.isArray(value)) return [];
+    const hosts = value
+        .filter(h => typeof h === 'string')
+        .map(h => h.trim().toLowerCase())
+        .filter(h => h && h.length <= MAX_HOST_LENGTH);
+    return [...new Set(hosts)].slice(0, MAX_EXCLUDES);
+}
+
 // One probe target per distinct site address. Routes without a concrete host
 // (catch-alls, path-only matchers, wildcards, placeholders) can't be requested
-// by name, so they're skipped.
-export function collectRouteTargets(servers) {
+// by name, so they're skipped, as are hosts the user excluded.
+export function collectRouteTargets(servers, exclude = []) {
+    const excluded = new Set(exclude.map(h => h.toLowerCase()));
     const targets = new Map();
     for (const [serverName, server] of Object.entries(servers || {})) {
         const port = getListenPort(server);
@@ -38,7 +52,7 @@ export function collectRouteTargets(servers) {
         const scheme = getServerScheme(server, port);
         for (const route of server.routes || []) {
             const host = getHost(route);
-            if (!host || host.includes('*') || host.includes('{') || targets.has(host)) continue;
+            if (!host || host.includes('*') || host.includes('{') || targets.has(host) || excluded.has(host.toLowerCase())) continue;
             targets.set(host, { host, scheme, port, server: serverName });
         }
     }
@@ -108,10 +122,10 @@ function probeRoute(connectHost, ca, { host, scheme, port }) {
 
 // Probes every named route in an instance's live config. Throws when the
 // admin API is unreachable, like checkInstanceUpstreams.
-export async function checkInstanceRoutes(adminUrl) {
+export async function checkInstanceRoutes(adminUrl, { exclude = [] } = {}) {
     const servers = await caddyGet('/config/apps/http/servers', adminUrl);
     const connectHost = new URL(adminUrl).hostname.replace(/^\[|\]$/g, '');
-    const targets = collectRouteTargets(servers);
+    const targets = collectRouteTargets(servers, exclude);
     const ca = targets.some(t => t.scheme === 'https') ? await getTrustedCAs(adminUrl) : undefined;
     return Promise.all(targets.map(async (target) => ({ ...target, ...await probeRoute(connectHost, ca, target) })));
 }

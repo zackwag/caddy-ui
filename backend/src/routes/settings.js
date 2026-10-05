@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { sanitizeHostList } from '../routeChecks.js';
 import { runRouteChecks } from '../routeMonitor.js';
 import { getSettings, saveSettings } from '../settings.js';
 
@@ -10,7 +11,7 @@ router.get('/', (req, res) => {
 
 router.put('/', async (req, res) => {
     try {
-        const allowed = ['firstTimeRun', 'theme', 'darkPalette', 'lightPalette', 'routeColumns', 'routeChecks'];
+        const allowed = ['firstTimeRun', 'theme', 'darkPalette', 'lightPalette', 'routeColumns', 'routeChecks', 'routeCheckExcludes'];
         const updates = {};
         for (const key of allowed) {
             if (key in req.body) updates[key] = req.body[key];
@@ -19,6 +20,7 @@ router.put('/', async (req, res) => {
             return res.status(400).json({ error: 'No valid settings provided' });
         }
         if ('routeChecks' in updates) updates.routeChecks = updates.routeChecks === true;
+        if ('routeCheckExcludes' in updates) updates.routeCheckExcludes = sanitizeHostList(updates.routeCheckExcludes);
         const wasChecking = getSettings().routeChecks;
         const settings = await saveSettings(updates);
         if (settings.routeChecks && !wasChecking) runRouteChecks();

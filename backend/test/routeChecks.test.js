@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectRouteTargets, failureReason, getListenPort, getServerScheme, isRouteUp } from '../src/routeChecks.js';
+import { collectRouteTargets, failureReason, getListenPort, getServerScheme, isRouteUp, sanitizeHostList } from '../src/routeChecks.js';
 
 const route = (host, extra = {}) => ({ match: [{ host: [host] }], handle: [], ...extra });
 
@@ -75,6 +75,11 @@ describe('collectRouteTargets', () => {
         expect(collectRouteTargets(servers)).toHaveLength(1);
     });
 
+    it('skips excluded hosts, ignoring case', () => {
+        const servers = { srv0: { listen: [':443'], routes: [route('a.example.com'), route('Files.Example.com')] } };
+        expect(collectRouteTargets(servers, ['files.example.com']).map(t => t.host)).toEqual(['a.example.com']);
+    });
+
     it('skips servers without a TCP listener', () => {
         expect(collectRouteTargets({ srv0: { routes: [route('a.example.com')] } })).toEqual([]);
     });
@@ -102,5 +107,20 @@ describe('failureReason', () => {
     it('reports the error when nothing answered', () => {
         expect(failureReason({ online: false, statusCode: null, error: 'certificate has expired' })).toBe('certificate has expired');
         expect(failureReason({ online: false, statusCode: null, error: null })).toBe('No response');
+    });
+});
+
+describe('sanitizeHostList', () => {
+    it('trims, lowercases, and dedupes hosts', () => {
+        expect(sanitizeHostList([' Files.Example.com ', 'files.example.com', 'b.internal'])).toEqual(['files.example.com', 'b.internal']);
+    });
+
+    it('drops non-strings, empty, and overlong entries', () => {
+        expect(sanitizeHostList(['ok.internal', '', '   ', 42, null, 'x'.repeat(254)])).toEqual(['ok.internal']);
+    });
+
+    it('returns an empty list for anything but an array', () => {
+        expect(sanitizeHostList('files.example.com')).toEqual([]);
+        expect(sanitizeHostList(undefined)).toEqual([]);
     });
 });

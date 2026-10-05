@@ -21,10 +21,11 @@ export function getRouteFailures(instanceId) {
 }
 
 async function checkAllInstances() {
+    const exclude = getSettings().routeCheckExcludes || [];
     await Promise.all(getInstances().map(async (inst) => {
         let checks;
         try {
-            checks = await checkInstanceRoutes(inst.adminUrl);
+            checks = await checkInstanceRoutes(inst.adminUrl, { exclude });
         } catch (err) {
             logger.warn('Route monitor could not reach instance', { instance: inst.name, error: err.message });
             return;
