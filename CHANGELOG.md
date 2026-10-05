@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.2](https://github.com/zackwag/caddy-ui/compare/v2.6.1...v2.6.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* detect offline upstreams without passive health checks ([#130](https://github.com/zackwag/caddy-ui/issues/130)) ([9357b14](https://github.com/zackwag/caddy-ui/commit/9357b1467daf8e5ade83815df4346db643457643))
+
 ## [2.6.1](https://github.com/zackwag/caddy-ui/compare/v2.6.0...v2.6.1) (2026-10-05)
 
 
