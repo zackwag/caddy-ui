@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { caddyGet } from '../caddy.js';
 import { execInInstance } from '../docker.js';
 import logger from '../logger.js';
+import { checkInstanceUpstreams, resultsByUpstream } from '../upstreamChecks.js';
 
 const router = Router();
 
@@ -44,10 +45,11 @@ function formatUptime(seconds) {
 router.get('/', async (req, res) => {
     const adminUrl = req.instance.adminUrl;
     try {
-        const [config, metricsText] = await Promise.allSettled([
+        const [config, metricsText, upstreamChecks] = await Promise.allSettled([
             caddyGet('/config/apps/http/servers', adminUrl),
             fetch(`${adminUrl}/metrics`, { headers: { 'Origin': 'http://0.0.0.0:2019' } })
                 .then(r => r.ok ? r.text() : null).catch(() => null),
+            checkInstanceUpstreams(adminUrl),
         ]);
 
         const servers = Object.entries(config.value || {}).map(([name, server]) => ({
@@ -65,50 +67,15 @@ router.get('/', async (req, res) => {
             if (startTime) uptime = formatUptime(Math.floor(Date.now() / 1000 - startTime));
         }
 
+        // Same checks as Routes/Metrics, counting each upstream once even when
+        // several routes share it
         let upstreamsOnline = null;
         let upstreamsTotal = null;
-        try {
-            const { createConnection } = await import('net');
-            const TIMEOUT_MS = 3000;
-
-            function checkTCP(host, port) {
-                return new Promise((resolve) => {
-                    const socket = createConnection({ host, port: parseInt(port), timeout: TIMEOUT_MS });
-                    const timer = setTimeout(() => { socket.destroy(); resolve(false); }, TIMEOUT_MS);
-                    socket.on('connect', () => { clearTimeout(timer); socket.destroy(); resolve(true); });
-                    socket.on('error', () => { clearTimeout(timer); resolve(false); });
-                    socket.on('timeout', () => { clearTimeout(timer); socket.destroy(); resolve(false); });
-                });
-            }
-
-            function extractUpstreams(route) {
-                const results = [];
-                function walk(handles) {
-                    for (const h of handles || []) {
-                        if (h.handler === 'reverse_proxy' && h.upstreams) {
-                            for (const u of h.upstreams) if (u.dial) results.push(u.dial);
-                        }
-                        if (h.routes) for (const r of h.routes) walk(r.handle);
-                    }
-                }
-                walk(route.handle);
-                return results;
-            }
-
-            const checks = [];
-            for (const [, server] of Object.entries(config.value || {})) {
-                for (const route of server.routes || []) {
-                    for (const upstream of extractUpstreams(route)) {
-                        const [host, port] = upstream.split(':');
-                        if (host && port) checks.push({ host, port });
-                    }
-                }
-            }
-
-            const results = await Promise.all(checks.map(c => checkTCP(c.host, c.port)));
+        if (upstreamChecks.status === 'fulfilled') {
+            const results = [...resultsByUpstream(upstreamChecks.value).values()];
             upstreamsTotal = results.length;
             upstreamsOnline = results.filter(Boolean).length;
-        } catch { }
+        }
 
         res.json({
             online: true,
