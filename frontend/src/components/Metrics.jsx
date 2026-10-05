@@ -83,9 +83,9 @@ export default function Metrics({ toast, onUnauth }) {
                 )}
             </div>
 
-            {loading ? (
+            {!metrics ? (
                 <div className="loading">Loading metrics...</div>
-            ) : !metrics?.ok ? (
+            ) : !metrics.ok ? (
                 <div className="card">
                     <div className="flex-between">
                         <span className="loading">Metrics not enabled</span>
@@ -158,7 +158,7 @@ export default function Metrics({ toast, onUnauth }) {
                         <span className="metrics-footer-label">Refreshes every 30s</span>
                         <div className="btn-row">
                             <span>Last scraped: {formatScrapedAt(metrics.scrapedAt)}</span>
-                            <button className="btn btn-ghost btn--sm" onClick={load}>↺ Refresh</button>
+                            <button className="btn btn-ghost btn--sm" onClick={load} disabled={loading}>↺ {loading ? "Refreshing..." : "Refresh"}</button>
                         </div>
                     </div>
                 </>
