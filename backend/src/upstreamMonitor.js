@@ -1,7 +1,7 @@
 import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { recordCheck } from './uptimeHistory.js';
-import { checkInstanceUpstreams } from './upstreamChecks.js';
+import { checkInstanceUpstreams, resultsByUpstream } from './upstreamChecks.js';
 
 // Keeps uptime history populated continuously, independent of anyone having
 // the dashboard open -- GET /api/health only records a check when a browser
@@ -20,7 +20,7 @@ async function checkAllInstances() {
             logger.warn('Upstream monitor could not reach instance', { instance: inst.name, error: err.message });
             return;
         }
-        for (const check of checks) recordCheck(inst.id, check.upstream, check.online);
+        for (const [upstream, online] of resultsByUpstream(checks)) recordCheck(inst.id, upstream, online);
     }));
 }
 

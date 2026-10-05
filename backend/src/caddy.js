@@ -1,6 +1,6 @@
 import logger from './logger.js';
 
-export const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
+export const CADDY_ADMIN_URL = (process.env.CADDY_ADMIN_URL || 'http://caddy:2019').replace(/\/+$/, '');
 
 const HEADERS = {
     'Content-Type': 'application/json',

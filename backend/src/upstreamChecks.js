@@ -42,6 +42,15 @@ export function getHost(route) {
     return route.match?.find(m => m.host)?.host?.[0] || null;
 }
 
+// checkInstanceUpstreams returns one result per route, so an upstream shared
+// by several routes shows up more than once. Collapses them to one result per
+// upstream for recording history: online only if every route's check agreed.
+export function resultsByUpstream(checks) {
+    const results = new Map();
+    for (const { upstream, online } of checks) results.set(upstream, (results.get(upstream) ?? true) && online);
+    return results;
+}
+
 function checkTCP(host, port) {
     return new Promise((resolve) => {
         const socket = createConnection({ host, port: parseInt(port), timeout: TCP_TIMEOUT_MS });
