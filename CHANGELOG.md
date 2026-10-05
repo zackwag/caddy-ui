@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.1](https://github.com/zackwag/caddy-ui/compare/v2.6.0...v2.6.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* stop Metrics page redrawing on auto refresh ([#127](https://github.com/zackwag/caddy-ui/issues/127)) ([d2fa409](https://github.com/zackwag/caddy-ui/commit/d2fa40905bf078c3a7aa942398ed3cd6131623c4))
+
 ## [2.6.0](https://github.com/zackwag/caddy-ui/compare/v2.5.0...v2.6.0) (2026-10-05)
 
 
