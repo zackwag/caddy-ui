@@ -74,7 +74,7 @@ graph LR
 
     FE -->|"/api/* proxy"| BE
     BE -->|"admin API"| CA
-    BE -->|"upstream pool + TCP fallback"| CA
+    BE -->|"upstream TCP checks + passive health pool"| CA
     BE -->|"Prometheus metrics"| CA
     BE -->|"/adapt validation"| CA
     BE -->|"/pki/ca/local"| CA
