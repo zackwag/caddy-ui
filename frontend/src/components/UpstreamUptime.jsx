@@ -121,7 +121,7 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
     const onlineDetail = [
         summary.offline && `${summary.offline} offline`,
         summary.partial && `${summary.partial} partial`,
-    ].filter(Boolean).join(" · ") || (summary.tracked ? "All upstreams responding" : "Waiting for first checks");
+    ].filter(Boolean).join(" · ") || (summary.tracked ? `All ${routeChecks ? "routes" : "upstreams"} responding` : "Waiting for first checks");
 
     return (
         <>
