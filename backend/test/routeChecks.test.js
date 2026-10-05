@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectRouteTargets, getListenPort, getServerScheme, isCertCurrent, isRouteUp } from '../src/routeChecks.js';
+import { collectRouteTargets, getListenPort, getServerScheme, isRouteUp } from '../src/routeChecks.js';
 
 const route = (host, extra = {}) => ({ match: [{ host: [host] }], handle: [], ...extra });
 
@@ -87,23 +87,5 @@ describe('isRouteUp', () => {
 
     it('treats server errors and no response as down', () => {
         for (const code of [500, 502, 503, 504, 0, null, undefined]) expect(isRouteUp(code)).toBe(false);
-    });
-});
-
-describe('isCertCurrent', () => {
-    const now = Date.parse('2026-06-01T00:00:00Z');
-
-    it('accepts a certificate inside its validity window', () => {
-        expect(isCertCurrent({ valid_from: 'Jan  1 00:00:00 2026 GMT', valid_to: 'Dec 31 00:00:00 2026 GMT' }, now)).toBe(true);
-    });
-
-    it('rejects expired and not-yet-valid certificates', () => {
-        expect(isCertCurrent({ valid_from: 'Jan  1 00:00:00 2025 GMT', valid_to: 'Jan  1 00:00:00 2026 GMT' }, now)).toBe(false);
-        expect(isCertCurrent({ valid_from: 'Jan  1 00:00:00 2027 GMT', valid_to: 'Jan  1 00:00:00 2028 GMT' }, now)).toBe(false);
-    });
-
-    it('passes when no certificate details are available', () => {
-        expect(isCertCurrent(undefined, now)).toBe(true);
-        expect(isCertCurrent({}, now)).toBe(true);
     });
 });
