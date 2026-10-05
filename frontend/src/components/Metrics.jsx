@@ -9,12 +9,18 @@ export default function Metrics({ toast, onUnauth }) {
     const [metricsConfig, setMetricsConfig] = useState(null);
     const [savingMetrics, setSavingMetrics] = useState(false);
     const [publicMetrics, setPublicMetrics] = useState(false);
+    const [refreshError, setRefreshError] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
         apiFetch("/metrics", {}, onUnauth)
-            .then(setMetrics)
-            .catch(() => setMetrics({ ok: false, error: "Failed to fetch metrics" }))
+            .catch(() => ({ ok: false, error: "Failed to fetch metrics" }))
+            .then(res => {
+                // Keep the last good numbers through a failed refresh so a blip
+                // doesn't swap the cards for the "not enabled" card
+                setMetrics(prev => res.ok || !prev?.ok ? res : prev);
+                setRefreshError(res.ok ? null : res.error);
+            })
             .finally(() => setLoading(false));
     }, [onUnauth]);
 
@@ -33,6 +39,7 @@ export default function Metrics({ toast, onUnauth }) {
             setMetricsConfig({ enabled });
             toast.success(enabled ? "Metrics enabled" : "Metrics disabled");
             if (enabled) setTimeout(load, 1000);
+            else setMetrics({ ok: false, error: "Metrics disabled" });
         } catch (e) { toast.error(e.message); }
         finally { setSavingMetrics(false); }
     };
@@ -157,6 +164,7 @@ export default function Metrics({ toast, onUnauth }) {
                     <div className="metrics-footer">
                         <span className="metrics-footer-label">Refreshes every 30s</span>
                         <div className="btn-row">
+                            {refreshError && <span style={{ color: "var(--warn)" }} title={refreshError}>Refresh failed</span>}
                             <span>Last scraped: {formatScrapedAt(metrics.scrapedAt)}</span>
                             <button className="btn btn-ghost btn--sm" onClick={load} disabled={loading}>↺ {loading ? "Refreshing..." : "Refresh"}</button>
                         </div>
