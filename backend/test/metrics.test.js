@@ -49,6 +49,32 @@ describe('formatUptimeMetrics', () => {
         expect(out).toContain('# TYPE caddy_ui_upstream_uptime_ratio gauge');
     });
 
+    it('emits route series labeled by host', () => {
+        const out = formatUptimeMetrics([{ id: 'default', name: 'Home', stats: {}, routeStats: { 'files.example.com': stats({ currentlyOnline: false }) } }], NOW);
+        const labels = 'instance_id="default",instance_name="Home",route="files.example.com"';
+        expect(out).toContain('# TYPE caddy_ui_route_up gauge\n');
+        expect(out).toContain(`caddy_ui_route_up{${labels}} 0\n`);
+        expect(out).toContain(`caddy_ui_route_uptime_ratio{${labels}} 0.75\n`);
+        expect(out).toContain(`caddy_ui_route_state_duration_seconds{${labels}} 60\n`);
+    });
+
+    it('keeps route series through one missed 5 minute check but drops them after that', () => {
+        const out = formatUptimeMetrics([{
+            id: 'a', name: 'A', stats: {}, routeStats: {
+                'recent.example.com': stats({ lastCheckAt: new Date(NOW - 7 * 60_000) }),
+                'gone.example.com': stats({ lastCheckAt: new Date(NOW - 13 * 60_000) }),
+            },
+        }], NOW);
+        expect(out).toContain('route="recent.example.com"');
+        expect(out).not.toContain('gone.example.com');
+    });
+
+    it('declares route families even without route checks', () => {
+        const out = formatUptimeMetrics([{ id: 'a', name: 'A', stats: { 'x:1': stats() } }], NOW);
+        expect(out).toContain('# TYPE caddy_ui_route_up gauge\n');
+        expect(out).not.toContain('caddy_ui_route_up{');
+    });
+
     it('escapes quotes, backslashes, and newlines in label values', () => {
         const out = formatUptimeMetrics([{ id: 'a', name: 'My "lab"\\box\nx', stats: { 'x:1': stats() } }], NOW);
         expect(out).toContain('instance_name="My \\"lab\\"\\\\box\\nx"');

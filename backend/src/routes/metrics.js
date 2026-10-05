@@ -3,19 +3,32 @@ import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { caddyLoad } from '../caddy.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
+import { ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
 import { getStatsForInstance } from '../uptimeHistory.js';
 
 const router = Router();
 
-// Upstreams whose last recorded check is older than this are left out of the
-// scrape: they've been removed from the config or their instance is
-// unreachable, and exporting their last known state would read as current.
+// Targets whose last recorded check is older than this are left out of the
+// scrape: they've been removed from the config (or excluded from route
+// checks), their instance is unreachable, or checks were turned off, and
+// exporting their last known state would read as current. Route checks run
+// every 5 minutes, so they get proportionally more slack.
 const UPTIME_STALE_MS = 5 * 60 * 1000;
+const ROUTE_UPTIME_STALE_MS = Math.max(UPTIME_STALE_MS, ROUTE_CHECK_INTERVAL_MS * 2.5);
 
-const UPTIME_FAMILIES = [
-    { name: 'caddy_ui_upstream_up', help: 'Result of the most recent upstream check (1 = online, 0 = offline)', value: s => (s.currentlyOnline ? 1 : 0) },
-    { name: 'caddy_ui_upstream_uptime_ratio', help: 'Fraction of retained upstream checks that were online', value: s => s.online / s.total },
-    { name: 'caddy_ui_upstream_state_duration_seconds', help: 'Seconds the upstream has been in its current online/offline state', value: s => s.streakSeconds },
+function uptimeFamilies(kind) {
+    return [
+        { name: `caddy_ui_${kind}_up`, help: `Result of the most recent ${kind} check (1 = online, 0 = offline)`, value: s => (s.currentlyOnline ? 1 : 0) },
+        { name: `caddy_ui_${kind}_uptime_ratio`, help: `Fraction of retained ${kind} checks that were online`, value: s => s.online / s.total },
+        { name: `caddy_ui_${kind}_state_duration_seconds`, help: `Seconds the ${kind} has been in its current online/offline state`, value: s => s.streakSeconds },
+    ];
+}
+
+// Upstream series come from each instance's `stats`, route series (labeled
+// by site host) from `routeStats`.
+const UPTIME_KINDS = [
+    { kind: 'upstream', statsKey: 'stats', staleMs: UPTIME_STALE_MS, families: uptimeFamilies('upstream') },
+    { kind: 'route', statsKey: 'routeStats', staleMs: ROUTE_UPTIME_STALE_MS, families: uptimeFamilies('route') },
 ];
 
 function escapeLabelValue(value) {
@@ -26,20 +39,23 @@ function formatLabels(labels) {
     return Object.entries(labels).map(([k, v]) => `${k}="${escapeLabelValue(v)}"`).join(',');
 }
 
-// Renders upstream uptime history as Prometheus text exposition. Takes
-// [{ id, name, stats }] where stats is getStatsForInstance()'s result.
+// Renders upstream and route uptime history as Prometheus text exposition.
+// Takes [{ id, name, stats, routeStats }] where stats/routeStats are
+// getStatsForInstance()'s result for each kind.
 function formatUptimeMetrics(instances, now = Date.now()) {
-    const series = [];
-    for (const inst of instances) {
-        for (const [upstream, stats] of Object.entries(inst.stats)) {
-            if (!stats || now - stats.lastCheckAt.getTime() > UPTIME_STALE_MS) continue;
-            series.push({ labels: formatLabels({ instance_id: inst.id, instance_name: inst.name ?? '', upstream }), stats });
-        }
-    }
     let out = '';
-    for (const family of UPTIME_FAMILIES) {
-        out += `# HELP ${family.name} ${family.help}\n# TYPE ${family.name} gauge\n`;
-        for (const { labels, stats } of series) out += `${family.name}{${labels}} ${family.value(stats)}\n`;
+    for (const { kind, statsKey, staleMs, families } of UPTIME_KINDS) {
+        const series = [];
+        for (const inst of instances) {
+            for (const [target, stats] of Object.entries(inst[statsKey] || {})) {
+                if (!stats || now - stats.lastCheckAt.getTime() > staleMs) continue;
+                series.push({ labels: formatLabels({ instance_id: inst.id, instance_name: inst.name ?? '', [kind]: target }), stats });
+            }
+        }
+        for (const family of families) {
+            out += `# HELP ${family.name} ${family.help}\n# TYPE ${family.name} gauge\n`;
+            for (const { labels, stats } of series) out += `${family.name}{${labels}} ${family.value(stats)}\n`;
+        }
     }
     return out;
 }
@@ -73,7 +89,12 @@ export async function rawMetrics(req, res) {
     } catch (err) {
         caddyError = err.message;
     }
-    const uptimeInstances = getInstances().map(inst => ({ id: inst.id, name: inst.name, stats: getStatsForInstance(inst.id) }));
+    const uptimeInstances = getInstances().map(inst => ({
+        id: inst.id,
+        name: inst.name,
+        stats: getStatsForInstance(inst.id),
+        routeStats: getStatsForInstance(inst.id, 'route'),
+    }));
     res.setHeader('Content-Type', 'text/plain; version=0.0.4');
     res.send(buildRawMetrics({ instanceId: req.instance.id, caddyText, caddyError, uptimeInstances }));
 }
