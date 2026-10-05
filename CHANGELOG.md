@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.0](https://github.com/zackwag/caddy-ui/compare/v2.5.0...v2.6.0) (2026-10-05)
+
+
+### Features
+
+* expose upstream uptime in Prometheus metrics and the Metrics page ([7a6b0cd](https://github.com/zackwag/caddy-ui/commit/7a6b0cdda342c92c687667a963ba53ccc165c1b5))
+* upstream uptime in Prometheus metrics and Metrics page ([#122](https://github.com/zackwag/caddy-ui/issues/122)) ([7a6b0cd](https://github.com/zackwag/caddy-ui/commit/7a6b0cdda342c92c687667a963ba53ccc165c1b5))
+
 ## [2.5.0](https://github.com/zackwag/caddy-ui/compare/v2.4.1...v2.5.0) (2026-10-05)
 
 
