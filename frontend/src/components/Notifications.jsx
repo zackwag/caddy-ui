@@ -244,6 +244,27 @@ export default function Notifications({ toast, onUnauth }) {
                         />
                         TLS certificate expiring within 14 days
                     </label>
+                    <label className="config-checkbox-label">
+                        <input
+                            type="checkbox"
+                            className="config-checkbox"
+                            checked={config.triggers?.routeOffline ?? false}
+                            onChange={e => updateTriggers({ routeOffline: e.target.checked })}
+                        />
+                        Route goes down
+                    </label>
+                    <label className="config-checkbox-label">
+                        <input
+                            type="checkbox"
+                            className="config-checkbox"
+                            checked={config.triggers?.routeOnline ?? false}
+                            onChange={e => updateTriggers({ routeOnline: e.target.checked })}
+                        />
+                        Route comes back up
+                    </label>
+                </div>
+                <div className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
+                    Route alerts use route checks (turn them on from the Metrics page) and fire when a site answers with a server error, times out, or has a certificate problem, even if its upstream is still reachable. Skipped routes don't alert.
                 </div>
             </div>
 

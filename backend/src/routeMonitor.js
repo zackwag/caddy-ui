@@ -1,5 +1,6 @@
 import { getInstances } from './instances.js';
 import logger from './logger.js';
+import { notifyRouteChecks } from './notifications.js';
 import { checkInstanceRoutes, failureReason } from './routeChecks.js';
 import { getSettings } from './settings.js';
 import { recordCheck } from './uptimeHistory.js';
@@ -37,6 +38,7 @@ async function checkAllInstances() {
             if (reason) failures[check.host] = reason;
         }
         lastFailures.set(inst.id, failures);
+        await notifyRouteChecks(inst, checks).catch(err => logger.warn('Route notification failed', { instance: inst.name, error: err.message }));
     }));
 }
 
