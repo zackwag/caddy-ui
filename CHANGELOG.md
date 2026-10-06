@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.8.0](https://github.com/zackwag/caddy-ui/compare/v2.7.0...v2.8.0) (2026-10-06)
+
+
+### Features
+
+* export route check uptime in Prometheus metrics ([#139](https://github.com/zackwag/caddy-ui/issues/139)) ([c273880](https://github.com/zackwag/caddy-ui/commit/c2738808e04eb90d501787921255206af36b8cab))
+
+
+### Bug Fixes
+
+* use the shared upstream check for the status endpoint's upstream count ([#138](https://github.com/zackwag/caddy-ui/issues/138)) ([f6f53ad](https://github.com/zackwag/caddy-ui/commit/f6f53ad5fb39b06b7c2061692cfa9a52f425051d))
+
 ## [2.7.0](https://github.com/zackwag/caddy-ui/compare/v2.6.3...v2.7.0) (2026-10-05)
 
 
