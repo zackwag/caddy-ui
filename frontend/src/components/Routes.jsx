@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
-import { getRouteHost, getRouteUpstreams } from "../utils/routes.js";
+import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 function MiniCodeMirror({ value, onChange, theme }) {
     const containerRef = useRef(null);
@@ -202,11 +202,18 @@ const TOGGLEABLE_COLUMNS = [
     { key: "id", label: "ID" },
 ];
 
-export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange }) {
+const STATUS_STYLE = {
+    online: { label: "Online", color: "var(--accent)" },
+    partial: { label: "Partial", color: "var(--warn)" },
+    offline: { label: "Offline", color: "var(--danger)" },
+};
+
+export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes }) {
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
     const [uptime, setUptime] = useState({});
+    const [routeUptime, setRouteUptime] = useState({});
     const [certs, setCerts] = useState([]);
     const [notes, setNotes] = useState({});
     const [loading, setLoading] = useState(true);
@@ -250,7 +257,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             .catch(() => { })
             .finally(() => setHealthLoading(false));
         apiFetch("/health/uptime", {}, onUnauth).then(setUptime).catch(() => { });
-    }, [onUnauth]);
+        if (routeChecks) apiFetch("/health/uptime?kind=route", {}, onUnauth).then(setRouteUptime).catch(() => { });
+    }, [onUnauth, routeChecks]);
 
     useEffect(() => {
         load(); loadHealth();
@@ -365,50 +373,64 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
 
     const upstreamLink = (upstream) => upstream === "—" ? null : `http://${upstream}`;
 
-    const getUptimePct = (route) => {
-        const upstream = getUpstream(route);
-        if (upstream === "—") return null;
-        const upstreams = upstream.split(", ");
-        const stats = uptime[upstreams[0]];
-        return stats && stats.total > 1 ? stats.pct : null;
-    };
+    const excludes = new Set(routeCheckExcludes);
 
-    const getHealthTitle = (route) => {
-        const upstream = getUpstream(route);
-        if (upstream === "—") return "No upstream";
-        const upstreams = upstream.split(", ");
+    // Status shown in the Status column. With route checks on, routes that
+    // can be requested by name (and aren't skipped) use their own check, like
+    // the Metrics page; everything else follows its upstreams.
+    // status: online | partial | offline | pending (not checked yet) | none (nothing to check)
+    const getRouteStatus = (route) => {
+        const checkHost = routeChecks ? getRouteCheckHost(route) : null;
+        if (checkHost && !excludes.has(checkHost.toLowerCase())) {
+            const stats = routeUptime[checkHost];
+            return {
+                status: !stats ? "pending" : stats.currentlyOnline ? "online" : "offline",
+                pct: stats && stats.total > 0 ? stats.pct : null,
+                failure: stats && !stats.currentlyOnline ? stats.lastFailure || null : null,
+                history: { route: checkHost },
+            };
+        }
+        const upstreams = getRouteUpstreams(route);
+        if (!upstreams.length) return { status: "none", pct: null, failure: null, history: null };
+        const stats = uptime[upstreams[0]];
+        const checked = upstreams.some(u => u in health);
         const allOnline = upstreams.every(u => health[u] === true);
         const anyOnline = upstreams.some(u => health[u] === true);
-        const checked = upstreams.some(u => u in health);
-        if (!checked) return "Checking...";
-        const status = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
-        const pct = getUptimePct(route);
-        return pct !== null ? `${status} — ${pct}% uptime` : status;
+        return {
+            status: !checked ? "pending" : allOnline ? "online" : anyOnline ? "partial" : "offline",
+            pct: stats && stats.total > 1 ? stats.pct : null,
+            failure: null,
+            history: { upstream: upstreams[0] },
+        };
     };
 
-    const getHealthDot = (route) => {
-        const upstream = getUpstream(route);
-        const pct = getUptimePct(route);
+    const getUptimePct = (route) => getRouteStatus(route).pct;
+
+    const getHealthTitle = ({ status, pct, failure, history }) => {
+        if (status === "none") return "No upstream";
+        if (status === "pending") return history?.route ? "Waiting for first route check" : "Checking...";
+        const label = [STATUS_STYLE[status].label, failure].filter(Boolean).join(" — ");
+        return pct !== null ? `${label} — ${pct}% uptime` : label;
+    };
+
+    const getHealthDot = ({ status, pct }) => {
         const pctText = pct !== null ? `${pct}%` : "N/A";
-        if (upstream === "—") {
+        if (status === "none") {
             return <span className="health-dot health-dot--none"><span className="sr-only">No upstream, {pctText}</span></span>;
         }
-        const upstreams = upstream.split(", ");
-        const allOnline = upstreams.every(u => health[u] === true);
-        const anyOnline = upstreams.some(u => health[u] === true);
-        const checked = upstreams.some(u => u in health);
-        if (!checked) {
+        if (status === "pending") {
             return <span className="health-dot health-dot--pending"><span className="sr-only">Checking, {pctText}</span></span>;
         }
-        const color = allOnline ? "var(--accent)" : anyOnline ? "var(--warn)" : "var(--danger)";
-        const shadow = allOnline ? "0 0 4px var(--accent)" : anyOnline ? "0 0 4px var(--warn)" : "0 0 4px var(--danger)";
-        const status = allOnline ? "Online" : anyOnline ? "Partial" : "Offline";
+        const { label, color } = STATUS_STYLE[status];
         return (
-            <span className="health-dot" style={{ background: color, boxShadow: shadow }}>
-                <span className="sr-only">{status}, {pctText}</span>
+            <span className="health-dot" style={{ background: color, boxShadow: `0 0 4px ${color}` }}>
+                <span className="sr-only">{label}, {pctText}</span>
             </span>
         );
     };
+
+    const routeStatuses = routes.map(getRouteStatus).filter(s => s.status in STATUS_STYLE);
+    const routesOnline = routeStatuses.filter(s => s.status === "online").length;
 
     const handleSort = (col) => {
         if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -453,7 +475,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                             {search && <button className="search-clear" onClick={() => setSearch("")} title="Clear filter">✕</button>}
                         </div>
                         <span className="section-label">
-                            {healthLoading ? "Checking..." : `${Object.values(health).filter(Boolean).length}/${Object.keys(health).length} routes online`}
+                            {healthLoading ? "Checking..." : `${routesOnline}/${routeStatuses.length} routes online`}
                         </span>
                     </div>
                     <div className="btn-row routes-toolbar-actions">
@@ -505,14 +527,15 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                         const uLink = upstreamLink(upstream);
                                         const hasId = !!r["@id"];
                                         const note = notes[domain];
+                                        const routeStatus = getRouteStatus(r);
                                         return (
                                             <tr key={r["@id"] || i}>
                                                 {columns.status && (
                                                     <td
-                                                        className={`col-status${upstream !== "—" ? " col-status--clickable" : ""}`}
-                                                        title={getHealthTitle(r)}
-                                                        onClick={() => upstream !== "—" && setHistoryModal({ upstream: upstream.split(", ")[0], title: note || domain })}
-                                                    >{getHealthDot(r)}</td>
+                                                        className={`col-status${routeStatus.history ? " col-status--clickable" : ""}`}
+                                                        title={getHealthTitle(routeStatus)}
+                                                        onClick={() => routeStatus.history && setHistoryModal({ ...routeStatus.history, title: note || domain })}
+                                                    >{getHealthDot(routeStatus)}</td>
                                                 )}
                                                 <td>
                                                     <div className="route-domain-cell">
@@ -584,6 +607,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             {historyModal && (
                 <RouteHistoryModal
                     upstream={historyModal.upstream}
+                    route={historyModal.route}
                     title={historyModal.title}
                     onUnauth={onUnauth}
                     onClose={() => setHistoryModal(null)}
