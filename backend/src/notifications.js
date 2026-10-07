@@ -5,6 +5,7 @@ import { listContainerDir, readContainerFile } from './containerFs.js';
 import { promises as dns } from 'dns';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
+import { failureReason } from './routeChecks.js';
 import { checkInstanceUpstreams } from './upstreamChecks.js';
 const CHECK_INTERVAL_MS = 30_000;
 
@@ -115,6 +116,65 @@ async function checkUpstreamsForInstance(inst) {
                     priority: 'default',
                 });
             }
+        }
+    }
+}
+
+// Last known route check result per `<instance>#<host>`. Fed by the route
+// monitor after each round rather than by probes of our own, so alerting
+// doesn't add more requests through Caddy.
+const routeState = new Map();
+
+// Records one instance's round of route checks and returns the checks whose
+// online state changed since the previous round. Hosts missing from this
+// round (skipped, removed from the config) are forgotten, so they don't fire
+// a stale transition if they come back later.
+export function routeTransitions(state, instanceId, checks) {
+    const prefix = `${instanceId}#`;
+    const seen = new Set();
+    const changes = [];
+    for (const check of checks) {
+        const key = prefix + check.host;
+        seen.add(key);
+        const prev = state.get(key);
+        state.set(key, check.online);
+        if (prev !== undefined && prev !== check.online) changes.push(check);
+    }
+    for (const key of [...state.keys()]) {
+        if (key.startsWith(prefix) && !seen.has(key)) state.delete(key);
+    }
+    return changes;
+}
+
+// Called by the route monitor with each instance's results. State is tracked
+// even while notifications are off so enabling them later compares against
+// the latest round instead of alerting on everything.
+export async function notifyRouteChecks(inst, checks) {
+    const changes = routeTransitions(routeState, inst.id, checks);
+    if (!config?.enabled) return;
+
+    const instLabel = instanceLabel(inst);
+    for (const check of changes) {
+        const stateKey = `${inst.id}#${check.host}`;
+        if (!check.online && config.triggers?.routeOffline) {
+            const key = `route-offline:${stateKey}`;
+            if (isDebouncedKey(key)) continue;
+            markSent(key);
+            await sendNotification(config, {
+                title: 'Route down',
+                message: `${instLabel}${check.host} is down: ${failureReason(check)}`,
+                priority: 'high',
+            });
+        }
+        if (check.online && config.triggers?.routeOnline) {
+            const key = `route-online:${stateKey}`;
+            if (isDebouncedKey(key)) continue;
+            markSent(key);
+            await sendNotification(config, {
+                title: 'Route recovered',
+                message: `${instLabel}${check.host} is back up`,
+                priority: 'default',
+            });
         }
     }
 }

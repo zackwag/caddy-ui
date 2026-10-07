@@ -214,3 +214,44 @@ describe('sendNotification', () => {
         vi.unstubAllGlobals();
     });
 });
+
+describe('routeTransitions', () => {
+    async function load() {
+        vi.resetModules();
+        return import('../src/notifications.js');
+    }
+
+    const check = (host, online) => ({ host, online, statusCode: online ? 200 : 502, error: null });
+
+    it('reports nothing on the first round', async () => {
+        const { routeTransitions } = await load();
+        const state = new Map();
+        expect(routeTransitions(state, 'a', [check('x.example.com', true), check('y.example.com', false)])).toEqual([]);
+    });
+
+    it('reports routes whose state changed since the last round', async () => {
+        const { routeTransitions } = await load();
+        const state = new Map();
+        routeTransitions(state, 'a', [check('x.example.com', true), check('y.example.com', false)]);
+        const changes = routeTransitions(state, 'a', [check('x.example.com', false), check('y.example.com', true)]);
+        expect(changes.map(c => [c.host, c.online])).toEqual([['x.example.com', false], ['y.example.com', true]]);
+        expect(routeTransitions(state, 'a', [check('x.example.com', false), check('y.example.com', true)])).toEqual([]);
+    });
+
+    it('forgets routes missing from a round so they do not fire when they return', async () => {
+        const { routeTransitions } = await load();
+        const state = new Map();
+        routeTransitions(state, 'a', [check('x.example.com', true)]);
+        routeTransitions(state, 'a', []);
+        expect(routeTransitions(state, 'a', [check('x.example.com', false)])).toEqual([]);
+    });
+
+    it('keeps instances separate', async () => {
+        const { routeTransitions } = await load();
+        const state = new Map();
+        routeTransitions(state, 'a', [check('x.example.com', true)]);
+        routeTransitions(state, 'b', [check('x.example.com', false)]);
+        expect(routeTransitions(state, 'a', [check('x.example.com', true)])).toEqual([]);
+        expect(state.get('b#x.example.com')).toBe(false);
+    });
+});
