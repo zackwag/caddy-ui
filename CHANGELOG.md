@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0](https://github.com/zackwag/caddy-ui/compare/v2.8.0...v2.9.0) (2026-10-07)
+
+
+### Features
+
+* use route check results on the Routes page ([#140](https://github.com/zackwag/caddy-ui/issues/140)) ([7555573](https://github.com/zackwag/caddy-ui/commit/75555736990baf628ebb4c1a26ad9a918c352f22))
+
 ## [2.8.0](https://github.com/zackwag/caddy-ui/compare/v2.7.0...v2.8.0) (2026-10-06)
 
 
