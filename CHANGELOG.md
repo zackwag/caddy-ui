@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.0](https://github.com/zackwag/caddy-ui/compare/v2.9.0...v2.10.0) (2026-10-07)
+
+
+### Features
+
+* notify when a route goes down or recovers ([#141](https://github.com/zackwag/caddy-ui/issues/141)) ([ab76ad6](https://github.com/zackwag/caddy-ui/commit/ab76ad6547aa3cf3db1fe73dc1d06df97de51f14))
+
 ## [2.9.0](https://github.com/zackwag/caddy-ui/compare/v2.8.0...v2.9.0) (2026-10-07)
 
 
