@@ -85,7 +85,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
     return <div ref={containerRef} className="modal-editor-wrap" style={{ minHeight: 180, background: "var(--editor-bg)" }} />;
 }
 
-function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, onSave, onDelete, onClose, theme }) {
+function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme }) {
     const [form, setForm] = useState({
         domain: route.domain || "",
         upstream: route.upstream || "",
@@ -120,17 +120,25 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
                 </div>
                 <div className="modal-hint">{titleNeedsMigration ? "Save to store this title as a comment in your Caddyfile." : "Leave blank to clear the title."}</div>
 
+                {inMaintenance && (
+                    <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "color-mix(in srgb, var(--accent3) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--accent3) 30%, transparent)", borderRadius: 4, color: "var(--accent3)" }}>
+                        🔧 This route is in maintenance mode. Disable maintenance to edit the Caddyfile content.
+                    </div>
+                )}
+
                 {isCaddyfileManaged && siteBlockFailed ? (
                     <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4 }}>
                         This route is defined in your Caddyfile but couldn't be loaded for inline editing. Use the <strong>Caddyfile</strong> tab to edit it directly.
                     </div>
-                ) : isCaddyfileManaged ? (
+                ) : isCaddyfileManaged && !inMaintenance ? (
                     <>
                         <div className="modal-section-label">Caddyfile</div>
                         <div className="editor-wrap" style={{ marginBottom: 16 }}>
                             <MiniCodeMirror value={content} onChange={setContent} theme={theme} />
                         </div>
                     </>
+                ) : isCaddyfileManaged && inMaintenance ? (
+                    null
                 ) : (
                     <>
                         <div className="modal-section-divider" />
@@ -206,6 +214,7 @@ const STATUS_STYLE = {
     online: { label: "Online", color: "var(--accent)" },
     partial: { label: "Partial", color: "var(--warn)" },
     offline: { label: "Offline", color: "var(--danger)" },
+    maintenance: { label: "Maintenance", color: "var(--accent3)" },
 };
 
 export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes }) {
@@ -216,6 +225,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const [routeUptime, setRouteUptime] = useState({});
     const [certs, setCerts] = useState([]);
     const [notes, setNotes] = useState({});
+    const [maintenance, setMaintenance] = useState({});
     const [loading, setLoading] = useState(true);
     const [healthLoading, setHealthLoading] = useState(false);
     const [editModal, setEditModal] = useState(null);
@@ -243,6 +253,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         apiFetch("/routes", {}, onUnauth).then(setRoutes).catch(e => toast.error(e.message)).finally(() => setLoading(false));
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
         apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
+        apiFetch("/routes/maintenance", {}, onUnauth).then(setMaintenance).catch(() => { });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
     }, [onUnauth]);
 
@@ -320,6 +331,21 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         } catch (e) { toast.error(e.message); }
     };
 
+    const toggleMaintenance = async (domain) => {
+        const inMaint = !!maintenance[domain];
+        const action = inMaint ? "disable" : "enable";
+        if (!inMaint && !await confirm(`Enable maintenance mode for ${domain}? The route will serve a maintenance page instead of proxying upstream.`, { confirmLabel: "Enable" })) return;
+        try {
+            if (inMaint) {
+                await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "DELETE" }, onUnauth);
+            } else {
+                await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "POST" }, onUnauth);
+            }
+            toast.success(`Maintenance mode ${action}d for ${domain}`);
+            load(); loadHealth();
+        } catch (e) { toast.error(e.message); }
+    };
+
     const getHost = getRouteHost;
 
     const getUpstream = (route) => getRouteUpstreams(route).join(", ") || "—";
@@ -380,6 +406,10 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     // the Metrics page; everything else follows its upstreams.
     // status: online | partial | offline | pending (not checked yet) | none (nothing to check)
     const getRouteStatus = (route) => {
+        const domain = getHost(route);
+        if (maintenance[domain]) {
+            return { status: "maintenance", pct: null, failure: null, history: null };
+        }
         const checkHost = routeChecks ? getRouteCheckHost(route) : null;
         if (checkHost && !excludes.has(checkHost.toLowerCase())) {
             const stats = routeUptime[checkHost];
@@ -407,6 +437,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const getUptimePct = (route) => getRouteStatus(route).pct;
 
     const getHealthTitle = ({ status, pct, failure, history }) => {
+        if (status === "maintenance") return "Maintenance mode";
         if (status === "none") return "No upstream";
         if (status === "pending") return history?.route ? "Waiting for first route check" : "Checking...";
         const label = [STATUS_STYLE[status].label, failure].filter(Boolean).join(" — ");
@@ -430,6 +461,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     };
 
     const routeStatuses = routes.map(getRouteStatus).filter(s => s.status in STATUS_STYLE);
+    const routesMaint = routeStatuses.filter(s => s.status === "maintenance").length;
     const routesOnline = routeStatuses.filter(s => s.status === "online").length;
 
     const handleSort = (col) => {
@@ -475,7 +507,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                             {search && <button className="search-clear" onClick={() => setSearch("")} title="Clear filter">✕</button>}
                         </div>
                         <span className="section-label">
-                            {healthLoading ? "Checking..." : `${routesOnline}/${routeStatuses.length} routes online`}
+                            {healthLoading ? "Checking..." : `${routesOnline}/${routeStatuses.length} routes online${routesMaint ? ` · ${routesMaint} in maintenance` : ""}`}
                         </span>
                     </div>
                     <div className="btn-row routes-toolbar-actions">
@@ -551,6 +583,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                                     </span>
                                                                 );
                                                             }) : <span className="mono">{domain}</span>}
+                                                            {maintenance[domain] && <span className="badge badge-muted" style={{ marginLeft: 8, fontSize: 11 }}>maintenance</span>}
                                                             {note && <div className="route-note route-note--mobile">{note}</div>}
                                                         </div>
                                                     </div>
@@ -571,6 +604,14 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                 {columns.id && <td className="mono cell-muted">{r["@id"] || "—"}</td>}
                                                 <td className="col-actions">
                                                     <div className="btn-row flex-end">
+                                                        {!hasId && (
+                                                            <button
+                                                                className="btn btn-ghost btn--icon"
+                                                                style={{ color: maintenance[domain] ? "var(--accent3)" : "var(--muted)" }}
+                                                                onClick={() => toggleMaintenance(domain)}
+                                                                title={maintenance[domain] ? "Disable maintenance mode" : "Enable maintenance mode"}
+                                                            >🔧</button>
+                                                        )}
                                                         <button
                                                             className="btn btn-ghost btn--icon"
                                                             style={{ color: note ? "var(--accent2)" : "var(--muted)" }}
@@ -597,6 +638,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                     siteBlockFailed={editModal.siteBlockFailed}
                     initialContent={editModal.content || ""}
                     titleNeedsMigration={editModal.isCaddyfileManaged && editModal.caddyfileTitle !== null && !editModal.caddyfileTitle && !!notes[editModal.domain]}
+                    inMaintenance={!!maintenance[editModal.domain]}
                     onSave={handleEditSave}
                     onDelete={() => deleteCaddyfileBlock(editModal.domain)}
                     onClose={() => setEditModal(null)}

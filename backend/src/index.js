@@ -23,6 +23,7 @@ import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
 import { startRouteMonitor } from './routeMonitor.js';
+import { loadMaintenance } from './maintenance.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { startUpstreamMonitor } from './upstreamMonitor.js';
@@ -108,6 +109,7 @@ app.use((err, req, res, next) => {
 
 await loadInstances();
 await loadSettings();
+await loadMaintenance();
 await loadCustomThemes();
 await initUptimeHistory();
 startUpstreamMonitor();
