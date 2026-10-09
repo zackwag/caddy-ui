@@ -1,0 +1,13 @@
+{
+	"name": "caddy-ui frontend",
+	"image": "node:24-bookworm",
+    "remoteUser": "node",
+    "postCreateCommand": "npm --prefix frontend ci",
+    "forwardPorts": [5173],
+    "portsAttributes": {
+        "5173": {
+            "label": "Caddy UI frontend",
+            "onAutoForward": "openBrowser"
+        }
+    }
+}
