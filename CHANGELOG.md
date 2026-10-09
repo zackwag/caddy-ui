@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.0](https://github.com/zackwag/caddy-ui/compare/v2.10.0...v2.11.0) (2026-10-09)
+
+
+### Features
+
+* add favicon matching the UI branding ([#157](https://github.com/zackwag/caddy-ui/issues/157)) ([c1c5ea2](https://github.com/zackwag/caddy-ui/commit/c1c5ea26961b83c809cc7fc6d3b09c33e2740e0e))
+
 ## [2.10.0](https://github.com/zackwag/caddy-ui/compare/v2.9.0...v2.10.0) (2026-10-07)
 
 
