@@ -10,7 +10,7 @@ RUN npm install
 
 COPY index.html .
 COPY vite.config.js .
-COPY favicon.ico .
+COPY caddyuilogo.ico .
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 
