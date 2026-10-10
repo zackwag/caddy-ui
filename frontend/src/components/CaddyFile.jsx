@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, getToken } from "../utils/api.js";
 import { formatTs } from "../utils/format.js";
+import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
 
 function CaddyfileCodeMirror({ value, onChange, theme }) {
     const containerRef = useRef(null);
@@ -82,6 +83,37 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
     return <div ref={containerRef} style={{ minHeight: 420, background: "var(--editor-bg)" }} />;
 }
 
+function CaddyfileDiff({ oldText, newText }) {
+    const lines = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
+    const added = lines.filter(l => l.type === "add").length;
+    const removed = lines.filter(l => l.type === "del").length;
+    const shown = useMemo(() => collapseUnchanged(lines), [lines]);
+
+    if (!added && !removed) return <div className="history-preview history-diff-empty">No differences</div>;
+
+    return (
+        <>
+            <div className="history-diff-stats">
+                <span className="diff-stat--add">+{added}</span> <span className="diff-stat--del">−{removed}</span>
+            </div>
+            <div className="history-preview history-diff">
+                <div className="history-diff-lines">
+                    {shown.map((line, i) => line.type === "skip" ? (
+                        <div key={i} className="diff-skip">⋯ {line.count} unchanged line{line.count === 1 ? "" : "s"}</div>
+                    ) : (
+                        <div key={i} className={`diff-line diff-line--${line.type}`}>
+                            <span className="diff-ln">{line.oldNo ?? ""}</span>
+                            <span className="diff-ln">{line.newNo ?? ""}</span>
+                            <span className="diff-sign">{line.type === "add" ? "+" : line.type === "del" ? "−" : " "}</span>
+                            <span className="diff-text">{line.text}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </>
+    );
+}
+
 export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
@@ -95,6 +127,10 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [previewEntry, setPreviewEntry] = useState(null);
     const [previewContent, setPreviewContent] = useState("");
+    const [previewMode, setPreviewMode] = useState("diff");
+    const [compareTo, setCompareTo] = useState("current");
+    const [compareContent, setCompareContent] = useState(null);
+    const snapshotCache = useRef(new Map());
     const importInputRef = useRef(null);
     const historyRef = useRef(null);
 
@@ -121,11 +157,28 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         setPreviewContent("");
     };
 
+    // Snapshots never change once written, so each is fetched at most once.
+    const fetchSnapshot = async (filename) => {
+        if (!snapshotCache.current.has(filename)) {
+            snapshotCache.current.set(filename, await apiFetch(`/caddyfile/history/${filename}`, {}, onUnauth));
+        }
+        return snapshotCache.current.get(filename);
+    };
+
     const previewSnapshot = async (entry) => {
         if (previewEntry?.filename === entry.filename) { setPreviewEntry(null); setPreviewContent(""); return; }
         try {
-            const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
+            const text = await fetchSnapshot(entry.filename);
             setPreviewEntry(entry); setPreviewContent(text);
+            setCompareTo("current"); setCompareContent(null);
+        } catch (e) { toast.error(e.message); }
+    };
+
+    const changeCompareTo = async (target) => {
+        if (target === "current") { setCompareTo(target); setCompareContent(null); return; }
+        try {
+            const text = await fetchSnapshot(target);
+            setCompareTo(target); setCompareContent(text);
         } catch (e) { toast.error(e.message); }
     };
 
@@ -146,7 +199,9 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         try {
             await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
             toast.success("Snapshot deleted");
+            snapshotCache.current.delete(entry.filename);
             if (previewEntry?.filename === entry.filename) { setPreviewEntry(null); setPreviewContent(""); }
+            if (compareTo === entry.filename) { setCompareTo("current"); setCompareContent(null); }
             loadHistory();
         } catch (e) { toast.error(e.message); }
     };
@@ -208,6 +263,13 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
 
     const isDirty = content !== original;
 
+    // Diff from older to newer: a snapshot against the saved file, or two
+    // snapshots ordered by timestamp (filenames sort chronologically).
+    let diffOld = previewContent, diffNew = original;
+    if (compareTo !== "current" && compareContent !== null) {
+        [diffOld, diffNew] = compareTo < previewEntry?.filename ? [compareContent, previewContent] : [previewContent, compareContent];
+    }
+
     if (loading) return <div className="loading">Loading Caddyfile...</div>;
 
     return (
@@ -267,7 +329,30 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                             <button className="btn btn-danger btn--sm" title="Delete snapshot" onClick={() => deleteSnapshot(entry)}>✕</button>
                                         </div>
                                     </div>
-                                    {previewEntry?.filename === entry.filename && <div className="history-preview">{previewContent}</div>}
+                                    {previewEntry?.filename === entry.filename && (
+                                        <div className="history-detail">
+                                            <div className="history-compare">
+                                                <div className="history-range-picker">
+                                                    <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± Diff</button>
+                                                    <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>Raw</button>
+                                                </div>
+                                                {previewMode === "diff" && (
+                                                    <div className="select-wrap history-compare-select">
+                                                        <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label="Compare against">
+                                                            <option value="current">vs. current file{isDirty ? " (saved)" : ""}</option>
+                                                            {history.filter(other => other.filename !== entry.filename).map(other => (
+                                                                <option key={other.filename} value={other.filename}>vs. {formatTs(other.timestamp)}</option>
+                                                            ))}
+                                                        </select>
+                                                        <span className="select-arrow">▾</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {previewMode === "diff"
+                                                ? <CaddyfileDiff oldText={diffOld} newText={diffNew} />
+                                                : <div className="history-preview">{previewContent}</div>}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

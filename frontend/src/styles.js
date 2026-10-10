@@ -2066,6 +2066,68 @@ export const css = `
     color: var(--muted);
   }
 
+  /* ── Utility: History diff ────────────────────────────────────────────────── */
+
+  .history-detail { padding-bottom: 12px; }
+
+  .history-compare {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .history-compare-select { min-width: 220px; }
+  .history-compare-select .config-select { padding-top: 3px; padding-bottom: 3px; font-size: 11px; }
+
+  .history-diff-stats {
+    margin-top: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+  }
+  .diff-stat--add { color: var(--accent); }
+  .diff-stat--del { color: var(--danger); }
+
+  .history-detail .history-preview { margin-top: 8px; }
+
+  .history-diff { padding: 6px 0; max-height: 360px; tab-size: 4; }
+  .history-diff-empty { color: var(--muted); white-space: normal; }
+
+  /* Sized to the longest line so row backgrounds span the full scroll width */
+  .history-diff-lines { display: inline-block; min-width: 100%; }
+
+  .diff-line { display: flex; }
+  .diff-line--add { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .diff-line--del { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+
+  .diff-ln {
+    flex-shrink: 0;
+    width: 5ch;
+    padding-right: 6px;
+    text-align: right;
+    color: var(--muted);
+    user-select: none;
+  }
+
+  .diff-sign {
+    flex-shrink: 0;
+    width: 3ch;
+    text-align: center;
+    color: var(--muted);
+    user-select: none;
+  }
+  .diff-line--add .diff-sign { color: var(--accent); }
+  .diff-line--del .diff-sign { color: var(--danger); }
+
+  .diff-text { padding-right: 12px; }
+
+  .diff-skip {
+    padding: 2px 12px;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+  }
+
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
