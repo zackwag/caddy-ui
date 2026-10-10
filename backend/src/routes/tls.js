@@ -17,16 +17,57 @@ async function parseCert(containerName, certPath) {
     }
 }
 
+// Caddy only applies automatic HTTPS to servers that listen on something other
+// than the HTTP port.
+function servesHttps(server) {
+    const listen = server.listen || [];
+    return !listen.length || listen.some(addr => !/:80$/.test(addr));
+}
+
+// Names Caddy manages certificates for. Sites with their own TLS settings are
+// listed as automation policy subjects, but most Caddyfile sites are managed
+// implicitly by automatic HTTPS and only show up as route host matchers, so
+// both are collected.
+function collectManagedDomains(tlsApp, servers) {
+    const domains = new Set();
+    for (const policy of tlsApp?.automation?.policies || []) {
+        for (const subject of policy.subjects || []) domains.add(subject.toLowerCase());
+    }
+    for (const server of Object.values(servers || {})) {
+        const auto = server.automatic_https || {};
+        if (auto.disable || auto.disable_certificates || !servesHttps(server)) continue;
+        const skip = new Set([...(auto.skip || []), ...(auto.skip_certificates || [])].map(h => h.toLowerCase()));
+        for (const route of server.routes || []) {
+            for (const matcher of route.match || []) {
+                for (const host of matcher.host || []) {
+                    const name = host.toLowerCase();
+                    if (name.includes('{') || skip.has(name)) continue;
+                    domains.add(name);
+                }
+            }
+        }
+    }
+    return domains;
+}
+
+// Caddy stores wildcard certs under "wildcard_.example.com" since "*" isn't
+// safe in a directory name.
+function isManagedDomain(certDir, managedDomains) {
+    const name = certDir.toLowerCase().replace(/^wildcard_\./, '*.');
+    return managedDomains.has(name);
+}
+
+// Returns null when the config can't be read, so certs aren't reported as
+// orphaned (and offered for deletion) just because Caddy was unreachable.
 async function getManagedDomains(adminUrl) {
     try {
-        const tls = await caddyGet('/config/apps/tls', adminUrl);
-        const domains = new Set();
-        for (const policy of tls?.automation?.policies || []) {
-            for (const subject of policy.subjects || []) domains.add(subject);
-        }
-        return domains;
+        const [tlsApp, servers] = await Promise.all([
+            caddyGet('/config/apps/tls', adminUrl),
+            caddyGet('/config/apps/http/servers', adminUrl),
+        ]);
+        return collectManagedDomains(tlsApp, servers);
     } catch {
-        return new Set();
+        return null;
     }
 }
 
@@ -55,7 +96,7 @@ async function getCerts(containerName, certsPath, adminUrl) {
             const validTo = new Date(info.validTo);
             const now = new Date();
             const daysRemaining = Math.floor((validTo - now) / (1000 * 60 * 60 * 24));
-            const isManaged = managedDomains.has(domain);
+            const isManaged = !managedDomains || isManagedDomain(domain, managedDomains);
 
             let status;
             if (!isManaged) status = 'orphaned';
@@ -159,3 +200,4 @@ router.get('/ca', async (req, res) => {
 });
 
 export default router;
+export { collectManagedDomains, isManagedDomain };
