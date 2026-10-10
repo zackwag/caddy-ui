@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.1](https://github.com/zackwag/caddy-ui/compare/v2.12.0...v2.12.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* serve favicon from an absolute path and add SVG/touch icons ([#170](https://github.com/zackwag/caddy-ui/issues/170)) ([f1c0b18](https://github.com/zackwag/caddy-ui/commit/f1c0b186f09cde9405d2496bd88382edeff47ad7))
+
 ## [2.12.0](https://github.com/zackwag/caddy-ui/compare/v2.11.3...v2.12.0) (2026-10-10)
 
 
