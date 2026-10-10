@@ -1146,6 +1146,8 @@ export const css = `
 
   .theme-picker-row { margin-bottom: 10px; }
   .theme-picker-row:last-child { margin-bottom: 0; }
+  .theme-picker-export { border-top: 1px solid var(--border); padding-top: 10px; }
+  .theme-picker-export .btn { width: 100%; justify-content: center; }
   .theme-picker-row label {
     display: block;
     font-family: 'IBM Plex Mono', monospace;
