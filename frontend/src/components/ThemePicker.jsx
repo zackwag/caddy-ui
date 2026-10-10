@@ -1,10 +1,29 @@
 import { useRef, useState } from "react";
 import { useClickOutside } from "../hooks/useClickOutside.js";
+import { THEME_VAR_KEYS } from "../styles.js";
 
 function themeOptions(themes, mode) {
     const builtIn = themes.filter(t => t.mode === mode && !t.custom).sort((a, b) => a.label.localeCompare(b.label));
     const custom = themes.filter(t => t.mode === mode && t.custom).sort((a, b) => a.label.localeCompare(b.label));
     return { builtIn, custom };
+}
+
+// Downloads a theme in the custom-theme file format backend/src/customThemes.js
+// validates, ready to drop into THEMES_PATH/<mode>/ and edit. Custom ids are
+// `custom-<mode>-<filename slug>`, so stripping the prefix round-trips the
+// original filename.
+function exportTheme(theme) {
+    const json = JSON.stringify({
+        label: theme.label,
+        vars: Object.fromEntries(THEME_VAR_KEYS.map(k => [k, theme.vars[k]])),
+    }, null, 2);
+    const blob = new Blob([json + '\n'], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${theme.custom ? theme.id.replace(`custom-${theme.mode}-`, '') : theme.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, lightPalette, onDarkPaletteChange, onLightPaletteChange }) {
@@ -14,6 +33,7 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
 
     const dark = themeOptions(themes, 'dark');
     const light = themeOptions(themes, 'light');
+    const active = themes.find(t => t.id === (mode === 'dark' ? darkPalette : lightPalette));
 
     return (
         <div className="theme-picker" ref={menuRef}>
@@ -55,6 +75,15 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
                             <span className="select-arrow">▾</span>
                         </div>
                     </div>
+                    {active && (
+                        <div className="theme-picker-row theme-picker-export">
+                            <button
+                                className="btn btn-ghost btn--sm"
+                                onClick={() => exportTheme(active)}
+                                title={`Download ${active.label} as a custom theme file for the themes/${active.mode}/ folder`}
+                            >↓ Export {active.label} as JSON</button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
