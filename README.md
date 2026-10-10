@@ -275,10 +275,14 @@ This requires mounting each Caddy instance's files into the backend container:
       - /docker/caddy-ui:/etc/caddy-ui
       - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - /docker/caddy/logs:/var/log/caddy
-      - /docker/caddy/data:/data/caddy
+      - /docker/caddy/data:/data
 ```
 
+Mount each directory at the same path the Caddy container uses. The official Caddy image keeps its data in `/data/caddy` (certificates are in `/data/caddy/certificates`), so mounting the same host directory at `/data` lets the default **Data Path** of `/data/caddy` work unchanged. If you mount it elsewhere, point **Data Path** at the directory that contains `certificates`.
+
 Then add the instance manually on the Instances page with Container Name left empty. The paths in the instance config must match where the files are mounted in the backend container.
+
+> **Permissions:** The backend image runs as root, so it can read Caddy's files with no changes, including the private keys Caddy creates with owner-only permissions. You don't need to change the user Caddy runs as. If you run the backend as a non-root user (a `user:` setting, rootless Docker, or Podman), that user needs read access to Caddy's data directory and logs, and write access to the Caddyfile and the directory containing it (caddy/ui writes a temporary file there to validate edits). If the TLS page is empty, the backend log says whether the certificates path was missing or unreadable.
 
 > **Note:** When managing multiple instances in local mode, the mount paths can't collide. Two Caddy instances both using `/etc/caddy/Caddyfile` inside their own containers would need to be mounted to different paths in the backend (e.g., `/etc/caddy-prod/Caddyfile` and `/etc/caddy-staging/Caddyfile`).
 
