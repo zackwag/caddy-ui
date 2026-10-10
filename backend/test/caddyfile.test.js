@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSiteBlocks, sortCaddyfile } from '../src/routes/caddyfile.js';
+import { parseSiteBlocks, planLegacyHistoryMigration, sortCaddyfile } from '../src/routes/caddyfile.js';
 
 describe('parseSiteBlocks', () => {
     it('parses a single site block', () => {
@@ -163,5 +163,37 @@ alpha.example.com {
         const result = sortCaddyfile(content);
         expect(result.endsWith('\n')).toBe(true);
         expect(result.endsWith('\n\n')).toBe(false);
+    });
+});
+
+describe('planLegacyHistoryMigration', () => {
+    const caddy = { id: 'caddy' };
+    const root = ['caddy', 'Caddyfile-2026-08-04T15-49-09', 'Caddyfile-2026-09-21T15-24-01'];
+
+    it('moves root snapshots into the only instance when no default instance exists', () => {
+        expect(planLegacyHistoryMigration([caddy], root, ['Caddyfile-2026-09-22T19-51-00']))
+            .toEqual({ targetId: 'caddy', moves: ['Caddyfile-2026-08-04T15-49-09', 'Caddyfile-2026-09-21T15-24-01'], orphaned: 0 });
+    });
+
+    it('leaves root snapshots alone while a default instance owns them', () => {
+        expect(planLegacyHistoryMigration([{ id: 'default' }, caddy], root, [])).toBeNull();
+    });
+
+    it('does nothing when there are no root snapshots', () => {
+        expect(planLegacyHistoryMigration([caddy], ['caddy'], [])).toBeNull();
+    });
+
+    it('skips snapshots that already exist in the target folder', () => {
+        expect(planLegacyHistoryMigration([caddy], root, ['Caddyfile-2026-08-04T15-49-09']).moves)
+            .toEqual(['Caddyfile-2026-09-21T15-24-01']);
+    });
+
+    it('reports them as orphaned when several instances could own them', () => {
+        expect(planLegacyHistoryMigration([caddy, { id: 'edge' }], root, []))
+            .toEqual({ targetId: null, moves: [], orphaned: 2 });
+    });
+
+    it('reports them as orphaned when no instances exist', () => {
+        expect(planLegacyHistoryMigration([], root, []).orphaned).toBe(2);
     });
 });
