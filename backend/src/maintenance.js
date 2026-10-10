@@ -88,12 +88,20 @@ export async function getMaintenancePage() {
     }
 }
 
+// Caddyfile backtick strings have no escape sequences, so a page containing a
+// backtick would end the token early. A heredoc takes the page verbatim; its
+// marker only has to not appear in the page. Caddy strips the closing marker's
+// indentation from every line, so the page can be indented to fit the block.
 export function buildMaintenanceBlock(domain, html) {
-    const escaped = html.replace(/`/g, '\\`');
+    let marker = 'CADDY_UI_MAINTENANCE';
+    while (html.includes(marker)) marker += '_';
+    const indent = ' '.repeat(8);
     const lines = [];
     lines.push(`${domain} {`);
     lines.push(`    header Content-Type text/html`);
-    lines.push(`    respond \`${escaped}\` 503`);
+    lines.push(`    respond <<${marker}`);
+    for (const line of html.split(/\r?\n/)) lines.push(line ? indent + line : '');
+    lines.push(`${indent}${marker} 503`);
     lines.push(`}`);
     return lines.join('\n');
 }

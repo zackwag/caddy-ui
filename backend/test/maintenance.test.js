@@ -13,10 +13,22 @@ describe('buildMaintenanceBlock', () => {
         expect(block).toMatch(/}$/);
     });
 
-    it('escapes backticks in HTML', () => {
-        const html = '<html><body>`code`</body></html>';
+    it('passes backticks and backslashes through unchanged', () => {
+        const html = '<html><body>`code` C:\\path</body></html>';
         const block = buildMaintenanceBlock('example.com', html);
-        expect(block).toContain('\\`code\\`');
+        expect(block).toContain('        <html><body>`code` C:\\path</body></html>');
+    });
+
+    it('uses a heredoc marker that does not appear in the HTML', () => {
+        const html = '<p>CADDY_UI_MAINTENANCE</p>';
+        const lines = buildMaintenanceBlock('example.com', html).split('\n');
+        expect(lines[2]).toBe('    respond <<CADDY_UI_MAINTENANCE_');
+        expect(lines[4]).toBe('        CADDY_UI_MAINTENANCE_ 503');
+    });
+
+    it('indents each line of the page and leaves blank lines empty', () => {
+        const lines = buildMaintenanceBlock('example.com', '<p>a</p>\r\n\r\n<p>b</p>').split('\n');
+        expect(lines.slice(3, 6)).toEqual(['        <p>a</p>', '', '        <p>b</p>']);
     });
 
     it('preserves the domain exactly', () => {
@@ -27,8 +39,13 @@ describe('buildMaintenanceBlock', () => {
     it('produces a valid Caddyfile block structure', () => {
         const block = buildMaintenanceBlock('test.com', '<h1>Down</h1>');
         const lines = block.split('\n');
-        expect(lines[0]).toBe('test.com {');
-        expect(lines[lines.length - 1]).toBe('}');
-        expect(lines.length).toBe(4);
+        expect(lines).toEqual([
+            'test.com {',
+            '    header Content-Type text/html',
+            '    respond <<CADDY_UI_MAINTENANCE',
+            '        <h1>Down</h1>',
+            '        CADDY_UI_MAINTENANCE 503',
+            '}',
+        ]);
     });
 });
