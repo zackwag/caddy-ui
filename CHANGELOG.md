@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.1](https://github.com/zackwag/caddy-ui/compare/v2.11.0...v2.11.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* stop reporting implicitly managed TLS certs as orphaned ([#160](https://github.com/zackwag/caddy-ui/issues/160)) ([6b59ca4](https://github.com/zackwag/caddy-ui/commit/6b59ca41edaea02ad549af895cdb6a66bc3d5245))
+
 ## [2.11.0](https://github.com/zackwag/caddy-ui/compare/v2.10.0...v2.11.0) (2026-10-09)
 
 
