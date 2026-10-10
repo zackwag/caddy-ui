@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.0](https://github.com/zackwag/caddy-ui/compare/v2.13.1...v2.14.0) (2026-10-10)
+
+
+### Features
+
+* export the active theme as a custom-theme JSON file ([#176](https://github.com/zackwag/caddy-ui/issues/176)) ([c6642e9](https://github.com/zackwag/caddy-ui/commit/c6642e9fa78312f178361c9f5c18067291c30ef6))
+
 ## [2.13.1](https://github.com/zackwag/caddy-ui/compare/v2.13.0...v2.13.1) (2026-10-10)
 
 
