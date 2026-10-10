@@ -40,7 +40,7 @@ There is no frontend test suite and no repo-wide lint/format command — `backen
 - **`frontend/src/lib/caddyfileMode.js` is generated and gitignored.** It's fetched at dev/build time from the external [zackwag/caddyfile-codemirror](https://github.com/zackwag/caddyfile-codemirror) repo by `frontend/scripts/fetch-caddyfile-mode.mjs`. Never hand-edit it or assume it's present without running `npm run dev`/`npm run build` first (needs network access on first run).
 - **The Caddyfile is the source of truth**, not a UI-owned config. Backend code that writes to it (`backend/src/caddy.js`, `backend/src/routes/caddyfile.js`) should preserve user content/formatting wherever the existing code already does — this is a deliberate design constraint of the product, not incidental behavior.
 - **Auth is optional and env-driven.** `CADDY_UI_USER`/`CADDY_UI_PASSWORD`/`JWT_SECRET` unset means auth is disabled entirely (see `backend/src/middleware/auth.js`). Don't add code paths that assume auth is always on.
-- **The backend Dockerfile pins a Caddy binary** (`COPY --from=caddy:vX.Y.Z ...`) used for `caddy fmt` and version detection — it's expected to degrade gracefully if that binary is missing or mismatched, don't make it a hard dependency.
+- **The backend Dockerfile bundles a Caddy binary** (`COPY --from=caddy:latest ...`) used by local-mode instances for `caddy fmt`, validation, and version detection (Docker mode runs the Caddy container's own binary) — it's expected to degrade gracefully if that binary is missing or mismatched, don't make it a hard dependency.
 - Environment variables are documented in the [README's table](README.md#environment-variables) — keep it in sync if you add, rename, or remove one.
 
 ## Style
