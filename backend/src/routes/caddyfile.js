@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { mkdir, readdir, readFile, unlink, writeFile } from 'fs/promises';
+import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
 import { caddyLoad, withTimeout } from '../caddy.js';
 import { readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
 import { execInInstance } from '../docker.js';
-import { DEFAULT_INSTANCE_ID } from '../instances.js';
+import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
 import logger from '../logger.js';
 
 const router = Router();
@@ -15,6 +15,43 @@ function instanceHistoryDir(instanceId) {
     return instanceId && instanceId !== DEFAULT_INSTANCE_ID
         ? join(HISTORY_PATH, instanceId)
         : HISTORY_PATH;
+}
+
+// Snapshots in the root of HISTORY_PATH belong to the 'default' instance. If
+// the instances list no longer has one -- e.g. it was replaced by an instance
+// added through the UI -- those snapshots would silently vanish from the UI.
+// With exactly one instance they can only be its history, so move them into
+// its folder; with several it's ambiguous, so leave them and say so. Pure so
+// it's testable: returns the filenames to move into `targetId`'s folder.
+function planLegacyHistoryMigration(instances, rootFiles, targetFiles) {
+    const legacy = rootFiles.filter(f => f.startsWith('Caddyfile-'));
+    if (!legacy.length || instances.some(i => i.id === DEFAULT_INSTANCE_ID)) return null;
+    if (instances.length !== 1) return { targetId: null, moves: [], orphaned: legacy.length };
+    const existing = new Set(targetFiles);
+    return { targetId: instances[0].id, moves: legacy.filter(f => !existing.has(f)), orphaned: 0 };
+}
+
+// Runs once at startup. Never deletes: snapshots past MAX_HISTORY are pruned
+// by the next save, as usual.
+async function migrateLegacyHistory() {
+    try {
+        const rootFiles = await readdir(HISTORY_PATH).catch(() => []);
+        const instances = getInstances();
+        const targetId = instances.length === 1 ? instances[0].id : null;
+        const targetFiles = targetId ? await readdir(instanceHistoryDir(targetId)).catch(() => []) : [];
+        const plan = planLegacyHistoryMigration(instances, rootFiles, targetFiles);
+        if (!plan) return;
+        if (plan.orphaned) {
+            logger.warn('Caddyfile snapshots from the old default instance were left in place: more than one instance exists, so it is unclear which one they belong to', { dir: HISTORY_PATH, count: plan.orphaned });
+            return;
+        }
+        await ensureHistoryDir(plan.targetId);
+        const dir = instanceHistoryDir(plan.targetId);
+        for (const file of plan.moves) await rename(join(HISTORY_PATH, file), join(dir, file));
+        logger.info('Moved Caddyfile snapshots from the old default instance', { instanceId: plan.targetId, count: plan.moves.length });
+    } catch (err) {
+        logger.warn('Failed to migrate Caddyfile history', { error: err.message });
+    }
 }
 
 async function ensureHistoryDir(instanceId) {
@@ -411,4 +448,4 @@ router.put('/', async (req, res) => {
 });
 
 export default router;
-export { parseSiteBlocks, sortCaddyfile };
+export { migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, sortCaddyfile };
