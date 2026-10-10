@@ -143,3 +143,6 @@ vite.config.ts.timestamp-*
 
 # Fetched at build time from zackwag/caddyfile-codemirror (see frontend/scripts/fetch-caddyfile-mode.mjs)
 frontend/src/lib/caddyfileMode.js
+
+# Personal editor/dev container setups
+.devcontainer/
