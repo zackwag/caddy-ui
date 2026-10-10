@@ -265,7 +265,7 @@ To add more instances, put them on the same Docker network and they'll show up i
 
 ### Local mode (no Docker socket)
 
-If you can't or don't want to mount the Docker socket, leave the **Container Name** field empty when adding an instance. caddy/ui will access Caddyfiles, logs, and certificates directly from the filesystem and use the bundled `caddy` binary for formatting, validation, and reload.
+If you can't or don't want to mount the Docker socket, leave the **Container Name** field empty when adding an instance. caddy/ui will access Caddyfiles, logs, and certificates directly from the filesystem and use the bundled `caddy` binary for formatting, validation, and version detection. Reloads go through the instance's admin API.
 
 This requires mounting each Caddy instance's files into the backend container:
 
@@ -284,7 +284,7 @@ Then add the instance manually on the Instances page with Container Name left em
 
 > **Permissions:** The backend image runs as root, so it can read Caddy's files with no changes, including the private keys Caddy creates with owner-only permissions. You don't need to change the user Caddy runs as. If you run the backend as a non-root user (a `user:` setting, rootless Docker, or Podman), that user needs read access to Caddy's data directory and logs, and write access to the Caddyfile and the directory containing it (caddy/ui writes a temporary file there to validate edits). If the TLS page is empty, the backend log says whether the certificates path was missing or unreadable.
 
-> **Note:** When managing multiple instances in local mode, the mount paths can't collide. Two Caddy instances both using `/etc/caddy/Caddyfile` inside their own containers would need to be mounted to different paths in the backend (e.g., `/etc/caddy-prod/Caddyfile` and `/etc/caddy-staging/Caddyfile`).
+> **Note:** When managing multiple instances in local mode, the mount paths can't collide. Two Caddy instances both using `/etc/caddy/Caddyfile` inside their own containers would need to be mounted to different paths in the backend (e.g., `/etc/caddy-prod/Caddyfile` and `/etc/caddy-staging/Caddyfile`). The same goes for data directories: only one instance can use `/data`, so mount another at e.g. `/data-staging` and set its **Data Path** to `/data-staging/caddy`.
 
 ### Instance switcher
 
