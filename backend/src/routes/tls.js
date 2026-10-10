@@ -2,10 +2,17 @@ import { X509Certificate } from 'crypto';
 import { Router } from 'express';
 import { join, resolve, relative } from 'path';
 import { caddyGet } from '../caddy.js';
-import { listContainerDir, readContainerFile, removeContainerPath } from '../containerFs.js';
+import { describeReadError, listContainerDir, readContainerDir, readContainerFile, removeContainerPath } from '../containerFs.js';
 import logger from '../logger.js';
 
 const router = Router();
+
+// In local mode the certs path is a volume mount the user set up by hand, so
+// say what to check.
+const LOCAL_MODE_HINTS = {
+    'not found': "Mount Caddy's data directory into the backend so this path exists, or fix the instance's data path",
+    'permission denied': "Give caddy-ui's user read access to Caddy's data directory",
+};
 
 async function parseCert(containerName, certPath) {
     try {
@@ -34,9 +41,13 @@ async function getCerts(containerName, certsPath, adminUrl) {
     const results = [];
     const managedDomains = await getManagedDomains(adminUrl);
 
-    const issuers = await listContainerDir(containerName, certsPath);
-    if (!issuers.length) {
-        logger.warn(`Could not read certs path`, { path: certsPath });
+    let issuers;
+    try {
+        issuers = await readContainerDir(containerName, certsPath);
+    } catch (err) {
+        const reason = describeReadError(err);
+        const hint = containerName ? undefined : LOCAL_MODE_HINTS[reason];
+        logger.warn(`Could not read certs path`, { path: certsPath, reason, ...(hint && { hint }) });
         return [];
     }
 
