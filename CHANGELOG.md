@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.2](https://github.com/zackwag/caddy-ui/compare/v2.11.1...v2.11.2) (2026-10-10)
+
+
+### Bug Fixes
+
+* say why the TLS certs path couldn't be read ([#162](https://github.com/zackwag/caddy-ui/issues/162)) ([7631d77](https://github.com/zackwag/caddy-ui/commit/7631d777a9ed35850789889cfc9d338c3d0d8392))
+
 ## [2.11.1](https://github.com/zackwag/caddy-ui/compare/v2.11.0...v2.11.1) (2026-10-10)
 
 
