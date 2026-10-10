@@ -68,7 +68,7 @@ const ADAPT_TIMEOUT_MS = 10000;
 // genuine Caddyfile error reported by `caddy adapt`.
 function isDockerUnavailable(err) {
     if (!err) return false;
-    if (err.code === null || err.code === undefined) return true;
+    if (err.code === null || err.code === undefined || err.code === 'ENOENT') return true;
     const msg = `${err.stderr || ''} ${err.stdout || ''} ${err.message || ''}`.toLowerCase();
     return /cannot connect to the docker daemon|is the docker daemon running|no such container|permission denied while trying to connect|docker:? (?:command )?not found|executable file not found|not found in \$path/.test(msg);
 }
@@ -134,6 +134,10 @@ async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
         await caddyLoad(content, adminUrl);
         return;
     } catch (loadErr) {
+        // In local mode the bundled binary would resolve {$VAR} placeholders
+        // from caddy-ui's environment rather than Caddy's, and it would post to
+        // the same admin API that just failed, so there's nothing to fall back to.
+        if (!containerName) throw loadErr;
         try {
             await reloadViaCaddyBinary(configPath, containerName);
             logger.info('Caddy reloaded via caddy binary (admin /load failed)');
