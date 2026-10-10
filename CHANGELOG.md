@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.0](https://github.com/zackwag/caddy-ui/compare/v2.11.3...v2.12.0) (2026-10-10)
+
+
+### Features
+
+* add route maintenance mode toggle ([#156](https://github.com/zackwag/caddy-ui/issues/156)) ([7da83be](https://github.com/zackwag/caddy-ui/commit/7da83bea995e38f6eb7a0ff316e6aa8711502c74))
+
 ## [2.11.3](https://github.com/zackwag/caddy-ui/compare/v2.11.2...v2.11.3) (2026-10-10)
 
 
