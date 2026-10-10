@@ -4,6 +4,7 @@ import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from 
 import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { getCaddyEnv, resolveEnvVars } from '../docker.js';
 import logger from '../logger.js';
+import { buildMaintenanceBlock, clearMaintenance, getMaintenancePage, getMaintenanceState, isInMaintenance, setMaintenance } from '../maintenance.js';
 
 const router = Router();
 
@@ -343,5 +344,76 @@ router.delete('/:id', async (req, res) => {
     res.json({ ok: true, id });
 });
 
+// GET /api/routes/maintenance -- get maintenance state for all domains
+router.get('/maintenance', (req, res) => {
+    res.json(getMaintenanceState());
+});
+
+// POST /api/routes/caddyfile/:domain/maintenance -- enable maintenance mode
+router.post('/caddyfile/:domain/maintenance', async (req, res) => {
+    const { domain } = req.params;
+    if (isInMaintenance(domain)) {
+        return res.status(409).json({ error: 'Route is already in maintenance mode' });
+    }
+
+    try {
+        const [caddyfile, env] = await Promise.all([
+            readContainerFile(req.instance.containerName, req.instance.configPath),
+            getCaddyEnv(req.instance.containerName),
+        ]);
+        const block = extractSiteBlock(caddyfile, domain, env);
+        if (!block) return res.status(404).json({ error: 'site block not found' });
+
+        const html = await getMaintenancePage();
+        const maintBlock = buildMaintenanceBlock(domain, html);
+
+        const cleaned = removeSiteBlock(caddyfile, domain, env);
+        const updated = `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
+        await writeContainerFile(req.instance.containerName, req.instance.configPath, updated);
+
+        const { caddyLoad } = await import('../caddy.js');
+        await caddyLoad(updated, req.instance.adminUrl);
+
+        await setMaintenance(domain, block);
+
+        logger.info('Maintenance mode enabled', { domain });
+        res.json({ ok: true, domain });
+    } catch (e) {
+        logger.error('Failed to enable maintenance mode', { domain, error: e.message });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// DELETE /api/routes/caddyfile/:domain/maintenance -- disable maintenance mode
+router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
+    const { domain } = req.params;
+    if (!isInMaintenance(domain)) {
+        return res.status(404).json({ error: 'Route is not in maintenance mode' });
+    }
+
+    try {
+        const [caddyfile, env] = await Promise.all([
+            readContainerFile(req.instance.containerName, req.instance.configPath),
+            getCaddyEnv(req.instance.containerName),
+        ]);
+
+        const entry = await clearMaintenance(domain);
+        const originalContent = entry.originalContent;
+
+        const cleaned = removeSiteBlock(caddyfile, domain, env);
+        const updated = `${cleaned.trimEnd()}\n\n${originalContent}\n`;
+        await writeContainerFile(req.instance.containerName, req.instance.configPath, updated);
+
+        const { caddyLoad } = await import('../caddy.js');
+        await caddyLoad(updated, req.instance.adminUrl);
+
+        logger.info('Maintenance mode disabled', { domain });
+        res.json({ ok: true, domain });
+    } catch (e) {
+        logger.error('Failed to disable maintenance mode', { domain, error: e.message });
+        res.status(500).json({ error: e.message });
+    }
+});
+
 export default router;
-export { buildReverseProxyRoute, buildCaddyfileBlock, removeSiteBlock, replaceSiteBlock, extractSiteBlock, isSimpleReverseProxy };
+export { buildReverseProxyRoute, buildCaddyfileBlock, removeSiteBlock, replaceSiteBlock, extractSiteBlock, isSimpleReverseProxy, buildMaintenanceBlock };
