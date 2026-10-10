@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.0](https://github.com/zackwag/caddy-ui/compare/v2.12.1...v2.13.0) (2026-10-10)
+
+
+### Features
+
+* show a diff of Caddyfile snapshots in version history ([#173](https://github.com/zackwag/caddy-ui/issues/173)) ([902b275](https://github.com/zackwag/caddy-ui/commit/902b27583a46949a1927336a97aa04771f00003a))
+
 ## [2.12.1](https://github.com/zackwag/caddy-ui/compare/v2.12.0...v2.12.1) (2026-10-10)
 
 
