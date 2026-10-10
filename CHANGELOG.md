@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.1](https://github.com/zackwag/caddy-ui/compare/v2.13.0...v2.13.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* keep Caddyfile history when the default instance is replaced ([#175](https://github.com/zackwag/caddy-ui/issues/175)) ([bb2129a](https://github.com/zackwag/caddy-ui/commit/bb2129a78ce3a0e5daa850a22a151cacc3da5f58))
+
 ## [2.13.0](https://github.com/zackwag/caddy-ui/compare/v2.12.1...v2.13.0) (2026-10-10)
 
 
