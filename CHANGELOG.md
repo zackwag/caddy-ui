@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.3](https://github.com/zackwag/caddy-ui/compare/v2.11.2...v2.11.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* bundle the caddy binary again for local mode ([#161](https://github.com/zackwag/caddy-ui/issues/161)) ([3918218](https://github.com/zackwag/caddy-ui/commit/39182181027bb250402b21d27b6499227f3ad37f))
+
 ## [2.11.2](https://github.com/zackwag/caddy-ui/compare/v2.11.1...v2.11.2) (2026-10-10)
 
 
