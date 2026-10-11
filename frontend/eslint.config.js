@@ -6,7 +6,12 @@ import i18next from 'eslint-plugin-i18next';
 import i18nLiteralOptions from './eslint/i18n-literal-options.mjs';
 
 export default [
-    { ignores: ['dist', 'src/lib/caddyfileMode.js'] },
+    {
+        ignores: ['dist', 'src/lib/caddyfileMode.js'],
+        linterOptions: {
+            reportUnusedDisableDirectives: 'off',
+        },
+    },
     {
         files: ['src/**/*.{js,jsx}'],
         languageOptions: {
