@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { caddyGet } from '../caddy.js';
 import { discoverCaddyContainers } from '../dockerDiscovery.js';
 import { addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
 import logger from '../logger.js';
@@ -12,6 +13,13 @@ function generateId(name, existingIds) {
     let suffix = 2;
     while (existingIds.has(`${base}-${suffix}`)) suffix++;
     return `${base}-${suffix}`;
+}
+
+// Server IDs from Caddy's /config/apps/http/servers response, which is null
+// when no http app is configured.
+function serverIdsFromConfig(servers) {
+    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) return [];
+    return Object.keys(servers).sort();
 }
 
 function validateInstanceFields(fields) {
@@ -61,6 +69,23 @@ router.get('/discover', async (req, res) => {
     } catch (err) {
         logger.error('Docker discovery failed', { error: err.message });
         res.status(500).json({ error: 'Docker discovery failed' });
+    }
+});
+
+// GET /api/instances/servers?adminUrl=... -- live HTTP server IDs, so the
+// instance form can offer the real IDs (e.g. srv0) instead of free text
+router.get('/servers', async (req, res) => {
+    let adminUrl;
+    try {
+        adminUrl = validateUrl(req.query.adminUrl);
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+    try {
+        const servers = await caddyGet('/config/apps/http/servers', adminUrl);
+        res.json(serverIdsFromConfig(servers));
+    } catch (err) {
+        res.status(502).json({ error: `Could not read servers from Caddy: ${err.message}` });
     }
 });
 
@@ -132,4 +157,5 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+export { serverIdsFromConfig };
 export default router;

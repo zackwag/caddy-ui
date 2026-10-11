@@ -21,6 +21,9 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     const [saving, setSaving] = useState(false);
     const [discovered, setDiscovered] = useState(null);
     const [discovering, setDiscovering] = useState(false);
+    // Live HTTP server IDs for the form's admin URL; null until loaded or
+    // when Caddy can't be reached, in which case the field stays free text
+    const [serverIds, setServerIds] = useState(null);
 
     const toastRef = useRef(toast);
     toastRef.current = toast;
@@ -62,6 +65,18 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         const t = setInterval(poll, 30000);
         return () => clearInterval(t);
     }, [onUnauth]);
+
+    useEffect(() => {
+        setServerIds(null);
+        if (!editing || !form.adminUrl.trim()) return;
+        let cancelled = false;
+        const t = setTimeout(() => {
+            apiFetch(`/instances/servers?adminUrl=${encodeURIComponent(form.adminUrl.trim())}`, {}, onUnauth)
+                .then(ids => { if (!cancelled) setServerIds(ids); })
+                .catch(() => { });
+        }, 400);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [editing, form.adminUrl, onUnauth]);
 
     const addDiscovered = (container) => {
         setEditing("new");
@@ -275,13 +290,30 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             </div>
                             <div className="field">
                                 <label>Primary Server ID</label>
-                                <input
-                                    value={form.serverName}
-                                    onChange={e => update({ serverName: e.target.value })}
-                                    placeholder="srv0"
-                                />
+                                {serverIds?.length ? (
+                                    <div className="select-wrap">
+                                        <select
+                                            className="config-select"
+                                            value={form.serverName}
+                                            onChange={e => update({ serverName: e.target.value })}
+                                        >
+                                            {!serverIds.includes(form.serverName) && (
+                                                <option value={form.serverName}>{form.serverName || "(none)"} (not in Caddy)</option>
+                                            )}
+                                            {serverIds.map(id => <option key={id} value={id}>{id}</option>)}
+                                        </select>
+                                        <span className="select-arrow">▾</span>
+                                    </div>
+                                ) : (
+                                    <input
+                                        value={form.serverName}
+                                        onChange={e => update({ serverName: e.target.value })}
+                                        placeholder="srv0"
+                                    />
+                                )}
                                 <div className="hint" style={{ marginTop: 4 }}>
                                     Caddy HTTP server ID used when creating new routes. Usually srv0; this is not a hostname.
+                                    To label servers on the Dashboard, rename them there.
                                 </div>
                             </div>
                         </div>
