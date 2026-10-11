@@ -8,7 +8,7 @@ The web frontend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-backen
 
 - Dashboard with server status, route count, upstream health, and process info
 - Caddyfile editor with syntax highlighting, format-on-save, validation, and version history
-- Route manager — add, edit, and remove reverse proxy routes across all server blocks
+- Route manager — add, edit, and remove reverse proxy routes across all HTTP servers
 - TLS certificate overview with expiry tracking, status badges, and orphaned cert cleanup
 - Root CA certificate download
 - Live access log streaming with filtering and search

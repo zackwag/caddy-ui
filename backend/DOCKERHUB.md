@@ -88,7 +88,7 @@ All variables have sensible defaults. Only set what you need to override.
 | `NOTIFICATIONS_CONFIG_PATH` | `/etc/caddy-ui/notifications.json` | Path to the notification settings file |
 | `PORT` | `3001` | Port the backend listens on |
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
-| `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the server display names file |
+| `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the per-instance server labels file |
 | `SETTINGS_PATH` | `/etc/caddy-ui/settings.json` | Path to the UI settings file (theme preferences, column visibility) |
 | `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](https://github.com/zackwag/caddy-ui#custom-themes)) |
 | `UPTIME_HISTORY_PATH` | `/etc/caddy-ui/uptime-history.json` | Path to the persisted upstream uptime history file |
@@ -189,7 +189,7 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | `GET` | `/api/caddyfile/history` | List all Caddyfile snapshots |
 | `GET` | `/api/caddyfile/history/:filename` | Read a specific snapshot |
 | `DELETE` | `/api/caddyfile/history/:filename` | Delete a snapshot |
-| `GET` | `/api/routes` | List all routes across all server blocks |
+| `GET` | `/api/routes` | List all routes across all HTTP servers |
 | `POST` | `/api/routes` | Add a reverse proxy route |
 | `PATCH` | `/api/routes/:id` | Update a UI-managed route by ID |
 | `DELETE` | `/api/routes/:id` | Remove a route and its Caddyfile block |
@@ -205,9 +205,10 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | `GET` | `/api/logs/stream` | SSE stream of live log output |
 | `GET` | `/api/logs/config` | Read log configuration |
 | `PUT` | `/api/logs/config` | Update log configuration |
-| `GET` | `/api/server-names` | Read server block display names |
-| `PUT` | `/api/server-names/:id` | Set a display name |
-| `DELETE` | `/api/server-names/:id` | Clear a display name |
+| `GET` | `/api/server-names` | Read server labels for the selected instance |
+| `GET` | `/api/server-names/all` | Read server labels for every instance |
+| `PUT` | `/api/server-names/:id` | Set a server label |
+| `DELETE` | `/api/server-names/:id` | Remove a server label |
 | `GET` | `/api/notifications/config` | Read notification settings |
 | `PUT` | `/api/notifications/config` | Update notification settings |
 | `POST` | `/api/notifications/test` | Send a test notification |

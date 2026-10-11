@@ -65,7 +65,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                     <div className="card card-clickable" onClick={() => navigate("/caddyfile")}>
                         <div className="card-title">Servers</div>
                         <div className="stat-val">{status.online ? status.serverCount : "—"}</div>
-                        <div className="stat-label">Active server blocks</div>
+                        <div className="stat-label">Active HTTP servers</div>
                     </div>
                     <div className="card card-clickable" onClick={() => navigate("/tls")}>
                         <div className="card-title">TLS</div>
