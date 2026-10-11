@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { availableUpdate, channelOf, compareVersions, getUpdateInfo, isValidManifest } from '../src/updateCheck.js';
+import { availableUpdate, channelOf, compareVersions, getUpdateInfo, isValidManifest, updateNotification } from '../src/updateCheck.js';
 
 const manifest = {
     schema: 1,
@@ -88,5 +88,28 @@ describe('isValidManifest', () => {
 describe('getUpdateInfo', () => {
     it('returns null before any manifest has loaded', () => {
         expect(getUpdateInfo({ backend: '2.14.0', frontend: '2.14.0' })).toBeNull();
+    });
+});
+
+describe('updateNotification', () => {
+    const running = { backend: '2.17.0', frontend: '2.17.0' };
+
+    it('describes each stable component that is behind', () => {
+        const n = updateNotification({ backend: '2.18.0', frontend: '2.18.0' }, running);
+        expect(n.key).toBe('backend@2.18.0,frontend@2.18.0');
+        expect(n.message).toContain('backend 2.17.0 → 2.18.0, frontend 2.17.0 → 2.18.0');
+        expect(n.message).toContain('github.com/zackwag/caddy-ui/releases');
+    });
+
+    it('changes key when a newer release appears, so it notifies again', () => {
+        const first = updateNotification({ backend: '2.18.0', frontend: null }, running);
+        const second = updateNotification({ backend: '2.19.0', frontend: null }, running);
+        expect(first.key).not.toBe(second.key);
+    });
+
+    it('skips edge/beta builds and up-to-date installs', () => {
+        expect(updateNotification({ backend: 'edge-ddd4444', frontend: null }, { backend: 'edge-bbb2222' })).toBeNull();
+        expect(updateNotification({ backend: null, frontend: null }, running)).toBeNull();
+        expect(updateNotification(null, running)).toBeNull();
     });
 });

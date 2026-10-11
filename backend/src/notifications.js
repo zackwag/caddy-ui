@@ -6,6 +6,7 @@ import { promises as dns } from 'dns';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { failureReason } from './routeChecks.js';
+import { getUpdateNotification } from './updateCheck.js';
 import { checkInstanceUpstreams } from './upstreamChecks.js';
 const CHECK_INTERVAL_MS = 30_000;
 
@@ -57,9 +58,24 @@ async function runChecks() {
         if (config.triggers.certExpiring) {
             await checkCerts();
         }
+        // Missing from configs saved before this trigger existed; on by default
+        if (config.triggers.updateAvailable !== false) {
+            await checkForUpdate();
+        }
     } catch (err) {
         logger.error('Notification monitor check failed', { error: err.message });
     }
+}
+
+// Each caddy/ui release notifies once (per process), rather than repeating
+// every debounce window like outage alerts
+const notifiedUpdates = new Set();
+
+async function checkForUpdate() {
+    const notification = getUpdateNotification();
+    if (!notification || notifiedUpdates.has(notification.key)) return;
+    notifiedUpdates.add(notification.key);
+    await sendNotification(config, { title: notification.title, message: notification.message, priority: 'default' });
 }
 
 // Track previous upstream state to detect transitions

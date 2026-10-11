@@ -248,6 +248,15 @@ export default function Notifications({ toast, onUnauth }) {
                         <input
                             type="checkbox"
                             className="config-checkbox"
+                            checked={config.triggers?.updateAvailable ?? true}
+                            onChange={e => updateTriggers({ updateAvailable: e.target.checked })}
+                        />
+                        New caddy/ui release available
+                    </label>
+                    <label className="config-checkbox-label">
+                        <input
+                            type="checkbox"
+                            className="config-checkbox"
                             checked={config.triggers?.routeOffline ?? false}
                             onChange={e => updateTriggers({ routeOffline: e.target.checked })}
                         />

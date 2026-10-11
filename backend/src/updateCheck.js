@@ -10,10 +10,14 @@ export const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 10_000;
 
 const ENABLED = process.env.CADDY_UI_UPDATE_CHECK !== 'false';
+const APP_VERSION = process.env.APP_VERSION || 'dev';
 const MANIFEST_URL = process.env.CADDY_UI_UPDATE_CHECK_URL || DEFAULT_URL;
 
 let manifest = null;
 let timer = null;
+// The backend only knows its own version; the frontend's is whatever a
+// browser last reported to GET /api/version (used for update notifications)
+let lastFrontendVersion = null;
 
 function parseVersion(version) {
     const match = String(version).match(/^v?(\d+)\.(\d+)\.(\d+)$/);
@@ -64,6 +68,35 @@ export function getUpdateInfo({ backend, frontend }) {
         backend: availableUpdate(manifest, 'backend', backend),
         frontend: availableUpdate(manifest, 'frontend', frontend),
     };
+}
+
+export function noteFrontendVersion(version) {
+    if (channelOf(version)) lastFrontendVersion = version;
+}
+
+export function getRunningUpdateInfo() {
+    return getUpdateInfo({ backend: APP_VERSION, frontend: lastFrontendVersion });
+}
+
+const RELEASES_URL = 'https://github.com/zackwag/caddy-ui/releases';
+
+// Notification for stable updates only -- edge/beta builds land several
+// times a day, so alerting on each would be noise. `key` names the versions
+// on offer, so each new release notifies once.
+export function updateNotification(info, running) {
+    const parts = ['backend', 'frontend']
+        .filter(component => info?.[component] && channelOf(info[component]) === 'stable')
+        .map(component => ({ component, from: running[component], to: info[component] }));
+    if (!parts.length) return null;
+    return {
+        key: parts.map(p => `${p.component}@${p.to}`).join(','),
+        title: 'caddy/ui update available',
+        message: `${parts.map(p => `${p.component} ${p.from} → ${p.to}`).join(', ')}. Release notes: ${RELEASES_URL}`,
+    };
+}
+
+export function getUpdateNotification() {
+    return updateNotification(getRunningUpdateInfo(), { backend: APP_VERSION, frontend: lastFrontendVersion });
 }
 
 async function refresh() {

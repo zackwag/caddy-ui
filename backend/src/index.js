@@ -27,7 +27,7 @@ import { loadMaintenance } from './maintenance.js';
 import { loadServerNames } from './serverNames.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
-import { getUpdateInfo, startUpdateCheck } from './updateCheck.js';
+import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCheck.js';
 import { startUpstreamMonitor } from './upstreamMonitor.js';
 
 const app = express();
@@ -79,6 +79,7 @@ app.use('/api/auth', authLimiter, authRouter);
 // the sidebar learn whether either image is behind (from the cached manifest)
 app.get('/api/version', (req, res) => {
     const frontend = typeof req.query.frontend === 'string' ? req.query.frontend.slice(0, 64) : null;
+    noteFrontendVersion(frontend);
     res.json({ version: APP_VERSION, update: getUpdateInfo({ backend: APP_VERSION, frontend }) });
 });
 
