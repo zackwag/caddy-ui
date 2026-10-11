@@ -6,6 +6,9 @@ import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
 import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
+// eslint-disable-next-line i18next/no-literal-string -- Example hostname
+const DOMAIN_PLACEHOLDER = "app.example.com";
+
 function MiniCodeMirror({ value, onChange, theme }) {
     const containerRef = useRef(null);
     const viewRef = useRef(null);
@@ -146,7 +149,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
                         <div className="modal-section-divider" />
                         <div className="field">
                             <label>{t("routes.domain")}</label>
-                            <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" disabled={!form._id} />
+                            <input value={form.domain} onChange={set("domain")} placeholder={DOMAIN_PLACEHOLDER} disabled={!form._id} />
                         </div>
                         <div className="field">
                             <label>{t("routes.upstream")}</label>
@@ -184,7 +187,7 @@ function NewRouteModal({ onSave, onClose }) {
                 <div className="modal-title">{t("routes.newRoute")}</div>
                 <div className="field">
                     <label>{t("routes.domain")}</label>
-                    <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" autoFocus />
+                    <input value={form.domain} onChange={set("domain")} placeholder={DOMAIN_PLACEHOLDER} autoFocus />
                 </div>
                 <div className="field">
                     <label>{t("routes.upstream")}</label>

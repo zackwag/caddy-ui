@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+// eslint-disable-next-line i18next/no-literal-string -- Brand text in the theme preview
+const BRAND_CADDY = "caddy";
+// eslint-disable-next-line i18next/no-literal-string -- Brand text in the theme preview
+const BRAND_UI = "UI";
+// eslint-disable-next-line i18next/no-literal-string -- Caddyfile syntax example
+const CADDYFILE_PREVIEW = "localhost:443 { reverse_proxy backend:8080 }";
+
 function themeOptions(themes, mode) {
     const builtIn = themes.filter(t => t.mode === mode && !t.custom).sort((a, b) => a.label.localeCompare(b.label));
     const custom = themes.filter(t => t.mode === mode && t.custom).sort((a, b) => a.label.localeCompare(b.label));
@@ -74,14 +81,14 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
                                 fontSize: 14,
                                 fontWeight: 600,
                                 color: activeTheme.vars['--accent'],
-                            }}>caddy</span>
+                            }}>{BRAND_CADDY}</span>
                             <span style={{
                                 fontFamily: 'var(--mono)',
                                 fontSize: 10,
                                 color: activeTheme.vars['--muted'],
                                 letterSpacing: 2,
                                 textTransform: 'uppercase',
-                            }}>UI</span>
+                            }}>{BRAND_UI}</span>
                         </div>
                         <div style={{
                             background: activeTheme.vars['--surface'],
@@ -131,8 +138,7 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
                             fontSize: 11,
                             color: activeTheme.vars['--editor-text'],
                         }}>
-                            {/* eslint-disable-next-line i18next/no-literal-string -- Caddyfile syntax example, not UI copy */}
-                            localhost:443 &#123; reverse_proxy backend:8080 &#125;
+                            {CADDYFILE_PREVIEW}
                         </div>
                     </div>
                 </div>

@@ -3,6 +3,9 @@ import { useTranslation } from "react-i18next";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch } from "../utils/api.js";
 
+// eslint-disable-next-line i18next/no-literal-string -- Example Caddy admin endpoint
+const ADMIN_URL_PLACEHOLDER = "http://caddy:2019";
+
 const EMPTY_FORM = {
     name: "",
     adminUrl: "",
@@ -300,7 +303,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             <input
                                 value={form.adminUrl}
                                 onChange={e => update({ adminUrl: e.target.value })}
-                                placeholder="http://caddy:2019"
+                                placeholder={ADMIN_URL_PLACEHOLDER}
                             />
                         </div>
 

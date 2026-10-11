@@ -190,7 +190,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                             <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={t("dashboard.labelPlaceholder")} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                         </div>
                         <div className="modal-hint">
-                            {t("dashboard.labelHintBefore")} <code>name</code> {t("dashboard.labelHintAfter")}
+                            {t("dashboard.labelHintBefore")} <code>{/* eslint-disable-line i18next/no-literal-string -- Caddy directive */}name</code> {t("dashboard.labelHintAfter")}
                         </div>
                         <div className="btn-row flex-end">
                             <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>{t("common.cancel")}</button>

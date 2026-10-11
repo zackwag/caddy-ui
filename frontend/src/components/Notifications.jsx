@@ -2,12 +2,22 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
 
+// eslint-disable-next-line i18next/no-literal-string -- Example webhook payload, intentionally literal
 const CUSTOM_SCHEMA = `{
   "title": "Upstream offline",
   "message": "example.com (10.0.0.5:8080) is unreachable",
   "priority": "high" | "default" | "low",
   "timestamp": "2026-08-18T12:00:00.000Z"
 }`;
+
+// eslint-disable-next-line i18next/no-literal-string -- Example provider endpoint
+const NTFY_URL_PLACEHOLDER = "https://ntfy.sh/my-caddy-alerts";
+// eslint-disable-next-line i18next/no-literal-string -- Example provider endpoint
+const DISCORD_URL_PLACEHOLDER = "https://discord.com/api/webhooks/...";
+// eslint-disable-next-line i18next/no-literal-string -- Example provider endpoint
+const SLACK_URL_PLACEHOLDER = "https://hooks.slack.com/services/T.../B.../...";
+// eslint-disable-next-line i18next/no-literal-string -- Example custom webhook endpoint
+const CUSTOM_URL_PLACEHOLDER = "https://hooks.example.com/notify";
 
 export default function Notifications({ toast, onUnauth }) {
     const { t } = useTranslation();
@@ -104,7 +114,7 @@ export default function Notifications({ toast, onUnauth }) {
                             <input
                                 className="config-input"
                                 type="url"
-                                placeholder="https://ntfy.sh/my-caddy-alerts"
+                                placeholder={NTFY_URL_PLACEHOLDER}
                                 value={config.ntfy?.url || ''}
                                 onChange={e => updateNtfy({ url: e.target.value })}
                             />
@@ -119,7 +129,7 @@ export default function Notifications({ toast, onUnauth }) {
                             <input
                                 className="config-input"
                                 type="url"
-                                placeholder="https://discord.com/api/webhooks/..."
+                                placeholder={DISCORD_URL_PLACEHOLDER}
                                 value={config.discord?.webhookUrl || ''}
                                 onChange={e => updateDiscord({ webhookUrl: e.target.value })}
                             />
@@ -137,7 +147,7 @@ export default function Notifications({ toast, onUnauth }) {
                             <input
                                 className="config-input"
                                 type="url"
-                                placeholder="https://hooks.slack.com/services/T.../B.../..."
+                                placeholder={SLACK_URL_PLACEHOLDER}
                                 value={config.slack?.webhookUrl || ''}
                                 onChange={e => updateSlack({ webhookUrl: e.target.value })}
                             />
@@ -184,7 +194,7 @@ export default function Notifications({ toast, onUnauth }) {
                                 <input
                                     className="config-input"
                                     type="url"
-                                    placeholder="https://hooks.example.com/notify"
+                                    placeholder={CUSTOM_URL_PLACEHOLDER}
                                     value={config.custom?.url || ''}
                                     onChange={e => updateCustom({ url: e.target.value })}
                                 />

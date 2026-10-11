@@ -4,6 +4,9 @@ import { apiFetch, getToken } from "../utils/api.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
 
+// eslint-disable-next-line i18next/no-literal-string -- Caddy CLI command, not translatable UI copy
+const CADDY_FMT_LABEL = "caddy fmt";
+
 function CaddyfileCodeMirror({ value, onChange, theme }) {
     const containerRef = useRef(null);
     const viewRef = useRef(null);
@@ -224,7 +227,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         if (force && !await confirm(t("caddyfile.forceSaveConfirm"), { confirmLabel: t("caddyfile.forceSave"), danger: true })) return;
         setSaving(true);
         try {
-            const q = `fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`;
+            const q = `fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`; // eslint-disable-line i18next/no-literal-string -- API query parameter
             const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh);
@@ -283,7 +286,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                     <div className="btn-row">
                         <label className="editor-checkbox-label">
                             <input type="checkbox" className="editor-checkbox" checked={runFmt} onChange={e => setRunFmt(e.target.checked)} />
-                            caddy fmt
+                            {CADDY_FMT_LABEL}
                         </label>
                         <label className="editor-checkbox-label">
                             <input type="checkbox" className="editor-checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} />

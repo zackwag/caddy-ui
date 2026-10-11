@@ -3,6 +3,9 @@ import { useTranslation } from "react-i18next";
 import { API, apiFetch } from "../utils/api.js";
 import UpstreamUptime from "./UpstreamUptime.jsx";
 
+// eslint-disable-next-line i18next/no-literal-string -- Prometheus scrape endpoint
+const PUBLIC_METRICS_URL = "http://caddy-ui-backend:3001/api/metrics/raw";
+
 export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
     const { t, i18n } = useTranslation();
     const [metrics, setMetrics] = useState(null);
@@ -80,7 +83,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                                 <div>
                                     <span className="field-label">{t("metrics.publicEndpoint")}</span>
                                     <div className="hint" style={{ marginBottom: 0 }}>
-                                        {publicMetrics ? <>{t("metrics.scrapeUrl")} <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics/raw</span></> : t("metrics.publicMetricsHint")}
+                                        {publicMetrics ? <>{t("metrics.scrapeUrl")} <span style={{ color: "var(--accent2)" }}>{PUBLIC_METRICS_URL}</span></> : t("metrics.publicMetricsHint")}
                                     </div>
                                 </div>
                                 <span className="metrics-status-text" style={{ color: publicMetrics ? "var(--accent)" : "var(--muted)" }}>
