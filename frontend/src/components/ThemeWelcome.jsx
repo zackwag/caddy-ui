@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 function themeOptions(themes, mode) {
     const builtIn = themes.filter(t => t.mode === mode && !t.custom).sort((a, b) => a.label.localeCompare(b.label));
@@ -7,6 +8,7 @@ function themeOptions(themes, mode) {
 }
 
 export default function ThemeWelcome({ themes, languages, language, onLanguageChange, onComplete }) {
+    const { t } = useTranslation();
     const [dark, setDark] = useState('vt2026');
     const [light, setLight] = useState('coarse-everywhere');
     const [preview, setPreview] = useState('dark');
@@ -18,33 +20,33 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
     return (
         <div className="modal-overlay">
             <div className="modal" style={{ width: 500 }}>
-                <div className="modal-title">Choose your themes</div>
-                <div className="modal-hint">Pick a palette for each mode. You can change these anytime from the top bar.</div>
+                <div className="modal-title">{t("themeWelcome.title")}</div>
+                <div className="modal-hint">{t("themeWelcome.hint")}</div>
 
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                     <button
                         className={`btn ${preview === 'dark' ? 'btn-primary' : 'btn-ghost'}`}
                         onClick={() => setPreview('dark')}
-                    >Dark</button>
+                    >{t("themeWelcome.dark")}</button>
                     <button
                         className={`btn ${preview === 'light' ? 'btn-primary' : 'btn-ghost'}`}
                         onClick={() => setPreview('light')}
-                    >Light</button>
+                    >{t("themeWelcome.light")}</button>
                 </div>
 
                 <div style={{ marginBottom: 16 }}>
-                    <label className="field-label">{preview === 'dark' ? 'Dark theme' : 'Light theme'}</label>
+                    <label className="field-label">{preview === 'dark' ? t("themeWelcome.darkTheme") : t("themeWelcome.lightTheme")}</label>
                     <div className="select-wrap">
                         <select
                             className="config-select"
                             value={preview === 'dark' ? dark : light}
                             onChange={e => preview === 'dark' ? setDark(e.target.value) : setLight(e.target.value)}
                         >
-                            <optgroup label="Built-in">
+                            <optgroup label={t("themeWelcome.builtIn")}>
                                 {options.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                             </optgroup>
                             {options.custom.length > 0 && (
-                                <optgroup label="Custom">
+                                <optgroup label={t("themeWelcome.custom")}>
                                     {options.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                                 </optgroup>
                             )}
@@ -94,14 +96,14 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
                                 textTransform: 'uppercase',
                                 color: activeTheme.vars['--muted'],
                                 marginBottom: 8,
-                            }}>Preview</div>
+                            }}>{t("themeWelcome.preview")}</div>
                             <div style={{ display: 'flex', gap: 16 }}>
                                 {[
-                                    { label: 'Accent', color: activeTheme.vars['--accent'] },
-                                    { label: 'Info', color: activeTheme.vars['--accent2'] },
-                                    { label: 'Highlight', color: activeTheme.vars['--accent3'] },
-                                    { label: 'Danger', color: activeTheme.vars['--danger'] },
-                                    { label: 'Warn', color: activeTheme.vars['--warn'] },
+                                    { label: t("themeWelcome.accent"), color: activeTheme.vars['--accent'] },
+                                    { label: t("themeWelcome.info"), color: activeTheme.vars['--accent2'] },
+                                    { label: t("themeWelcome.highlight"), color: activeTheme.vars['--accent3'] },
+                                    { label: t("themeWelcome.danger"), color: activeTheme.vars['--danger'] },
+                                    { label: t("themeWelcome.warn"), color: activeTheme.vars['--warn'] },
                                 ].map(s => (
                                     <div key={s.label} style={{ textAlign: 'center' }}>
                                         <div style={{
@@ -136,7 +138,7 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
 
                 {languages.length > 1 && (
                     <div style={{ marginBottom: 16 }}>
-                        <label className="field-label">Language</label>
+                        <label className="field-label">{t("themeWelcome.language")}</label>
                         <div className="select-wrap">
                             <select
                                 className="config-select"
@@ -156,7 +158,7 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
 
                 <div className="flex-end">
                     <button className="btn btn-primary" onClick={() => onComplete(dark, light)}>
-                        Apply
+                        {t("themeWelcome.apply")}
                     </button>
                 </div>
             </div>

@@ -75,4 +75,23 @@ export default {
         exportTitle: 'Download {{label}} as a custom theme file for the themes/{{mode}}/ folder',
         exportJson: 'Export {{label}} as JSON',
     },
+
+    themeWelcome: {
+        title: 'Choose your themes',
+        hint: 'Pick a palette for each mode. You can change these anytime from the top bar.',
+        dark: 'Dark',
+        light: 'Light',
+        darkTheme: 'Dark theme',
+        lightTheme: 'Light theme',
+        builtIn: 'Built-in',
+        custom: 'Custom',
+        preview: 'Preview',
+        accent: 'Accent',
+        info: 'Info',
+        highlight: 'Highlight',
+        danger: 'Danger',
+        warn: 'Warn',
+        language: 'Language',
+        apply: 'Apply',
+    },
 };
