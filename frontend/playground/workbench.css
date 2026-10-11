@@ -1,0 +1,30 @@
+.workbench { min-height: 100vh; padding: 24px; color: var(--text); background: var(--bg); }
+.workbench header, .actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.workbench header > div { flex: 1; }
+.workbench h1 { font-size: 24px; }
+.workbench h2 { overflow-wrap: anywhere; margin-bottom: 16px; }
+.workbench p { margin: 10px 0; }
+.workbench button, .workbench select, .workbench input, .workbench textarea { font: inherit; }
+.workbench header button, .actions button, .workbench select { padding: 8px 12px; color: var(--text); background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; cursor: pointer; }
+.workspace { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+.workbench aside { min-width: 0; }
+.workbench input, .workbench textarea { width: 100%; padding: 12px; color: var(--text); background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; }
+.workbench label { display: block; margin-bottom: 8px; }
+.workbench nav { max-height: 70vh; overflow: auto; }
+.workbench nav button { display: block; width: 100%; text-align: left; padding: 10px; background: transparent; border: 0; color: var(--text); overflow-wrap: anywhere; cursor: pointer; }
+.workbench nav button[aria-pressed="true"] { background: var(--surface); color: var(--accent); }
+.workbench small { display: block; color: var(--muted); }
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.gallery article, .editors section, .empty { padding: 16px; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); }
+.workbench h3 { font-size: 14px; margin-bottom: 12px; }
+.fixture { position: relative; isolation: isolate; min-height: 180px; display: grid; align-items: center; }
+/* Contain production overlays inside each gallery card. */
+.fixture .modal-overlay { position: relative; inset: auto; padding: 8px; background: transparent; }
+.fixture .modal { width: 100%; min-width: 0; }
+.fixture .toast-wrap { position: relative; inset: auto; width: 100%; }
+.fixture .toast { max-width: 100%; overflow-wrap: anywhere; }
+.editors { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+.workbench pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.workbench textarea { resize: vertical; margin-bottom: 12px; }
+.workbench .light .fixture, .light .fixture { --text: #18202c; --muted: #566273; --surface: #fff; --bg: #f4f6f8; --border: #d2d7df; --border2: #bcc4ce; --accent: #007850; }
+@media (max-width: 760px) { .workspace, .editors { grid-template-columns: 1fr; } .workbench nav { max-height: 220px; } .workbench { padding: 16px; } }
