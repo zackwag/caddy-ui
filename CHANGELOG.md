@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.19.0](https://github.com/zackwag/caddy-ui/compare/v2.18.0...v2.19.0) (2026-10-11)
+
+
+### Features
+
+* restructure the Dashboard's servers card around labels and Server IDs ([#193](https://github.com/zackwag/caddy-ui/issues/193)) ([65c79b8](https://github.com/zackwag/caddy-ui/commit/65c79b8d6c2f65ec1e7daf78447dbc2e50eaa25b))
+
 ## [2.18.0](https://github.com/zackwag/caddy-ui/compare/v2.17.4...v2.18.0) (2026-10-11)
 
 
