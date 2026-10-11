@@ -20,11 +20,12 @@ describe('i18n integration', () => {
 
         expect(picker.type).toBe('select');
         expect(picker.props.children.map(option => option.props.value)).toEqual(['en', 'de']);
-        expect(i18n.t('common.save')).toBe('Save');
+        expect(i18n.t('test.languageLoaded')).toBe('English loaded');
 
         await picker.props.onChange({ target: { value: 'de' } });
 
         expect(i18n.language).toBe('de');
-        expect(i18n.t('common.save')).toBe('Speichern');
+        expect(i18n.t('test.languageLoaded')).toBe('Deutsch geladen');
+        expect(i18n.t('common.save')).toBe('Save');
     });
 });
