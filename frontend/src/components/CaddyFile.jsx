@@ -348,7 +348,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                                         <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label={t("caddyfile.compareAgainst")}>
                                                             <option value="current">{t("caddyfile.vsCurrent")}{isDirty ? ` ${t("caddyfile.savedMarker")}` : ""}</option>
                                                             {history.filter(other => other.filename !== entry.filename).map(other => (
-                                                                <option key={other.filename} value={other.filename}>{t("caddyfile.vsSnapshot", { timestamp: formatTs(other.timestamp) })}</option>
+                                                                <option key={other.filename} value={other.filename}>{t("caddyfile.vsSnapshot", { timestamp: formatTs(other.timestamp, locale) })}</option>
                                                             ))}
                                                         </select>
                                                         <span className="select-arrow">▾</span>
