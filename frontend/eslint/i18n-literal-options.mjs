@@ -36,14 +36,14 @@ export default {
     'object-properties': {
         exclude: [
             // CSS-in-JS / inline-style properties.
-            '^(background|backgroundColor|color|font.*|lineHeight|caretColor|border.*|padding.*|margin.*|width|height|minWidth|minHeight|maxWidth|maxHeight|overflow.*|display|gap|alignItems|justifyContent|textAlign|textTransform|letterSpacing|cursor|opacity|boxShadow|flex.*|position|top|right|bottom|left|whiteSpace)$',
+            '^(background|backgroundColor|color|font.*|lineHeight|caretColor|border.*|padding.*|margin.*|width|height|minWidth|minHeight|maxWidth|maxHeight|overflow.*|display|gap|alignItems|justifyContent|textAlign|textTransform|letterSpacing|cursor|opacity|boxShadow|flex.*|position|top|right|bottom|left|whiteSpace|behavior|block)$',
         ],
     },
 
     words: {
         exclude: [
             // DOM/browser behavior
-            '^(smooth|start|keydown)$',
+            '^keydown$',
 
             // internal state
             '^(new|err|warn)$',
@@ -82,7 +82,7 @@ export default {
             // Internal state and provider identifiers.
             '^(success|error|info)$',
             '^(online|offline|unknown|partial|maintenance|pending|none)$',
-            '^(all|asc|desc|diff|raw|current|domain|title|upstream|server|status|expires|days)$',
+            '^(all|asc|desc|diff|raw|current|domain|title|upstream|server|status|expires|days|filter)$',
             '^(json|console|acme|orphaned|superseded|valid|expiring|expired)$',
             '^(ntfy|discord|slack|pushover|custom)$',
 
