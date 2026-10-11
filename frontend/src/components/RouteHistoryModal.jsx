@@ -194,9 +194,9 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                             ))}
                         </div>
                         <div className="history-timeline-axis">
-                            {ticks.map((t, i) => (
+                            {ticks.map((tick, i) => (
                                 <span key={i} className="history-axis-tick" style={{ left: `${(i / AXIS_TICK_COUNT) * 100}%` }}>
-                                    {t.isNow ? t("routeHistory.now") : formatAxisTime(t.ms, range.ms)}
+                                    {tick.isNow ? t("routeHistory.now") : formatAxisTime(tick.ms, range.ms)}
                                 </span>
                             ))}
                         </div>
