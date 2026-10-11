@@ -155,12 +155,14 @@ export default function App() {
             if (err.code === 'NO_INSTANCES') {
                 setNoInstances(true);
                 setStatus(null);
-                navigate('/instances', { replace: true });
+                // Allow logs to be visible even if there are no instances, since logs can be viewed for a specific instance.
+                const path = '/' + location.pathname.split('/')[1];
+                if (path !== '/logs' && path !== '/instances') navigate('/instances', { replace: true });
             } else {
                 setStatus({ online: false, error: "Could not reach backend" });
             }
         });
-    }, [onUnauth, navigate]);
+    }, [onUnauth, navigate, location.pathname]);
 
     useEffect(() => {
         if (!authed) return;
@@ -230,7 +232,7 @@ export default function App() {
                                 <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} />} />
                                 <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} routeChecks={routeChecks} routeCheckExcludes={routeCheckExcludes} />} />
                                 <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
-                                <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} noInstances={noInstances} />} />
                                 <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} routeChecks={routeChecks} onRouteChecksChange={changeRouteChecks} routeCheckExcludes={routeCheckExcludes} onRouteCheckExcludesChange={changeRouteCheckExcludes} />} />
                                 <Route path="/notifications" element={<Notifications toast={toast} onUnauth={onUnauth} />} />
                                 <Route path="/instances" element={<Instances toast={toast} onUnauth={onUnauth} confirm={confirm} onInstanceChange={handleInstanceChange} />} />

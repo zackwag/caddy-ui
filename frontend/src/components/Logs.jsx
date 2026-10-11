@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { API, apiFetch, getToken } from "../utils/api.js";
 
-export default function Logs({ toast, onUnauth }) {
+export default function Logs({ toast, onUnauth, noInstances }) {
     const [lines, setLines] = useState([]);
-    const [source, setSource] = useState("caddy");
+    const [source, setSource] = useState(noInstances ? "app" : "caddy");
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
     const [logConfig, setLogConfig] = useState(null);
@@ -37,6 +37,12 @@ export default function Logs({ toast, onUnauth }) {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only auto-scroll when new lines arrive, not on every search/filter keystroke
     }, [lines]);
+
+    useEffect(() => {
+        if (noInstances && source === "caddy") {
+            setSource("app");
+        }
+    }, [noInstances, source]);
 
     const toggleLive = () => {
         if (live) { esRef.current?.close(); esRef.current = null; setLive(false); return; }
@@ -120,7 +126,7 @@ export default function Logs({ toast, onUnauth }) {
     return (
         <div className="gap-16 logs-page">
             <div className="btn-row">
-                <button className={`btn ${source === "caddy" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSource("caddy")}>Caddy</button>
+                <button className={`btn ${source === "caddy" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSource("caddy")} disabled={noInstances}>Caddy</button>
                 <button className={`btn ${source === "app" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSource("app")}>caddy/ui</button>
             </div>
 
