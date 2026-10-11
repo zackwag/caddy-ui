@@ -43,7 +43,7 @@ export default {
     words: {
         exclude: [
             // DOM/browser behavior
-            '^keydown$',
+            '^(keydown|mousedown)$',
 
             // internal state
             '^(new|err|warn)$',
