@@ -6,7 +6,6 @@ import { apiFetch, setInstanceId } from "../utils/api.js";
 import { RELEASES_URL, isNewerVersion } from "../utils/version.js";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
-const [latestVersions, setLatestVersions] = useState(null);
 
 const NAV = [
     { path: "/dashboard", label: "Dashboard", icon: "◈" },
@@ -26,6 +25,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
     const instanceStatus = useInstanceStatus(onUnauth);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
+    const [latestVersions, setLatestVersions] = useState(null);
 
     useEffect(() => {
         apiFetch("/version", {}, onUnauth)
