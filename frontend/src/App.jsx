@@ -18,6 +18,7 @@ import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
 import { css, THEME_LIST, THEME_VAR_KEYS } from "./styles.js";
 import { API, apiFetch, fetchCustomThemes, fetchSettings, getAuthEnabled, getInstanceId, getToken, saveSettings, setAuthEnabled, setToken } from "./utils/api.js";
+import { useTranslation } from 'react-i18next';
 
 const DEFAULTS = {
     firstTimeRun: true,
@@ -30,18 +31,19 @@ const DEFAULTS = {
     routeCheckExcludes: [],
 };
 
-const TITLES = {
-    "/dashboard": "Dashboard",
-    "/caddyfile": "Caddyfile Editor",
-    "/routes": "Route Manager",
-    "/tls": "TLS Certificates",
-    "/logs": "Access Logs",
-    "/metrics": "Metrics",
-    "/notifications": "Notifications",
-    "/instances": "Instances",
+const TITLE_KEYS = {
+    '/dashboard': 'pages.dashboard',
+    '/caddyfile': 'pages.caddyfile',
+    '/routes': 'pages.routes',
+    '/tls': 'pages.tls',
+    '/logs': 'pages.logs',
+    '/metrics': 'pages.metrics',
+    '/notifications': 'pages.notifications',
+    '/instances': 'pages.instances',
 };
 
 export default function App() {
+    const { t } = useTranslation();
     const location = useLocation();
     const navigate = useNavigate();
     const [status, setStatus] = useState(null);
@@ -222,10 +224,10 @@ export default function App() {
                 setStatus(null);
                 navigate('/instances', { replace: true });
             } else {
-                setStatus({ online: false, error: "Could not reach backend" });
+                setStatus({ online: false, error: t('errors.backendUnreachable') });
             }
         });
-    }, [onUnauth, navigate]);
+    }, [onUnauth, navigate, t]);
 
     useEffect(() => {
         if (!authed) return;
@@ -246,7 +248,7 @@ export default function App() {
     }, [fetchStatus, navigate]);
 
     const basePath = '/' + location.pathname.split('/')[1];
-    const title = TITLES[basePath] || "Dashboard";
+    const title = t(TITLE_KEYS[basePath] || 'pages.dashboard');
 
     return (
         <>

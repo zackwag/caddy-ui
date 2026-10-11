@@ -56,7 +56,7 @@ export default [
                     callees: {
                         exclude: [
                             '^navigate$',
-                            '^setAttribute$',
+                            '^t$',
                         ],
                     },
 
@@ -68,6 +68,7 @@ export default [
                             '^/.*$',
                             '^https?://',
                             '^--.*$',
+                            '^data-[a-z0-9-]+$',
                             '^[^A-Za-zÀ-ž]+$',
                         ],
                     },
