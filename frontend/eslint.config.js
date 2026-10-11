@@ -34,6 +34,43 @@ export default [
                 'warn',
                 {
                     mode: 'all',
+
+                    'jsx-attributes': {
+                        exclude: [
+                            '^className$',
+                            '^path$',
+                            '^to$',
+                            '^key$',
+                            '^value$',
+                            '^type$',
+                            '^id$',
+                            '^name$',
+                            '^style$',
+                            '^role$',
+                            '^href$',
+                            '^src$',
+                            '^data-',
+                        ],
+                    },
+
+                    callees: {
+                        exclude: [
+                            '^navigate$',
+                            '^setAttribute$',
+                        ],
+                    },
+
+                    words: {
+                        exclude: [
+                            '^en$',
+                            '^dark$',
+                            '^light$',
+                            '^/.*$',
+                            '^https?://',
+                            '^--.*$',
+                            '^[^A-Za-zÀ-ž]+$',
+                        ],
+                    },
                 },
             ],
         },
