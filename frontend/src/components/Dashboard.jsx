@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
 
+// eslint-disable-next-line i18next/no-literal-string -- Caddyfile directive, not translatable UI copy
+const SERVER_NAME_DIRECTIVE = "name";
+
 export default function Dashboard({ status, toast, onUnauth }) {
     const { t, i18n } = useTranslation();
     const [names, setNames] = useState({});
@@ -190,7 +193,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                             <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={t("dashboard.labelPlaceholder")} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                         </div>
                         <div className="modal-hint">
-                            {t("dashboard.labelHintBefore")} <code>{/* eslint-disable-line i18next/no-literal-string -- Caddy directive */}name</code> {t("dashboard.labelHintAfter")}
+                            {t("dashboard.labelHintBefore")} <code>{SERVER_NAME_DIRECTIVE}</code> {t("dashboard.labelHintAfter")}
                         </div>
                         <div className="btn-row flex-end">
                             <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>{t("common.cancel")}</button>
