@@ -1169,6 +1169,30 @@ export const css = `
     margin-bottom: 6px;
   }
 
+  .language-picker {
+      position: relative;
+  }
+
+  .language-picker-value {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+  }
+
+  .language-picker-select {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+  }
+
+  .language-picker-value,
+  .language-picker-arrow {
+      pointer-events: none;
+  }
+
   .toast-wrap {
     position: fixed;
     top: 12px; right: 19px;

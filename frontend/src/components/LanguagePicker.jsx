@@ -4,16 +4,28 @@ export default function LanguagePicker({
     onLanguageChange,
 }) {
     return (
-        <select
-            className="config-select"
-            value={language}
-            onChange={e => onLanguageChange(e.target.value)}
-        >
-            {languages.map(lang => (
-                <option key={lang} value={lang}>
-                    {lang.toUpperCase()}
-                </option>
-            ))}
-        </select>
+        <div className="theme-picker language-picker">
+            <span className="theme-toggle language-picker-value">
+                {language.toUpperCase()}
+            </span>
+
+            <span className="theme-picker-trigger language-picker-arrow">
+                ▾
+            </span>
+
+            <select
+                className="language-picker-select"
+                value={language}
+                onChange={e => onLanguageChange(e.target.value)}
+                aria-label="Choose language"
+                title="Choose language"
+            >
+                {languages.map(lang => (
+                    <option key={lang} value={lang}>
+                        {lang.toUpperCase()}
+                    </option>
+                ))}
+            </select>
+        </div>
     );
 }

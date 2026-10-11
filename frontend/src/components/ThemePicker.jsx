@@ -40,7 +40,7 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
             <button className="theme-toggle" onClick={onToggleMode} title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
                 {mode === 'dark' ? '☀︎' : '☾︎'}
             </button>
-            <button className="theme-picker-trigger" onClick={() => setOpen(o => !o)} title="Choose themes">⌄</button>
+            <button className="theme-picker-trigger" onClick={() => setOpen(o => !o)} title="Choose themes">▾</button>
             {open && (
                 <div className="theme-picker-menu">
                     <div className="theme-picker-row">
