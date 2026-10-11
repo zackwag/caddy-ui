@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch, getToken } from "../utils/api.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
@@ -84,12 +85,13 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
 }
 
 function CaddyfileDiff({ oldText, newText }) {
+    const { t } = useTranslation();
     const lines = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
     const added = lines.filter(l => l.type === "add").length;
     const removed = lines.filter(l => l.type === "del").length;
     const shown = useMemo(() => collapseUnchanged(lines), [lines]);
 
-    if (!added && !removed) return <div className="history-preview history-diff-empty">No differences</div>;
+    if (!added && !removed) return <div className="history-preview history-diff-empty">{t("caddyfile.noDifferences")}</div>;
 
     return (
         <>
@@ -99,7 +101,7 @@ function CaddyfileDiff({ oldText, newText }) {
             <div className="history-preview history-diff">
                 <div className="history-diff-lines">
                     {shown.map((line, i) => line.type === "skip" ? (
-                        <div key={i} className="diff-skip">⋯ {line.count} unchanged line{line.count === 1 ? "" : "s"}</div>
+                        <div key={i} className="diff-skip">⋯ {t("caddyfile.unchangedLines", { count: line.count })}</div>
                     ) : (
                         <div key={i} className={`diff-line diff-line--${line.type}`}>
                             <span className="diff-ln">{line.oldNo ?? ""}</span>
@@ -115,6 +117,7 @@ function CaddyfileDiff({ oldText, newText }) {
 }
 
 export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
+    const { t } = useTranslation();
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
     const [loading, setLoading] = useState(true);
@@ -183,22 +186,22 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     };
 
     const restoreSnapshot = async (entry) => {
-        if (!await confirm(`Restore Caddyfile from ${formatTs(entry.timestamp)}? The current file will be snapshotted first.`, { confirmLabel: "Restore" })) return;
+        if (!await confirm(t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("caddyfile.restore") })) return;
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh); setHistoryOpen(false); setPreviewEntry(null);
-            toast.success(`Restored from ${formatTs(entry.timestamp)}`);
+            toast.success(t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
             loadHistory();
         } catch (e) { toast.error(e.message); }
     };
 
     const deleteSnapshot = async (entry) => {
-        if (!await confirm(`Delete snapshot from ${formatTs(entry.timestamp)}?`, { confirmLabel: "Delete", danger: true })) return;
+        if (!await confirm(t("caddyfile.deleteSnapshotConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("common.delete"), danger: true })) return;
         try {
             await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
-            toast.success("Snapshot deleted");
+            toast.success(t("caddyfile.snapshotDeleted"));
             snapshotCache.current.delete(entry.filename);
             if (previewEntry?.filename === entry.filename) { setPreviewEntry(null); setPreviewContent(""); }
             if (compareTo === entry.filename) { setCompareTo("current"); setCompareContent(null); }
@@ -212,28 +215,28 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             const result = await apiFetch(`/caddyfile/validations?fmt=${runFmt}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             if (result.formatted) setContent(result.formatted);
             if (result.warnings?.length) result.warnings.forEach(w => toast.info(w));
-            else toast.success("Caddyfile is valid");
+            else toast.success(t("caddyfile.valid"));
         } catch (e) { toast.error(e.message); }
         finally { setValidating(false); }
     };
 
     const save = async ({ force = false } = {}) => {
-        if (force && !await confirm("Force save skips validation and writes the Caddyfile to disk even if Caddy can't load it. Continue?", { confirmLabel: "Force save", danger: true })) return;
+        if (force && !await confirm(t("caddyfile.forceSaveConfirm"), { confirmLabel: t("caddyfile.forceSave"), danger: true })) return;
         setSaving(true);
         try {
             const q = `fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`;
             const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh);
-            if (result?.warning) toast.info(result.message || "Caddyfile written to disk; Caddy reload failed");
-            else toast.success("Caddyfile saved and reloaded");
+            if (result?.warning) toast.info(result.message || t("caddyfile.reloadFailed"));
+            else toast.success(t("caddyfile.savedReloaded"));
             if (historyOpen) loadHistory();
         } catch (e) { toast.error(e.message); }
         finally { setSaving(false); }
     };
 
     const reload = async () => {
-        try { await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth); toast.success("Caddy reloaded from disk"); }
+        try { await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth); toast.success(t("caddyfile.reloadedFromDisk")); }
         catch (e) { toast.error(e.message); }
     };
 
@@ -248,12 +251,12 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         const reader = new FileReader();
         reader.onload = async (ev) => {
             const text = ev.target.result;
-            if (!await confirm("Import this Caddyfile? This will validate, reload Caddy, and overwrite the current file.", { confirmLabel: "Import" })) return;
+            if (!await confirm(t("caddyfile.importConfirm"), { confirmLabel: t("caddyfile.import") })) return;
             try {
                 await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
                 const fresh = await apiFetch("/caddyfile", {}, onUnauth);
                 setContent(fresh); setOriginal(fresh);
-                toast.success("Caddyfile imported and reloaded");
+                toast.success(t("caddyfile.importedReloaded"));
                 if (historyOpen) loadHistory();
             } catch (err) { toast.error(err.message); }
         };
@@ -270,7 +273,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         [diffOld, diffNew] = compareTo < previewEntry?.filename ? [compareContent, previewContent] : [previewContent, compareContent];
     }
 
-    if (loading) return <div className="loading">Loading Caddyfile...</div>;
+    if (loading) return <div className="loading">{t("caddyfile.loading")}</div>;
 
     return (
         <div className="gap-16">
@@ -284,20 +287,20 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                         </label>
                         <label className="editor-checkbox-label">
                             <input type="checkbox" className="editor-checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} />
-                            sort entries
+                            {t("caddyfile.sortEntries")}
                         </label>
-                        <span className="editor-hint editor-hint--mobile">{isDirty ? "● unsaved changes" : "✓ up to date"}</span>
+                        <span className="editor-hint editor-hint--mobile">{isDirty ? `● ${t("caddyfile.unsavedChanges")}` : `✓ ${t("caddyfile.upToDate")}`}</span>
                     </div>
                     <div className="btn-row editor-toolbar-actions">
-                        <span className="editor-hint editor-hint--desktop">{isDirty ? "● unsaved changes" : "✓ up to date"}</span>
-                        <button className="btn btn-ghost" onClick={validate} disabled={validating}>{validating ? "Validating..." : "✓ Validate"}</button>
-                        <button className="btn btn-ghost" onClick={toggleHistory}>⊙ History{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}</button>
-                        <button className="btn btn-ghost" onClick={exportFile}>↓ Export</button>
-                        <button className="btn btn-ghost" onClick={() => importInputRef.current?.click()}>↑ Import</button>
+                        <span className="editor-hint editor-hint--desktop">{isDirty ? `● ${t("caddyfile.unsavedChanges")}` : `✓ ${t("caddyfile.upToDate")}`}</span>
+                        <button className="btn btn-ghost" onClick={validate} disabled={validating}>{validating ? t("caddyfile.validating") : `✓ ${t("caddyfile.validate")}`}</button>
+                        <button className="btn btn-ghost" onClick={toggleHistory}>⊙ {t("caddyfile.history")}{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}</button>
+                        <button className="btn btn-ghost" onClick={exportFile}>↓ {t("common.export")}</button>
+                        <button className="btn btn-ghost" onClick={() => importInputRef.current?.click()}>↑ {t("caddyfile.import")}</button>
                         <input ref={importInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={importFile} />
-                        <button className="btn btn-ghost" onClick={reload}>↺ Reload</button>
-                        <button className="btn btn-ghost" onClick={() => save({ force: true })} disabled={saving || !isDirty} title="Skip validation and write to disk even if Caddy rejects it">{saving ? "..." : "⚠ Force save"}</button>
-                        <button className="btn btn-primary" onClick={() => save()} disabled={saving || !isDirty}>{saving ? "Saving..." : "↑ Save"}</button>
+                        <button className="btn btn-ghost" onClick={reload}>↺ {t("caddyfile.reload")}</button>
+                        <button className="btn btn-ghost" onClick={() => save({ force: true })} disabled={saving || !isDirty} title={t("caddyfile.forceSaveTitle")}>{saving ? "..." : `⚠ ${t("caddyfile.forceSave")}`}</button>
+                        <button className="btn btn-primary" onClick={() => save()} disabled={saving || !isDirty}>{saving ? t("common.saving") : `↑ ${t("common.save")}`}</button>
                     </div>
                 </div>
             </div>
@@ -305,13 +308,13 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             {historyOpen && (
                 <div ref={historyRef} className="card card-flush">
                     <div className="card-header">
-                        <span className="section-label">Version History</span>
-                        <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}>↺ Refresh</button>
+                        <span className="section-label">{t("caddyfile.versionHistory")}</span>
+                        <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}>↺ {t("common.refresh")}</button>
                     </div>
                     {historyLoading ? (
-                        <div className="card-body loading">Loading...</div>
+                        <div className="card-body loading">{t("common.loading")}</div>
                     ) : history.length === 0 ? (
-                        <div className="card-empty">No snapshots yet — save your Caddyfile to create one</div>
+                        <div className="card-empty">{t("caddyfile.noSnapshots")}</div>
                     ) : (
                         <div className="history-body">
                             {history.map((entry, i) => (
@@ -322,26 +325,26 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                             onClick={() => previewSnapshot(entry)}
                                         >
                                             {formatTs(entry.timestamp)}
-                                            {i === 0 && <span className="history-latest">latest</span>}
+                                            {i === 0 && <span className="history-latest">{t("caddyfile.latest")}</span>}
                                         </div>
                                         <div className="btn-row">
-                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(entry)}>↺ Restore</button>
-                                            <button className="btn btn-danger btn--sm" title="Delete snapshot" onClick={() => deleteSnapshot(entry)}>✕</button>
+                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(entry)}>↺ {t("caddyfile.restore")}</button>
+                                            <button className="btn btn-danger btn--sm" title={t("caddyfile.deleteSnapshot")} onClick={() => deleteSnapshot(entry)}>✕</button>
                                         </div>
                                     </div>
                                     {previewEntry?.filename === entry.filename && (
                                         <div className="history-detail">
                                             <div className="history-compare">
                                                 <div className="history-range-picker">
-                                                    <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± Diff</button>
-                                                    <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>Raw</button>
+                                                    <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± {t("caddyfile.diff")}</button>
+                                                    <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>{t("caddyfile.raw")}</button>
                                                 </div>
                                                 {previewMode === "diff" && (
                                                     <div className="select-wrap history-compare-select">
-                                                        <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label="Compare against">
-                                                            <option value="current">vs. current file{isDirty ? " (saved)" : ""}</option>
+                                                        <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label={t("caddyfile.compareAgainst")}>
+                                                            <option value="current">{t("caddyfile.vsCurrent")}{isDirty ? ` ${t("caddyfile.savedMarker")}` : ""}</option>
                                                             {history.filter(other => other.filename !== entry.filename).map(other => (
-                                                                <option key={other.filename} value={other.filename}>vs. {formatTs(other.timestamp)}</option>
+                                                                <option key={other.filename} value={other.filename}>{t("caddyfile.vsSnapshot", { timestamp: formatTs(other.timestamp) })}</option>
                                                             ))}
                                                         </select>
                                                         <span className="select-arrow">▾</span>
