@@ -36,6 +36,18 @@ services:
 
 The frontend proxies API requests to the backend via Nginx. The default Nginx config expects the backend at `caddy-ui-backend:3001`.
 
+## Build languages
+
+Frontend builds include English plus the languages specified by the build argument
+`CADDY_UI_ADDITIONAL_LANGUAGES`. Its default is empty (English only).
+
+```bash
+docker build --build-arg CADDY_UI_ADDITIONAL_LANGUAGES=de -t caddy-ui-frontend:local ./frontend
+```
+
+Set `CADDY_UI_ADDITIONAL_LANGUAGES=de` on the backend at runtime to enable the included
+catalog in the language picker. Catalogs omitted at build time require a new frontend build.
+
 ## Custom Nginx Config
 
 If your backend has a different hostname or port, mount a custom Nginx config:

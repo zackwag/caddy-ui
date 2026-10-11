@@ -133,6 +133,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            CADDY_UI_ADDITIONAL_LANGUAGES=${{ vars.CADDY_UI_ADDITIONAL_LANGUAGES }}
             APP_VERSION=${{ needs.changes.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

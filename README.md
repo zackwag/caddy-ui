@@ -68,6 +68,20 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 English (`frontend/src/i18n/locales/en.js`) is the canonical localization schema and fallback language. Additional locale catalogs may translate any subset of the English keys; missing keys fall back to English. Locale catalogs may not introduce keys or key-tree shapes that do not exist in `en.js`.
 
+Docker frontend builds include English plus the comma-separated languages selected with the
+`CADDY_UI_ADDITIONAL_LANGUAGES` **build argument** (empty by default means English only):
+
+```bash
+docker build --build-arg CADDY_UI_ADDITIONAL_LANGUAGES=de -t caddy-ui-frontend:local ./frontend
+```
+
+The same variable on the **backend at runtime** enables language selection from the catalogs
+already included in the frontend image. Adding a language to a trimmed image requires rebuilding
+it; a runtime variable cannot add omitted catalogs. Local development still loads all catalogs.
+Release, beta, and edge builds use the optional GitHub Actions repository variable
+`CADDY_UI_ADDITIONAL_LANGUAGES` for the frontend build argument. Invalid codes or missing
+requested catalogs fail the build. The backend image contains no translation catalogs.
+
 Every locale must define `test.languageLoaded`, which is used by the frontend language API integration test to verify that an advertised locale can actually be loaded.
 
 Translations are human-authored. Machine-generated, agentic, or bulk machine translations are not accepted.
@@ -159,7 +173,7 @@ services:
       - 9876:3001
     environment:
       - TZ=America/New_York
-      # Optional -- enable installed additional UI languages (English is always available)
+      # Optional -- enable additional UI languages included in the frontend build (English is always available)
       - CADDY_UI_ADDITIONAL_LANGUAGES=de
       # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
