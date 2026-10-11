@@ -8,6 +8,10 @@ const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 const RELEASES_URL = "https://github.com/zackwag/caddy-ui/releases";
 const COMMITS_URL = "https://github.com/zackwag/caddy-ui/commits/main";
 
+// Releases read "v2.17.0"; edge/beta/dev builds show their name as is
+// ("edge-c6a3f0f", not "vedge-c6a3f0f")
+const displayVersion = (version) => /^\d/.test(version) ? `v${version}` : version;
+
 const NAV = [
     { path: "/dashboard", label: "Dashboard", icon: "◈" },
     { path: "/caddyfile", label: "Caddyfile", icon: "⌗" },
@@ -133,8 +137,8 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         Update available ↗
                     </a>
                 )}
-                <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? `frontend v${FRONTEND_VERSION} · backend v${backendVersion}` : undefined}>
-                    v{FRONTEND_VERSION}{backendVersion && backendVersion !== FRONTEND_VERSION ? ` (backend v${backendVersion})` : ""}
+                <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? `frontend ${displayVersion(FRONTEND_VERSION)} · backend ${displayVersion(backendVersion)}` : undefined}>
+                    {displayVersion(FRONTEND_VERSION)}{backendVersion && backendVersion !== FRONTEND_VERSION ? ` (backend ${displayVersion(backendVersion)})` : ""}
                 </div>
             </div>
         </aside>
