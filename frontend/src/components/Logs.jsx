@@ -16,18 +16,22 @@ export default function Logs({ toast, onUnauth, noInstances }) {
     const esRef = useRef(null);
 
     useEffect(() => {
+        let ignore = false;
         const path = source === "caddy" ? "/logs" : "/logs/app";
+        // NO_INSTANCES is expected before App's first /status call resolves; the source switch effect handles it.
+        const reportError = e => { if (e.code !== 'NO_INSTANCES' ) toast.error(e.message); };
         apiFetch(path, {}, onUnauth)
-            .then(data => setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry))))
-            .catch(e => toast.error(e.message));
+            .then(data => { if (!ignore) setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry))); })
+            .catch(reportError);
 
         if (source === "caddy" && !logConfig) {
-            apiFetch("/logs/config", {}, onUnauth).then(setLogConfig).catch(e => toast.error(e.message));
+            apiFetch("/logs/config", {}, onUnauth).then(setLogConfig).catch(reportError);
         }
 
         esRef.current?.close();
         esRef.current = null;
         setLive(false);
+        return() => { ignore = true; }
         // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when source changes; toast isn't stable across renders
     }, [onUnauth, source]);
 
