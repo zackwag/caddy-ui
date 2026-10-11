@@ -62,6 +62,16 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
+## Localization
+
+![Localization coverage](docs/localization-coverage.svg)
+
+English (`frontend/src/i18n/locales/en.js`) is the canonical localization schema and fallback language. Additional locale catalogs may translate any subset of the English keys; missing keys fall back to English. Locale catalogs may not introduce keys or key-tree shapes that do not exist in `en.js`.
+
+Every locale must define `test.languageLoaded`, which is used by the frontend language API integration test to verify that an advertised locale can actually be loaded.
+
+Translations are human-authored. Machine-generated, agentic, or bulk machine translations are not accepted.
+
 ## Architecture
 
 ```mermaid

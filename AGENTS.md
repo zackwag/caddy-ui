@@ -25,14 +25,15 @@ cd frontend && npm install
 cd frontend && npm run dev    # vite dev server (predev fetches caddyfileMode.js)
 cd frontend && npm run build  # vite build (prebuild fetches caddyfileMode.js)
 cd frontend && npm run lint   # eslint .
+cd frontend && npm test       # vitest + localization contract
 ```
 
-There is no frontend test suite and no repo-wide lint/format command — `backend/` and `frontend/` each have their own ESLint config (`eslint.config.js`), run separately. Lint only checks correctness (unused vars, React hook rules); it doesn't enforce formatting, so match existing style by hand.
+There is no repo-wide lint/format command — `backend/` and `frontend/` each have their own ESLint config (`eslint.config.js`), run separately. Lint also guards frontend user-facing literals; it doesn't enforce formatting, so match existing style by hand.
 
 ## Before finishing a task
 
 - If you changed `backend/src/**`, run `cd backend && npm test && npm run lint` and make sure both are green.
-- If you changed `frontend/src/**`, run `cd frontend && npm run lint`, and run the dev server to exercise the affected view in a browser. Don't claim a UI fix works without having rendered it — vitest doesn't cover the frontend.
+- If you changed `frontend/src/**`, run `cd frontend && npm test && npm run lint`, and run the dev server to exercise the affected view in a browser. Don't claim a UI fix works without having rendered it — Vitest does not cover the full UI.
 - Don't hand-edit `CHANGELOG.md` or bump versions — release-please generates both from Conventional Commit PR titles on `main`, so pick the prefix (`feat:` vs `fix:`, `!` for breaking) that matches the user-visible impact. The README Changelog table is frozen history for pre-`v1.18` releases.
 
 ## Things to know before editing
@@ -42,6 +43,16 @@ There is no frontend test suite and no repo-wide lint/format command — `backen
 - **Auth is optional and env-driven.** `CADDY_UI_USER`/`CADDY_UI_PASSWORD`/`JWT_SECRET` unset means auth is disabled entirely (see `backend/src/middleware/auth.js`). Don't add code paths that assume auth is always on.
 - **The backend Dockerfile bundles a Caddy binary** (`COPY --from=caddy:latest ...`) used by local-mode instances for `caddy fmt`, validation, and version detection (Docker mode runs the Caddy container's own binary) — it's expected to degrade gracefully if that binary is missing or mismatched, don't make it a hard dependency.
 - Environment variables are documented in the [README's table](README.md#environment-variables) — keep it in sync if you add, rename, or remove one.
+
+## Localization policy
+
+- `frontend/src/i18n/locales/en.js` is the canonical key tree and fallback catalog. It must always exist.
+- Non-English catalogs may be incomplete, but they must be schema subsets of `en.js` and every catalog must contain `test.languageLoaded`.
+- **Do not generate, infer, autocomplete, or machine-translate non-English locale values.** This includes LLM/agentic translation, translation APIs, and bulk machine translation tools.
+- Agents may edit English source strings and may perform explicitly requested mechanical key moves/renames while preserving existing human translations, but must not author translated text.
+- A PR changing non-English locale values represents a human contributor's attestation that the translations are human-supplied or human-reviewed. Do not bypass that policy on a contributor's behalf.
+- Run `cd frontend && npm run i18n:check` for catalog schema validation. The coverage graph is generated from the catalogs and is informational; incomplete locales are valid.
+- Keep intentional technical string exceptions narrow. Never add a broad exception merely to silence a user-facing ASCII literal.
 
 ## Style
 

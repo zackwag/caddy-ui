@@ -1,0 +1,47 @@
+name: Localization Coverage
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/src/i18n/locales/**'
+      - 'frontend/scripts/localization.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: localization-coverage
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Validate locale catalogs
+        run: node frontend/scripts/localization.mjs check
+
+      - name: Generate coverage graph
+        run: node frontend/scripts/localization.mjs coverage
+
+      - name: Commit updated graph
+        run: |
+          if git diff --quiet -- docs/localization-coverage.svg; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/localization-coverage.svg
+          git commit -m "docs: update localization coverage"
+          git push

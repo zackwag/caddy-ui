@@ -28,14 +28,17 @@ The `predev`/`prebuild` scripts fetch `src/lib/caddyfileMode.js` (the generated 
 
 ## Tests
 
-Backend tests use [Vitest](https://vitest.dev/) and cover pure logic (Caddyfile parsing, formatting, validation, etc.):
+Backend and frontend tests use [Vitest](https://vitest.dev/):
 
 ```bash
 cd backend
 npm test
+
+cd ../frontend
+npm test
 ```
 
-CI runs this, plus `npm run lint` in both `backend/` and `frontend/`, on every PR against `main` (`.github/workflows/test.yml`). There is currently no frontend test suite — verify UI changes by running the app (see below).
+The frontend test command also validates the localization catalog contract. CI runs tests plus lint in both `backend/` and `frontend/` on every PR against `main` (`.github/workflows/test.yml`). Frontend UI changes still need a browser check because the tests do not cover full rendering and interaction behavior.
 
 ## Verifying UI changes
 
@@ -50,16 +53,30 @@ For anything touching `frontend/`, run the dev server and click through the affe
 
 ### Localization
 
-User-facing frontend text should come from the locale catalog rather than hard-coded string literals. The frontend ESLint rule `i18next/no-literal-string` flags literals that should be localized.
+![Localization coverage](docs/localization-coverage.svg)
 
-If a literal is intentionally not UI copy (for example a Caddy directive, protocol value, API path, or other technical token), suppress the rule only at that line and explain why:
+User-facing frontend text must come from the locale catalog rather than hard-coded string literals. The frontend ESLint rule `i18next/no-literal-string` covers `frontend/src/**` and CI treats localization warnings as failures.
+
+`frontend/src/i18n/locales/en.js` is the canonical schema and fallback language:
+
+- `en.js` must always exist.
+- Other locale files may contain fewer translation leaves than English; missing keys fall back to English.
+- Other locale files must not introduce keys or key-tree shapes that are absent from `en.js`.
+- Every locale, including English, must define a non-empty `test.languageLoaded` string. The frontend language API integration test uses that probe to verify that advertised installed locales load successfully.
+- Run `npm run i18n:check` after changing locale catalogs. `npm run i18n:coverage` regenerates the coverage graph.
+
+**Translations must be human-authored. Machine-generated, agentic, LLM-produced, or bulk machine translations are not accepted.** Opening a PR that adds or changes non-English values under `frontend/src/i18n/locales/` is an explicit attestation that those translations were supplied or reviewed by a human who can vouch for them. By submitting that PR, the contributor accepts this rule.
+
+Agents may maintain the English source catalog and perform purely mechanical schema-preserving changes, but they must not author translated non-English text.
+
+If a literal is intentionally not UI copy (for example a Caddy directive, protocol value, API path, browser/storage key, or other technical token), prefer a narrow, documented technical exception. Do not broaden the exceptions to hide user-facing ASCII text.
 
 ```js
 // eslint-disable-next-line i18next/no-literal-string -- Caddy directive, not UI copy
 const example = 'reverse_proxy';
 ```
 
-Keep suppressions narrow and descriptive so reviewers can distinguish intentional technical literals from untranslated UI text.
+Keep exceptions narrow and descriptive so reviewers can distinguish intentional technical literals from untranslated UI text.
 
 ## Commit messages / PR titles
 
