@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { API, apiFetch, getToken } from "../utils/api.js";
 
 export default function Logs({ toast, onUnauth }) {
+    const { t } = useTranslation();
     const [lines, setLines] = useState([]);
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
@@ -60,7 +62,7 @@ export default function Logs({ toast, onUnauth }) {
 
     const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
 
-    const lineCountText = `${filteredLines.length}${logSearch || levelFilter !== "all" ? ` / ${lines.length}` : ""} lines`;
+    const lineCountText = t("logs.lineCount", { filtered: filteredLines.length, total: lines.length, hasFilter: logSearch || levelFilter !== "all" });
 
     const exportLogs = () => {
         const linesToExport = (logSearch || levelFilter !== "all") && filteredLines.length > 0 ? filteredLines : lines;
@@ -87,7 +89,7 @@ export default function Logs({ toast, onUnauth }) {
         setSavingConfig(true);
         try {
             await apiFetch("/logs/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logConfig) }, onUnauth);
-            toast.success("Log config saved and reloaded");
+            toast.success(t("logs.configSaved"));
             setConfigDirty(false);
         } catch (e) { toast.error(e.message); }
         finally { setSavingConfig(false); }
@@ -107,30 +109,30 @@ export default function Logs({ toast, onUnauth }) {
         <div className="gap-16 logs-page">
             <div className="card card-flush">
                 <div className={`card-header--clickable ${configOpen ? "is-open" : ""}`} onClick={() => setConfigOpen(o => !o)}>
-                    <span className="section-label">Log Configuration</span>
+                    <span className="section-label">{t("logs.configuration")}</span>
                     <div className="flex-center">
-                        {logConfig && <span className={`badge ${logConfig.enabled ? "badge-green" : "badge-muted"}`}>{logConfig.enabled ? "ENABLED" : "DISABLED"}</span>}
+                        {logConfig && <span className={`badge ${logConfig.enabled ? "badge-green" : "badge-muted"}`}>{logConfig.enabled ? t("common.enabledUpper") : t("common.disabledUpper")}</span>}
                         <span className="chevron">{configOpen ? "▲" : "▼"}</span>
                     </div>
                 </div>
                 {configOpen && !logConfig && (
-                    <div className="card-body loading">Loading...</div>
+                    <div className="card-body loading">{t("common.loading")}</div>
                 )}
                 {configOpen && logConfig && (
                     <div className="card-body">
                         <div className="config-grid">
                             <div className="log-config-enabled">
-                                <span className="field-label">Logging</span>
+                                <span className="field-label">{t("logs.logging")}</span>
                                 <button
                                     type="button"
                                     className={`btn log-enabled-btn ${logConfig.enabled ? "btn-danger" : "btn-primary"}`}
                                     onClick={() => updateConfig("enabled", !logConfig.enabled)}
                                 >
-                                    {logConfig.enabled ? "Disable" : "Enable"}
+                                    {logConfig.enabled ? t("common.disable") : t("common.enable")}
                                 </button>
                             </div>
                             <div>
-                                <span className="field-label">Format</span>
+                                <span className="field-label">{t("logs.format")}</span>
                                 <div className="select-wrap">
                                     <select className="config-select" value={logConfig.format} onChange={e => updateConfig("format", e.target.value)} disabled={!logConfig.enabled}>
                                         <option value="json">json</option>
@@ -140,7 +142,7 @@ export default function Logs({ toast, onUnauth }) {
                                 </div>
                             </div>
                             <div>
-                                <span className="field-label">Level</span>
+                                <span className="field-label">{t("logs.level")}</span>
                                 <div className="select-wrap">
                                     <select className="config-select" value={logConfig.level} onChange={e => updateConfig("level", e.target.value)} disabled={!logConfig.enabled}>
                                         <option value="DEBUG">DEBUG</option>
@@ -152,20 +154,20 @@ export default function Logs({ toast, onUnauth }) {
                                 </div>
                             </div>
                             <div className="config-grid-full">
-                                <span className="field-label">Log File Path</span>
+                                <span className="field-label">{t("logs.logFilePath")}</span>
                                 <input className="config-input" value={logConfig.path} onChange={e => updateConfig("path", e.target.value)} disabled={!logConfig.enabled} />
                             </div>
                             <div>
-                                <span className="field-label">Roll Size</span>
+                                <span className="field-label">{t("logs.rollSize")}</span>
                                 <input className="config-input" value={logConfig.rollSize} onChange={e => updateConfig("rollSize", e.target.value)} placeholder="50mb" disabled={!logConfig.enabled} />
                             </div>
                             <div>
-                                <span className="field-label">Roll Keep</span>
+                                <span className="field-label">{t("logs.rollKeep")}</span>
                                 <input type="number" className="config-input" value={logConfig.rollKeep} onChange={e => updateConfig("rollKeep", parseInt(e.target.value))} min={1} max={20} disabled={!logConfig.enabled} />
                             </div>
                         </div>
                         <div className="flex-end">
-                            <button className="btn btn-primary log-save-btn" onClick={saveConfig} disabled={savingConfig || !configDirty}>{savingConfig ? "Saving..." : "↑ Save"}</button>
+                            <button className="btn btn-primary log-save-btn" onClick={saveConfig} disabled={savingConfig || !configDirty}>{savingConfig ? t("common.saving") : `↑ ${t("common.save")}`}</button>
                         </div>
                     </div>
                 )}
@@ -174,8 +176,8 @@ export default function Logs({ toast, onUnauth }) {
             <div className="log-toolbar">
                 <div className="btn-row">
                     <div className="search-wrap">
-                        <input className="search-input search-input--clearable" placeholder="Search logs..." value={logSearch} onChange={e => setLogSearch(e.target.value)} />
-                        {logSearch && <button className="search-clear" onClick={() => setLogSearch("")} title="Clear search">✕</button>}
+                        <input className="search-input search-input--clearable" placeholder={t("logs.searchPlaceholder")} value={logSearch} onChange={e => setLogSearch(e.target.value)} />
+                        {logSearch && <button className="search-clear" onClick={() => setLogSearch("")} title={t("common.clearSearch")}>✕</button>}
                     </div>
                     {levelBtn("error", "ERROR")}
                     {levelBtn("warn", "WARN")}
@@ -185,14 +187,14 @@ export default function Logs({ toast, onUnauth }) {
                 <div className="btn-row">
                     <span className="log-line-count log-line-count--desktop">{lineCountText}</span>
                     {live && <div className="live-dot" />}
-                    <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>{live ? "■ Stop" : "▶ Live"}</button>
-                    <button className="btn btn-ghost" onClick={refreshLogs} disabled={refreshing}>↺ {refreshing ? "Refreshing..." : "Refresh"}</button>
-                    <button className="btn btn-ghost" onClick={exportLogs}>↓ Export</button>
+                    <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>{live ? `■ ${t("logs.stop")}` : `▶ ${t("logs.live")}`}</button>
+                    <button className="btn btn-ghost" onClick={refreshLogs} disabled={refreshing}>↺ {refreshing ? t("common.refreshing") : t("common.refresh")}</button>
+                    <button className="btn btn-ghost" onClick={exportLogs}>↓ {t("common.export")}</button>
                 </div>
             </div>
             <div className="log-wrap">
                 {filteredLines.length === 0 ? (
-                    <div className="log-empty">{logSearch || levelFilter !== "all" ? "No lines match the current filter" : "No log lines loaded"}</div>
+                    <div className="log-empty">{logSearch || levelFilter !== "all" ? t("logs.noMatchingLines") : t("logs.noLinesLoaded")}</div>
                 ) : (
                     filteredLines.map((line, i) => (
                         <div key={i} className={`log-line ${classify(line)} ${logSearch && line.toLowerCase().includes(logSearch.toLowerCase()) ? "highlight" : ""}`}>{line}</div>

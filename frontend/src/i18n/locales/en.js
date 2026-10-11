@@ -10,6 +10,13 @@ export default {
         loading: 'Loading...',
         saving: 'Saving...',
         refresh: 'Refresh',
+        refreshing: 'Refreshing...',
+        enable: 'Enable',
+        disable: 'Disable',
+        enabledUpper: 'ENABLED',
+        disabledUpper: 'DISABLED',
+        clearSearch: 'Clear search',
+        export: 'Export',
     },
 
     pages: {
@@ -228,5 +235,22 @@ export default {
             orphaned: 'orphaned',
             superseded: 'superseded',
         },
+    },
+
+    logs: {
+        configuration: 'Log Configuration',
+        configSaved: 'Log config saved and reloaded',
+        logging: 'Logging',
+        format: 'Format',
+        level: 'Level',
+        logFilePath: 'Log File Path',
+        rollSize: 'Roll Size',
+        rollKeep: 'Roll Keep',
+        searchPlaceholder: 'Search logs...',
+        lineCount: '{{filtered}}{{hasFilter, select, true { / {{total}}} other {}}} lines',
+        stop: 'Stop',
+        live: 'Live',
+        noMatchingLines: 'No lines match the current filter',
+        noLinesLoaded: 'No log lines loaded',
     },
 };
