@@ -14,7 +14,7 @@ export default function LanguagePicker({
             </span>
 
             <select
-                className="language-picker-select"
+                className="config-select language-picker-select"
                 value={language}
                 onChange={e => onLanguageChange(e.target.value)}
                 aria-label="Choose language"

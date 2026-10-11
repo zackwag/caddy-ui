@@ -1173,7 +1173,8 @@ export const css = `
       position: relative;
   }
 
-  .language-picker-value {
+  .language-picker-value,
+  .language-picker-select {
       font-family: 'IBM Plex Mono', monospace;
       font-size: 11px;
       font-weight: 500;
