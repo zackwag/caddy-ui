@@ -1,6 +1,5 @@
 export default {
-    common: {
-        save: 'Speichern',
-        cancel: 'Abbrechen',
+    test: {
+        languageLoaded: 'Deutsch geladen',
     },
 };
