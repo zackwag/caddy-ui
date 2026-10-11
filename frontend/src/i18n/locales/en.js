@@ -63,4 +63,16 @@ export default {
     languagePicker: {
         chooseLanguage: 'Choose language',
     },
+
+    themePicker: {
+        switchToLight: 'Switch to light mode',
+        switchToDark: 'Switch to dark mode',
+        chooseThemes: 'Choose themes',
+        darkTheme: 'Dark theme',
+        lightTheme: 'Light theme',
+        builtIn: 'Built-in',
+        custom: 'Custom',
+        exportTitle: 'Download {{label}} as a custom theme file for the themes/{{mode}}/ folder',
+        exportJson: 'Export {{label}} as JSON',
+    },
 };

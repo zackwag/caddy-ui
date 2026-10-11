@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import { THEME_VAR_KEYS } from "../styles.js";
 
@@ -27,6 +28,7 @@ function exportTheme(theme) {
 }
 
 export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, lightPalette, onDarkPaletteChange, onLightPaletteChange }) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const menuRef = useRef(null);
     useClickOutside(menuRef, () => setOpen(false), open);
@@ -37,21 +39,21 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
 
     return (
         <div className="theme-picker" ref={menuRef}>
-            <button className="theme-toggle" onClick={onToggleMode} title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <button className="theme-toggle" onClick={onToggleMode} title={mode === 'dark' ? t("themePicker.switchToLight") : t("themePicker.switchToDark")}>
                 {mode === 'dark' ? '☀︎' : '☾︎'}
             </button>
-            <button className="theme-picker-trigger" onClick={() => setOpen(o => !o)} title="Choose themes">▾</button>
+            <button className="theme-picker-trigger" onClick={() => setOpen(o => !o)} title={t("themePicker.chooseThemes")}>▾</button>
             {open && (
                 <div className="theme-picker-menu">
                     <div className="theme-picker-row">
-                        <label>Dark theme</label>
+                        <label>{t("themePicker.darkTheme")}</label>
                         <div className="select-wrap">
                             <select className="config-select" value={darkPalette} onChange={e => onDarkPaletteChange(e.target.value)}>
-                                <optgroup label="Built-in">
+                                <optgroup label={t("themePicker.builtIn")}>
                                     {dark.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                                 </optgroup>
                                 {dark.custom.length > 0 && (
-                                    <optgroup label="Custom">
+                                    <optgroup label={t("themePicker.custom")}>
                                         {dark.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                                     </optgroup>
                                 )}
@@ -60,14 +62,14 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
                         </div>
                     </div>
                     <div className="theme-picker-row">
-                        <label>Light theme</label>
+                        <label>{t("themePicker.lightTheme")}</label>
                         <div className="select-wrap">
                             <select className="config-select" value={lightPalette} onChange={e => onLightPaletteChange(e.target.value)}>
-                                <optgroup label="Built-in">
+                                <optgroup label={t("themePicker.builtIn")}>
                                     {light.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                                 </optgroup>
                                 {light.custom.length > 0 && (
-                                    <optgroup label="Custom">
+                                    <optgroup label={t("themePicker.custom")}>
                                         {light.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                                     </optgroup>
                                 )}
@@ -80,8 +82,8 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
                             <button
                                 className="btn btn-ghost btn--sm"
                                 onClick={() => exportTheme(active)}
-                                title={`Download ${active.label} as a custom theme file for the themes/${active.mode}/ folder`}
-                            >↓ Export {active.label} as JSON</button>
+                                title={t("themePicker.exportTitle", { label: active.label, mode: active.mode })}
+                            >↓ {t("themePicker.exportJson", { label: active.label })}</button>
                         </div>
                     )}
                 </div>
