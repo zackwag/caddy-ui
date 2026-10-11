@@ -162,7 +162,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
                                 {t("tls.supersededCount", { count: summary.superseded })}
                             </span>
                         )}
-                        <button className="btn btn-ghost btn--sm tls-refresh--desktop" onClick={load}>↺ Refresh</button>
+                        <button className="btn btn-ghost btn--sm tls-refresh--desktop" onClick={load}>↺ {t("common.refresh")}</button>
                     </div>
                 </div>
                 {sorted.length === 0 ? (

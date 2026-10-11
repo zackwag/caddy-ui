@@ -123,6 +123,7 @@ export default {
         caddyServer: 'Caddy server',
         servers: 'Servers',
         activeHttpServers: 'Active HTTP servers',
+        tls: 'TLS',
         enabled: 'ENABLED',
         disabled: 'DISABLED',
         certificateManagement: 'Certificate management',

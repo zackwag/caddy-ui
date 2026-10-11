@@ -68,7 +68,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                         <div className="stat-label">{t("dashboard.activeHttpServers")}</div>
                     </div>
                     <div className="card card-clickable" onClick={() => navigate("/tls")}>
-                        <div className="card-title">TLS</div>
+                        <div className="card-title">{t("dashboard.tls")}</div>
                         <div className="stat-val" style={{ fontSize: 20, paddingTop: 6 }}>
                             {status.online ? <span className={`badge ${status.tlsEnabled ? "badge-green" : "badge-red"}`}>{status.tlsEnabled ? t("dashboard.enabled") : t("dashboard.disabled")}</span> : "—"}
                         </div>
@@ -178,7 +178,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                             </div>
                             <div>
                                 <span className="field-label">{t("dashboard.listensOn")}</span>
-                                <div className="data-val mono">{editingServer.listen?.join(", ") || "no listeners"}</div>
+                                <div className="data-val mono">{editingServer.listen?.join(", ") || t("dashboard.noListeners")}</div>
                             </div>
                             <div>
                                 <span className="field-label">{t("dashboard.routes")}</span>

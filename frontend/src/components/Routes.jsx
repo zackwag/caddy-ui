@@ -130,7 +130,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
 
                 {isCaddyfileManaged && siteBlockFailed ? (
                     <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4 }}>
-                        {t("routes.caddyfileLoadFailedBefore")} <strong>Caddyfile</strong> {t("routes.caddyfileLoadFailedAfter")}
+                        {t("routes.caddyfileLoadFailedBefore")} <strong>{t("routes.caddyfile")}</strong> {t("routes.caddyfileLoadFailedAfter")}
                     </div>
                 ) : isCaddyfileManaged && !inMaintenance ? (
                     <>
@@ -334,13 +334,12 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                 await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "" }) }, onUnauth).catch(() => {});
                 setNotes(n => { const u = { ...n }; delete u[domain]; return u; });
             }
-            toast.success("Route removed"); load(); loadHealth();
+            toast.success(t("routes.removed")); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
 
     const toggleMaintenance = async (domain) => {
         const inMaint = !!maintenance[domain];
-        const actionKey = inMaint ? "routes.maintenanceDisabled" : "routes.maintenanceEnabled";
         if (!inMaint && !await confirm(t("routes.enableMaintenanceConfirm", { domain }), { confirmLabel: t("common.enable") })) return;
         try {
             if (inMaint) {
@@ -348,7 +347,9 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             } else {
                 await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "POST" }, onUnauth);
             }
-            toast.success(t(actionKey, { domain }));
+            toast.success(inMaint
+                ? t("routes.maintenanceDisabled", { domain })
+                : t("routes.maintenanceEnabled", { domain }));
             load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
