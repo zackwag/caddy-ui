@@ -40,6 +40,12 @@ export default [
         },
     },
     {
+        files: ['src/i18n/**/*.{js,jsx}'],
+        rules: {
+            'i18next/no-literal-string': 'off',
+        },
+    },
+    {
         files: ['scripts/**/*.mjs'],
         languageOptions: {
             ecmaVersion: 'latest',
