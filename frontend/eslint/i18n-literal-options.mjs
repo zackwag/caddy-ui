@@ -20,6 +20,7 @@ export default {
             '^href$',
             '^src$',
             '^data-',
+            '^col$'
         ],
     },
 
@@ -41,6 +42,22 @@ export default {
 
     words: {
         exclude: [
+            // DOM/browser behavior
+            '^(smooth|start|keydown)$',
+
+            // internal state
+            '^(new|err|warn)$',
+
+            // protocols / IDs
+            '^(http|https)$',
+            '^srv\\d+$',
+
+            // Prometheus percentile identifiers
+            '^p(50|95|99)$',
+
+            // ISO timestamp marker
+            '^Z$',
+
             // Empty/default values and stable application identifiers.
             '^$',
             '^en$',
