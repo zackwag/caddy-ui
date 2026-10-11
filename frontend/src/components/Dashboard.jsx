@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
 
-const SERVER_ID_HINT = "Assigned by Caddy (srv0, srv1, … by default). Set your own with the name option of the Caddyfile's global servers block.";
-
 export default function Dashboard({ status, toast, onUnauth }) {
+    const { t, i18n } = useTranslation();
     const [names, setNames] = useState({});
     const [editingServer, setEditingServer] = useState(null);
     const [editName, setEditName] = useState("");
@@ -36,11 +36,11 @@ export default function Dashboard({ status, toast, onUnauth }) {
             if (editName.trim()) {
                 await apiFetch(`/server-names/${editingServer.name}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editName }) }, onUnauth);
                 setNames(n => ({ ...n, [editingServer.name]: editName.trim() }));
-                toast.success("Label saved");
+                toast.success(t("dashboard.labelSaved"));
             } else {
                 await apiFetch(`/server-names/${editingServer.name}`, { method: "DELETE" }, onUnauth);
                 setNames(n => { const x = { ...n }; delete x[editingServer.name]; return x; });
-                toast.success("Label removed");
+                toast.success(t("dashboard.labelRemoved"));
             }
             setEditingServer(null);
         } catch (e) { toast.error(e.message); }
@@ -48,71 +48,71 @@ export default function Dashboard({ status, toast, onUnauth }) {
 
     const formatLastReload = (iso) => {
         if (!iso) return "—";
-        return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+        return new Date(iso).toLocaleString(i18n.resolvedLanguage || i18n.language, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     };
 
-    if (!status) return <div className="loading">Loading...</div>;
+    if (!status) return <div className="loading">{t("common.loading")}</div>;
 
     return (
         <>
             <div className="gap-16">
                 <div className="grid-4">
                     <div className="card">
-                        <div className="card-title">Status</div>
-                        <div className="stat-val" style={{ color: status.online ? "var(--accent)" : "var(--danger)" }}>{status.online ? "ONLINE" : "OFFLINE"}</div>
-                        <div className="stat-label">Caddy server</div>
+                        <div className="card-title">{t("dashboard.status")}</div>
+                        <div className="stat-val" style={{ color: status.online ? "var(--accent)" : "var(--danger)" }}>{status.online ? t("dashboard.online") : t("dashboard.offline")}</div>
+                        <div className="stat-label">{t("dashboard.caddyServer")}</div>
                     </div>
                     <div className="card card-clickable" onClick={() => navigate("/caddyfile")}>
-                        <div className="card-title">Servers</div>
+                        <div className="card-title">{t("dashboard.servers")}</div>
                         <div className="stat-val">{status.online ? status.serverCount : "—"}</div>
-                        <div className="stat-label">Active HTTP servers</div>
+                        <div className="stat-label">{t("dashboard.activeHttpServers")}</div>
                     </div>
                     <div className="card card-clickable" onClick={() => navigate("/tls")}>
                         <div className="card-title">TLS</div>
                         <div className="stat-val" style={{ fontSize: 20, paddingTop: 6 }}>
-                            {status.online ? <span className={`badge ${status.tlsEnabled ? "badge-green" : "badge-red"}`}>{status.tlsEnabled ? "ENABLED" : "DISABLED"}</span> : "—"}
+                            {status.online ? <span className={`badge ${status.tlsEnabled ? "badge-green" : "badge-red"}`}>{status.tlsEnabled ? t("dashboard.enabled") : t("dashboard.disabled")}</span> : "—"}
                         </div>
-                        <div className="stat-label">Certificate management</div>
+                        <div className="stat-label">{t("dashboard.certificateManagement")}</div>
                     </div>
                     <div className="card card-clickable" onClick={() => navigate("/routes")}>
-                        <div className="card-title">Upstreams</div>
+                        <div className="card-title">{t("dashboard.upstreams")}</div>
                         <div className="stat-val" style={{ color: !health ? "var(--text)" : health.offline > 0 ? "var(--danger)" : "var(--accent)" }}>
                             {health ? `${health.online}/${health.total}` : "—"}
                         </div>
-                        <div className="stat-label">{!health ? "—" : health.offline > 0 ? `${health.offline} offline` : "All online"}</div>
+                        <div className="stat-label">{!health ? "—" : health.offline > 0 ? t("dashboard.offlineCount", { count: health.offline }) : t("dashboard.allOnline")}</div>
                     </div>
                 </div>
 
                 <div className="card">
-                    <div className="card-title">Process</div>
+                    <div className="card-title">{t("dashboard.process")}</div>
                     {!process ? (
-                        <div className="loading">Loading...</div>
+                        <div className="loading">{t("common.loading")}</div>
                     ) : !process.ok ? (
                         <div className="flex-between">
-                            <span className="loading">Metrics not enabled</span>
-                            <button className="btn btn-ghost btn--sm" onClick={() => navigate("/metrics")}>Enable in Metrics →</button>
+                            <span className="loading">{t("dashboard.metricsNotEnabled")}</span>
+                            <button className="btn btn-ghost btn--sm" onClick={() => navigate("/metrics")}>{t("dashboard.enableInMetrics")} →</button>
                         </div>
                     ) : (
                         <div className="process-grid">
                             {process.version && process.version !== 'unknown' && (
                                 <div>
-                                    <span className="field-label">Version</span>
+                                    <span className="field-label">{t("dashboard.version")}</span>
                                     <div className="data-val">{process.version}</div>
                                 </div>
                             )}
                             <div>
-                                <span className="field-label">Uptime</span>
+                                <span className="field-label">{t("dashboard.uptime")}</span>
                                 <div className="data-val data-val--accent">{process.uptime || "—"}</div>
                             </div>
                             <div>
-                                <span className="field-label">Heap</span>
+                                <span className="field-label">{t("dashboard.heap")}</span>
                                 <div className="data-val">
                                     {process.memAlloc !== null ? `${process.memAlloc} MB` : "—"}
-                                    {process.memSys !== null && <span className="inline-muted">/ {process.memSys} MB sys</span>}
+                                    {process.memSys !== null && <span className="inline-muted">/ {t("dashboard.systemMemory", { value: process.memSys })}</span>}
                                 </div>
                             </div>
                             <div>
-                                <span className="field-label">Last Reload</span>
+                                <span className="field-label">{t("dashboard.lastReload")}</span>
                                 <div className="data-val" style={{ color: process.lastReloadSuccess ? "var(--text)" : "var(--danger)" }}>
                                     {formatLastReload(process.lastReload)}
                                 </div>
@@ -123,31 +123,31 @@ export default function Dashboard({ status, toast, onUnauth }) {
 
                 {status.online && status.servers?.length > 0 && (
                     <div className="card">
-                        <div className="card-title">HTTP Servers</div>
+                        <div className="card-title">{t("dashboard.httpServers")}</div>
                         <div className="table-wrap">
                             <table className="table">
                                 <thead>
                                     <tr>
-                                        <th>Label</th>
-                                        <th title={SERVER_ID_HINT}>Server ID <span className="th-hint">ⓘ</span></th>
-                                        <th>Listens on</th>
-                                        <th>Routes</th>
-                                        <th>Status</th>
+                                        <th>{t("dashboard.label")}</th>
+                                        <th title={t("dashboard.serverIdHint")}>{t("dashboard.serverId")} <span className="th-hint">ⓘ</span></th>
+                                        <th>{t("dashboard.listensOn")}</th>
+                                        <th>{t("dashboard.routes")}</th>
+                                        <th>{t("dashboard.status")}</th>
                                         <th />
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {status.servers.map(s => (
-                                        <tr key={s.name} className="row-clickable" onClick={() => navigate(`/routes?filter=${s.name}`)} title={`Show routes on ${s.name}`}>
+                                        <tr key={s.name} className="row-clickable" onClick={() => navigate(`/routes?filter=${s.name}`)} title={t("dashboard.showRoutesOn", { server: s.name })}>
                                             <td>{names[s.name] || <span className="cell-muted">—</span>}</td>
                                             <td className="mono">{s.name}</td>
-                                            <td className="mono cell-muted">{s.listen?.join(", ") || "no listeners"}</td>
+                                            <td className="mono cell-muted">{s.listen?.join(", ") || t("dashboard.noListeners")}</td>
                                             <td><span className="badge badge-blue">{s.routeCount}</span></td>
-                                            <td><span className="badge badge-green">active</span></td>
+                                            <td><span className="badge badge-green">{t("dashboard.active")}</span></td>
                                             <td className="cell-actions">
                                                 <span
                                                     className="server-edit-icon"
-                                                    title="Edit label"
+                                                    title={t("dashboard.editLabel")}
                                                     onClick={e => { e.stopPropagation(); openEdit(s); }}
                                                 >✎</span>
                                             </td>
@@ -161,7 +161,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
 
                 {!status.online && (
                     <div className="card card-danger">
-                        <div className="card-title">Connection Error</div>
+                        <div className="card-title">{t("dashboard.connectionError")}</div>
                         <div className="loading">{status.error}</div>
                     </div>
                 )}
@@ -170,31 +170,31 @@ export default function Dashboard({ status, toast, onUnauth }) {
             {editingServer && (
                 <div className="modal-overlay" onClick={() => setEditingServer(null)}>
                     <div className="modal" onClick={e => e.stopPropagation()}>
-                        <div className="modal-title">Edit Label</div>
+                        <div className="modal-title">{t("dashboard.editLabel")}</div>
                         <div className="server-facts">
                             <div>
-                                <span className="field-label">Server ID</span>
+                                <span className="field-label">{t("dashboard.serverId")}</span>
                                 <div className="data-val mono">{editingServer.name}</div>
                             </div>
                             <div>
-                                <span className="field-label">Listens on</span>
+                                <span className="field-label">{t("dashboard.listensOn")}</span>
                                 <div className="data-val mono">{editingServer.listen?.join(", ") || "no listeners"}</div>
                             </div>
                             <div>
-                                <span className="field-label">Routes</span>
+                                <span className="field-label">{t("dashboard.routes")}</span>
                                 <div className="data-val mono">{editingServer.routeCount}</div>
                             </div>
                         </div>
                         <div className="field">
-                            <label>Label</label>
-                            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={`e.g. "HTTPS Sites" or "Internal Services"`} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
+                            <label>{t("dashboard.label")}</label>
+                            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={t("dashboard.labelPlaceholder")} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                         </div>
                         <div className="modal-hint">
-                            Only shown in caddy/ui. Leave blank to remove it. To change the Server ID itself, set <code>name</code> in your Caddyfile's global <code>servers</code> option.
+                            {t("dashboard.labelHintBefore")} <code>name</code> {t("dashboard.labelHintAfter")}
                         </div>
                         <div className="btn-row flex-end">
-                            <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>Cancel</button>
-                            <button className="btn btn-primary" onClick={saveName}>Save</button>
+                            <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>{t("common.cancel")}</button>
+                            <button className="btn btn-primary" onClick={saveName}>{t("common.save")}</button>
                         </div>
                     </div>
                 </div>
