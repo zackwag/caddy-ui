@@ -48,4 +48,15 @@ export default {
             instances: 'Instances',
         },
     },
+
+    login: {
+        serverManager: 'Server Manager',
+        sessionExpired: 'Your session has expired. Please sign in again.',
+        failed: 'Login failed',
+        serverUnreachable: 'Could not reach the server',
+        username: 'Username',
+        password: 'Password',
+        signingIn: 'Signing in...',
+        signIn: 'Sign in',
+    },
 };
