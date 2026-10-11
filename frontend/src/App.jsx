@@ -155,14 +155,17 @@ export default function App() {
             if (err.code === 'NO_INSTANCES') {
                 setNoInstances(true);
                 setStatus(null);
-                // Allow logs to be visible even if there are no instances, since logs can be viewed for a specific instance.
-                const path = '/' + location.pathname.split('/')[1];
-                if (path !== '/logs' && path !== '/instances') navigate('/instances', { replace: true });
             } else {
                 setStatus({ online: false, error: "Could not reach backend" });
             }
         });
-    }, [onUnauth, navigate, location.pathname]);
+    }, [onUnauth]);
+
+    // caddy/ui logs dont depend on instance, so Logs stays reachable alongside Instances.
+    useEffect(() => {
+        const path = '/' + location.pathname.split('/')[1];
+        if (noInstances && path !== '/logs' && path !== '/instances') navigate('/instances', { replace: true });
+    }, [noInstances, location.pathname, navigate]);
 
     useEffect(() => {
         if (!authed) return;
