@@ -4,6 +4,7 @@ import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { execInInstance, spawnInInstance } from '../docker.js';
 import logger, { getRecentLogEntries, subscribeToLogs } from '../logger.js';
 const router = Router();
+const appLogsRouter = Router();
 const TAIL_LINES = 200;
 
 // ── Log config parsing ────────────────────────────────────────────────────────
@@ -110,18 +111,20 @@ function updateGlobalBlock(content, logConfig) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-router.get('/app', (req, res) => {
+appLogsRouter.get('/', (req, res) => {
     res.json({ entries: getRecentLogEntries(TAIL_LINES) });
 });
 
-router.get('/app/stream', (req, res) => {
+appLogsRouter.get('/stream', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
     const unsubscribe = subscribeToLogs((entry) => {
-        res.write(`data: ${JSON.stringify({ entry })}\n\n`);
+        if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify({ entry })}\n\n`);
+        }
     });
 
     req.on('close', unsubscribe);
@@ -214,4 +217,4 @@ router.get('/stream', async (req, res) => {
 });
 
 export default router;
-export { parseLogConfig, buildLogBlock, updateGlobalBlock };
+export { appLogsRouter, parseLogConfig, buildLogBlock, updateGlobalBlock };

@@ -12,7 +12,7 @@ import caddyfileRouter, { migrateLegacyHistory } from './routes/caddyfile.js';
 import customThemesRouter from './routes/customThemes.js';
 import healthRouter from './routes/health.js';
 import instancesRouter from './routes/instances.js';
-import logsRouter from './routes/logs.js';
+import logsRouter, { appLogsRouter } from './routes/logs.js';
 import metricsRouter, { rawMetrics } from './routes/metrics.js';
 import notificationsRouter from './routes/notifications.js';
 import settingsRouter from './routes/settings.js';
@@ -87,6 +87,10 @@ app.get('/api/version', (req, res) => {
 app.use('/api/instances', authMiddleware, instancesRouter);
 app.use('/api/settings', authMiddleware, settingsRouter);
 app.use('/api/custom-themes', authMiddleware, customThemesRouter);
+
+// caddy/ui application logs are global and must remain available even when
+// there is no valid Caddy instance to attach to the request.
+app.use('/api/logs/app', authMiddleware, appLogsRouter);
 
 // Instance middleware for all other routes
 app.use('/api', instanceMiddleware);

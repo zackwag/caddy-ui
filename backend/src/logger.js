@@ -14,7 +14,13 @@ function log(level, message, meta = {}) {
     const entry = { ts: timestamp(), level, message, ...meta };
     recentEntries.push(entry);
     if (recentEntries.length > MAX_RECENT_ENTRIES) recentEntries.shift();
-    for (const subscriber of subscribers) subscriber(entry);
+    for (const subscriber of subscribers) {
+        try {
+            subscriber(entry);
+        } catch {
+            // A disconnected log viewer must never break application logging.
+        }
+    }
 
     if (isDev) {
         const metaStr = Object.keys(meta).length ? ' ' + JSON.stringify(meta) : '';
