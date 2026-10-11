@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.3](https://github.com/zackwag/caddy-ui/compare/v2.17.2...v2.17.3) (2026-10-11)
+
+
+### Bug Fixes
+
+* keep server labels per instance ([#189](https://github.com/zackwag/caddy-ui/issues/189)) ([c120722](https://github.com/zackwag/caddy-ui/commit/c1207222a42e32a104dfb237c623053531d6ce35))
+
 ## [2.17.2](https://github.com/zackwag/caddy-ui/compare/v2.17.1...v2.17.2) (2026-10-11)
 
 
