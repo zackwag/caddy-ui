@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.4](https://github.com/zackwag/caddy-ui/compare/v2.17.3...v2.17.4) (2026-10-11)
+
+
+### Bug Fixes
+
+* don't prefix edge, beta, and dev builds with "v" in the sidebar ([#190](https://github.com/zackwag/caddy-ui/issues/190)) ([3e89485](https://github.com/zackwag/caddy-ui/commit/3e894858e28e42f8f19789e8539b189c7c4d7a57))
+
 ## [2.17.3](https://github.com/zackwag/caddy-ui/compare/v2.17.2...v2.17.3) (2026-10-11)
 
 
