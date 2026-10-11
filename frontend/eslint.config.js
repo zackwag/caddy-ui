@@ -41,13 +41,24 @@ export default [
     },
     {
         files: [
-            'src/i18n/**/*.{js,jsx}', 
+            'src/i18n/**/*.{js,jsx}',
             'src/lib/caddyfileMode.js',
-            'src/test/**/*.{js,jsx}',
         ],
         rules: {
             'i18next/no-literal-string': 'off',
         },
+    },
+    {
+        files: ['test/**/*.{js,jsx}'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.browser,
+            parserOptions: {
+                ecmaFeatures: { jsx: true },
+            },
+        },
+        rules: js.configs.recommended.rules,
     },
     {
         files: ['scripts/**/*.mjs'],
