@@ -46,7 +46,15 @@ export default {
             '^(keydown|mousedown)$',
 
             // internal state
-            '^(new|err|warn)$',
+            '^(new|err|warn|default|unauthorized|del|add|equal|skip)$',
+            '^NO_INSTANCES$',
+
+            // DOM and browser storage identifiers
+            '^root$',
+            '^caddy_ui_(token|auth_enabled|instance)$',
+
+            // HTTP metadata
+            '^content-type$',
 
             // protocols / IDs
             '^(http|https)$',
