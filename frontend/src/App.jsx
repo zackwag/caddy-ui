@@ -12,7 +12,7 @@ import RoutesPage from "./components/Routes.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import ThemePicker from "./components/ThemePicker.jsx";
 import LanguagePicker from "./components/LanguagePicker.jsx";
-import { availableLocales, loadLocale, resolveLocale } from "./i18n/index.js";
+import { fetchEnabledLanguages, loadLocale, resolveLocale } from "./i18n/index.js";
 import ThemeWelcome from "./components/ThemeWelcome.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
@@ -85,18 +85,7 @@ export default function App() {
 
         async function bootstrapLanguage() {
             try {
-                const response = await fetch(`${API}/languages`);
-                const languageConfig = await response.json();
-
-                const available = new Set(availableLocales);
-                const enabled = (
-                    Array.isArray(languageConfig.languages)
-                        ? languageConfig.languages
-                        : ['en']
-                ).filter(lang => available.has(lang));
-
-                if (!enabled.includes('en')) enabled.unshift('en');
-
+                const enabled = await fetchEnabledLanguages(API);
                 const resolved = resolveLocale(enabled, null);
 
                 await loadLocale(resolved);

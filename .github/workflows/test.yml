@@ -69,5 +69,4 @@ jobs:
         run: npm ci
 
       - name: Run lint
-        run: npm run lint
-        # replace with npm run lint -- --max-warnings=0 when localization for at least EN done.
+        run: ${{ matrix.project == 'frontend' && 'npm run lint -- --max-warnings=0' || 'npm run lint' }}

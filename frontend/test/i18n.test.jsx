@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import LanguagePicker from '../src/components/LanguagePicker.jsx';
-import i18n, { loadLocale } from '../src/i18n/index.js';
+import i18n, { availableLocales, fetchEnabledLanguages, loadLocale } from '../src/i18n/index.js';
 
 describe('i18n integration', () => {
     afterEach(async () => {
+        vi.unstubAllGlobals();
         await loadLocale('en');
     });
 
@@ -27,5 +28,24 @@ describe('i18n integration', () => {
         expect(i18n.language).toBe('de');
         expect(i18n.t('test.languageLoaded')).toBe('Deutsch geladen');
         expect(i18n.t('common.save')).toBe('Save');
+    });
+
+    it('loads the probe key for every installed locale advertised by the language API', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => ({
+            json: async () => ({ languages: [...availableLocales, 'zz'] }),
+        })));
+
+        const enabled = await fetchEnabledLanguages('/api');
+
+        expect(enabled).toEqual(availableLocales);
+        expect(fetch).toHaveBeenCalledWith('/api/languages');
+
+        for (const locale of enabled) {
+            await loadLocale(locale);
+            const probe = i18n.t('test.languageLoaded');
+
+            expect(probe).toBeTruthy();
+            expect(probe).not.toBe('test.languageLoaded');
+        }
     });
 });

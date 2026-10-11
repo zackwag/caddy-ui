@@ -29,6 +29,21 @@ i18n
         },
     });
 
+export async function fetchEnabledLanguages(apiBase) {
+    const response = await fetch(`${apiBase}/languages`);
+    const languageConfig = await response.json();
+
+    const available = new Set(availableLocales);
+    const enabled = (
+        Array.isArray(languageConfig.languages)
+            ? languageConfig.languages
+            : ['en']
+    ).filter(lang => available.has(lang));
+
+    if (!enabled.includes('en')) enabled.unshift('en');
+    return enabled;
+}
+
 export async function loadLocale(locale) {
     const normalized = locale.toLowerCase();
 

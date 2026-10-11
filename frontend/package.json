@@ -9,7 +9,9 @@
         "build": "vite build",
         "preview": "vite preview",
         "lint": "eslint .",
-        "test": "vitest run"
+        "test": "vitest run && node scripts/localization.mjs check",
+        "i18n:check": "node scripts/localization.mjs check",
+        "i18n:coverage": "node scripts/localization.mjs coverage"
     },
     "dependencies": {
         "@codemirror/commands": "^6.11.1",
