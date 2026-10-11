@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch } from "../utils/api.js";
 
@@ -13,6 +14,7 @@ const EMPTY_FORM = {
 };
 
 export default function Instances({ toast, onUnauth, confirm, onInstanceChange }) {
+    const { t } = useTranslation();
     const [instances, setInstances] = useState([]);
     const instanceStatus = useInstanceStatus(onUnauth);
     const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         try {
             const containers = await apiFetch("/instances/discover", {}, onUnauth);
             setDiscovered(containers);
-            if (containers.length === 0) toastRef.current.success("No new Caddy containers found");
+            if (containers.length === 0) toastRef.current.success(t("instances.noNewContainers"));
         } catch (e) {
             toastRef.current.error(e.message);
             setDiscovered(null);
@@ -132,7 +134,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
 
     const save = async () => {
         if (!form.name.trim() || !form.adminUrl.trim()) {
-            toast.error("Name and Admin URL are required");
+            toast.error(t("instances.nameAndAdminRequired"));
             return;
         }
         setSaving(true);
@@ -143,14 +145,14 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(form),
                 }, onUnauth);
-                toast.success("Instance added");
+                toast.success(t("instances.added"));
             } else {
                 await apiFetch(`/instances/${editing}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(form),
                 }, onUnauth);
-                toast.success("Instance updated");
+                toast.success(t("instances.updated"));
             }
             setEditing(null);
             setDiscovered(null);
@@ -164,10 +166,10 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     };
 
     const remove = async (inst) => {
-        if (!await confirm(`Remove instance "${inst.name}"? This cannot be undone.`, { confirmLabel: "Remove", danger: true })) return;
+        if (!await confirm(t("instances.removeConfirm", { name: inst.name }), { confirmLabel: t("instances.remove"), danger: true })) return;
         try {
             await apiFetch(`/instances/${inst.id}`, { method: "DELETE" }, onUnauth);
-            toast.success("Instance removed");
+            toast.success(t("instances.removed"));
             load();
             if (onInstanceChange) onInstanceChange();
         } catch (e) {
@@ -177,28 +179,28 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
 
     const update = (patch) => setForm(f => ({ ...f, ...patch }));
 
-    if (loading) return <div className="loading">Loading...</div>;
+    if (loading) return <div className="loading">{t("common.loading")}</div>;
 
     return (
         <>
             <div className="gap-16">
                 <div className="card">
                     <div className="flex-between" style={{ marginBottom: 0 }}>
-                        <div className="card-title" style={{ marginBottom: 0 }}>Instances</div>
+                        <div className="card-title" style={{ marginBottom: 0 }}>{t("instances.title")}</div>
                         <div className="btn-row">
                             <button className="btn btn-ghost btn--sm" onClick={discover} disabled={discovering}>
-                                {discovering ? "Scanning..." : "Discover"}
+                                {discovering ? t("instances.scanning") : t("instances.discover")}
                             </button>
-                            <button className="btn btn-primary btn--sm" onClick={openAdd}>+ Add Instance</button>
+                            <button className="btn btn-primary btn--sm" onClick={openAdd}>+ {t("instances.addInstance")}</button>
                         </div>
                     </div>
                 </div>
 
                 {discovered && discovered.length > 0 && (
                     <div className="card">
-                        <div className="card-title">Discovered Containers</div>
+                        <div className="card-title">{t("instances.discoveredContainers")}</div>
                         <div className="hint" style={{ marginTop: -8, marginBottom: 12 }}>
-                            Caddy containers found on the Docker network that aren't registered yet.
+                            {t("instances.discoveredHint")}
                         </div>
                         {discovered.map(c => (
                             <div key={c.containerId} className="server-row">
@@ -209,7 +211,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                     </div>
                                     <div className="server-meta">{c.adminUrl}</div>
                                 </div>
-                                <button className="btn btn-primary btn--sm" onClick={() => addDiscovered(c)}>Add</button>
+                                <button className="btn btn-primary btn--sm" onClick={() => addDiscovered(c)}>{t("instances.add")}</button>
                             </div>
                         ))}
                     </div>
@@ -224,38 +226,38 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                 <span className="badge badge-muted">{inst.id}</span>
                             </div>
                             <div className="btn-row">
-                                <button className="btn btn-ghost btn--sm" onClick={() => openEdit(inst)}>Edit</button>
-                                <button className="btn btn-danger btn--sm" onClick={() => remove(inst)}>Remove</button>
+                                <button className="btn btn-ghost btn--sm" onClick={() => openEdit(inst)}>{t("instances.edit")}</button>
+                                <button className="btn btn-danger btn--sm" onClick={() => remove(inst)}>{t("instances.remove")}</button>
                             </div>
                         </div>
                         <div className="instance-details-grid">
                             <div>
-                                <span className="field-label">Admin URL</span>
+                                <span className="field-label">{t("instances.adminUrl")}</span>
                                 <div className="data-val mono">{inst.adminUrl}</div>
                             </div>
                             <div>
-                                <span className="field-label">Container</span>
-                                <div className="data-val mono">{inst.containerName || "local"}</div>
+                                <span className="field-label">{t("instances.container")}</span>
+                                <div className="data-val mono">{inst.containerName || t("instances.local")}</div>
                             </div>
                             <div>
-                                <span className="field-label">Config Path</span>
+                                <span className="field-label">{t("instances.configPath")}</span>
                                 <div className="data-val mono">{inst.configPath}</div>
                             </div>
                             <div>
-                                <span className="field-label">New routes go to</span>
+                                <span className="field-label">{t("instances.newRoutesGoTo")}</span>
                                 <div className="data-val mono">
                                     {serverLabel(inst.id, inst.serverName || "srv0")}
                                     {liveServerIds[inst.id] && !liveServerIds[inst.id].includes(inst.serverName || "srv0") && (
-                                        <span className="badge badge-red" style={{ marginLeft: 8 }} title="New routes can't be added until this matches one of Caddy's servers">not in Caddy</span>
+                                        <span className="badge badge-red" style={{ marginLeft: 8 }} title={t("instances.notInCaddyHint")}>{t("instances.notInCaddy")}</span>
                                     )}
                                 </div>
                             </div>
                             <div>
-                                <span className="field-label">Log Path</span>
+                                <span className="field-label">{t("instances.logPath")}</span>
                                 <div className="data-val mono">{inst.logPath}</div>
                             </div>
                             <div>
-                                <span className="field-label">Data Path</span>
+                                <span className="field-label">{t("instances.dataPath")}</span>
                                 <div className="data-val mono">{inst.dataPath}</div>
                             </div>
                         </div>
@@ -265,14 +267,14 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                 {instances.length === 0 && !discovered?.length && !discovering && (
                     <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
                         <div style={{ fontFamily: "var(--mono)", fontSize: 18, fontWeight: 600, color: "var(--accent)", marginBottom: 8 }}>
-                            Welcome to caddy/ui
+                            {t("instances.welcome")}
                         </div>
                         <div className="hint" style={{ marginBottom: 20, maxWidth: 400, marginInline: "auto" }}>
-                            No Caddy instances configured yet. Click Discover to find Caddy containers on your Docker network, or add one manually.
+                            {t("instances.emptyHint")}
                         </div>
                         <div className="btn-row" style={{ justifyContent: "center" }}>
-                            <button className="btn btn-primary" onClick={discover}>Discover Containers</button>
-                            <button className="btn btn-ghost" onClick={openAdd}>Add Manually</button>
+                            <button className="btn btn-primary" onClick={discover}>{t("instances.discoverContainers")}</button>
+                            <button className="btn btn-ghost" onClick={openAdd}>{t("instances.addManually")}</button>
                         </div>
                     </div>
                 )}
@@ -281,20 +283,20 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             {editing && (
                 <div className="modal-overlay" onClick={() => setEditing(null)}>
                     <div className="modal" style={{ width: 520 }} onClick={e => e.stopPropagation()}>
-                        <div className="modal-title">{editing === "new" ? "Add Instance" : "Edit Instance"}</div>
+                        <div className="modal-title">{editing === "new" ? t("instances.addInstance") : t("instances.editInstance")}</div>
 
                         <div className="field">
-                            <label>Name</label>
+                            <label>{t("instances.name")}</label>
                             <input
                                 value={form.name}
                                 onChange={e => update({ name: e.target.value })}
-                                placeholder="e.g. Production Caddy"
+                                placeholder={t("instances.namePlaceholder")}
                                 autoFocus
                             />
                         </div>
 
                         <div className="field">
-                            <label>Admin URL</label>
+                            <label>{t("instances.adminUrl")}</label>
                             <input
                                 value={form.adminUrl}
                                 onChange={e => update({ adminUrl: e.target.value })}
@@ -306,16 +308,16 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
 
                         <div className="instance-form-grid">
                             <div className="field">
-                                <label>Container Name</label>
+                                <label>{t("instances.containerName")}</label>
                                 <input
                                     value={form.containerName}
                                     onChange={e => update({ containerName: e.target.value })}
-                                    placeholder="Leave empty for local mode"
+                                    placeholder={t("instances.localModePlaceholder")}
                                 />
-                                <div className="hint" style={{ marginTop: 4 }}>Leave empty if Caddy files are mounted locally instead of accessed via Docker.</div>
+                                <div className="hint" style={{ marginTop: 4 }}>{t("instances.localModeHint")}</div>
                             </div>
                             <div className="field">
-                                <label>New routes go to</label>
+                                <label>{t("instances.newRoutesGoTo")}</label>
                                 {serverIds?.length ? (
                                     <div className="select-wrap">
                                         <select
@@ -324,7 +326,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                             onChange={e => update({ serverName: e.target.value })}
                                         >
                                             {!serverIds.includes(form.serverName) && (
-                                                <option value={form.serverName}>{form.serverName || "(none)"} (not in Caddy)</option>
+                                                <option value={form.serverName}>{form.serverName || t("instances.none")} ({t("instances.notInCaddy")})</option>
                                             )}
                                             {serverIds.map(id => <option key={id} value={id}>{serverLabel(editing, id)}</option>)}
                                         </select>
@@ -338,13 +340,13 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                     />
                                 )}
                                 <div className="hint" style={{ marginTop: 4 }}>
-                                    The Caddy server (by Server ID, e.g. srv0) that new routes are added to. Server IDs come from Caddy; add labels on the Dashboard.
+                                    {t("instances.serverHint")}
                                 </div>
                             </div>
                         </div>
 
                         <div className="field">
-                            <label>Caddyfile Path</label>
+                            <label>{t("instances.caddyfilePath")}</label>
                             <input
                                 value={form.configPath}
                                 onChange={e => update({ configPath: e.target.value })}
@@ -353,7 +355,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                         </div>
 
                         <div className="field">
-                            <label>Log Path</label>
+                            <label>{t("instances.logPath")}</label>
                             <input
                                 value={form.logPath}
                                 onChange={e => update({ logPath: e.target.value })}
@@ -362,7 +364,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                         </div>
 
                         <div className="field">
-                            <label>Data Path</label>
+                            <label>{t("instances.dataPath")}</label>
                             <input
                                 value={form.dataPath}
                                 onChange={e => update({ dataPath: e.target.value })}
@@ -371,9 +373,9 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                         </div>
 
                         <div className="btn-row flex-end">
-                            <button className="btn btn-ghost" onClick={() => setEditing(null)}>Cancel</button>
+                            <button className="btn btn-ghost" onClick={() => setEditing(null)}>{t("common.cancel")}</button>
                             <button className="btn btn-primary" onClick={save} disabled={saving}>
-                                {saving ? "Saving..." : editing === "new" ? "Add" : "Save"}
+                                {saving ? t("common.saving") : editing === "new" ? t("instances.add") : t("common.save")}
                             </button>
                         </div>
                     </div>
