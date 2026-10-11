@@ -55,21 +55,465 @@ export default [
 
                     callees: {
                         exclude: [
-                            '^navigate$',
-                            '^t$',
+                            '^navigate
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^t
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^document\\.createElement
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^window\\.open
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                        ],
+                    },
+
+                    'object-properties': {
+                        exclude: [
+                            '^(background|color|font.*|lineHeight|caretColor|border.*|padding.*|margin.*|width|height|minWidth|minHeight|maxWidth|maxHeight|overflow.*|display|gap|alignItems|justifyContent|textAlign|textTransform|letterSpacing|cursor|opacity|boxShadow|flex.*|position|top|right|bottom|left|whiteSpace)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
                         ],
                     },
 
                     words: {
                         exclude: [
-                            '^en$',
-                            '^dark$',
-                            '^light$',
-                            '^/.*$',
+                            '^
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^en
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^dark
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^light
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^vt2026
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^coarse-everywhere
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^caddy/ui
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^/.*
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
                             '^https?://',
-                            '^--.*$',
-                            '^data-[a-z0-9-]+$',
-                            '^[^A-Za-zÀ-ž]+$',
+                            '^--.*
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^var\\(--[a-z0-9-]+\\)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^data-[a-z0-9-]+
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(application/json|text/plain)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(GET|POST|PUT|PATCH|DELETE)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(DEBUG|INFO|WARN|ERROR)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(success|error|info)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(online|offline|unknown|partial|maintenance|pending|none)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(all|asc|desc|diff|raw|current|domain|title|upstream|server|status|expires|days)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(json|console|acme|orphaned|superseded|valid|expiring|expired)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(ntfy|discord|slack|pushover|custom)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(short|numeric|2-digit)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^(iOS / iPadOS|macOS|Android|Windows)
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^localhost:443 .*reverse_proxy.*
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
+                            '^[^A-Za-zÀ-ž]+
+                },
+            ],
+        },
+    },
+    {
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+];
+,
                         ],
                     },
                 },
