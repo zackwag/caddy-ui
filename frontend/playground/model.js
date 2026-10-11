@@ -24,7 +24,7 @@ export async function createPreviewI18n(catalogs, locale, overrides = {}) {
             code, { translation: structuredClone(catalog) },
         ])),
         interpolation: { escapeValue: false },
-        react: { useSuspense: false },
+        react: { useSuspense: false, bindI18nStore: 'added removed' },
     });
     for (const [key, value] of Object.entries(overrides)) {
         instance.addResource(locale, 'translation', key, value);

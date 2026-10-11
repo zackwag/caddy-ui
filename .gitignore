@@ -156,3 +156,6 @@ docs/book/
 !.devcontainer/
 .devcontainer/*
 !.devcontainer/devcontainer.example.json
+
+# Standalone localization contributor preview
+frontend/dist-playground/
