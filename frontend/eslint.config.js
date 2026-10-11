@@ -40,7 +40,11 @@ export default [
         },
     },
     {
-        files: ['src/i18n/**/*.{js,jsx}'],
+        files: [
+            'src/i18n/**/*.{js,jsx}', 
+            'src/lib/caddyfileMode.js',
+            'src/test/**/*.{js,jsx}',
+        ],
         rules: {
             'i18next/no-literal-string': 'off',
         },
