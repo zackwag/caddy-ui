@@ -59,4 +59,8 @@ export default {
         signingIn: 'Signing in...',
         signIn: 'Sign in',
     },
+
+    languagePicker: {
+        chooseLanguage: 'Choose language',
+    },
 };

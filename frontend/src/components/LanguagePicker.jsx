@@ -1,8 +1,12 @@
+import { useTranslation } from "react-i18next";
+
 export default function LanguagePicker({
     languages,
     language,
     onLanguageChange,
 }) {
+    const { t } = useTranslation();
+
     return (
         <div className="theme-picker language-picker">
             <span className="theme-toggle language-picker-value">
@@ -17,8 +21,8 @@ export default function LanguagePicker({
                 className="config-select language-picker-select"
                 value={language}
                 onChange={e => onLanguageChange(e.target.value)}
-                aria-label="Choose language"
-                title="Choose language"
+                aria-label={t("languagePicker.chooseLanguage")}
+                title={t("languagePicker.chooseLanguage")}
             >
                 {languages.map(lang => (
                     <option key={lang} value={lang}>
