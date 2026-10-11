@@ -26,7 +26,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     const [serverIds, setServerIds] = useState(null);
     // Dashboard labels per instance (server-names.json), e.g. { caddy: { srv0: "HTTPS Sites" } }
     const [serverLabels, setServerLabels] = useState({});
-    // Live server IDs per instance, to flag a Primary Server ID Caddy doesn't have
+    // Live server IDs per instance, to flag a "new routes go to" server Caddy doesn't have
     const [liveServerIds, setLiveServerIds] = useState({});
 
     const toastRef = useRef(toast);
@@ -242,7 +242,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                 <div className="data-val mono">{inst.configPath}</div>
                             </div>
                             <div>
-                                <span className="field-label">Primary Server ID</span>
+                                <span className="field-label">New routes go to</span>
                                 <div className="data-val mono">
                                     {serverLabel(inst.id, inst.serverName || "srv0")}
                                     {liveServerIds[inst.id] && !liveServerIds[inst.id].includes(inst.serverName || "srv0") && (
@@ -315,7 +315,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                 <div className="hint" style={{ marginTop: 4 }}>Leave empty if Caddy files are mounted locally instead of accessed via Docker.</div>
                             </div>
                             <div className="field">
-                                <label>Primary Server ID</label>
+                                <label>New routes go to</label>
                                 {serverIds?.length ? (
                                     <div className="select-wrap">
                                         <select
@@ -338,8 +338,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                     />
                                 )}
                                 <div className="hint" style={{ marginTop: 4 }}>
-                                    Caddy HTTP server ID used when creating new routes. Usually srv0; this is not a hostname.
-                                    To label servers on the Dashboard, rename them there.
+                                    The Caddy server (by Server ID, e.g. srv0) that new routes are added to. Server IDs come from Caddy; add labels on the Dashboard.
                                 </div>
                             </div>
                         </div>

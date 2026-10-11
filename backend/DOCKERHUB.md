@@ -12,7 +12,7 @@ The API backend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-fronten
 - Runs `caddy fmt` and detects Caddy version via `docker exec` into the running Caddy container (requires Docker socket mount)
 - Sorts Caddyfile site blocks on save (public → internal → http)
 - Appends, updates, and removes site blocks when routes are managed via the UI
-- Fetches routes from all server blocks with recursive upstream extraction for complex route structures
+- Fetches routes from all HTTP servers with recursive upstream extraction for complex route structures
 - Health checks use Caddy's reverse proxy upstream pool API as primary source, with TCP fallback for upstreams not yet in the pool
 - Persisted per-upstream uptime history with a configurable retention window (default 7 days)
 - Push notifications via ntfy, Discord, Slack, Pushover, or custom webhook — triggered on upstream offline/online and cert expiry
@@ -23,7 +23,7 @@ The API backend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-fronten
 - Automatic Caddyfile snapshots on every save with configurable retention
 - Tails and streams access logs via SSE
 - Parses and updates log configuration in the global Caddyfile block
-- Persists server block display names and route notes to disk
+- Persists server labels and route notes to disk
 - Optional JWT authentication protecting all API endpoints
 - Caddy process info and HTTP metrics via Prometheus endpoint
 - Metrics enable/disable toggle that modifies the Caddyfile global block
@@ -74,7 +74,7 @@ All variables have sensible defaults. Only set what you need to override.
 | `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy Docker container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
-| `CADDY_SERVER_NAME` | `srv0` | Caddy HTTP server ID used as the primary target for new routes, usually `srv0` (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |

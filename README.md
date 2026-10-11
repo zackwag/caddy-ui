@@ -47,9 +47,9 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 ## Features
 
-- **Dashboard** — Live server status, TLS state, server block summary with custom display names, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
+- **Dashboard** — Live server status, TLS state, an HTTP servers table (label, Server ID, listen address, route count) with optional labels, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
 - **Caddyfile Editor** — Edit your Caddyfile with [real Caddyfile-grammar syntax highlighting](#caddyfile-syntax-highlighting) (directives, matchers, placeholders, env vars — not a generic nginx approximation), live validation, `caddy fmt` formatting, automatic site block sorting, export/import, and full version history with inline preview and one-click rollback
-- **Route Manager** — View all reverse proxy routes across all server blocks, with a live health-status column (hover for uptime %), search/filter by domain, upstream, note, or server, sortable columns, a column picker to show/hide Title/Upstream/Server/ID, clickable domain and upstream links, edit routes in-place, and per-route notes
+- **Route Manager** — View all reverse proxy routes across all HTTP servers, with a live health-status column (hover for uptime %), search/filter by domain, upstream, note, or server, sortable columns, a column picker to show/hide Title/Upstream/Server/ID, clickable domain and upstream links, edit routes in-place, and per-route notes
 - **TLS Certificates** — View cert status, expiry dates, and sortable columns for all managed domains. Detect and delete orphaned certs. Download Caddy's root CA cert with per-OS install instructions
 - **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, ERROR/WARN/INFO level filters, and log export
 - **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
@@ -200,7 +200,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy Docker container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
-| `CADDY_SERVER_NAME` | `srv0` | Caddy HTTP server ID used as the primary target for new routes, usually `srv0` (only used with `CADDY_ADMIN_URL`) |
+| `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
@@ -215,7 +215,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `NOTIFICATIONS_CONFIG_PATH` | `/etc/caddy-ui/notifications.json` | Path to the notification settings file |
 | `PORT` | `3001` | Port the backend listens on |
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
-| `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the per-instance server display names file |
+| `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the per-instance server labels file |
 | `SETTINGS_PATH` | `/etc/caddy-ui/settings.json` | Path to the UI settings file (theme preferences, column visibility) |
 | `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](#custom-themes)) |
 | `UPTIME_HISTORY_PATH` | `/etc/caddy-ui/uptime-history.json` | Path to the persisted upstream and route uptime history file |

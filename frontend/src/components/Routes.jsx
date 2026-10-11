@@ -225,6 +225,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const [routeUptime, setRouteUptime] = useState({});
     const [certs, setCerts] = useState([]);
     const [notes, setNotes] = useState({});
+    // Dashboard labels by Server ID, e.g. { srv0: "HTTPS Sites" }
+    const [serverLabels, setServerLabels] = useState({});
     const [maintenance, setMaintenance] = useState({});
     const [loading, setLoading] = useState(true);
     const [healthLoading, setHealthLoading] = useState(false);
@@ -253,6 +255,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         apiFetch("/routes", {}, onUnauth).then(setRoutes).catch(e => toast.error(e.message)).finally(() => setLoading(false));
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
         apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
+        apiFetch("/server-names", {}, onUnauth).then(setServerLabels).catch(() => { });
         apiFetch("/routes/maintenance", {}, onUnauth).then(setMaintenance).catch(() => { });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
     }, [onUnauth]);
@@ -469,10 +472,12 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         else { setSortCol(col); setSortDir("asc"); }
     };
 
+    const serverText = (r) => serverLabels[r._server] || r._server || "";
+
     const filtered = routes.filter(r => {
         if (!search) return true;
         const q = search.toLowerCase();
-        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q) || (notes[getHost(r)] || "").toLowerCase().includes(q) || (r._server || "").toLowerCase().includes(q);
+        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q) || (notes[getHost(r)] || "").toLowerCase().includes(q) || (r._server || "").toLowerCase().includes(q) || serverText(r).toLowerCase().includes(q);
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -486,7 +491,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             const diff = sortDir === "asc" ? valA - valB : valB - valA;
             return diff !== 0 ? diff : getHost(a).localeCompare(getHost(b));
         }
-        else { valA = a._server || ""; valB = b._server || ""; }
+        else { valA = serverText(a); valB = serverText(b); }
         return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
     });
 
@@ -598,8 +603,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                     <td
                                                         className={`mono cell-muted${r._server ? " server-cell--filterable" : ""}`}
                                                         onClick={() => r._server && setSearch(r._server)}
-                                                        title={r._server ? `Filter by ${r._server}` : undefined}
-                                                    >{r._server || "—"}</td>
+                                                        title={r._server ? `Server ID ${r._server} · click to filter` : undefined}
+                                                    >{serverText(r) || "—"}</td>
                                                 )}
                                                 {columns.id && <td className="mono cell-muted">{r["@id"] || "—"}</td>}
                                                 <td className="col-actions">

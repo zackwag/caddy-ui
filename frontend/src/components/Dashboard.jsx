@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api.js";
 
+const SERVER_ID_HINT = "Assigned by Caddy (srv0, srv1, … by default). Set your own with the name option of the Caddyfile's global servers block.";
+
 export default function Dashboard({ status, toast, onUnauth }) {
     const [names, setNames] = useState({});
     const [editingServer, setEditingServer] = useState(null);
@@ -34,11 +36,11 @@ export default function Dashboard({ status, toast, onUnauth }) {
             if (editName.trim()) {
                 await apiFetch(`/server-names/${editingServer.name}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editName }) }, onUnauth);
                 setNames(n => ({ ...n, [editingServer.name]: editName.trim() }));
-                toast.success("Server name saved");
+                toast.success("Label saved");
             } else {
                 await apiFetch(`/server-names/${editingServer.name}`, { method: "DELETE" }, onUnauth);
                 setNames(n => { const x = { ...n }; delete x[editingServer.name]; return x; });
-                toast.success("Server name cleared");
+                toast.success("Label removed");
             }
             setEditingServer(null);
         } catch (e) { toast.error(e.message); }
@@ -121,28 +123,39 @@ export default function Dashboard({ status, toast, onUnauth }) {
 
                 {status.online && status.servers?.length > 0 && (
                     <div className="card">
-                        <div className="card-title">Server Blocks</div>
-                        {status.servers.map(s => (
-                            <div className="server-row server-row--clickable" key={s.name} onClick={() => navigate(`/routes?filter=${s.name}`)}>
-                                <div>
-                                    <div className="flex-center">
-                                        <div className="server-name">{s.name}</div>
-                                        {names[s.name] && <span className="server-separator">·</span>}
-                                        {names[s.name] && <span className="server-display-name">{names[s.name]}</span>}
-                                    </div>
-                                    <div className="server-meta">{s.listen?.join(", ") || "no listeners"}</div>
-                                </div>
-                                <div className="flex-center">
-                                    <span className="badge badge-blue">{s.routeCount} routes</span>
-                                    <span className="badge badge-green">active</span>
-                                    <span
-                                        className="server-edit-icon"
-                                        title="Edit display name"
-                                        onClick={e => { e.stopPropagation(); openEdit(s); }}
-                                    >✎</span>
-                                </div>
-                            </div>
-                        ))}
+                        <div className="card-title">HTTP Servers</div>
+                        <div className="table-wrap">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th>Label</th>
+                                        <th title={SERVER_ID_HINT}>Server ID <span className="th-hint">ⓘ</span></th>
+                                        <th>Listens on</th>
+                                        <th>Routes</th>
+                                        <th>Status</th>
+                                        <th />
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {status.servers.map(s => (
+                                        <tr key={s.name} className="row-clickable" onClick={() => navigate(`/routes?filter=${s.name}`)} title={`Show routes on ${s.name}`}>
+                                            <td>{names[s.name] || <span className="cell-muted">—</span>}</td>
+                                            <td className="mono">{s.name}</td>
+                                            <td className="mono cell-muted">{s.listen?.join(", ") || "no listeners"}</td>
+                                            <td><span className="badge badge-blue">{s.routeCount}</span></td>
+                                            <td><span className="badge badge-green">active</span></td>
+                                            <td className="cell-actions">
+                                                <span
+                                                    className="server-edit-icon"
+                                                    title="Edit label"
+                                                    onClick={e => { e.stopPropagation(); openEdit(s); }}
+                                                >✎</span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
 
@@ -157,17 +170,28 @@ export default function Dashboard({ status, toast, onUnauth }) {
             {editingServer && (
                 <div className="modal-overlay" onClick={() => setEditingServer(null)}>
                     <div className="modal" onClick={e => e.stopPropagation()}>
-                        <div className="modal-title">Edit Server Block</div>
-                        <div className="modal-badges">
-                            <span className="badge badge-blue">{editingServer.name}</span>
-                            <span className="badge badge-green">{editingServer.listen?.join(", ")}</span>
-                            <span className="badge badge-blue">{editingServer.routeCount} routes</span>
+                        <div className="modal-title">Edit Label</div>
+                        <div className="server-facts">
+                            <div>
+                                <span className="field-label">Server ID</span>
+                                <div className="data-val mono">{editingServer.name}</div>
+                            </div>
+                            <div>
+                                <span className="field-label">Listens on</span>
+                                <div className="data-val mono">{editingServer.listen?.join(", ") || "no listeners"}</div>
+                            </div>
+                            <div>
+                                <span className="field-label">Routes</span>
+                                <div className="data-val mono">{editingServer.routeCount}</div>
+                            </div>
                         </div>
                         <div className="field">
-                            <label>Display Name</label>
-                            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={`e.g. "Main Sites" or "Internal Services"`} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
+                            <label>Label</label>
+                            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={`e.g. "HTTPS Sites" or "Internal Services"`} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                         </div>
-                        <div className="modal-hint">Leave blank to clear the name. This label appears next to the server key on the Dashboard.</div>
+                        <div className="modal-hint">
+                            Only shown in caddy/ui. Leave blank to remove it. To change the Server ID itself, set <code>name</code> in your Caddyfile's global <code>servers</code> option.
+                        </div>
                         <div className="btn-row flex-end">
                             <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>Cancel</button>
                             <button className="btn btn-primary" onClick={saveName}>Save</button>

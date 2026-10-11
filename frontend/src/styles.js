@@ -1763,12 +1763,6 @@ export const css = `
     margin-bottom: 16px;
   }
 
-  .modal-badges {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-  }
 
   .modal-section-divider {
     border-top: 1px solid var(--border);
@@ -2011,21 +2005,24 @@ export const css = `
 
   .route-domain-sep { color: var(--muted); }
 
-  /* ── Utility: Server name display ─────────────────────────────────────────── */
+  /* ── Dashboard: HTTP servers ───────────────────────────────────────────────── */
 
-  .server-display-name {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 12px;
+  .row-clickable { cursor: pointer; }
+  .th-hint { cursor: help; letter-spacing: 0; }
+  .cell-actions { width: 1%; text-align: right; }
+
+  .server-facts {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    justify-content: start;
+    gap: 24px;
+    margin-bottom: 16px;
+  }
+
+  .modal-hint code {
+    font-family: 'IBM Plex Mono', monospace;
     color: var(--text);
   }
-
-  .server-separator {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  .server-row--clickable { cursor: pointer; }
 
   .chevron { color: var(--muted); font-size: 12px; }
 
