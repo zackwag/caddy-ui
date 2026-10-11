@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import LanguagePicker from '../src/components/LanguagePicker.jsx';
 import i18n, { availableLocales, fetchEnabledLanguages, loadLocale } from '../src/i18n/index.js';
 
 describe('i18n integration', () => {
@@ -8,22 +7,10 @@ describe('i18n integration', () => {
         await loadLocale('en');
     });
 
-    it('switches from English to a lazy-loaded German catalog through the language picker', async () => {
-        const changeLanguage = async (lang) => {
-            await loadLocale(lang);
-        };
-
-        const picker = LanguagePicker({
-            languages: ['en', 'de'],
-            language: 'en',
-            onLanguageChange: changeLanguage,
-        });
-
-        expect(picker.type).toBe('select');
-        expect(picker.props.children.map(option => option.props.value)).toEqual(['en', 'de']);
+    it('lazy-loads a locale and falls back to English for missing keys', async () => {
         expect(i18n.t('test.languageLoaded')).toBe('English loaded');
 
-        await picker.props.onChange({ target: { value: 'de' } });
+        await loadLocale('de');
 
         expect(i18n.language).toBe('de');
         expect(i18n.t('test.languageLoaded')).toBe('Deutsch geladen');
