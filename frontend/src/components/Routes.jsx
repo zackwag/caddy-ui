@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
@@ -86,6 +87,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
 }
 
 function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme }) {
+    const { t } = useTranslation();
     const [form, setForm] = useState({
         domain: route.domain || "",
         upstream: route.upstream || "",
@@ -112,27 +114,27 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()} style={isCaddyfileManaged ? { width: 560 } : undefined}>
-                <div className="modal-title">Edit Route</div>
+                <div className="modal-title">{t("routes.editRoute")}</div>
 
-                <div className="modal-section-label">Title</div>
+                <div className="modal-section-label">{t("routes.title")}</div>
                 <div className="field">
-                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Home Assistant, media server..." onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }} />
+                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("routes.titlePlaceholder")} onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }} />
                 </div>
-                <div className="modal-hint">{titleNeedsMigration ? "Save to store this title as a comment in your Caddyfile." : "Leave blank to clear the title."}</div>
+                <div className="modal-hint">{titleNeedsMigration ? t("routes.titleMigrationHint") : t("routes.titleClearHint")}</div>
 
                 {inMaintenance && (
                     <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "color-mix(in srgb, var(--accent3) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--accent3) 30%, transparent)", borderRadius: 4, color: "var(--accent3)" }}>
-                        🔧 This route is in maintenance mode. Disable maintenance to edit the Caddyfile content.
+                        🔧 {t("routes.maintenanceEditHint")}
                     </div>
                 )}
 
                 {isCaddyfileManaged && siteBlockFailed ? (
                     <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4 }}>
-                        This route is defined in your Caddyfile but couldn't be loaded for inline editing. Use the <strong>Caddyfile</strong> tab to edit it directly.
+                        {t("routes.caddyfileLoadFailedBefore")} <strong>Caddyfile</strong> {t("routes.caddyfileLoadFailedAfter")}
                     </div>
                 ) : isCaddyfileManaged && !inMaintenance ? (
                     <>
-                        <div className="modal-section-label">Caddyfile</div>
+                        <div className="modal-section-label">{t("routes.caddyfile")}</div>
                         <div className="editor-wrap" style={{ marginBottom: 16 }}>
                             <MiniCodeMirror value={content} onChange={setContent} theme={theme} />
                         </div>
@@ -143,15 +145,15 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
                     <>
                         <div className="modal-section-divider" />
                         <div className="field">
-                            <label>Domain</label>
+                            <label>{t("routes.domain")}</label>
                             <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" disabled={!form._id} />
                         </div>
                         <div className="field">
-                            <label>Upstream</label>
+                            <label>{t("routes.upstream")}</label>
                             <input value={form.upstream} onChange={set("upstream")} placeholder="192.168.4.88:8080" />
                         </div>
                         <div className="field">
-                            <label>Strip Prefix (optional)</label>
+                            <label>{t("routes.stripPrefixOptional")}</label>
                             <input value={form.stripPrefix} onChange={set("stripPrefix")} placeholder="/api" />
                         </div>
                     </>
@@ -159,11 +161,11 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
 
                 <div className="btn-row" style={{ justifyContent: "space-between" }}>
                     {isCaddyfileManaged && !siteBlockFailed ? (
-                        <button className="btn btn-danger" onClick={onDelete}>Delete</button>
+                        <button className="btn btn-danger" onClick={onDelete}>{t("common.delete")}</button>
                     ) : <span />}
                     <div className="btn-row">
-                        <button className="btn btn-ghost" onClick={onClose}>Close</button>
-                        <button className="btn btn-primary" onClick={handleSave} disabled={siteBlockFailed ? saving : (!canSave || saving)}>{saving ? "Saving..." : "Save"}</button>
+                        <button className="btn btn-ghost" onClick={onClose}>{t("common.close")}</button>
+                        <button className="btn btn-primary" onClick={handleSave} disabled={siteBlockFailed ? saving : (!canSave || saving)}>{saving ? t("common.saving") : t("common.save")}</button>
                     </div>
                 </div>
             </div>
@@ -172,29 +174,30 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
 }
 
 function NewRouteModal({ onSave, onClose }) {
+    const { t } = useTranslation();
     const [form, setForm] = useState({ domain: "", upstream: "", stripPrefix: "" });
     const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-title">New Reverse Proxy Route</div>
+                <div className="modal-title">{t("routes.newRoute")}</div>
                 <div className="field">
-                    <label>Domain</label>
+                    <label>{t("routes.domain")}</label>
                     <input value={form.domain} onChange={set("domain")} placeholder="app.example.com" autoFocus />
                 </div>
                 <div className="field">
-                    <label>Upstream</label>
+                    <label>{t("routes.upstream")}</label>
                     <input value={form.upstream} onChange={set("upstream")} placeholder="192.168.4.88:8080" />
                 </div>
                 <div className="field">
-                    <label>Strip Prefix (optional)</label>
+                    <label>{t("routes.stripPrefixOptional")}</label>
                     <input value={form.stripPrefix} onChange={set("stripPrefix")} placeholder="/api" />
                 </div>
                 <div className="btn-row flex-end" style={{ marginTop: 20 }}>
-                    <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button className="btn btn-ghost" onClick={onClose}>{t("common.cancel")}</button>
                     <button className="btn btn-primary" onClick={() => onSave(form)} disabled={!form.upstream || !form.domain}>
-                        Add Route
+                        {t("routes.addRoute")}
                     </button>
                 </div>
             </div>
@@ -203,21 +206,22 @@ function NewRouteModal({ onSave, onClose }) {
 }
 
 const TOGGLEABLE_COLUMNS = [
-    { key: "status", label: "Status" },
-    { key: "title", label: "Title" },
-    { key: "upstream", label: "Upstream" },
-    { key: "server", label: "Server" },
-    { key: "id", label: "ID" },
+    { key: "status", labelKey: "routes.status" },
+    { key: "title", labelKey: "routes.title" },
+    { key: "upstream", labelKey: "routes.upstream" },
+    { key: "server", labelKey: "routes.server" },
+    { key: "id", labelKey: "routes.id" },
 ];
 
 const STATUS_STYLE = {
-    online: { label: "Online", color: "var(--accent)" },
-    partial: { label: "Partial", color: "var(--warn)" },
-    offline: { label: "Offline", color: "var(--danger)" },
-    maintenance: { label: "Maintenance", color: "var(--accent3)" },
+    online: { labelKey: "routes.online", color: "var(--accent)" },
+    partial: { labelKey: "routes.partial", color: "var(--warn)" },
+    offline: { labelKey: "routes.offline", color: "var(--danger)" },
+    maintenance: { labelKey: "routes.maintenance", color: "var(--accent3)" },
 };
 
 export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes }) {
+    const { t } = useTranslation();
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
     const [health, setHealth] = useState({});
@@ -283,20 +287,20 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const addRoute = async (form) => {
         try {
             await apiFetch("/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, onUnauth);
-            toast.success(`Route for ${form.domain} added`);
+            toast.success(t("routes.added", { domain: form.domain }));
             setNewModal(false); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
 
     const deleteCaddyfileBlock = async (domain) => {
-        if (!await confirm("Delete this route? This will remove the site block from the Caddyfile.", { confirmLabel: "Delete", danger: true })) return;
+        if (!await confirm(t("routes.deleteCaddyfileConfirm"), { confirmLabel: t("common.delete"), danger: true })) return;
         try {
             await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "DELETE" }, onUnauth);
             if (notes[domain]) {
                 await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "" }) }, onUnauth).catch(() => {});
                 setNotes(n => { const u = { ...n }; delete u[domain]; return u; });
             }
-            toast.success("Route removed");
+            toast.success(t("routes.removed"));
             setEditModal(null); load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
@@ -307,12 +311,12 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         try {
             if (editModal.isCaddyfileManaged && !editModal.siteBlockFailed) {
                 await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, title }) }, onUnauth);
-                toast.success("Caddyfile updated");
+                toast.success(t("routes.caddyfileUpdated"));
             } else if (editModal.siteBlockFailed) {
-                toast.success("Title saved");
+                toast.success(t("routes.titleSaved"));
             } else {
                 await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
-                toast.success("Route updated");
+                toast.success(t("routes.updated"));
             }
             if (!editModal.isCaddyfileManaged || !usesCaddyfileTitles || editModal.siteBlockFailed) {
                 await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: title }) }, onUnauth);
@@ -323,7 +327,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     };
 
     const deleteRoute = async (id, domain) => {
-        if (!await confirm("Delete this route?", { confirmLabel: "Delete", danger: true })) return;
+        if (!await confirm(t("routes.deleteConfirm"), { confirmLabel: t("common.delete"), danger: true })) return;
         try {
             await apiFetch(`/routes/${id}`, { method: "DELETE" }, onUnauth);
             if (domain && notes[domain]) {
@@ -336,15 +340,15 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
 
     const toggleMaintenance = async (domain) => {
         const inMaint = !!maintenance[domain];
-        const action = inMaint ? "disable" : "enable";
-        if (!inMaint && !await confirm(`Enable maintenance mode for ${domain}? The route will serve a maintenance page instead of proxying upstream.`, { confirmLabel: "Enable" })) return;
+        const actionKey = inMaint ? "routes.maintenanceDisabled" : "routes.maintenanceEnabled";
+        if (!inMaint && !await confirm(t("routes.enableMaintenanceConfirm", { domain }), { confirmLabel: t("common.enable") })) return;
         try {
             if (inMaint) {
                 await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "DELETE" }, onUnauth);
             } else {
                 await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "POST" }, onUnauth);
             }
-            toast.success(`Maintenance mode ${action}d for ${domain}`);
+            toast.success(t(actionKey, { domain }));
             load(); loadHealth();
         } catch (e) { toast.error(e.message); }
     };
@@ -440,25 +444,25 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const getUptimePct = (route) => getRouteStatus(route).pct;
 
     const getHealthTitle = ({ status, pct, failure, history }) => {
-        if (status === "maintenance") return "Maintenance mode";
-        if (status === "none") return "No upstream";
-        if (status === "pending") return history?.route ? "Waiting for first route check" : "Checking...";
-        const label = [STATUS_STYLE[status].label, failure].filter(Boolean).join(" — ");
-        return pct !== null ? `${label} — ${pct}% uptime` : label;
+        if (status === "maintenance") return t("routes.maintenanceMode");
+        if (status === "none") return t("routes.noUpstream");
+        if (status === "pending") return history?.route ? t("routes.waitingForRouteCheck") : t("common.checking");
+        const label = [t(STATUS_STYLE[status].labelKey), failure].filter(Boolean).join(" — ");
+        return pct !== null ? t("routes.uptimeTitle", { label, pct }) : label;
     };
 
     const getHealthDot = ({ status, pct }) => {
-        const pctText = pct !== null ? `${pct}%` : "N/A";
+        const pctText = pct !== null ? `${pct}%` : t("common.notAvailable");
         if (status === "none") {
-            return <span className="health-dot health-dot--none"><span className="sr-only">No upstream, {pctText}</span></span>;
+            return <span className="health-dot health-dot--none"><span className="sr-only">{t("routes.noUpstreamStatus", { pct: pctText })}</span></span>;
         }
         if (status === "pending") {
-            return <span className="health-dot health-dot--pending"><span className="sr-only">Checking, {pctText}</span></span>;
+            return <span className="health-dot health-dot--pending"><span className="sr-only">{t("routes.checkingStatus", { pct: pctText })}</span></span>;
         }
-        const { label, color } = STATUS_STYLE[status];
+        const { labelKey, color } = STATUS_STYLE[status];
         return (
             <span className="health-dot" style={{ background: color, boxShadow: `0 0 4px ${color}` }}>
-                <span className="sr-only">{label}, {pctText}</span>
+                <span className="sr-only">{t("routes.statusWithPct", { status: t(labelKey), pct: pctText })}</span>
             </span>
         );
     };
@@ -500,7 +504,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         return <span className="sort-icon--active">{sortDir === "asc" ? "↑" : "↓"}</span>;
     };
 
-    if (loading) return <div className="loading">Loading routes...</div>;
+    if (loading) return <div className="loading">{t("routes.loading")}</div>;
 
     return (
         <>
@@ -508,51 +512,51 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                 <div className="flex-between routes-toolbar">
                     <div className="flex-center" style={{ gap: 12 }}>
                         <div className="search-wrap">
-                            <input className="search-input search-input--clearable" placeholder="Filter by domain, upstream, note, or server..." value={search} onChange={e => setSearch(e.target.value)} />
-                            {search && <button className="search-clear" onClick={() => setSearch("")} title="Clear filter">✕</button>}
+                            <input className="search-input search-input--clearable" placeholder={t("routes.filterPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} />
+                            {search && <button className="search-clear" onClick={() => setSearch("")} title={t("routes.clearFilter")}>✕</button>}
                         </div>
                         <span className="section-label">
-                            {healthLoading ? "Checking..." : `${routesOnline}/${routeStatuses.length} routes online${routesMaint ? ` · ${routesMaint} in maintenance` : ""}`}
+                            {healthLoading ? t("common.checking") : `${t("routes.onlineSummary", { online: routesOnline, total: routeStatuses.length })}${routesMaint ? ` · ${t("routes.maintenanceCount", { count: routesMaint })}` : ""}`}
                         </span>
                     </div>
                     <div className="btn-row routes-toolbar-actions">
                         <div className="col-picker" ref={colMenuRef}>
                             <button className="btn btn-ghost col-picker-trigger" onClick={() => setColMenuOpen(o => !o)}>
-                                ⚙ Columns
-                                {columnsHidden && <span className="col-picker-badge" title="Some columns are hidden" />}
+                                ⚙ {t("routes.columns")}
+                                {columnsHidden && <span className="col-picker-badge" title={t("routes.someColumnsHidden")} />}
                             </button>
                             {colMenuOpen && (
                                 <div className="col-picker-menu">
                                     {TOGGLEABLE_COLUMNS.map(c => (
                                         <label key={c.key} className="col-picker-item">
                                             <input type="checkbox" checked={columns[c.key]} onChange={() => toggleColumn(c.key)} />
-                                            {c.label}
+                                            {t(c.labelKey)}
                                         </label>
                                     ))}
-                                    <div className="col-picker-note">Domain &amp; actions are always shown</div>
+                                    <div className="col-picker-note">{t("routes.domainActionsAlwaysShown")}</div>
                                 </div>
                             )}
                         </div>
-                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading}>↺ Refresh</button>
-                        <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ Add Route</button>
+                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading}>↺ {t("common.refresh")}</button>
+                        <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ {t("routes.addRoute")}</button>
                     </div>
                 </div>
                 <div className="card card-flush">
                     {sorted.length === 0 ? (
                         <div className="card-empty">
-                            {search ? `No routes matching "${search}"` : "No routes configured"}
+                            {search ? t("routes.noMatching", { search }) : t("routes.noneConfigured")}
                         </div>
                     ) : (
                         <div className="table-wrap">
                             <table className="table">
                                 <thead>
                                     <tr>
-                                        {columns.status && <th className="th-sortable col-status" onClick={() => handleSort("uptime")}>Status <SortIcon col="uptime" /></th>}
-                                        <th className="th-sortable" onClick={() => handleSort("domain")}>Domain <SortIcon col="domain" /></th>
-                                        {columns.title && <th className="th-sortable col-title" onClick={() => handleSort("title")}>Title <SortIcon col="title" /></th>}
-                                        {columns.upstream && <th className="th-sortable" onClick={() => handleSort("upstream")}>Upstream <SortIcon col="upstream" /></th>}
-                                        {columns.server && <th className="th-sortable" onClick={() => handleSort("server")}>Server <SortIcon col="server" /></th>}
-                                        {columns.id && <th>ID</th>}
+                                        {columns.status && <th className="th-sortable col-status" onClick={() => handleSort("uptime")}>{t("routes.status")} <SortIcon col="uptime" /></th>}
+                                        <th className="th-sortable" onClick={() => handleSort("domain")}>{t("routes.domain")} <SortIcon col="domain" /></th>
+                                        {columns.title && <th className="th-sortable col-title" onClick={() => handleSort("title")}>{t("routes.title")} <SortIcon col="title" /></th>}
+                                        {columns.upstream && <th className="th-sortable" onClick={() => handleSort("upstream")}>{t("routes.upstream")} <SortIcon col="upstream" /></th>}
+                                        {columns.server && <th className="th-sortable" onClick={() => handleSort("server")}>{t("routes.server")} <SortIcon col="server" /></th>}
+                                        {columns.id && <th>{t("routes.id")}</th>}
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -588,7 +592,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                                     </span>
                                                                 );
                                                             }) : <span className="mono">{domain}</span>}
-                                                            {maintenance[domain] && <span className="badge badge-muted" style={{ marginLeft: 8, fontSize: 11 }}>maintenance</span>}
+                                                            {maintenance[domain] && <span className="badge badge-muted" style={{ marginLeft: 8, fontSize: 11 }}>{t("routes.maintenance")}</span>}
                                                             {note && <div className="route-note route-note--mobile">{note}</div>}
                                                         </div>
                                                     </div>
@@ -603,7 +607,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                     <td
                                                         className={`mono cell-muted${r._server ? " server-cell--filterable" : ""}`}
                                                         onClick={() => r._server && setSearch(r._server)}
-                                                        title={r._server ? `Server ID ${r._server} · click to filter` : undefined}
+                                                        title={r._server ? t("routes.serverFilterTitle", { id: r._server }) : undefined}
                                                     >{serverText(r) || "—"}</td>
                                                 )}
                                                 {columns.id && <td className="mono cell-muted">{r["@id"] || "—"}</td>}
@@ -614,14 +618,14 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                                 className="btn btn-ghost btn--icon"
                                                                 style={{ color: maintenance[domain] ? "var(--accent3)" : "var(--muted)" }}
                                                                 onClick={() => toggleMaintenance(domain)}
-                                                                title={maintenance[domain] ? "Disable maintenance mode" : "Enable maintenance mode"}
+                                                                title={maintenance[domain] ? t("routes.disableMaintenance") : t("routes.enableMaintenance")}
                                                             >🔧</button>
                                                         )}
                                                         <button
                                                             className="btn btn-ghost btn--icon"
                                                             style={{ color: note ? "var(--accent2)" : "var(--muted)" }}
                                                             onClick={() => openEdit(r)}
-                                                            title="Edit route"
+                                                            title={t("routes.editRoute")}
                                                         >✎</button>
                                                         {hasId && <button className="btn btn-danger btn--icon" onClick={() => deleteRoute(r["@id"], domain)}>✕</button>}
                                                     </div>
