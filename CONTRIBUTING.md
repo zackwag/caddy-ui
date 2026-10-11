@@ -47,6 +47,20 @@ For anything touching `frontend/`, run the dev server and click through the affe
 - Both `backend/` and `frontend/` have an ESLint config (`npm run lint` in each) that CI runs on every PR (`.github/workflows/test.yml`). It only checks for correctness issues (unused vars, React hook rules, etc.) — it doesn't enforce formatting, so consistency with surrounding code is still the bar for style.
 - Keep changes scoped — avoid drive-by refactors in unrelated files.
 
+
+### Localization
+
+User-facing frontend text should come from the locale catalog rather than hard-coded string literals. The frontend ESLint rule `i18next/no-literal-string` flags literals that should be localized.
+
+If a literal is intentionally not UI copy (for example a Caddy directive, protocol value, API path, or other technical token), suppress the rule only at that line and explain why:
+
+```js
+// eslint-disable-next-line i18next/no-literal-string -- Caddy directive, not UI copy
+const example = 'reverse_proxy';
+```
+
+Keep suppressions narrow and descriptive so reviewers can distinguish intentional technical literals from untranslated UI text.
+
 ## Commit messages / PR titles
 
 This repo loosely follows [Conventional Commits](https://www.conventionalcommits.org/) prefixes in PR titles (squash-merged), e.g.:
