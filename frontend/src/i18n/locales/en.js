@@ -21,6 +21,7 @@ export default {
         export: 'Export',
         on: 'On',
         off: 'Off',
+        close: 'Close',
     },
 
     pages: {
@@ -359,5 +360,24 @@ export default {
         stopChecks: 'Stop requesting {{host}}; its status falls back to the upstream',
         check: 'Check',
         skip: 'Skip',
+    },
+
+    routeHistory: {
+        online: 'Online',
+        offline: 'Offline',
+        noData: 'No data',
+        noDataYet: 'No data yet',
+        justNow: 'just now',
+        secondsAgo: '{{count}}s ago',
+        minutesAgo: '{{count}}m ago',
+        hoursAgo: '{{count}}h ago',
+        daysAgo: '{{count}}d ago',
+        autoRefresh: 'Auto-refresh',
+        segmentTitle: '{{status}} — {{start}} to {{end}}',
+        now: 'Now',
+        uptime: 'Uptime',
+        checks: 'Checks',
+        activity: 'Activity',
+        noChanges: 'No status changes in this range',
     },
 };

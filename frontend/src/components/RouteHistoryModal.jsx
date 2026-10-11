@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
 
 const RANGES = [
@@ -80,26 +81,27 @@ function formatAxisTime(ms, rangeMs) {
         : d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-function formatRelativeTime(ms) {
+function formatRelativeTime(ms, t) {
     const diffSec = Math.max(0, Math.round((Date.now() - ms) / 1000));
-    if (diffSec < 5) return "just now";
-    if (diffSec < 60) return `${diffSec}s ago`;
+    if (diffSec < 5) return t("routeHistory.justNow");
+    if (diffSec < 60) return t("routeHistory.secondsAgo", { count: diffSec });
     const diffMin = Math.round(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 60) return t("routeHistory.minutesAgo", { count: diffMin });
     const diffHr = Math.round(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
-    return `${Math.round(diffHr / 24)}d ago`;
+    if (diffHr < 24) return t("routeHistory.hoursAgo", { count: diffHr });
+    return t("routeHistory.daysAgo", { count: Math.round(diffHr / 24) });
 }
 
 function formatActivityTime(ms) {
     return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
-const STATUS_LABEL = { online: "Online", offline: "Offline", unknown: "No data" };
+const STATUS_LABEL_KEYS = { online: "routeHistory.online", offline: "routeHistory.offline", unknown: "routeHistory.noData" };
 
 // Shows one target's history: an upstream, or a route host when route checks
 // are on (pass `route` instead of `upstream`).
 export default function RouteHistoryModal({ title, upstream, route, onUnauth, onClose }) {
+    const { t } = useTranslation();
     const [range, setRange] = useState(RANGES[2]);
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [entries, setEntries] = useState(null);
@@ -151,9 +153,9 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                                 className={lastStatus ? "health-dot" : "health-dot health-dot--none"}
                                 style={lastStatus ? { background: lastStatus === "online" ? "var(--accent)" : "var(--danger)" } : undefined}
                             />
-                            <span className="history-header-relative">{lastCheck ? formatRelativeTime(lastCheck.at) : "No data yet"}</span>
+                            <span className="history-header-relative">{lastCheck ? formatRelativeTime(lastCheck.at, t) : t("routeHistory.noDataYet")}</span>
                         </div>
-                        {lastStatus && <span className={`history-header-status history-header-status--${lastStatus}`}>{STATUS_LABEL[lastStatus]}</span>}
+                        {lastStatus && <span className={`history-header-status history-header-status--${lastStatus}`}>{t(STATUS_LABEL_KEYS[lastStatus])}</span>}
                     </div>
                 )}
 
@@ -169,14 +171,14 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                     </div>
                     <label className="history-auto-refresh">
                         <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />
-                        Auto-refresh
+                        {t("routeHistory.autoRefresh")}
                     </label>
                 </div>
 
                 {error ? (
                     <div className="card-empty">{error}</div>
                 ) : entries === null ? (
-                    <div className="loading">Loading...</div>
+                    <div className="loading">{t("common.loading")}</div>
                 ) : (
                     <>
                         <div className="history-timeline">
@@ -185,39 +187,39 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                                     key={i}
                                     className={`history-segment history-segment--${seg.status}`}
                                     style={{ flexGrow: seg.end - seg.start }}
-                                    title={`${STATUS_LABEL[seg.status]} — ${new Date(seg.start).toLocaleString()} to ${new Date(seg.end).toLocaleString()}`}
+                                    title={t("routeHistory.segmentTitle", { status: t(STATUS_LABEL_KEYS[seg.status]), start: new Date(seg.start).toLocaleString(), end: new Date(seg.end).toLocaleString() })}
                                 >
-                                    <span className="history-segment-label">{STATUS_LABEL[seg.status]}</span>
+                                    <span className="history-segment-label">{t(STATUS_LABEL_KEYS[seg.status])}</span>
                                 </div>
                             ))}
                         </div>
                         <div className="history-timeline-axis">
                             {ticks.map((t, i) => (
                                 <span key={i} className="history-axis-tick" style={{ left: `${(i / AXIS_TICK_COUNT) * 100}%` }}>
-                                    {t.isNow ? "Now" : formatAxisTime(t.ms, range.ms)}
+                                    {t.isNow ? t("routeHistory.now") : formatAxisTime(t.ms, range.ms)}
                                 </span>
                             ))}
                         </div>
 
                         <div className="history-stats">
                             <div>
-                                <span className="history-stat-label">Uptime</span>
+                                <span className="history-stat-label">{t("routeHistory.uptime")}</span>
                                 <span className="history-stat-val">{uptimePct !== null ? `${uptimePct}%` : "—"}</span>
                             </div>
                             <div>
-                                <span className="history-stat-label">Checks</span>
+                                <span className="history-stat-label">{t("routeHistory.checks")}</span>
                                 <span className="history-stat-val">{entries.length}</span>
                             </div>
                         </div>
 
-                        <div className="history-section-label">Activity</div>
+                        <div className="history-section-label">{t("routeHistory.activity")}</div>
                         <div className="history-activity-list">
                             {transitions.length === 0 ? (
-                                <div className="history-activity-empty">No status changes in this range</div>
+                                <div className="history-activity-empty">{t("routeHistory.noChanges")}</div>
                             ) : transitions.map((t, i) => (
                                 <div key={i} className="history-activity-item">
                                     <span className={`history-activity-dot history-activity-dot--${t.online ? "online" : "offline"}`} />
-                                    <span className="history-activity-label">{t.online ? "Online" : "Offline"}</span>
+                                    <span className="history-activity-label">{t.online ? t("routeHistory.online") : t("routeHistory.offline")}</span>
                                     <span className="history-activity-time">{formatActivityTime(t.at)}</span>
                                 </div>
                             ))}
@@ -226,7 +228,7 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                 )}
 
                 <div className="btn-row flex-end" style={{ marginTop: 20 }}>
-                    <button className="btn btn-ghost" onClick={onClose}>Close</button>
+                    <button className="btn btn-ghost" onClick={onClose}>{t("common.close")}</button>
                 </div>
             </div>
         </div>
