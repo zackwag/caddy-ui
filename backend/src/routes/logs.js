@@ -127,7 +127,12 @@ appLogsRouter.get('/stream', (req, res) => {
         }
     });
 
-    req.on('close', unsubscribe);
+    // App logs can be quiet for minutes; keep the stream under nginx's 60s proxy_read_timeout.
+    const heartbeat = setInterval(() => res.write(': ping\n\n'), 25000);
+    req.on('close', () => {
+        clearInterval(heartbeat);
+        unsubscribe();
+    });
 });
 
 
