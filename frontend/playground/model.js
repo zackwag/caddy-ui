@@ -12,7 +12,7 @@ export function readValue(catalog, key) {
 }
 
 export function placeholders(value) {
-    return [...value.matchAll(/{{\s*([^{}]+?)\s*}}/g)].map(match => match[1]).sort();
+    return [...value.matchAll(/{{\s*([^{}]+?)\s*}}/g)].map((match) => match[1]).sort();
 }
 
 export async function createPreviewI18n(catalogs, locale, overrides = {}) {
@@ -20,9 +20,12 @@ export async function createPreviewI18n(catalogs, locale, overrides = {}) {
     await instance.init({
         lng: locale,
         fallbackLng: 'en',
-        resources: Object.fromEntries(Object.entries(catalogs).map(([code, catalog]) => [
-            code, { translation: structuredClone(catalog) },
-        ])),
+        resources: Object.fromEntries(
+            Object.entries(catalogs).map(([code, catalog]) => [
+                code,
+                { translation: structuredClone(catalog) },
+            ]),
+        ),
         interpolation: { escapeValue: false },
         react: { useSuspense: false, bindI18nStore: 'added removed' },
     });

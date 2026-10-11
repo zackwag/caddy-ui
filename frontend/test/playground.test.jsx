@@ -21,7 +21,9 @@ describe('localization playground', () => {
     });
     it('falls back and interpolates, then restores missing keys after reset', async () => {
         const preview = await createPreviewI18n(catalogs, 'de');
-        expect(preview.t('tls.deleteConfirm', { status: 'expired', domain: 'example.home.arpa' })).toContain('example.home.arpa');
+        expect(
+            preview.t('tls.deleteConfirm', { status: 'expired', domain: 'example.home.arpa' }),
+        ).toContain('example.home.arpa');
         preview.addResource('de', 'translation', 'common.delete', 'temporary');
         preview.removeResourceBundle('de', 'translation');
         preview.addResourceBundle('de', 'translation', structuredClone(de));
@@ -32,7 +34,7 @@ describe('localization playground', () => {
         expect(placeholders('{{domain}}')).not.toEqual(placeholders('{{host}}'));
     });
     it('registers unique states with valid canonical keys', () => {
-        expect(new Set(scenarios.map(s => s.id)).size).toBe(scenarios.length);
+        expect(new Set(scenarios.map((s) => s.id)).size).toBe(scenarios.length);
         for (const scenario of scenarios) {
             for (const key of scenario.keys) expect(typeof readValue(en, key)).toBe('string');
         }
