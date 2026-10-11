@@ -6,7 +6,7 @@ function themeOptions(themes, mode) {
     return { builtIn, custom };
 }
 
-export default function ThemeWelcome({ themes, onComplete }) {
+export default function ThemeWelcome({ themes, languages, language, onLanguageChange, onComplete }) {
     const [dark, setDark] = useState('vt2026');
     const [light, setLight] = useState('coarse-everywhere');
     const [preview, setPreview] = useState('dark');
@@ -133,6 +133,26 @@ export default function ThemeWelcome({ themes, onComplete }) {
                         </div>
                     </div>
                 </div>
+
+                {languages.length > 1 && (
+                    <div style={{ marginBottom: 16 }}>
+                        <label className="field-label">Language</label>
+                        <div className="select-wrap">
+                            <select
+                                className="config-select"
+                                value={language}
+                                onChange={e => onLanguageChange(e.target.value)}
+                            >
+                                {languages.map(lang => (
+                                    <option key={lang} value={lang}>
+                                        {lang.toUpperCase()}
+                                    </option>
+                                ))}
+                            </select>
+                            <span className="select-arrow">▾</span>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex-end">
                     <button className="btn btn-primary" onClick={() => onComplete(dark, light)}>

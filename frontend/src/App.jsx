@@ -274,7 +274,7 @@ export default function App() {
                     </div>
                     <Toasts toasts={toast.toasts} />
                     <ConfirmDialog dialog={confirmDialog} resolve={resolveConfirm} />
-                    {showThemeWelcome && <ThemeWelcome themes={allThemes} onComplete={handleThemeWelcome} />}
+                    {showThemeWelcome && <ThemeWelcome themes={allThemes} languages={enabledLanguages} language={language} onLanguageChange={changeLanguage} onComplete={handleThemeWelcome} />}
                 </div>
             )}
         </>
