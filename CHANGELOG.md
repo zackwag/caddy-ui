@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.16.0](https://github.com/zackwag/caddy-ui/compare/v2.15.0...v2.16.0) (2026-10-11)
+
+
+### Features
+
+* show Dashboard server labels next to primary server IDs ([#184](https://github.com/zackwag/caddy-ui/issues/184)) ([38c2fe9](https://github.com/zackwag/caddy-ui/commit/38c2fe931f32b08bb931a1b1601e934b9ff049ea))
+
 ## [2.15.0](https://github.com/zackwag/caddy-ui/compare/v2.14.0...v2.15.0) (2026-10-11)
 
 
