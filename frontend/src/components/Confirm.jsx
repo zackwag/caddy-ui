@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export function useConfirm() {
+    const { t } = useTranslation();
     const [dialog, setDialog] = useState(null);
     const resolveRef = useRef(null);
 
@@ -10,11 +12,11 @@ export function useConfirm() {
             setDialog({
                 message,
                 danger: !!opts.danger,
-                confirmLabel: opts.confirmLabel || "Confirm",
-                cancelLabel: opts.cancelLabel || "Cancel",
+                confirmLabel: opts.confirmLabel || t("common.confirm"),
+                cancelLabel: opts.cancelLabel || t("common.cancel"),
             });
         });
-    }, []);
+    }, [t]);
 
     const resolve = useCallback(result => {
         resolveRef.current?.(result);
