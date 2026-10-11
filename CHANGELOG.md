@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.1](https://github.com/zackwag/caddy-ui/compare/v2.17.0...v2.17.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* roll back route edits that Caddy rejects ([#187](https://github.com/zackwag/caddy-ui/issues/187)) ([059bb4b](https://github.com/zackwag/caddy-ui/commit/059bb4b5644643a02c605bb299fd400890d75fdc))
+
 ## [2.17.0](https://github.com/zackwag/caddy-ui/compare/v2.16.0...v2.17.0) (2026-10-11)
 
 
