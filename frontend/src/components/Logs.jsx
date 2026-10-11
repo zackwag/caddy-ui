@@ -62,7 +62,9 @@ export default function Logs({ toast, onUnauth }) {
 
     const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
 
-    const lineCountText = t("logs.lineCount", { filtered: filteredLines.length, total: lines.length, hasFilter: logSearch || levelFilter !== "all" });
+    const lineCountText = logSearch || levelFilter !== "all"
+        ? t("logs.lineCountFiltered", { filtered: filteredLines.length, total: lines.length })
+        : t("logs.lineCount", { count: filteredLines.length });
 
     const exportLogs = () => {
         const linesToExport = (logSearch || levelFilter !== "all") && filteredLines.length > 0 ? filteredLines : lines;

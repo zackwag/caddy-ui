@@ -22,6 +22,9 @@ export default {
         on: 'On',
         off: 'Off',
         close: 'Close',
+        delete: 'Delete',
+        checking: 'Checking...',
+        notAvailable: 'N/A',
     },
 
     pages: {
@@ -252,7 +255,9 @@ export default {
         rollSize: 'Roll Size',
         rollKeep: 'Roll Keep',
         searchPlaceholder: 'Search logs...',
-        lineCount: '{{filtered}}{{hasFilter, select, true { / {{total}}} other {}}} lines',
+        lineCount_one: '{{count}} line',
+        lineCount_other: '{{count}} lines',
+        lineCountFiltered: '{{filtered}} / {{total}} lines',
         stop: 'Stop',
         live: 'Live',
         noMatchingLines: 'No lines match the current filter',
