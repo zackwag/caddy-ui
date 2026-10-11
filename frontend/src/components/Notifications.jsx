@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
 
 const CUSTOM_SCHEMA = `{
@@ -9,6 +10,7 @@ const CUSTOM_SCHEMA = `{
 }`;
 
 export default function Notifications({ toast, onUnauth }) {
+    const { t } = useTranslation();
     const [config, setConfig] = useState(null);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
@@ -19,7 +21,7 @@ export default function Notifications({ toast, onUnauth }) {
 
     useEffect(() => { load(); }, [load]);
 
-    if (!config) return <div className="loading">Loading...</div>;
+    if (!config) return <div className="loading">{t("common.loading")}</div>;
 
     const update = (patch) => setConfig(c => ({ ...c, ...patch }));
     const updateNtfy = (patch) => setConfig(c => ({ ...c, ntfy: { ...c.ntfy, ...patch } }));
@@ -38,7 +40,7 @@ export default function Notifications({ toast, onUnauth }) {
                 body: JSON.stringify(config),
             }, onUnauth);
             setConfig(saved);
-            toast.success('Notification settings saved');
+            toast.success(t("notifications.saved"));
         } catch (err) {
             toast.error(err.message);
         } finally {
@@ -50,7 +52,7 @@ export default function Notifications({ toast, onUnauth }) {
         setTesting(true);
         try {
             await apiFetch('/notifications/test', { method: 'POST' }, onUnauth);
-            toast.success('Test notification sent');
+            toast.success(t("notifications.testSent"));
         } catch (err) {
             toast.error(err.message);
         } finally {
@@ -61,7 +63,7 @@ export default function Notifications({ toast, onUnauth }) {
     return (
         <div className="gap-16">
             <div className="card">
-                <div className="card-title">Notifications</div>
+                <div className="card-title">{t("notifications.title")}</div>
 
                 <div className="field">
                     <button
@@ -69,7 +71,7 @@ export default function Notifications({ toast, onUnauth }) {
                         className={`btn notifications-enabled-btn ${config.enabled ? "btn-danger" : "btn-primary"}`}
                         onClick={() => update({ enabled: !config.enabled })}
                     >
-                        {config.enabled ? "Disable Notifications" : "Enable Notifications"}
+                        {config.enabled ? t("notifications.disable") : t("notifications.enable")}
                     </button>
                 </div>
 
@@ -77,7 +79,7 @@ export default function Notifications({ toast, onUnauth }) {
 
                 <div className="config-grid">
                     <div>
-                        <label className="field-label">Provider</label>
+                        <label className="field-label">{t("notifications.provider")}</label>
                         <div className="select-wrap">
                             <select
                                 className="config-select"
@@ -88,7 +90,7 @@ export default function Notifications({ toast, onUnauth }) {
                                 <option value="discord">Discord</option>
                                 <option value="slack">Slack</option>
                                 <option value="pushover">Pushover</option>
-                                <option value="custom">Custom Webhook</option>
+                                <option value="custom">{t("notifications.customWebhook")}</option>
                             </select>
                             <span className="select-arrow">▾</span>
                         </div>
@@ -98,7 +100,7 @@ export default function Notifications({ toast, onUnauth }) {
                 {config.provider === 'ntfy' && (
                     <div className="config-grid">
                         <div className="config-grid-full">
-                            <label className="field-label">ntfy Topic URL</label>
+                            <label className="field-label">{t("notifications.ntfyTopicUrl")}</label>
                             <input
                                 className="config-input"
                                 type="url"
@@ -113,7 +115,7 @@ export default function Notifications({ toast, onUnauth }) {
                 {config.provider === 'discord' && (
                     <div className="config-grid">
                         <div className="config-grid-full">
-                            <label className="field-label">Discord Webhook URL</label>
+                            <label className="field-label">{t("notifications.discordWebhookUrl")}</label>
                             <input
                                 className="config-input"
                                 type="url"
@@ -122,7 +124,7 @@ export default function Notifications({ toast, onUnauth }) {
                                 onChange={e => updateDiscord({ webhookUrl: e.target.value })}
                             />
                             <div className="hint" style={{ marginTop: '6px', marginBottom: 0 }}>
-                                Server Settings &rarr; Integrations &rarr; Webhooks &rarr; New Webhook
+                                {t("notifications.discordHint")}
                             </div>
                         </div>
                     </div>
@@ -131,7 +133,7 @@ export default function Notifications({ toast, onUnauth }) {
                 {config.provider === 'slack' && (
                     <div className="config-grid">
                         <div className="config-grid-full">
-                            <label className="field-label">Slack Incoming Webhook URL</label>
+                            <label className="field-label">{t("notifications.slackWebhookUrl")}</label>
                             <input
                                 className="config-input"
                                 type="url"
@@ -140,7 +142,7 @@ export default function Notifications({ toast, onUnauth }) {
                                 onChange={e => updateSlack({ webhookUrl: e.target.value })}
                             />
                             <div className="hint" style={{ marginTop: '6px', marginBottom: 0 }}>
-                                Slack App &rarr; Incoming Webhooks &rarr; Add New Webhook to Workspace
+                                {t("notifications.slackHint")}
                             </div>
                         </div>
                     </div>
@@ -149,26 +151,26 @@ export default function Notifications({ toast, onUnauth }) {
                 {config.provider === 'pushover' && (
                     <div className="config-grid">
                         <div className="config-grid-full">
-                            <label className="field-label">User Key</label>
+                            <label className="field-label">{t("notifications.userKey")}</label>
                             <input
                                 className="config-input"
                                 type="text"
-                                placeholder="Your Pushover user key"
+                                placeholder={t("notifications.userKeyPlaceholder")}
                                 value={config.pushover?.userKey || ''}
                                 onChange={e => updatePushover({ userKey: e.target.value })}
                             />
                         </div>
                         <div className="config-grid-full">
-                            <label className="field-label">API Token</label>
+                            <label className="field-label">{t("notifications.apiToken")}</label>
                             <input
                                 className="config-input"
                                 type="text"
-                                placeholder="Your application API token"
+                                placeholder={t("notifications.apiTokenPlaceholder")}
                                 value={config.pushover?.apiToken || ''}
                                 onChange={e => updatePushover({ apiToken: e.target.value })}
                             />
                             <div className="hint" style={{ marginTop: '6px', marginBottom: 0 }}>
-                                Create an application at pushover.net/apps/build
+                                {t("notifications.pushoverHint")}
                             </div>
                         </div>
                     </div>
@@ -178,7 +180,7 @@ export default function Notifications({ toast, onUnauth }) {
                     <>
                         <div className="config-grid">
                             <div className="config-grid-full">
-                                <label className="field-label">Webhook URL</label>
+                                <label className="field-label">{t("notifications.webhookUrl")}</label>
                                 <input
                                     className="config-input"
                                     type="url"
@@ -188,7 +190,7 @@ export default function Notifications({ toast, onUnauth }) {
                                 />
                             </div>
                             <div>
-                                <label className="field-label">HTTP Method</label>
+                                <label className="field-label">{t("notifications.httpMethod")}</label>
                                 <div className="select-wrap">
                                     <select
                                         className="config-select"
@@ -203,10 +205,10 @@ export default function Notifications({ toast, onUnauth }) {
                             </div>
                         </div>
                         <div style={{ marginTop: '12px' }}>
-                            <label className="field-label">JSON Payload Schema</label>
+                            <label className="field-label">{t("notifications.jsonSchema")}</label>
                             <pre className="history-preview" style={{ marginTop: '6px', whiteSpace: 'pre' }}>{CUSTOM_SCHEMA}</pre>
                             <div className="hint" style={{ marginTop: '6px', marginBottom: 0 }}>
-                                This JSON body is POSTed with Content-Type: application/json on each alert.
+                                {t("notifications.jsonSchemaHint")}
                             </div>
                         </div>
                     </>
@@ -214,7 +216,7 @@ export default function Notifications({ toast, onUnauth }) {
             </div>
 
             <div className="card">
-                <div className="card-title">Triggers</div>
+                <div className="card-title">{t("notifications.triggers")}</div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <label className="config-checkbox-label">
@@ -224,7 +226,7 @@ export default function Notifications({ toast, onUnauth }) {
                             checked={config.triggers?.upstreamOffline ?? true}
                             onChange={e => updateTriggers({ upstreamOffline: e.target.checked })}
                         />
-                        Upstream goes offline
+                        {t("notifications.upstreamOffline")}
                     </label>
                     <label className="config-checkbox-label">
                         <input
@@ -233,7 +235,7 @@ export default function Notifications({ toast, onUnauth }) {
                             checked={config.triggers?.upstreamOnline ?? true}
                             onChange={e => updateTriggers({ upstreamOnline: e.target.checked })}
                         />
-                        Upstream comes back online
+                        {t("notifications.upstreamOnline")}
                     </label>
                     <label className="config-checkbox-label">
                         <input
@@ -242,7 +244,7 @@ export default function Notifications({ toast, onUnauth }) {
                             checked={config.triggers?.certExpiring ?? true}
                             onChange={e => updateTriggers({ certExpiring: e.target.checked })}
                         />
-                        TLS certificate expiring within 14 days
+                        {t("notifications.certExpiring")}
                     </label>
                     <label className="config-checkbox-label">
                         <input
@@ -251,7 +253,7 @@ export default function Notifications({ toast, onUnauth }) {
                             checked={config.triggers?.updateAvailable ?? true}
                             onChange={e => updateTriggers({ updateAvailable: e.target.checked })}
                         />
-                        New caddy/ui release available
+                        {t("notifications.updateAvailable")}
                     </label>
                     <label className="config-checkbox-label">
                         <input
@@ -260,7 +262,7 @@ export default function Notifications({ toast, onUnauth }) {
                             checked={config.triggers?.routeOffline ?? false}
                             onChange={e => updateTriggers({ routeOffline: e.target.checked })}
                         />
-                        Route goes down
+                        {t("notifications.routeOffline")}
                     </label>
                     <label className="config-checkbox-label">
                         <input
@@ -269,19 +271,19 @@ export default function Notifications({ toast, onUnauth }) {
                             checked={config.triggers?.routeOnline ?? false}
                             onChange={e => updateTriggers({ routeOnline: e.target.checked })}
                         />
-                        Route comes back up
+                        {t("notifications.routeOnline")}
                     </label>
                 </div>
                 <div className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
-                    Route alerts use route checks (turn them on from the Metrics page) and fire when a site answers with a server error, times out, or has a certificate problem, even if its upstream is still reachable. Skipped routes don't alert.
+                    {t("notifications.routeAlertHint")}
                 </div>
             </div>
 
             <div className="card">
-                <div className="card-title">Debounce</div>
+                <div className="card-title">{t("notifications.debounce")}</div>
                 <div className="config-grid">
                     <div>
-                        <label className="field-label">Cooldown (minutes)</label>
+                        <label className="field-label">{t("notifications.cooldownMinutes")}</label>
                         <input
                             className="config-input"
                             type="number"
@@ -293,16 +295,16 @@ export default function Notifications({ toast, onUnauth }) {
                     </div>
                 </div>
                 <div className="hint">
-                    No repeat alerts for the same condition within this window.
+                    {t("notifications.cooldownHint")}
                 </div>
             </div>
 
             <div className="btn-row notif-footer-actions">
                 <button className="btn btn-primary notif-save-btn" onClick={save} disabled={saving}>
-                    {saving ? 'Saving...' : 'Save'}
+                    {saving ? t("common.saving") : t("common.save")}
                 </button>
                 <button className="btn btn-ghost notif-test-btn" onClick={test} disabled={testing || !config.enabled}>
-                    {testing ? 'Sending...' : 'Test notification'}
+                    {testing ? t("notifications.sending") : t("notifications.testNotification")}
                 </button>
             </div>
         </div>
