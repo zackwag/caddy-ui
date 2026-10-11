@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
-import { readContainerFile, writeContainerFile } from '../containerFs.js';
+import { readContainerFile } from '../containerFs.js';
 import { getCaddyEnv, resolveEnvVars } from '../docker.js';
 import logger from '../logger.js';
 import { buildMaintenanceBlock, clearMaintenance, getMaintenancePage, getMaintenanceState, isInMaintenance, setMaintenance } from '../maintenance.js';
+import { saveRouteEdit } from './caddyfile.js';
 
 const router = Router();
 
@@ -192,7 +193,7 @@ router.post('/', async (req, res) => {
 
     const caddyfile = await readContainerFile(req.instance.containerName, configPath);
     const block = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-    await writeContainerFile(req.instance.containerName, configPath, `${caddyfile.trimEnd()}\n\n${block}\n`);
+    await saveRouteEdit(req.instance, `${caddyfile.trimEnd()}\n\n${block}\n`, { reload: false });
 
     logger.info(`Route added`, { id, domain, upstream });
     res.status(201).json({ ok: true, id, route });
@@ -244,10 +245,7 @@ router.patch('/caddyfile/:domain', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${finalContent}\n`;
-        await writeContainerFile(req.instance.containerName, req.instance.configPath, updated);
-
-        const { caddyLoad } = await import('../caddy.js');
-        await caddyLoad(updated, req.instance.adminUrl);
+        await saveRouteEdit(req.instance, updated);
 
         logger.info('Caddyfile site block updated', { domain });
         res.json({ ok: true, domain });
@@ -269,10 +267,7 @@ router.delete('/caddyfile/:domain', async (req, res) => {
         if (!existing) return res.status(404).json({ error: 'site block not found' });
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await writeContainerFile(req.instance.containerName, req.instance.configPath, cleaned);
-
-        const { caddyLoad } = await import('../caddy.js');
-        await caddyLoad(cleaned, req.instance.adminUrl);
+        await saveRouteEdit(req.instance, cleaned);
 
         logger.info('Caddyfile site block deleted', { domain });
         res.json({ ok: true, domain });
@@ -309,7 +304,7 @@ router.patch('/:id', async (req, res) => {
         ]);
         const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
         const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock, env);
-        await writeContainerFile(req.instance.containerName, req.instance.configPath, updated);
+        await saveRouteEdit(req.instance, updated, { reload: false });
     }
 
     logger.info(`Route updated`, { id, domain, upstream });
@@ -337,7 +332,7 @@ router.delete('/:id', async (req, res) => {
             getCaddyEnv(req.instance.containerName),
         ]);
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await writeContainerFile(req.instance.containerName, req.instance.configPath, cleaned);
+        await saveRouteEdit(req.instance, cleaned, { reload: false });
     }
 
     logger.info(`Route deleted`, { id, domain });
@@ -369,10 +364,7 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
-        await writeContainerFile(req.instance.containerName, req.instance.configPath, updated);
-
-        const { caddyLoad } = await import('../caddy.js');
-        await caddyLoad(updated, req.instance.adminUrl);
+        await saveRouteEdit(req.instance, updated);
 
         await setMaintenance(domain, block);
 
@@ -397,15 +389,12 @@ router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
             getCaddyEnv(req.instance.containerName),
         ]);
 
-        const entry = await clearMaintenance(domain);
-        const originalContent = entry.originalContent;
+        const { originalContent } = getMaintenanceState()[domain];
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${originalContent}\n`;
-        await writeContainerFile(req.instance.containerName, req.instance.configPath, updated);
-
-        const { caddyLoad } = await import('../caddy.js');
-        await caddyLoad(updated, req.instance.adminUrl);
+        await saveRouteEdit(req.instance, updated);
+        await clearMaintenance(domain);
 
         logger.info('Maintenance mode disabled', { domain });
         res.json({ ok: true, domain });

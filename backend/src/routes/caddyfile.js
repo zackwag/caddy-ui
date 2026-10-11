@@ -186,6 +186,26 @@ async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
     }
 }
 
+// Saves a Caddyfile produced by a route edit, with the same safety net as the
+// editor's save: snapshot the current file into history, write, reload, and
+// restore the previous file if Caddy rejects the change. Edits that already
+// applied their change through the admin API pass { reload: false }.
+async function saveRouteEdit(instance, content, { reload = true } = {}) {
+    const { configPath, containerName, id } = instance;
+    const previous = await readContainerFile(containerName, configPath).catch(() => null);
+    await snapshotCaddyfile(configPath, containerName, id);
+    await writeContainerFile(containerName, configPath, content);
+    if (!reload) return;
+
+    try {
+        await reloadCaddy(content, instance);
+    } catch (err) {
+        if (previous !== null) await writeContainerFile(containerName, configPath, previous).catch(() => { });
+        logger.warn('Caddy reload failed, route edit rolled back', { error: err.message });
+        throw new Error(`Caddy rejected the change, so the Caddyfile was restored: ${err.message}`, { cause: err });
+    }
+}
+
 function parseSiteBlocks(content) {
     const lines = content.split('\n');
     const blocks = [];
@@ -448,4 +468,4 @@ router.put('/', async (req, res) => {
 });
 
 export default router;
-export { migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, sortCaddyfile };
+export { migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, saveRouteEdit, sortCaddyfile };
