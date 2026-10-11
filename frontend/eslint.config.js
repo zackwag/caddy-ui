@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
+import i18next from 'eslint-plugin-i18next';
 
 export default [
     { ignores: ['dist', 'src/lib/caddyfileMode.js'] },
@@ -18,6 +19,7 @@ export default [
         plugins: {
             'react-hooks': reactHooks,
             'react-refresh': reactRefresh,
+            i18next,
         },
         rules: {
             ...js.configs.recommended.rules,
@@ -27,6 +29,12 @@ export default [
             'react-refresh/only-export-components': [
                 'warn',
                 { allowConstantExport: true, allowExportNames: ['useToast', 'useConfirm'] },
+            ],
+            'i18next/no-literal-string': [
+                'warn',
+                {
+                    mode: 'all',
+                },
             ],
         },
     },
