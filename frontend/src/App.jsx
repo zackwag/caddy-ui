@@ -239,7 +239,7 @@ export default function App() {
                                 <span className="page-title">{title}</span>
                             </div>
                             <div className="btn-row">
-                                {language && (
+                                {language && enabledLanguages.length > 1 && (
                                     <LanguagePicker
                                         languages={enabledLanguages}
                                         language={language}
