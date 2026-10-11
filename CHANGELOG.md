@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.0](https://github.com/zackwag/caddy-ui/compare/v2.16.0...v2.17.0) (2026-10-11)
+
+
+### Features
+
+* show an update badge when a newer caddy-ui image is published ([#183](https://github.com/zackwag/caddy-ui/issues/183)) ([c6a3f0f](https://github.com/zackwag/caddy-ui/commit/c6a3f0fe49dc347c9ab9cba51d93d6fa98df5d54))
+
 ## [2.16.0](https://github.com/zackwag/caddy-ui/compare/v2.15.0...v2.16.0) (2026-10-11)
 
 
