@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch, setInstanceId } from "../utils/api.js";
+import { RELEASES_URL, isNewerVersion } from "../utils/version.js";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
+const [latestVersions, setLatestVersions] = useState(null);
 
 const NAV = [
     { path: "/dashboard", label: "Dashboard", icon: "◈" },
@@ -26,8 +28,17 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
     const dropdownRef = useRef(null);
 
     useEffect(() => {
-        apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
+        apiFetch("/version", {}, onUnauth)
+            .then(r => {
+                setBackendVersion(r.version);
+                setLatestVersions(r.latest || null);
+            })
+            .catch(() => { });
     }, [onUnauth]);
+
+    const updateAvailable =
+        isNewerVersion(latestVersions?.frontend, FRONTEND_VERSION) ||
+        isNewerVersion(latestVersions?.backend, backendVersion);
 
     useEffect(() => {
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
@@ -105,6 +116,17 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         <span className="nav-icon">⏻</span>
                         Sign out
                     </div>
+                )}
+                {updateAvailable && (
+                    <a
+                        className="badge badge-green sidebar-update-badge"
+                        href={RELEASES_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`Latest: frontend v${latestVersions?.frontend} · backend v${latestVersions?.backend}`}
+                    >
+                        Update available ↗
+                    </a>
                 )}
                 <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? `frontend v${FRONTEND_VERSION} · backend v${backendVersion}` : undefined}>
                     v{FRONTEND_VERSION}{backendVersion && backendVersion !== FRONTEND_VERSION ? ` (backend v${backendVersion})` : ""}
