@@ -27,6 +27,7 @@ import { loadMaintenance } from './maintenance.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { startUpstreamMonitor } from './upstreamMonitor.js';
+import { getLatestImageVersions } from './updateCheck.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -74,7 +75,11 @@ app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter, authRouter);
 
 // GET /api/version -- always public, non-sensitive
-app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
+app.get('/api/version', async (req, res) => {
+    const latest = await getLatestImageVersions();
+
+    res.json({ version: APP_VERSION, latest, });
+});
 
 // Instance, settings, and custom-theme routes require auth but not instance middleware
 app.use('/api/instances', authMiddleware, instancesRouter);
