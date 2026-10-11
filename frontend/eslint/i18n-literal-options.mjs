@@ -1,0 +1,85 @@
+// Technical literals that are not user-facing copy.
+// Keep this list broad enough to avoid implementation noise, but narrow enough
+// that normal English UI text still reaches i18next/no-literal-string.
+
+export default {
+    mode: 'all',
+
+    'jsx-attributes': {
+        exclude: [
+            '^className$',
+            '^path$',
+            '^to$',
+            '^key$',
+            '^value$',
+            '^type$',
+            '^id$',
+            '^name$',
+            '^style$',
+            '^role$',
+            '^href$',
+            '^src$',
+            '^data-',
+        ],
+    },
+
+    callees: {
+        exclude: [
+            '^navigate$',
+            '^t$',
+            '^document\\.createElement$',
+            '^window\\.open$',
+        ],
+    },
+
+    'object-properties': {
+        exclude: [
+            // CSS-in-JS / inline-style properties.
+            '^(background|backgroundColor|color|font.*|lineHeight|caretColor|border.*|padding.*|margin.*|width|height|minWidth|minHeight|maxWidth|maxHeight|overflow.*|display|gap|alignItems|justifyContent|textAlign|textTransform|letterSpacing|cursor|opacity|boxShadow|flex.*|position|top|right|bottom|left|whiteSpace)$',
+        ],
+    },
+
+    words: {
+        exclude: [
+            // Empty/default values and stable application identifiers.
+            '^$',
+            '^en$',
+            '^dark$',
+            '^light$',
+            '^vt2026$',
+            '^coarse-everywhere$',
+            '^caddy/ui$',
+
+            // Paths, URLs, CSS variables and DOM data attributes.
+            '^/.*$',
+            '^https?://',
+            '^--.*$',
+            '^var\\(--[a-z0-9-]+\\)$',
+            '^data-[a-z0-9-]+$',
+
+            // Protocol / serialization values.
+            '^(application/json|text/plain)$',
+            '^(GET|POST|PUT|PATCH|DELETE)$',
+            '^(DEBUG|INFO|WARN|ERROR)$',
+
+            // Internal state and provider identifiers.
+            '^(success|error|info)$',
+            '^(online|offline|unknown|partial|maintenance|pending|none)$',
+            '^(all|asc|desc|diff|raw|current|domain|title|upstream|server|status|expires|days)$',
+            '^(json|console|acme|orphaned|superseded|valid|expiring|expired)$',
+            '^(ntfy|discord|slack|pushover|custom)$',
+
+            // Intl.DateTimeFormat option values.
+            '^(short|numeric|2-digit)$',
+
+            // Platform names used as data labels in the CA instruction map.
+            '^(iOS / iPadOS|macOS|Android|Windows)$',
+
+            // Deliberate technical sample in the theme preview.
+            '^localhost:443 .*reverse_proxy.*$',
+
+            // Pure punctuation / symbols.
+            '^[^A-Za-zÀ-ž]+$',
+        ],
+    },
+};
