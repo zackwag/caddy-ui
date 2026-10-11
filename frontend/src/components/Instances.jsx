@@ -24,6 +24,8 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     // Live HTTP server IDs for the form's admin URL; null until loaded or
     // when Caddy can't be reached, in which case the field stays free text
     const [serverIds, setServerIds] = useState(null);
+    // Dashboard labels for server IDs (server-names.json), e.g. srv0 -> "HTTPS Sites"
+    const [serverLabels, setServerLabels] = useState({});
 
     const toastRef = useRef(toast);
     toastRef.current = toast;
@@ -49,6 +51,12 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     const didAutoDiscover = useRef(false);
 
     useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+        apiFetch("/server-names", {}, onUnauth).then(setServerLabels).catch(() => { });
+    }, [onUnauth]);
+
+    const serverLabel = (id) => serverLabels[id] ? `${serverLabels[id]} (${id})` : id;
 
     useEffect(() => {
         if (!loading && instances.length === 0 && !didAutoDiscover.current) {
@@ -222,7 +230,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             </div>
                             <div>
                                 <span className="field-label">Primary Server ID</span>
-                                <div className="data-val mono">{inst.serverName || "srv0"}</div>
+                                <div className="data-val mono">{serverLabel(inst.serverName || "srv0")}</div>
                             </div>
                             <div>
                                 <span className="field-label">Log Path</span>
@@ -300,7 +308,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                             {!serverIds.includes(form.serverName) && (
                                                 <option value={form.serverName}>{form.serverName || "(none)"} (not in Caddy)</option>
                                             )}
-                                            {serverIds.map(id => <option key={id} value={id}>{id}</option>)}
+                                            {serverIds.map(id => <option key={id} value={id}>{serverLabel(id)}</option>)}
                                         </select>
                                         <span className="select-arrow">▾</span>
                                     </div>
