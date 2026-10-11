@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { API, apiFetch } from "../utils/api.js";
 import UpstreamUptime from "./UpstreamUptime.jsx";
 
 export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
+    const { t, i18n } = useTranslation();
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
     const [configOpen, setConfigOpen] = useState(false);
@@ -14,7 +16,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
     const load = useCallback(() => {
         setLoading(true);
         apiFetch("/metrics", {}, onUnauth)
-            .catch(() => ({ ok: false, error: "Failed to fetch metrics" }))
+            .catch(() => ({ ok: false, error: t("metrics.fetchFailed") }))
             .then(res => {
                 // Keep the last good numbers through a failed refresh so a blip
                 // doesn't swap the cards for the "not enabled" card
@@ -37,9 +39,9 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
         try {
             await apiFetch("/metrics/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }, onUnauth);
             setMetricsConfig({ enabled });
-            toast.success(enabled ? "Metrics enabled" : "Metrics disabled");
+            toast.success(enabled ? t("metrics.enabledToast") : t("metrics.disabledToast"));
             if (enabled) setTimeout(load, 1000);
-            else setMetrics({ ok: false, error: "Metrics disabled" });
+            else setMetrics({ ok: false, error: t("metrics.disabledToast") });
         } catch (e) { toast.error(e.message); }
         finally { setSavingMetrics(false); }
     };
@@ -49,16 +51,16 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
     const formatScrapedAt = (iso) => {
         if (!iso) return "";
         const ts = iso.endsWith('Z') ? iso : iso + 'Z';
-        return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+        return new Date(ts).toLocaleTimeString(i18n.resolvedLanguage || i18n.language, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
     };
 
     return (
         <div className="gap-16">
             <div className="card card-flush">
                 <div className={`card-header--clickable ${configOpen ? "is-open" : ""}`} onClick={() => setConfigOpen(o => !o)}>
-                    <span className="section-label">Metrics Configuration</span>
+                    <span className="section-label">{t("metrics.configuration")}</span>
                     <div className="flex-center">
-                        {metricsConfig && <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>{metricsConfig.enabled ? "ENABLED" : "DISABLED"}</span>}
+                        {metricsConfig && <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>{metricsConfig.enabled ? t("common.enabledUpper") : t("common.disabledUpper")}</span>}
                         <span className="chevron">{configOpen ? "▲" : "▼"}</span>
                     </div>
                 </div>
@@ -66,23 +68,23 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                     <div className="card-body">
                         <div className="flex-between" style={{ marginBottom: 16 }}>
                             <div>
-                                <span className="field-label">Caddy Metrics</span>
-                                <div className="hint" style={{ marginBottom: 0 }}>Enables the Prometheus metrics endpoint on Caddy's admin API</div>
+                                <span className="field-label">{t("metrics.caddyMetrics")}</span>
+                                <div className="hint" style={{ marginBottom: 0 }}>{t("metrics.caddyMetricsHint")}</div>
                             </div>
                             <button className={`btn metrics-toggle-btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`} onClick={() => toggleMetrics(!metricsConfig?.enabled)} disabled={savingMetrics}>
-                                {savingMetrics ? "Saving..." : metricsConfig?.enabled ? "Disable" : "Enable"}
+                                {savingMetrics ? t("common.saving") : metricsConfig?.enabled ? t("common.disable") : t("common.enable")}
                             </button>
                         </div>
                         <div className="config-section-divider">
                             <div className="flex-between">
                                 <div>
-                                    <span className="field-label">Public Metrics Endpoint</span>
+                                    <span className="field-label">{t("metrics.publicEndpoint")}</span>
                                     <div className="hint" style={{ marginBottom: 0 }}>
-                                        {publicMetrics ? <>Scrape URL: <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics/raw</span></> : "Set CADDY_UI_PUBLIC_METRICS=true to enable unauthenticated Prometheus scraping"}
+                                        {publicMetrics ? <>{t("metrics.scrapeUrl")} <span style={{ color: "var(--accent2)" }}>http://caddy-ui-backend:3001/api/metrics/raw</span></> : t("metrics.publicMetricsHint")}
                                     </div>
                                 </div>
                                 <span className="metrics-status-text" style={{ color: publicMetrics ? "var(--accent)" : "var(--muted)" }}>
-                                    {publicMetrics ? "Enabled" : "Disabled"}
+                                    {publicMetrics ? t("common.enabled") : t("common.disabled")}
                                 </span>
                             </div>
                         </div>
@@ -91,39 +93,39 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
             </div>
 
             {!metrics ? (
-                <div className="loading">Loading metrics...</div>
+                <div className="loading">{t("metrics.loading")}</div>
             ) : !metrics.ok ? (
                 <div className="card">
                     <div className="flex-between">
-                        <span className="loading">Metrics not enabled</span>
-                        <button className="btn btn-ghost btn--sm" onClick={() => setConfigOpen(true)}>Enable in Metrics →</button>
+                        <span className="loading">{t("metrics.notEnabled")}</span>
+                        <button className="btn btn-ghost btn--sm" onClick={() => setConfigOpen(true)}>{t("metrics.enableInMetrics")} →</button>
                     </div>
                 </div>
             ) : (
                 <>
                     <div className="grid-3">
                         <div className="card">
-                            <div className="card-title">Total Requests</div>
+                            <div className="card-title">{t("metrics.totalRequests")}</div>
                             <div className="stat-val">{metrics.totalRequests.toLocaleString()}</div>
-                            <div className="stat-label">Since process start</div>
+                            <div className="stat-label">{t("metrics.sinceProcessStart")}</div>
                         </div>
                         <div className="card">
-                            <div className="card-title">Requests / sec</div>
+                            <div className="card-title">{t("metrics.requestsPerSecond")}</div>
                             <div className="stat-val data-val--accent">{metrics.rps ?? "—"}</div>
-                            <div className="stat-label">Avg over uptime</div>
+                            <div className="stat-label">{t("metrics.avgOverUptime")}</div>
                         </div>
                         <div className="card">
-                            <div className="card-title">Avg Response</div>
+                            <div className="card-title">{t("metrics.avgResponse")}</div>
                             <div className="stat-val" style={{ color: metrics.avgResponseMs > 500 ? "var(--warn)" : "var(--text)" }}>
                                 {metrics.avgResponseMs}<span className="ms-unit">ms</span>
                             </div>
-                            <div className="stat-label">Mean response time</div>
+                            <div className="stat-label">{t("metrics.meanResponseTime")}</div>
                         </div>
                     </div>
 
                     <div className="grid-2">
                         <div className="card">
-                            <div className="card-title">Status Codes</div>
+                            <div className="card-title">{t("metrics.statusCodes")}</div>
                             <div className="metrics-bar-wrap">
                                 {Object.entries(metrics.statusGroups).map(([group, count]) => {
                                     const pct = Math.round((count / (metrics.totalRequests || 1)) * 100);
@@ -140,7 +142,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                             </div>
                         </div>
                         <div className="card">
-                            <div className="card-title">Response Time Percentiles</div>
+                            <div className="card-title">{t("metrics.responsePercentiles")}</div>
                             <div className="percentile-rows">
                                 {[
                                     { label: "p50", val: metrics.p50, color: "var(--accent)" },
@@ -162,11 +164,11 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                     </div>
 
                     <div className="metrics-footer">
-                        <span className="metrics-footer-label">Refreshes every 30s</span>
+                        <span className="metrics-footer-label">{t("metrics.refreshInterval")}</span>
                         <div className="btn-row">
-                            {refreshError && <span style={{ color: "var(--warn)" }} title={refreshError}>Refresh failed</span>}
-                            <span>Last scraped: {formatScrapedAt(metrics.scrapedAt)}</span>
-                            <button className="btn btn-ghost btn--sm" onClick={load} disabled={loading}>↺ {loading ? "Refreshing..." : "Refresh"}</button>
+                            {refreshError && <span style={{ color: "var(--warn)" }} title={refreshError}>{t("metrics.refreshFailed")}</span>}
+                            <span>{t("metrics.lastScraped", { time: formatScrapedAt(metrics.scrapedAt) })}</span>
+                            <button className="btn btn-ghost btn--sm" onClick={load} disabled={loading}>↺ {loading ? t("common.refreshing") : t("common.refresh")}</button>
                         </div>
                     </div>
                 </>
