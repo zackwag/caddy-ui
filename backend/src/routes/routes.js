@@ -147,6 +147,19 @@ async function getAllServers(adminUrl) {
     }
 }
 
+// Caddy happily accepts routes for a server ID that doesn't exist, creating a
+// server with no listen address -- so the route never serves traffic. Returns
+// an error message for that case, or null when the primary server exists.
+function checkPrimaryServer(servers, primaryServer) {
+    const ids = Object.keys(servers || {});
+    if (ids.includes(primaryServer)) return null;
+    if (!ids.length) {
+        return 'Caddy has no HTTP servers yet. Add a site to the Caddyfile first, then add routes here.';
+    }
+    return `Primary server "${primaryServer}" doesn't exist in Caddy (available: ${ids.join(', ')}). `
+        + 'Update the instance\'s Primary Server ID on the Instances page.';
+}
+
 // GET /api/routes
 router.get('/', async (req, res) => {
     try {
@@ -178,14 +191,22 @@ router.post('/', async (req, res) => {
     }
     logger.info(`Adding route`, { domain, upstream, stripPrefix });
 
+    const primaryServer = req.instance.serverName;
+    // Unlike getAllServers, let an unreachable Caddy surface as an error
+    // rather than reading as "no servers"
+    const servers = (await caddyGet('/config/apps/http/servers', req.instance.adminUrl)) || {};
+    const serverError = checkPrimaryServer(servers, primaryServer);
+    if (serverError) {
+        logger.warn('Route not added: primary server missing', { primaryServer, servers: Object.keys(servers) });
+        return res.status(400).json({ error: serverError });
+    }
+
     const id = `route-${Date.now()}`;
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
-    const primaryServer = req.instance.serverName;
     const configPath = req.instance.configPath;
 
     const routesPath = `/config/apps/http/servers/${primaryServer}/routes`;
-    const existing = await caddyGet(routesPath, req.instance.adminUrl).catch(() => null);
-    if (existing === null) {
+    if (!servers[primaryServer].routes) {
         await caddyPut(routesPath, [route], req.instance.adminUrl);
     } else {
         await caddyPost(routesPath, route, req.instance.adminUrl);
@@ -405,4 +426,4 @@ router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
 });
 
 export default router;
-export { buildReverseProxyRoute, buildCaddyfileBlock, removeSiteBlock, replaceSiteBlock, extractSiteBlock, isSimpleReverseProxy, buildMaintenanceBlock };
+export { buildReverseProxyRoute, buildCaddyfileBlock, checkPrimaryServer, removeSiteBlock, replaceSiteBlock, extractSiteBlock, isSimpleReverseProxy, buildMaintenanceBlock };

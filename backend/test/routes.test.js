@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildCaddyfileBlock,
     buildReverseProxyRoute,
+    checkPrimaryServer,
     isSimpleReverseProxy,
     removeSiteBlock,
     replaceSiteBlock,
@@ -219,5 +220,25 @@ describe('isSimpleReverseProxy', () => {
 
     it('returns false for missing handle', () => {
         expect(isSimpleReverseProxy({})).toBe(false);
+    });
+});
+
+describe('checkPrimaryServer', () => {
+    const servers = { srv0: { listen: [':443'] }, srv1: { listen: [':80'] } };
+
+    it('accepts a server that exists', () => {
+        expect(checkPrimaryServer(servers, 'srv0')).toBeNull();
+    });
+
+    it('rejects a missing server and lists the real ones', () => {
+        const err = checkPrimaryServer(servers, 'media.home');
+        expect(err).toContain('"media.home" doesn\'t exist');
+        expect(err).toContain('srv0, srv1');
+        expect(err).toContain('Instances page');
+    });
+
+    it('explains when Caddy has no HTTP servers', () => {
+        expect(checkPrimaryServer({}, 'srv0')).toContain('no HTTP servers');
+        expect(checkPrimaryServer(null, 'srv0')).toContain('no HTTP servers');
     });
 });

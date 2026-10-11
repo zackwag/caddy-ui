@@ -26,6 +26,8 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     const [serverIds, setServerIds] = useState(null);
     // Dashboard labels for server IDs (server-names.json), e.g. srv0 -> "HTTPS Sites"
     const [serverLabels, setServerLabels] = useState({});
+    // Live server IDs per instance, to flag a Primary Server ID Caddy doesn't have
+    const [liveServerIds, setLiveServerIds] = useState({});
 
     const toastRef = useRef(toast);
     toastRef.current = toast;
@@ -55,6 +57,14 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     useEffect(() => {
         apiFetch("/server-names", {}, onUnauth).then(setServerLabels).catch(() => { });
     }, [onUnauth]);
+
+    useEffect(() => {
+        for (const inst of instances) {
+            apiFetch(`/instances/servers?adminUrl=${encodeURIComponent(inst.adminUrl)}`, {}, onUnauth)
+                .then(ids => setLiveServerIds(m => ({ ...m, [inst.id]: ids })))
+                .catch(() => { });
+        }
+    }, [instances, onUnauth]);
 
     const serverLabel = (id) => serverLabels[id] ? `${serverLabels[id]} (${id})` : id;
 
@@ -230,7 +240,12 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             </div>
                             <div>
                                 <span className="field-label">Primary Server ID</span>
-                                <div className="data-val mono">{serverLabel(inst.serverName || "srv0")}</div>
+                                <div className="data-val mono">
+                                    {serverLabel(inst.serverName || "srv0")}
+                                    {liveServerIds[inst.id] && !liveServerIds[inst.id].includes(inst.serverName || "srv0") && (
+                                        <span className="badge badge-red" style={{ marginLeft: 8 }} title="New routes can't be added until this matches one of Caddy's servers">not in Caddy</span>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <span className="field-label">Log Path</span>
