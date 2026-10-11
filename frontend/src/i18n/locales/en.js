@@ -22,4 +22,30 @@ export default {
     errors: {
         backendUnreachable: 'Could not reach backend',
     },
+
+    sidebar: {
+        serverManager: 'Server Manager',
+        connected: 'connected',
+        unreachable: 'unreachable',
+        checking: 'checking...',
+        refreshStatus: 'Refresh status',
+        selectInstance: 'Select instance',
+        signOut: 'Sign out',
+        updatePartFrontend: 'frontend {{version}}',
+        updatePartBackend: 'backend {{version}}',
+        availableUpdates: 'Available: {{parts}}',
+        updateAvailable: 'Update available',
+        versionDetails: 'frontend {{frontend}} · backend {{backend}}',
+        backendVersion: ' (backend {{version}})',
+        nav: {
+            dashboard: 'Dashboard',
+            caddyfile: 'Caddyfile',
+            routes: 'Routes',
+            tls: 'TLS',
+            logs: 'Logs',
+            metrics: 'Metrics',
+            notifications: 'Notifications',
+            instances: 'Instances',
+        },
+    },
 };

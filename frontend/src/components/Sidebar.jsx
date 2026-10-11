@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch, setInstanceId } from "../utils/api.js";
@@ -13,17 +14,18 @@ const COMMITS_URL = "https://github.com/zackwag/caddy-ui/commits/main";
 const displayVersion = (version) => /^\d/.test(version) ? `v${version}` : version;
 
 const NAV = [
-    { path: "/dashboard", label: "Dashboard", icon: "◈" },
-    { path: "/caddyfile", label: "Caddyfile", icon: "⌗" },
-    { path: "/routes", label: "Routes", icon: "⇌" },
-    { path: "/tls", label: "TLS", icon: "⊕" },
-    { path: "/logs", label: "Logs", icon: "≡" },
-    { path: "/metrics", label: "Metrics", icon: "∿" },
-    { path: "/notifications", label: "Notifications", icon: "⊘" },
-    { path: "/instances", label: "Instances", icon: "⊞" },
+    { path: "/dashboard", labelKey: "sidebar.nav.dashboard", icon: "◈" },
+    { path: "/caddyfile", labelKey: "sidebar.nav.caddyfile", icon: "⌗" },
+    { path: "/routes", labelKey: "sidebar.nav.routes", icon: "⇌" },
+    { path: "/tls", labelKey: "sidebar.nav.tls", icon: "⊕" },
+    { path: "/logs", labelKey: "sidebar.nav.logs", icon: "≡" },
+    { path: "/metrics", labelKey: "sidebar.nav.metrics", icon: "∿" },
+    { path: "/notifications", labelKey: "sidebar.nav.notifications", icon: "⊘" },
+    { path: "/instances", labelKey: "sidebar.nav.instances", icon: "⊞" },
 ];
 
 export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange, instanceListVersion }) {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
     const [instances, setInstances] = useState([]);
@@ -44,8 +46,8 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
     // The backend compares both images against the published versions.json;
     // each field is the newer version to offer, or null
     const updateParts = [
-        update?.frontend && `frontend ${update.frontend}`,
-        update?.backend && `backend ${update.backend}`,
+        update?.frontend && t("sidebar.updatePartFrontend", { version: update.frontend }),
+        update?.backend && t("sidebar.updatePartBackend", { version: update.backend }),
     ].filter(Boolean);
     const updateUrl = /^\d/.test(update?.frontend || update?.backend || "") ? RELEASES_URL : COMMITS_URL;
 
@@ -72,13 +74,13 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
         <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
             <div className="sidebar-logo">
                 <div className="logo-mark">caddy/ui</div>
-                <div className="logo-sub">Server Manager</div>
+                <div className="logo-sub">{t("sidebar.serverManager")}</div>
                 <div className="status-pill">
                     <div className={`status-dot ${status ? (status.online ? "online" : "offline") : ""}`} />
                     <span className="status-pill-text">
-                        {status ? (status.online ? "connected" : "unreachable") : "checking..."}
+                        {status ? (status.online ? t("sidebar.connected") : t("sidebar.unreachable")) : t("sidebar.checking")}
                     </span>
-                    <button className="status-refresh" onClick={onRefreshStatus} title="Refresh status">↺</button>
+                    <button className="status-refresh" onClick={onRefreshStatus} title={t("sidebar.refreshStatus")}>↺</button>
                 </div>
             </div>
             {showSwitcher && (() => {
@@ -87,7 +89,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                     <div className="instance-dropdown" ref={dropdownRef}>
                         <button className="instance-dropdown-trigger" onClick={() => setDropdownOpen(o => !o)}>
                             <div className={`status-dot ${instanceStatus[selected?.id] === true ? "online" : instanceStatus[selected?.id] === false ? "offline" : ""}`} />
-                            <span className="instance-dropdown-name">{selected?.name || "Select instance"}</span>
+                            <span className="instance-dropdown-name">{selected?.name || t("sidebar.selectInstance")}</span>
                             <span className={`instance-dropdown-chevron ${dropdownOpen ? "open" : ""}`}>▾</span>
                         </button>
                         {dropdownOpen && (
@@ -115,7 +117,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         onClick={() => go(n.path)}
                     >
                         <span className="nav-icon">{n.icon}</span>
-                        {n.label}
+                        {t(n.labelKey)}
                     </div>
                 ))}
             </nav>
@@ -123,7 +125,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                 {authEnabled && (
                     <div className="nav-item" onClick={onUnauth}>
                         <span className="nav-icon">⏻</span>
-                        Sign out
+                        {t("sidebar.signOut")}
                     </div>
                 )}
                 {updateParts.length > 0 && (
@@ -132,13 +134,13 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         href={updateUrl}
                         target="_blank"
                         rel="noreferrer"
-                        title={`Available: ${updateParts.join(" · ")}`}
+                        title={t("sidebar.availableUpdates", { parts: updateParts.join(" · ") })}
                     >
-                        Update available ↗
+                        {t("sidebar.updateAvailable")} ↗
                     </a>
                 )}
-                <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? `frontend ${displayVersion(FRONTEND_VERSION)} · backend ${displayVersion(backendVersion)}` : undefined}>
-                    {displayVersion(FRONTEND_VERSION)}{backendVersion && backendVersion !== FRONTEND_VERSION ? ` (backend ${displayVersion(backendVersion)})` : ""}
+                <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.versionDetails", { frontend: displayVersion(FRONTEND_VERSION), backend: displayVersion(backendVersion) }) : undefined}>
+                    {displayVersion(FRONTEND_VERSION)}{backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.backendVersion", { version: displayVersion(backendVersion) }) : ""}
                 </div>
             </div>
         </aside>
