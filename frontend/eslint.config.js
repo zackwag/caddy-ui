@@ -8,13 +8,13 @@ import localizedErrorToast from './eslint/localized-error-toast.mjs';
 
 export default [
     {
-        ignores: ['dist', 'src/lib/caddyfileMode.js'],
+        ignores: ['dist', 'dist-playground', 'src/lib/caddyfileMode.js'],
         linterOptions: {
             reportUnusedDisableDirectives: 'off',
         },
     },
     {
-        files: ['src/**/*.{js,jsx}'],
+        files: ['src/**/*.{js,jsx}', 'playground/**/*.{js,jsx}'],
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',
@@ -51,6 +51,8 @@ export default [
             'src/i18n/**/*.{js,jsx}',
             // Headless policy module with no user-facing copy.
             'src/utils/notificationCenter.js',
+            // Separate English-only contributor tool; never shipped in the app.
+            'playground/**/*.{js,jsx}',
             'src/lib/caddyfileMode.js',
         ],
         rules: {
@@ -70,7 +72,7 @@ export default [
         rules: js.configs.recommended.rules,
     },
     {
-        files: ['scripts/**/*.mjs', 'eslint/**/*.mjs'],
+        files: ['scripts/**/*.mjs', 'eslint/**/*.mjs', 'playground/vite.config.js'],
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',
