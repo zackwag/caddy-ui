@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
 import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 const STATUS = {
-    online: { label: "Online", color: "var(--accent)" },
-    partial: { label: "Partial", color: "var(--warn)" },
-    offline: { label: "Offline", color: "var(--danger)" },
-    unknown: { label: "No data", color: null },
+    online: { labelKey: "uptime.online", color: "var(--accent)" },
+    partial: { labelKey: "uptime.partial", color: "var(--warn)" },
+    offline: { labelKey: "uptime.offline", color: "var(--danger)" },
+    unknown: { labelKey: "uptime.noData", color: null },
 };
 
 const uptimeColor = (pct) => pct >= 99 ? "var(--accent)" : pct >= 95 ? "var(--warn)" : "var(--danger)";
-
-const ROUTE_CHECK_HINT = "Requests each site through Caddy every 5 minutes, so these checks show up in access logs (User-Agent caddy-ui-route-check) and in request metrics.";
 
 function upstreamStatus(upstreams, uptime) {
     const known = upstreams.map(u => uptime[u]).filter(Boolean);
@@ -76,6 +75,7 @@ function summarize(rows) {
 }
 
 export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
+    const { t } = useTranslation();
     const [routes, setRoutes] = useState(null);
     const [uptime, setUptime] = useState({});
     const [routeUptime, setRouteUptime] = useState({});
@@ -119,50 +119,50 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
         : summary.online === summary.tracked ? "var(--accent)"
             : summary.online > 0 ? "var(--warn)" : "var(--danger)";
     const onlineDetail = [
-        summary.offline && `${summary.offline} offline`,
-        summary.partial && `${summary.partial} partial`,
-    ].filter(Boolean).join(" · ") || (summary.tracked ? `All ${routeChecks ? "routes" : "upstreams"} responding` : "Waiting for first checks");
+        summary.offline && t("uptime.offlineCount", { count: summary.offline }),
+        summary.partial && t("uptime.partialCount", { count: summary.partial }),
+    ].filter(Boolean).join(" · ") || (summary.tracked ? t(routeChecks ? "uptime.allRoutesResponding" : "uptime.allUpstreamsResponding") : t("uptime.waitingForChecks"));
 
     return (
         <>
             <div className="flex-between">
-                <span className="section-label">{routeChecks ? "Route Uptime" : "Upstream Uptime"}</span>
-                <button className="btn btn-ghost btn--sm" title={ROUTE_CHECK_HINT} onClick={() => onRouteChecksChange(!routeChecks)}>
-                    Route checks: {routeChecks ? "On" : "Off"}
+                <span className="section-label">{routeChecks ? t("uptime.routeUptime") : t("uptime.upstreamUptime")}</span>
+                <button className="btn btn-ghost btn--sm" title={t("uptime.routeCheckHint")} onClick={() => onRouteChecksChange(!routeChecks)}>
+                    {t("uptime.routeChecks")}: {routeChecks ? t("common.on") : t("common.off")}
                 </button>
             </div>
-            {routeChecks && <div className="hint" style={{ marginBottom: 0 }}>{ROUTE_CHECK_HINT}</div>}
+            {routeChecks && <div className="hint" style={{ marginBottom: 0 }}>{t("uptime.routeCheckHint")}</div>}
 
             {error && !routes ? (
-                <div className="card"><span className="loading">Failed to load routes: {error}</span></div>
+                <div className="card"><span className="loading">{t("uptime.failedToLoadRoutes", { error })}</span></div>
             ) : !routes ? (
-                <div className="loading">Loading upstream uptime...</div>
+                <div className="loading">{t("uptime.loading")}</div>
             ) : !rows.length ? (
-                <div className="card"><span className="loading">{routeChecks ? "No routes to check" : "No routes with upstreams"}</span></div>
+                <div className="card"><span className="loading">{routeChecks ? t("uptime.noRoutesToCheck") : t("uptime.noRoutesWithUpstreams")}</span></div>
             ) : (
                 <>
                     <div className="grid-3">
                         <div className="card">
-                            <div className="card-title">Routes Online</div>
+                            <div className="card-title">{t("uptime.routesOnline")}</div>
                             <div className="stat-val" style={{ color: onlineColor }}>
                                 {summary.online}<span className="ms-unit">/ {summary.tracked}</span>
                             </div>
                             <div className="stat-label">{onlineDetail}</div>
                         </div>
                         <div className="card">
-                            <div className="card-title">Avg Uptime</div>
+                            <div className="card-title">{t("uptime.avgUptime")}</div>
                             <div className="stat-val" style={{ color: summary.avgPct !== null ? uptimeColor(summary.avgPct) : "var(--muted)" }}>
                                 {summary.avgPct ?? "—"}{summary.avgPct !== null && <span className="ms-unit">%</span>}
                             </div>
-                            <div className="stat-label">Across recorded history</div>
+                            <div className="stat-label">{t("uptime.acrossHistory")}</div>
                         </div>
                         <div className="card">
-                            <div className="card-title">Lowest Uptime</div>
+                            <div className="card-title">{t("uptime.lowestUptime")}</div>
                             <div className="stat-val" style={{ color: summary.lowest ? uptimeColor(summary.lowest.pct) : "var(--muted)" }}>
                                 {summary.lowest?.pct ?? "—"}{summary.lowest && <span className="ms-unit">%</span>}
                             </div>
                             <div className="stat-label uptime-lowest-label" title={summary.lowest?.domain}>
-                                {summary.lowest ? summary.lowest.title || summary.lowest.domain : "No data yet"}
+                                {summary.lowest ? summary.lowest.title || summary.lowest.domain : t("uptime.noDataYet")}
                             </div>
                         </div>
                     </div>
@@ -172,12 +172,12 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                             <table className="table">
                                 <thead>
                                     <tr>
-                                        <th className="col-status">Status</th>
-                                        <th>Route</th>
-                                        <th>Upstream</th>
-                                        <th className="uptime-col-bar">Uptime</th>
-                                        <th>Current State For</th>
-                                        {routeChecks && <th className="col-status">Route Check</th>}
+                                        <th className="col-status">{t("uptime.status")}</th>
+                                        <th>{t("uptime.route")}</th>
+                                        <th>{t("uptime.upstream")}</th>
+                                        <th className="uptime-col-bar">{t("uptime.uptime")}</th>
+                                        <th>{t("uptime.currentStateFor")}</th>
+                                        {routeChecks && <th className="col-status">{t("uptime.routeCheck")}</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -188,7 +188,7 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                             <tr
                                                 key={`${r.domain}:${i}`}
                                                 className="uptime-row"
-                                                title="View status history"
+                                                title={t("uptime.viewHistory")}
                                                 onClick={() => setHistoryModal(r.checkHost
                                                     ? { route: r.checkHost, title: r.title || r.domain }
                                                     : { upstream: r.upstreams[0], title: r.title || r.domain })}
@@ -198,7 +198,7 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                                         className={`health-dot${s.color ? "" : " health-dot--none"}`}
                                                         style={s.color ? { background: s.color, boxShadow: `0 0 4px ${s.color}` } : undefined}
                                                     >
-                                                        <span className="sr-only">{s.label}</span>
+                                                        <span className="sr-only">{t(s.labelKey)}</span>
                                                     </span>
                                                 </td>
                                                 <td>
@@ -210,9 +210,9 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                                         <span
                                                             className={`health-dot uptime-upstream-dot${u.color ? "" : " health-dot--none"}`}
                                                             style={u.color ? { background: u.color } : undefined}
-                                                            title={`Upstream: ${u.label}`}
+                                                            title={t("uptime.upstreamStatus", { status: t(u.labelKey) })}
                                                         >
-                                                            <span className="sr-only">Upstream {u.label}</span>
+                                                            <span className="sr-only">{t("uptime.upstreamStatus", { status: t(u.labelKey) })}</span>
                                                         </span>
                                                     )}
                                                     {r.upstreams.join(", ") || <span className="cell-muted">—</span>}
@@ -228,19 +228,19 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                                     ) : <span className="cell-muted">—</span>}
                                                 </td>
                                                 <td className="mono" style={{ color: s.color || "var(--muted)" }}>
-                                                    {r.streakLabel ? `${s.label} · ${r.streakLabel}` : "—"}
+                                                    {r.streakLabel ? `${t(s.labelKey)} · ${r.streakLabel}` : "—"}
                                                     {r.failure && <div className="cell-muted uptime-failure" title={r.failure}>{r.failure}</div>}
-                                                    {r.excluded && <div className="cell-muted">Route check skipped</div>}
+                                                    {r.excluded && <div className="cell-muted">{t("uptime.routeCheckSkipped")}</div>}
                                                 </td>
                                                 {routeChecks && (
                                                     <td className="col-status">
                                                         {r.probeHost && (
                                                             <button
                                                                 className="btn btn-ghost btn--sm"
-                                                                title={r.excluded ? `Resume route checks for ${r.probeHost}` : `Stop requesting ${r.probeHost}; its status falls back to the upstream`}
+                                                                title={r.excluded ? t("uptime.resumeChecks", { host: r.probeHost }) : t("uptime.stopChecks", { host: r.probeHost })}
                                                                 onClick={e => { e.stopPropagation(); toggleExclude(r.probeHost); }}
                                                             >
-                                                                {r.excluded ? "Check" : "Skip"}
+                                                                {r.excluded ? t("uptime.check") : t("uptime.skip")}
                                                             </button>
                                                         )}
                                                     </td>
