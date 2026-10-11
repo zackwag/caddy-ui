@@ -24,7 +24,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                 setRefreshError(res.ok ? null : res.error);
             })
             .finally(() => setLoading(false));
-    }, [onUnauth]);
+    }, [onUnauth, t]);
 
     useEffect(() => {
         load();

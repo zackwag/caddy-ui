@@ -50,7 +50,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         } finally {
             setDiscovering(false);
         }
-    }, [onUnauth]);
+    }, [onUnauth, t]);
 
     const didAutoDiscover = useRef(false);
 
