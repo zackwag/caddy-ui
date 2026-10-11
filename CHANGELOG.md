@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.18.0](https://github.com/zackwag/caddy-ui/compare/v2.17.4...v2.18.0) (2026-10-11)
+
+
+### Features
+
+* send a notification when a new caddy/ui release is available ([#191](https://github.com/zackwag/caddy-ui/issues/191)) ([5ff9615](https://github.com/zackwag/caddy-ui/commit/5ff9615540053808bc1fcfa5812d61fe89000a22))
+
 ## [2.17.4](https://github.com/zackwag/caddy-ui/compare/v2.17.3...v2.17.4) (2026-10-11)
 
 
