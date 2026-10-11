@@ -75,9 +75,6 @@ export default {
             // Platform names used as data labels in the CA instruction map.
             '^(iOS / iPadOS|macOS|Android|Windows)$',
 
-            // Deliberate technical sample in the theme preview.
-            '^localhost:443 .*reverse_proxy.*$',
-
             // Pure punctuation / symbols.
             '^[^A-Za-zÀ-ž]+$',
         ],

@@ -131,6 +131,7 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
                             fontSize: 11,
                             color: activeTheme.vars['--editor-text'],
                         }}>
+                            {/* eslint-disable-next-line i18next/no-literal-string -- Caddyfile syntax example, not UI copy */}
                             localhost:443 &#123; reverse_proxy backend:8080 &#125;
                         </div>
                     </div>
