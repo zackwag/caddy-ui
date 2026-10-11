@@ -197,6 +197,8 @@ jobs:
       - name: Append Docker image info to release-please's release notes
         env:
           GH_TOKEN: ${{ github.token }}
+          # This job has no checkout, so gh can't infer the repo from git
+          GH_REPO: ${{ github.repository }}
           BACKEND: ${{ needs.changes.outputs.backend }}
           FRONTEND: ${{ needs.changes.outputs.frontend }}
           BACKEND_VERSION: ${{ needs.docker-backend.outputs.version }}
@@ -219,7 +221,7 @@ jobs:
 
           FOUND=false
           for i in 1 2 3 4 5; do
-            if CURRENT=$(gh release view "${{ github.ref_name }}" --json body -q .body 2>/dev/null); then
+            if CURRENT=$(gh release view "${{ github.ref_name }}" --json body -q .body 2>/tmp/gh-error); then
               FOUND=true
               break
             fi
@@ -227,7 +229,7 @@ jobs:
             sleep 5
           done
           if [ "$FOUND" != "true" ]; then
-            echo "::warning::Could not find a release for ${{ github.ref_name }} to append Docker image info to."
+            echo "::warning::Could not find a release for ${{ github.ref_name }} to append Docker image info to: $(cat /tmp/gh-error)"
             exit 0
           fi
 
