@@ -77,6 +77,8 @@ All variables have sensible defaults. Only set what you need to override.
 | `CADDY_SERVER_NAME` | `srv0` | Caddy HTTP server ID used as the primary target for new routes, usually `srv0` (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
+| `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar. Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
+| `CADDY_UI_UPDATE_CHECK_URL` | `https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json` | Where the update check reads published image versions from |
 | `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |

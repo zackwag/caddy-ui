@@ -14,6 +14,8 @@ permissions:
 jobs:
   docker-backend:
     runs-on: ubuntu-latest
+    outputs:
+      version: beta-${{ steps.sha.outputs.short }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -51,6 +53,8 @@ jobs:
 
   docker-frontend:
     runs-on: ubuntu-latest
+    outputs:
+      version: beta-${{ steps.sha.outputs.short }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -85,3 +89,29 @@ jobs:
             APP_VERSION=beta-${{ steps.sha.outputs.short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  versions:
+    runs-on: ubuntu-latest
+    needs: [docker-backend, docker-frontend]
+    if: always() && !cancelled()
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Feeds the backend's update check (backend/src/updateCheck.js); only
+      # images that actually pushed are recorded
+      - name: Record pushed images in versions.json
+        env:
+          BACKEND: ${{ needs.docker-backend.result == 'success' && needs.docker-backend.outputs.version || '' }}
+          FRONTEND: ${{ needs.docker-frontend.result == 'success' && needs.docker-frontend.outputs.version || '' }}
+        run: |
+          ARGS=()
+          if [ -n "$BACKEND" ]; then ARGS+=("backend=$BACKEND"); fi
+          if [ -n "$FRONTEND" ]; then ARGS+=("frontend=$FRONTEND"); fi
+          if [ ${#ARGS[@]} -eq 0 ]; then
+            echo "No images pushed; nothing to record."
+            exit 0
+          fi
+          .github/scripts/publish-versions.sh beta "${ARGS[@]}"
+          .github/scripts/publish-versions.sh edge "${ARGS[@]}"

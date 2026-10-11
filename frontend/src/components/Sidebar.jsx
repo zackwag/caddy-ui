@@ -5,6 +5,8 @@ import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch, setInstanceId } from "../utils/api.js";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
+const RELEASES_URL = "https://github.com/zackwag/caddy-ui/releases";
+const COMMITS_URL = "https://github.com/zackwag/caddy-ui/commits/main";
 
 const NAV = [
     { path: "/dashboard", label: "Dashboard", icon: "◈" },
@@ -24,10 +26,24 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
     const instanceStatus = useInstanceStatus(onUnauth);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
+    const [update, setUpdate] = useState(null);
 
     useEffect(() => {
-        apiFetch("/version", {}, onUnauth).then(r => setBackendVersion(r.version)).catch(() => { });
+        apiFetch(`/version?frontend=${encodeURIComponent(FRONTEND_VERSION)}`, {}, onUnauth)
+            .then(r => {
+                setBackendVersion(r.version);
+                setUpdate(r.update);
+            })
+            .catch(() => { });
     }, [onUnauth]);
+
+    // The backend compares both images against the published versions.json;
+    // each field is the newer version to offer, or null
+    const updateParts = [
+        update?.frontend && `frontend ${update.frontend}`,
+        update?.backend && `backend ${update.backend}`,
+    ].filter(Boolean);
+    const updateUrl = /^\d/.test(update?.frontend || update?.backend || "") ? RELEASES_URL : COMMITS_URL;
 
     useEffect(() => {
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
@@ -105,6 +121,17 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         <span className="nav-icon">⏻</span>
                         Sign out
                     </div>
+                )}
+                {updateParts.length > 0 && (
+                    <a
+                        className="badge badge-green sidebar-update-badge"
+                        href={updateUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={`Available: ${updateParts.join(" · ")}`}
+                    >
+                        Update available ↗
+                    </a>
                 )}
                 <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? `frontend v${FRONTEND_VERSION} · backend v${backendVersion}` : undefined}>
                     v{FRONTEND_VERSION}{backendVersion && backendVersion !== FRONTEND_VERSION ? ` (backend v${backendVersion})` : ""}

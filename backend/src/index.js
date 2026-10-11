@@ -26,6 +26,7 @@ import { startRouteMonitor } from './routeMonitor.js';
 import { loadMaintenance } from './maintenance.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
+import { getUpdateInfo, startUpdateCheck } from './updateCheck.js';
 import { startUpstreamMonitor } from './upstreamMonitor.js';
 
 const app = express();
@@ -73,8 +74,12 @@ app.use('/api', apiLimiter);
 // Auth routes are always public
 app.use('/api/auth', authLimiter, authRouter);
 
-// GET /api/version -- always public, non-sensitive
-app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
+// GET /api/version -- always public, non-sensitive. ?frontend=<version> lets
+// the sidebar learn whether either image is behind (from the cached manifest)
+app.get('/api/version', (req, res) => {
+    const frontend = typeof req.query.frontend === 'string' ? req.query.frontend.slice(0, 64) : null;
+    res.json({ version: APP_VERSION, update: getUpdateInfo({ backend: APP_VERSION, frontend }) });
+});
 
 // Instance, settings, and custom-theme routes require auth but not instance middleware
 app.use('/api/instances', authMiddleware, instancesRouter);
@@ -115,6 +120,7 @@ await loadCustomThemes();
 await initUptimeHistory();
 startUpstreamMonitor();
 startRouteMonitor();
+startUpdateCheck();
 
 app.listen(PORT, () => {
     logger.info(`Caddy UI backend running`, { port: PORT, version: APP_VERSION });

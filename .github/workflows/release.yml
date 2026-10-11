@@ -164,6 +164,31 @@ jobs:
           readme-filepath: ./frontend/DOCKERHUB.md
           short-description: "Web frontend for caddy/ui — manage your Caddy server from the browser"
 
+  versions:
+    runs-on: ubuntu-latest
+    needs: [changes, docker-backend, docker-frontend]
+    if: github.event_name == 'push' && always() && !cancelled()
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Feeds the backend's update check (backend/src/updateCheck.js); only
+      # images that actually pushed are recorded
+      - name: Record pushed images in versions.json
+        env:
+          BACKEND: ${{ needs.docker-backend.result == 'success' && needs.changes.outputs.version || '' }}
+          FRONTEND: ${{ needs.docker-frontend.result == 'success' && needs.changes.outputs.version || '' }}
+        run: |
+          ARGS=()
+          if [ -n "$BACKEND" ]; then ARGS+=("backend=$BACKEND"); fi
+          if [ -n "$FRONTEND" ]; then ARGS+=("frontend=$FRONTEND"); fi
+          if [ ${#ARGS[@]} -eq 0 ]; then
+            echo "No images pushed; nothing to record."
+            exit 0
+          fi
+          .github/scripts/publish-versions.sh stable "${ARGS[@]}"
+
   release-notes:
     runs-on: ubuntu-latest
     needs: [changes, docker-backend, docker-frontend]

@@ -901,6 +901,17 @@ export const css = `
     letter-spacing: 0.5px;
   }
 
+  .sidebar-update-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 8px 20px 0;
+    padding: 7px 10px;
+    box-sizing: border-box;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
   .main {
     flex: 1;
     overflow: hidden;
