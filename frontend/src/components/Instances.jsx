@@ -24,7 +24,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     // Live HTTP server IDs for the form's admin URL; null until loaded or
     // when Caddy can't be reached, in which case the field stays free text
     const [serverIds, setServerIds] = useState(null);
-    // Dashboard labels for server IDs (server-names.json), e.g. srv0 -> "HTTPS Sites"
+    // Dashboard labels per instance (server-names.json), e.g. { caddy: { srv0: "HTTPS Sites" } }
     const [serverLabels, setServerLabels] = useState({});
     // Live server IDs per instance, to flag a Primary Server ID Caddy doesn't have
     const [liveServerIds, setLiveServerIds] = useState({});
@@ -55,7 +55,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
-        apiFetch("/server-names", {}, onUnauth).then(setServerLabels).catch(() => { });
+        apiFetch("/server-names/all", {}, onUnauth).then(setServerLabels).catch(() => { });
     }, [onUnauth]);
 
     useEffect(() => {
@@ -66,7 +66,10 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         }
     }, [instances, onUnauth]);
 
-    const serverLabel = (id) => serverLabels[id] ? `${serverLabels[id]} (${id})` : id;
+    const serverLabel = (instanceId, id) => {
+        const label = serverLabels[instanceId]?.[id];
+        return label ? `${label} (${id})` : id;
+    };
 
     useEffect(() => {
         if (!loading && instances.length === 0 && !didAutoDiscover.current) {
@@ -241,7 +244,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             <div>
                                 <span className="field-label">Primary Server ID</span>
                                 <div className="data-val mono">
-                                    {serverLabel(inst.serverName || "srv0")}
+                                    {serverLabel(inst.id, inst.serverName || "srv0")}
                                     {liveServerIds[inst.id] && !liveServerIds[inst.id].includes(inst.serverName || "srv0") && (
                                         <span className="badge badge-red" style={{ marginLeft: 8 }} title="New routes can't be added until this matches one of Caddy's servers">not in Caddy</span>
                                     )}
@@ -323,7 +326,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                             {!serverIds.includes(form.serverName) && (
                                                 <option value={form.serverName}>{form.serverName || "(none)"} (not in Caddy)</option>
                                             )}
-                                            {serverIds.map(id => <option key={id} value={id}>{serverLabel(id)}</option>)}
+                                            {serverIds.map(id => <option key={id} value={id}>{serverLabel(editing, id)}</option>)}
                                         </select>
                                         <span className="select-arrow">▾</span>
                                     </div>

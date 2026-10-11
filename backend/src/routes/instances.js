@@ -3,6 +3,7 @@ import { caddyGet } from '../caddy.js';
 import { discoverCaddyContainers } from '../dockerDiscovery.js';
 import { addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
 import logger from '../logger.js';
+import { removeInstanceServerNames } from '../serverNames.js';
 import { validatePath, validateUrl } from '../validation.js';
 
 const router = Router();
@@ -150,6 +151,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
         await removeInstance(id);
+        await removeInstanceServerNames(id);
         res.json({ ok: true });
     } catch (err) {
         logger.error('Failed to remove instance', { id, error: err.message });

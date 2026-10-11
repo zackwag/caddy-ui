@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { loadCustomThemes } from './customThemes.js';
-import { loadInstances } from './instances.js';
+import { getInstances, loadInstances } from './instances.js';
 import logger from './logger.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
 import { instanceMiddleware } from './middleware/instance.js';
@@ -24,6 +24,7 @@ import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
 import { startRouteMonitor } from './routeMonitor.js';
 import { loadMaintenance } from './maintenance.js';
+import { loadServerNames } from './serverNames.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { getUpdateInfo, startUpdateCheck } from './updateCheck.js';
@@ -114,6 +115,7 @@ app.use((err, req, res, next) => {
 
 await loadInstances();
 await migrateLegacyHistory();
+await loadServerNames(getInstances().map(i => i.id));
 await loadSettings();
 await loadMaintenance();
 await loadCustomThemes();
