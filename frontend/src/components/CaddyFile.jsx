@@ -120,7 +120,8 @@ function CaddyfileDiff({ oldText, newText }) {
 }
 
 export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const locale = i18n.resolvedLanguage || i18n.language;
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
     const [loading, setLoading] = useState(true);
@@ -189,19 +190,19 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     };
 
     const restoreSnapshot = async (entry) => {
-        if (!await confirm(t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("caddyfile.restore") })) return;
+        if (!await confirm(t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp, locale) }), { confirmLabel: t("caddyfile.restore") })) return;
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh); setHistoryOpen(false); setPreviewEntry(null);
-            toast.success(t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
+            toast.success(t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp, locale) }));
             loadHistory();
         } catch (e) { toast.error(e.message); }
     };
 
     const deleteSnapshot = async (entry) => {
-        if (!await confirm(t("caddyfile.deleteSnapshotConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("common.delete"), danger: true })) return;
+        if (!await confirm(t("caddyfile.deleteSnapshotConfirm", { timestamp: formatTs(entry.timestamp, locale) }), { confirmLabel: t("common.delete"), danger: true })) return;
         try {
             await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
             toast.success(t("caddyfile.snapshotDeleted"));
@@ -327,7 +328,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                             className={`history-entry ${previewEntry?.filename === entry.filename ? "history-entry--active" : "history-entry--default"}`}
                                             onClick={() => previewSnapshot(entry)}
                                         >
-                                            {formatTs(entry.timestamp)}
+                                            {formatTs(entry.timestamp, locale)}
                                             {i === 0 && <span className="history-latest">{t("caddyfile.latest")}</span>}
                                         </div>
                                         <div className="btn-row">
