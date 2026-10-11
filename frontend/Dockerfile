@@ -14,9 +14,7 @@ COPY caddyui-logo.ico caddyui-logo.svg caddyui-logo.png ./
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 
-# English is always included; select additional catalogs before Vite bundles them.
-ARG CADDY_UI_ADDITIONAL_LANGUAGES=
-RUN node scripts/select-locales.mjs && npm run build
+RUN npm run build
 
 FROM nginx:alpine
 
