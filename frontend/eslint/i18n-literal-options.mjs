@@ -55,6 +55,19 @@ export default {
             // Prometheus percentile identifiers
             '^p(50|95|99)$',
 
+            // Standard units / technical configuration values
+            '^ms$',
+            '^\\d+(?:kb|mb|gb)$',
+
+            // Structured log fragments
+            '^"level":"(?:error|warn|info)"$',
+
+            // Product / service names that are not translated
+            "^(Discord|Slack|Pushover|Let's Encrypt)$",
+
+            // Internal TLD examples
+            '^\\.(?:internal|home)$',
+
             // ISO timestamp marker
             '^Z$',
 
