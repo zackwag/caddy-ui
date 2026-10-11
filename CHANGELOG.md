@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.2](https://github.com/zackwag/caddy-ui/compare/v2.17.1...v2.17.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* refuse to add routes to a server ID that Caddy doesn't have ([#188](https://github.com/zackwag/caddy-ui/issues/188)) ([a61ef60](https://github.com/zackwag/caddy-ui/commit/a61ef602b4813a4dc1e12b3702a2ae7fc53d3d46))
+
 ## [2.17.1](https://github.com/zackwag/caddy-ui/compare/v2.17.0...v2.17.1) (2026-10-11)
 
 
