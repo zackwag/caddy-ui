@@ -58,6 +58,7 @@ export default function App() {
     const [sessionExpired, setSessionExpired] = useState(false);
     const [language, setLanguage] = useState(DEFAULTS.language);
     const [enabledLanguages, setEnabledLanguages] = useState(['en']);
+    const [languageReady, setLanguageReady] = useState(false);
     const [theme, setTheme] = useState(DEFAULTS.theme);
     const [darkPalette, setDarkPalette] = useState(DEFAULTS.darkPalette);
     const [lightPalette, setLightPalette] = useState(DEFAULTS.lightPalette);
@@ -78,19 +79,56 @@ export default function App() {
     }, []);
 
     useEffect(() => {
-        if (!authed || settingsLoaded) return;
+        let cancelled = false;
+
+        async function bootstrapLanguage() {
+            try {
+                const response = await fetch(`${API}/languages`);
+                const languageConfig = await response.json();
+
+                const available = new Set(availableLocales);
+                const enabled = (
+                    Array.isArray(languageConfig.languages)
+                        ? languageConfig.languages
+                        : ['en']
+                ).filter(lang => available.has(lang));
+
+                if (!enabled.includes('en')) enabled.unshift('en');
+
+                const resolved = resolveLocale(enabled, null);
+
+                await loadLocale(resolved);
+
+                if (cancelled) return;
+
+                setEnabledLanguages(enabled);
+                setLanguage(resolved);
+            } catch {
+                await loadLocale('en');
+
+                if (cancelled) return;
+
+                setEnabledLanguages(['en']);
+                setLanguage('en');
+            } finally {
+                if (!cancelled) setLanguageReady(true);
+            }
+        }
+
+        bootstrapLanguage();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!authed || !languageReady || settingsLoaded) return;
         Promise.all([
             fetchSettings(onUnauth),
             fetchCustomThemes(onUnauth).catch(() => []),
-            apiFetch('/languages', {}, onUnauth).catch(() => ({ languages: ['en'] })),
-        ]).then(async ([s, custom, languageConfig]) => {
-            const available = new Set(availableLocales);
-            const enabled = (Array.isArray(languageConfig.languages) ? languageConfig.languages : ['en'])
-                .filter(lang => available.has(lang));
-            if (!enabled.includes('en')) enabled.unshift('en');
-            setEnabledLanguages(enabled);
-
-            const resolvedLanguage = resolveLocale(enabled, s.language ?? null);
+        ]).then(async ([s, custom]) => {
+            const resolvedLanguage = resolveLocale(enabledLanguages, s.language ?? null);
             await loadLocale(resolvedLanguage);
             setLanguage(resolvedLanguage);
 
@@ -109,7 +147,7 @@ export default function App() {
         }).catch(() => {
             setSettingsLoaded(true);
         });
-    }, [authed, settingsLoaded, onUnauth]);
+    }, [authed, languageReady, settingsLoaded, enabledLanguages, onUnauth]);
 
     const allThemes = [...THEME_LIST, ...customThemes];
 
@@ -213,7 +251,7 @@ export default function App() {
     return (
         <>
             <style>{css}</style>
-            {authed === null ? null : !authed ? (
+            {authed === null || !languageReady ? null : !authed ? (
                 <Login onLogin={() => { setAuthed(true); setSessionExpired(false); }} sessionExpired={sessionExpired} />
             ) : (
                 <div className="shell">
