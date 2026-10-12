@@ -1,23 +1,19 @@
 <!--
 Docker Hub documentation routing
-README.md is the canonical source. Only explicitly marked blocks are selected
-for generated Docker Hub descriptions; unmarked content remains README-only.
+README.md is the canonical source. 
 
 Destinations:
 - both: include the block in both backend and frontend descriptions.
 - backend: include the block only in the backend description.
 - frontend: include the block only in the frontend description.
-There is no "neither" flag: leave content unmarked to exclude it from both.
+Only explicitly marked blocks are selected for generated Docker Hub descriptions; unmarked content remains README-only.
 
 Syntax: put each marker in its own HTML comment on a separate line.
 Opening marker content: dockerhub:DESTINATION:start
 Closing marker content: dockerhub:DESTINATION:end
-Replace DESTINATION with both, backend, or frontend; both markers must match.
 
-Include headings inside a block if they should appear in the generated page.
-Blocks may repeat and are collected in README order. Do not nest or overlap
-blocks. Keep start/end markers outside fenced code blocks. Close a block before
-any detailed content that should stay on GitHub (for example, the Mermaid diagram).
+Include headings inside a block if they should appear in the generated page. Blocks may repeat and are collected in README order.
+Do not nest or overlap blocks. Keep start/end markers outside fenced code blocks. Close a block before any detailed content that should stay on GitHub (for example, the Mermaid diagram).
 These markers select content; they do not generate or publish files themselves.
 -->
 
