@@ -4,7 +4,13 @@ Thanks for considering a contribution. This project is a two-service app (Node/E
 
 ## Getting set up
 
-You don't need Docker for day-to-day development, but you do need a Caddy instance with its admin API reachable (`CADDY_ADMIN_URL`, default `http://caddy:2019`) for the backend to talk to.
+For a ready-to-run environment with real Caddy containers, follow the
+[Disposable Caddy integration environment](development-caddy.md) guide. It covers
+startup, managing test instances, exercising failures, and cleanup.
+
+You can also develop against an existing Caddy instance without Docker. Its admin
+API must be reachable (`CADDY_ADMIN_URL`, default `http://caddy:2019`) for the
+backend to talk to.
 
 ### Backend
 

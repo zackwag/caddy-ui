@@ -40,5 +40,6 @@ for the full onboarding paths, or [browse it as Markdown](docs/src/contributing.
 ## Testing with real Caddy instances
 
 Run `npm run dev:with-caddy` from the repository root for an isolated integration
-environment. See [Disposable Caddy development](docs/src/development-caddy.md) for
-Docker prerequisites, Dev Container setup, instance commands, and safe cleanup.
+environment. See the codebase guide’s
+[Disposable Caddy integration environment](docs/src/development-caddy.md) page for
+prerequisites, instance commands, troubleshooting, and cleanup.

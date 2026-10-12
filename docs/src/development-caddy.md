@@ -1,9 +1,9 @@
 # Disposable Caddy integration environment
 
-This harness starts real Caddy containers for manual frontend/backend testing and
-future browser E2E tests. It runs independently of production configuration and
-needs no changes from localization PRs #202 or #207. The root npm package contains
-only development scripts; backend and frontend dependencies remain separate.
+Use this environment to test frontend changes, backend behavior, error handling,
+and logging against real Caddy instances. It keeps development configuration and
+data separate from production. The root npm package contains development scripts;
+backend and frontend dependencies remain separate.
 
 ## Prerequisites and startup
 
@@ -90,9 +90,8 @@ Each instance has one persistent, labeled Docker volume mounted at `/data/dev-ca
 The default Caddyfile is written only if missing. Container restart/recreation
 loads this file and preserves all data. UI edit, validation, reload and log viewing
 use the existing backend Docker exec implementation and the real Caddy binary.
-No host Caddy binary is necessary. Named volumes avoid host/Dev Container bind-path
-mismatches. For local editor access, copy the file out and back (replace the name
-with the printed containerName):
+No host Caddy binary is necessary. For local editor access, copy the file out and
+back (replace the name with the printed containerName):
 
 ```sh
 docker cp <containerName>:/data/dev-caddy/Caddyfile ./work/Caddyfile
@@ -111,40 +110,21 @@ restarting. For future browser E2E tests use a fresh checkout/namespace, the
 printed URLs, existing registration API, and confirmed cleanup in a finally block.
 Lifecycle functions accept an injected Docker command runner for automated tests.
 
-## Dev Containers and networking
+## Networking
 
-The existing personal `.devcontainer/devcontainer.json` is ignored by Git and
-has neither Docker tooling nor socket setup. Copy the tracked
-`.devcontainer/devcontainer.example.json` to that path (or merge its feature and
-remoteEnv into your current setup), then rebuild the Dev Container. The
-`docker-outside-of-docker` feature supplies the CLI and host socket access; it
-reuses the host Engine instead of starting a nested daemon. Docker socket access
-is powerful: enable it only in a trusted development checkout. Verify `docker info`
-inside the rebuilt container rather than assuming the socket is mounted/accessible.
-
-With `REMOTE_CONTAINERS=true` or `CODESPACES=true`, the harness inspects the current
-container by hostname and runs test Caddy containers on its existing network.
-It does not change the Dev Container or any existing network. This lets the local
-backend reach Caddy by IP even when host loopback ports are inaccessible inside
-the Dev Container. If the hostname is customized or multiple networks exist, set
-`DEV_CADDY_NETWORK=<existing-network-name>` explicitly; the backend must already
-be attached to that network. Test HTTP URLs refer to that container network;
-open them from inside the Dev Container or forward the printed loopback host port.
-The UI ports 3001 and 5173 are forwarded by the example configuration.
-
-On a native host the harness uses loopback-published ports. Remote Docker Engines
-are unsupported because published loopback belongs to the remote host. The Caddy
-admin API is reachable by other containers on a shared network, so use a trusted
-local development network.
+Run the harness against a local Docker Engine or Docker Desktop. It uses
+loopback-published ports for the frontend/backend to reach Caddy. Remote Docker
+Engines are unsupported because published loopback ports belong to the remote host.
+Use the printed HTTP URL to test a route and the printed admin URL when registering
+an instance; container IPs suggested by discovery may be unreachable from the host.
 
 ## Troubleshooting and cleanup safety
 
-- Docker unavailable: install/start Docker, enable socket access in the Dev
-  Container, and check socket group permissions. Do not chmod the socket to 666
-  or start a nested daemon. Rootless Docker users must select the correct CLI
-  context; set `DOCKER_SOCKET` separately if discovery is needed.
+- Docker unavailable: install/start Docker and verify that `docker info` succeeds
+  for your user. Check socket group permissions or select the appropriate rootless
+  Docker CLI context; set `DOCKER_SOCKET` separately if discovery is needed.
 - Readiness failure: use list, `docker logs <containerName>`, and inspect the
-  Caddyfile. Check the printed admin address and Dev Container network selection.
+  Caddyfile. Check that the printed admin address is reachable.
 - Ports occupied: stop other UI development processes and rerun startup.
 - Failed editor-mode download: check network access to the source GitHub repo;
   the frontend fetch script supports its normal local cache.
