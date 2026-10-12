@@ -52,6 +52,9 @@ export default {
             '^(new|err|warn|default|unauthorized|del|add|equal|skip)$',
             '^NO_INSTANCES$',
 
+            // Log source IDs, query parameter and export filename prefixes.
+            '^(app|caddy|caddyui|dist|caddy-access|caddy-ui)$',
+
             // DOM and browser storage identifiers
             '^root$',
             '^caddy_ui_(token|auth_enabled|instance)$',
