@@ -1,0 +1,28 @@
+[book]
+title = "caddy/ui Documentation"
+authors = ["caddy/ui contributors"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
+extra-watch-dirs = ["../README.md", "../backend/src", "../frontend/src", "../.github", "scripts", "project-structure-notes.json"]
+
+[preprocessor.project-structure]
+command = "node scripts/project-structure.mjs"
+before = ["links"]
+
+[output.html]
+theme = "theme"
+default-theme = "light"
+preferred-dark-theme = "navy"
+additional-css = ["theme/palettes.css", "theme/caddy-ui.css"]
+additional-js = ["node_modules/mermaid/dist/mermaid.min.js", "theme/mermaid-init.js", "theme/sidebar.js"]
+no-section-label = true
+git-repository-url = "https://github.com/zackwag/caddy-ui"
+edit-url-template = "https://github.com/zackwag/caddy-ui/edit/main/docs/{path}"
+site-url = "/caddy-ui/"
+
+[output.html.playground]
+runnable = false

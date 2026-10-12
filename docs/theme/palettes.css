@@ -1,0 +1,125 @@
+/* Default palettes copied from frontend/src/styles.js during the mdBook migration. */
+.light {
+    --app-bg: #f5f0eb;
+    --app-surface: #faf7f4;
+    --app-border: #e0d8d0;
+    --app-border2: #ccc4ba;
+    --app-text: #2c2825;
+    --app-muted: #8a7f75;
+    --app-accent: #00956b;
+    --app-accent2: #0077cc;
+    --app-accent3: #7c4dff;
+    --app-danger: #cc2233;
+    --app-warn: #b36000;
+    --app-editor-bg: #f0ebe4;
+    --app-editor-gutter: #e8e2db;
+    --app-editor-border: #d0c8c0;
+    --app-editor-text: #3a5c3a;
+    --app-editor-active-gutter: rgba(0,149,107,0.05);
+    --app-editor-active-line: rgba(0,149,107,0.03);
+    --app-editor-selection: rgba(0,119,204,0.15);
+    --app-log-bg: #f0ebe4;
+    --app-scrim: rgba(0,0,0,0.55);
+    --app-on-accent: #fff;
+    --app-on-danger: #fff;
+}
+
+.rust {
+    --app-bg: #f5f0eb;
+    --app-surface: #faf7f4;
+    --app-border: #e0d8d0;
+    --app-border2: #ccc4ba;
+    --app-text: #2c2825;
+    --app-muted: #8a7f75;
+    --app-accent: #00956b;
+    --app-accent2: #0077cc;
+    --app-accent3: #7c4dff;
+    --app-danger: #cc2233;
+    --app-warn: #b36000;
+    --app-editor-bg: #f0ebe4;
+    --app-editor-gutter: #e8e2db;
+    --app-editor-border: #d0c8c0;
+    --app-editor-text: #3a5c3a;
+    --app-editor-active-gutter: rgba(0,149,107,0.05);
+    --app-editor-active-line: rgba(0,149,107,0.03);
+    --app-editor-selection: rgba(0,119,204,0.15);
+    --app-log-bg: #f0ebe4;
+    --app-scrim: rgba(0,0,0,0.55);
+    --app-on-accent: #fff;
+    --app-on-danger: #fff;
+}
+
+.navy {
+    --app-bg: #0d0f12;
+    --app-surface: #13161b;
+    --app-border: #1e2329;
+    --app-border2: #2a3040;
+    --app-text: #c9d1e0;
+    --app-muted: #586275;
+    --app-accent: #00e5a0;
+    --app-accent2: #0099ff;
+    --app-accent3: #b388ff;
+    --app-danger: #ff4d6a;
+    --app-warn: #ffb830;
+    --app-editor-bg: #0a0c0f;
+    --app-editor-gutter: #0d0f12;
+    --app-editor-border: #1e2329;
+    --app-editor-text: #a8d8a8;
+    --app-editor-active-gutter: rgba(0,229,160,0.05);
+    --app-editor-active-line: rgba(0,229,160,0.03);
+    --app-editor-selection: rgba(0,153,255,0.2);
+    --app-log-bg: #0a0c0f;
+    --app-scrim: rgba(0,0,0,0.55);
+    --app-on-accent: #fff;
+    --app-on-danger: #fff;
+}
+
+.coal {
+    --app-bg: #0d0f12;
+    --app-surface: #13161b;
+    --app-border: #1e2329;
+    --app-border2: #2a3040;
+    --app-text: #c9d1e0;
+    --app-muted: #586275;
+    --app-accent: #00e5a0;
+    --app-accent2: #0099ff;
+    --app-accent3: #b388ff;
+    --app-danger: #ff4d6a;
+    --app-warn: #ffb830;
+    --app-editor-bg: #0a0c0f;
+    --app-editor-gutter: #0d0f12;
+    --app-editor-border: #1e2329;
+    --app-editor-text: #a8d8a8;
+    --app-editor-active-gutter: rgba(0,229,160,0.05);
+    --app-editor-active-line: rgba(0,229,160,0.03);
+    --app-editor-selection: rgba(0,153,255,0.2);
+    --app-log-bg: #0a0c0f;
+    --app-scrim: rgba(0,0,0,0.55);
+    --app-on-accent: #fff;
+    --app-on-danger: #fff;
+}
+
+.ayu {
+    --app-bg: #0d0f12;
+    --app-surface: #13161b;
+    --app-border: #1e2329;
+    --app-border2: #2a3040;
+    --app-text: #c9d1e0;
+    --app-muted: #586275;
+    --app-accent: #00e5a0;
+    --app-accent2: #0099ff;
+    --app-accent3: #b388ff;
+    --app-danger: #ff4d6a;
+    --app-warn: #ffb830;
+    --app-editor-bg: #0a0c0f;
+    --app-editor-gutter: #0d0f12;
+    --app-editor-border: #1e2329;
+    --app-editor-text: #a8d8a8;
+    --app-editor-active-gutter: rgba(0,229,160,0.05);
+    --app-editor-active-line: rgba(0,229,160,0.03);
+    --app-editor-selection: rgba(0,153,255,0.2);
+    --app-log-bg: #0a0c0f;
+    --app-scrim: rgba(0,0,0,0.55);
+    --app-on-accent: #fff;
+    --app-on-danger: #fff;
+}

@@ -1,0 +1,103 @@
+/* Palettes are copied from frontend/src/styles.js by prepare-book.mjs. */
+html.light, html.rust, html.navy, html.coal, html.ayu {
+    --bg: var(--app-bg);
+    --fg: var(--app-text);
+    --sidebar-bg: var(--app-surface);
+    --sidebar-fg: var(--app-text);
+    --sidebar-active: var(--app-accent);
+    --sidebar-non-existant: var(--app-text);
+    --links: var(--app-accent2);
+    --inline-code-color: var(--app-accent);
+    --theme-popup-bg: var(--app-surface);
+    --theme-popup-border: var(--app-border2);
+    --theme-hover: var(--app-border);
+    --icons: var(--app-text);
+    --icons-hover: var(--app-accent);
+    --quote-bg: var(--app-surface);
+    --quote-border: var(--app-accent);
+    --table-border-color: var(--app-border2);
+    --table-header-bg: var(--app-surface);
+    --table-alternate-bg: var(--app-surface);
+    --searchbar-border-color: var(--app-border2);
+    --searchbar-bg: var(--app-surface);
+    --searchbar-fg: var(--app-text);
+    --searchresults-header-fg: var(--app-text);
+    --searchresults-border-color: var(--app-border2);
+    --searchresults-li-bg: var(--app-surface);
+    --search-mark-bg: var(--app-accent);
+    --warning-border: var(--app-warn);
+    --mono-font: 'IBM Plex Mono', ui-monospace, monospace;
+}
+body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+.menu-title, h1, h2, h3, .chapter { font-family: var(--mono-font); }
+.menu-title { font-size: 1.6rem; font-weight: 500; }
+.menu-bar { border-bottom: 1px solid var(--app-border); background: var(--app-surface); }
+.sidebar { border-right: 1px solid var(--app-border); }
+.sidebar-brand {
+    display: block;
+    padding: 20px 10px 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--app-border);
+    text-decoration: none;
+}
+.sidebar-wordmark {
+    display: block;
+    font-family: var(--mono-font);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--app-accent);
+}
+.sidebar-brand-subtitle {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--fg);
+}
+.mermaid { overflow-x: auto; margin: 1.5rem 0; text-align: center; }
+.mermaid svg { height: auto; }
+.chapter li { line-height: 2; }
+.chapter li a.active { font-weight: 600; }
+.content { max-width: 1000px; }
+.content main { line-height: 1.65; }
+h1, h2, h3 { font-weight: 500; line-height: 1.35; }
+h1 { padding-bottom: 1rem; border-bottom: 1px solid var(--app-border2); }
+pre { border: 1px solid var(--app-border2); border-radius: 6px; }
+pre > code, pre > .hljs { background: var(--app-editor-bg); color: var(--app-editor-text); }
+code { font-family: var(--mono-font); }
+table { width: 100%; }
+table td, table th { padding: 10px 14px; }
+blockquote { border-radius: 0 6px 6px 0; }
+a:hover { color: var(--app-accent); }
+/* Use readable foreground for navigation; the app's muted token is too dim
+   for documentation text. Fonts fall back locally, with no third-party CDN. */
+:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 3px; }
+@media (max-width: 600px) {
+    .menu-title { font-size: 1.25rem; }
+    .content { padding: 0 16px; }
+}
+@media print {
+    html { --bg: white !important; --fg: black !important; }
+    pre > code, pre > .hljs { background: #f5f5f5; color: black; }
+}
+
+/* Stronger documentation heading hierarchy */
+.content main h2 {
+    font-size: 2.6rem;
+    font-weight: 700;
+    margin: 3rem 0 1.2rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--app-border2);
+}
+.content main h3 {
+    font-size: 2.1rem;
+    font-weight: 600;
+    margin: 2.2rem 0 1rem;
+}
+.content main h4 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin: 1.8rem 0 0.8rem;
+}

@@ -146,3 +146,6 @@ frontend/src/lib/caddyfileMode.js
 
 # Personal editor/dev container setups
 .devcontainer/
+
+# Generated mdBook output
+docs/book/

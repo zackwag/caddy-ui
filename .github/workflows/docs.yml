@@ -1,0 +1,92 @@
+name: Documentation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: documentation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build mdBook
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install mdBook
+        env:
+          MDBOOK_VERSION: '0.5.4'
+          MDBOOK_SHA256: '3f28de05dafca9d0f2eab99c662116b0e37b89b1d96a08f8f430b9eeae958cd7'
+        run: |
+          curl --fail --location --retry 3 \
+            "https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/mdbook-v${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            --output "$RUNNER_TEMP/mdbook.tar.gz"
+          echo "$MDBOOK_SHA256  $RUNNER_TEMP/mdbook.tar.gz" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/mdbook-bin"
+          tar -xzf "$RUNNER_TEMP/mdbook.tar.gz" -C "$RUNNER_TEMP/mdbook-bin"
+          echo "$RUNNER_TEMP/mdbook-bin" >> "$GITHUB_PATH"
+
+      - name: Install documentation dependencies
+        run: npm ci --prefix docs --ignore-scripts
+
+      - name: Test documentation tooling
+        run: npm test --prefix docs
+
+      - name: Build documentation
+        env:
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+        run: |
+          if [[ "$REPOSITORY_NAME" == *.github.io ]]; then
+            export MDBOOK_OUTPUT__HTML__SITE_URL="/"
+          else
+            export MDBOOK_OUTPUT__HTML__SITE_URL="/$REPOSITORY_NAME/"
+          fi
+          mdbook build docs
+
+      - name: Validate unchanged Docker Hub routing
+        run: |
+          node --test .github/scripts/dockerhub-docs.test.mjs
+          node .github/scripts/dockerhub-docs.mjs --dry-run
+
+      - name: Upload documentation preview
+        uses: actions/upload-artifact@v7
+        with:
+          name: documentation-preview
+          path: docs/book
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/book
+
+  deploy:
+    name: Deploy documentation
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

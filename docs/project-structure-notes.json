@@ -1,0 +1,9 @@
+{
+    "backend/": "Express API and Caddy integration",
+    "backend/src/containerFs.js": "docker exec wrapper for file operations inside Caddy containers",
+    "backend/src/dockerDiscovery.js": "auto-discover Caddy containers via Docker socket",
+    "frontend/": "React application",
+    "frontend/src/components/Instances.jsx": "instance management page with discovery",
+    "docs/": "mdBook source, theme, and build tooling",
+    "docs/project-structure-notes.json": "persistent annotations keyed by repository path"
+}

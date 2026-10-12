@@ -15,9 +15,44 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      prs_created: ${{ steps.release.outputs.prs_created }}
+      pr: ${{ steps.release.outputs.pr }}
     steps:
       - name: Create / update release PR, or tag + publish a GitHub Release
         id: release
         uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+  dockerhub-docs:
+    needs: release-please
+    if: needs.release-please.outputs.prs_created == 'true'
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_BACKEND_PATH: backend/DOCKERHUB.md
+      DOCKERHUB_FRONTEND_PATH: frontend/DOCKERHUB.md
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Generate Docker Hub descriptions
+        run: node .github/scripts/dockerhub-docs.mjs
+
+      - name: Commit generated descriptions
+        run: |
+          git add -- "$DOCKERHUB_BACKEND_PATH" "$DOCKERHUB_FRONTEND_PATH"
+
+          if git diff --cached --quiet; then
+            echo "Docker Hub descriptions are already current."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "docs: regenerate Docker Hub descriptions"
+          git push
