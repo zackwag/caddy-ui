@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API, apiFetch, getToken } from "../utils/api.js";
 
-export default function Logs({ toast, onUnauth }) {
+export default function Logs({ toast, onUnauth,  noInstances }) {
     const { t } = useTranslation();
     const [lines, setLines] = useState([]);
+    const [source, setSource] = useState(noInstances ? "app" : "caddy");
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
     const [logConfig, setLogConfig] = useState(null);
@@ -17,10 +18,24 @@ export default function Logs({ toast, onUnauth }) {
     const esRef = useRef(null);
 
     useEffect(() => {
-        apiFetch("/logs", {}, onUnauth).then(data => setLines(data.lines || [])).catch(e => toast.error(e.message));
-        apiFetch("/logs/config", {}, onUnauth).then(setLogConfig).catch(e => toast.error(e.message));
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount only; toast isn't stable across renders
-    }, [onUnauth]);
+        let ignore = false;
+        const path = source === "caddy" ? "/logs" : "/logs/app";
+        // NO_INSTANCES is expected before App's first /status call resolves; the source switch effect handles it.
+        const reportError = e => { if ( e.code !== 'NO_INSTANCES' ) toast.error(e.message); };
+        apiFetch(path, {}, onUnauth)
+            .then(data => { if (!ignore) setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry))); })
+            .catch(reportError);
+
+        if (source === "caddy" && !logConfig) {
+            apiFetch("/logs/config", {}, onUnauth).then(setLogConfig).catch(reportError);
+        }
+
+        esRef.current?.close();
+        esRef.current = null;
+        setLive(false);
+        return() => { ignore = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when source changes; toast isn't stable across renders
+    }, [onUnauth, source]);
 
     useEffect(() => {
         if (!logSearch && levelFilter === "all") {
@@ -29,14 +44,22 @@ export default function Logs({ toast, onUnauth }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only auto-scroll when new lines arrive, not on every search/filter keystroke
     }, [lines]);
 
+    useEffect(() => {
+        if (noInstances && source === "caddy") {
+            setSource("app");
+        }
+    }, [noInstances, source]);
+
     const toggleLive = () => {
         if (live) { esRef.current?.close(); esRef.current = null; setLive(false); return; }
         const token = getToken();
-        const url = token ? `${API}/logs/stream?token=${token}` : `${API}/logs/stream`;
+        const streamPath = source === "caddy" ? "/logs/stream" : "/logs/app/stream";
+        const url = token ? `${API}${streamPath}?token=${token}` : `${API}${streamPath}`;
         const es = new EventSource(url);
         es.onmessage = e => {
             const data = JSON.parse(e.data);
-            if (data.line) setLines(l => [...l.slice(-500), data.line]);
+            const line = data.line || (data.entry ? JSON.stringify(data.entry) : null);
+            if (line) setLines(l => [...l.slice(-500), line]);
         };
         esRef.current = es;
         setLive(true);
@@ -72,15 +95,16 @@ export default function Logs({ toast, onUnauth }) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `caddy-access-${new Date().toISOString().slice(0, 10)}.log`;
+        a.download = `${source === "caddy" ? "caddy-access" : "caddy-ui"}-${new Date().toISOString().slice(0, 10)}.log`;
         a.click();
         URL.revokeObjectURL(url);
     };
 
     const refreshLogs = () => {
         setRefreshing(true);
-        apiFetch("/logs", {}, onUnauth)
-            .then(d => setLines(d.lines || []))
+        const path = source === "caddy" ? "/logs" : "/logs/app";
+        apiFetch(path, {}, onUnauth)
+            .then(d => setLines(source === "caddy" ? (d.lines || []) : (d.entries || []).map(entry => JSON.stringify(entry))))
             .catch(e => toast.error(e.message))
             .finally(() => setRefreshing(false));
     };
@@ -109,6 +133,12 @@ export default function Logs({ toast, onUnauth }) {
 
     return (
         <div className="gap-16 logs-page">
+            <div className="btn-row">
+                <button className={`btn ${source === "caddy" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSource("caddy")} disabled={noInstances} title={noInstances ? "Add a Caddy instance to view its access logs" : undefined}>Caddy</button>
+                <button className={`btn ${source === "app" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSource("app")}>caddy/ui</button>
+            </div>
+
+            {source === "caddy" && (
             <div className="card card-flush">
                 <div className={`card-header--clickable ${configOpen ? "is-open" : ""}`} onClick={() => setConfigOpen(o => !o)}>
                     <span className="section-label">{t("logs.configuration")}</span>
@@ -174,6 +204,7 @@ export default function Logs({ toast, onUnauth }) {
                     </div>
                 )}
             </div>
+            )}
 
             <div className="log-toolbar">
                 <div className="btn-row">

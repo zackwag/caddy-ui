@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.20.0](https://github.com/zackwag/caddy-ui/compare/v2.19.0...v2.20.0) (2026-10-12)
+
+
+### Features
+
+* add caddy-ui application logs ([#201](https://github.com/zackwag/caddy-ui/issues/201)) ([c8248af](https://github.com/zackwag/caddy-ui/commit/c8248afdd316199a79dd749366345e93eb370a97))
+
 ## [2.19.0](https://github.com/zackwag/caddy-ui/compare/v2.18.0...v2.19.0) (2026-10-11)
 
 

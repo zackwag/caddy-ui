@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { caddyLoad } from '../caddy.js';
 import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { execInInstance, spawnInInstance } from '../docker.js';
-import logger from '../logger.js';
+import logger, { getRecentLogEntries, subscribeToLogs } from '../logger.js';
 const router = Router();
+const appLogsRouter = Router();
 const TAIL_LINES = 200;
 
 // ── Log config parsing ────────────────────────────────────────────────────────
@@ -110,6 +111,31 @@ function updateGlobalBlock(content, logConfig) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
+appLogsRouter.get('/', (req, res) => {
+    res.json({ entries: getRecentLogEntries(TAIL_LINES) });
+});
+
+appLogsRouter.get('/stream', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const unsubscribe = subscribeToLogs((entry) => {
+        if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify({ entry })}\n\n`);
+        }
+    });
+
+    // App logs can be quiet for minutes; keep the stream under nginx's 60s proxy_read_timeout.
+    const heartbeat = setInterval(() => res.write(': ping\n\n'), 25000);
+    req.on('close', () => {
+        clearInterval(heartbeat);
+        unsubscribe();
+    });
+});
+
+
 router.get('/config', async (req, res) => {
     const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
     const config = parseLogConfig(content);
@@ -196,4 +222,4 @@ router.get('/stream', async (req, res) => {
 });
 
 export default router;
-export { parseLogConfig, buildLogBlock, updateGlobalBlock };
+export { appLogsRouter, parseLogConfig, buildLogBlock, updateGlobalBlock };
