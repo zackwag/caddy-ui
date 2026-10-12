@@ -1,3 +1,26 @@
+<!--
+Docker Hub documentation routing
+README.md is the canonical source. Only explicitly marked blocks are selected
+for generated Docker Hub descriptions; unmarked content remains README-only.
+
+Destinations:
+- both: include the block in both backend and frontend descriptions.
+- backend: include the block only in the backend description.
+- frontend: include the block only in the frontend description.
+There is no "neither" flag: leave content unmarked to exclude it from both.
+
+Syntax: put each marker in its own HTML comment on a separate line.
+Opening marker content: dockerhub:DESTINATION:start
+Closing marker content: dockerhub:DESTINATION:end
+Replace DESTINATION with both, backend, or frontend; both markers must match.
+
+Include headings inside a block if they should appear in the generated page.
+Blocks may repeat and are collected in README order. Do not nest or overlap
+blocks. Keep start/end markers outside fenced code blocks. Close a block before
+any detailed content that should stay on GitHub (for example, the Mermaid diagram).
+These markers select content; they do not generate or publish files themselves.
+-->
+
 # caddy/ui
 
 A modern web interface for managing your [Caddy](https://caddyserver.com) server. Built from scratch in a single conversation with Claude.
@@ -7,9 +30,12 @@ A modern web interface for managing your [Caddy](https://caddyserver.com) server
 ![Frontend](https://img.shields.io/badge/frontend-React-61dafb?style=flat-square)
 ![Backend](https://img.shields.io/badge/backend-Node.js-339933?style=flat-square)
 
+<!-- dockerhub:both:start -->
 ## Overview
 
 caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker containers alongside your Caddy instance(s) and communicates with Caddy's built-in admin API. Your Caddyfile remains the source of truth — the UI reads from it, writes to it, and never takes ownership away from you. Manage one Caddy server or many from a single interface.
+
+<!-- dockerhub:both:end -->
 
 ## Screenshots
 
@@ -62,10 +88,13 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
+<!-- dockerhub:both:start -->
 ## Architecture
 caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
 
 In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
+
+<!-- dockerhub:both:end -->
 
 ```mermaid
 graph LR
@@ -190,6 +219,7 @@ docker compose up -d
 
 Open `http://your-server:9877` in your browser.
 
+<!-- dockerhub:backend:start -->
 ## Environment Variables
 
 All backend variables have sensible defaults. Only set what you need to override.
@@ -225,6 +255,8 @@ All backend variables have sensible defaults. Only set what you need to override
 | `UPTIME_HISTORY_RETENTION_DAYS` | `7` | How many days of upstream and route health checks to retain |
 | `WWW_PATH` | `/etc/caddy-ui/www` | Directory for the maintenance page HTML file (created on first use) |
 | `NODE_EXTRA_CA_CERTS` | — | Path to a PEM bundle of extra CAs for route checks to trust, for sites with certificates from a private CA other than Caddy's local one (standard Node.js variable) |
+
+<!-- dockerhub:backend:end -->
 
 ## Authentication
 
@@ -481,6 +513,7 @@ COPY --from=caddy:v2.11.2 /usr/bin/caddy /usr/bin/caddy
 
 If you run Caddy outside of Docker (e.g. systemd), the backend will still work correctly — `caddy fmt` and version detection will degrade gracefully if the binary version doesn't match or is unavailable.
 
+<!-- dockerhub:frontend:start -->
 ## Custom Nginx Config
 
 The frontend proxies API requests to `caddy-ui-backend:3001` by default. This configuration also applies to prebuilt images. If your backend has a different hostname or port, mount a custom Nginx config:
@@ -489,6 +522,8 @@ The frontend proxies API requests to `caddy-ui-backend:3001` by default. This co
 volumes:
   - ./nginx.conf:/etc/nginx/conf.d/default.conf
 ```
+
+<!-- dockerhub:frontend:end -->
 
 ## Caddyfile Syntax Highlighting
 
@@ -581,6 +616,7 @@ caddy-ui/
 | Frontend | [zackwag/caddy-ui-frontend](https://hub.docker.com/r/zackwag/caddy-ui-frontend) |
 | Backend | [zackwag/caddy-ui-backend](https://hub.docker.com/r/zackwag/caddy-ui-backend) |
 
+<!-- dockerhub:both:start -->
 ### Image Tags
 
 | Tag | Description |
@@ -590,6 +626,8 @@ caddy-ui/
 
 See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
 for versioned image tags and release notes.
+
+<!-- dockerhub:both:end -->
 
 ## Changelog
 
