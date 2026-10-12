@@ -86,6 +86,7 @@ instances, optional authentication, and responsive dark/light themes.
 - **Authentication** — Optional JWT-based login screen protecting the UI and authenticated API routes
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
+<!-- dockerhub:frontend:end -->
 
 ## Localization
 
@@ -118,8 +119,6 @@ graph LR
     BE <-->|"container discovery"| DS
     BE <-->|"instances, history,\nnotes, settings, config"| UI_DATA
 ```
-
-<!-- dockerhub:frontend:end -->
 
 ### Backend
 
