@@ -2,7 +2,8 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PaneDivider from "./PaneDivider.jsx";
-import { apiFetch, getToken } from "../utils/api.js";
+import { apiFetch, getToken, getInstanceId } from "../utils/api.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
 
@@ -168,9 +169,10 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     }, []);
 
     useEffect(() => {
+        const key = stateNotificationKey('caddyfile.load', getInstanceId());
         apiFetch("/caddyfile", {}, onUnauth)
-            .then(t => { setContent(t); setOriginal(t); })
-            .catch(e => toast.error(localizeError(e, t), e))
+            .then(content => { toast.recover(key); setContent(content); setOriginal(content); })
+            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount only; toast isn't stable across renders
     }, [onUnauth]);

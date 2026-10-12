@@ -2,7 +2,8 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
-import { apiFetch } from "../utils/api.js";
+import { apiFetch, getInstanceId } from "../utils/api.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
 
 // eslint-disable-next-line i18next/no-literal-string -- Example Caddy admin endpoint
 const ADMIN_URL_PLACEHOLDER = "http://caddy:2019";
@@ -39,7 +40,11 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     toastRef.current = toast;
 
     const load = useCallback(() => {
-        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(e => toastRef.current.error(localizeError(e, t), e)).finally(() => setLoading(false));
+        const key = stateNotificationKey('instances.load', getInstanceId());
+        apiFetch("/instances", {}, onUnauth)
+            .then(data => { toastRef.current.recover(key); setInstances(data); })
+            .catch(e => toastRef.current.error(localizeError(e, t), e, { mode: 'state', key }))
+            .finally(() => setLoading(false));
     }, [onUnauth, t]);
 
     const discover = useCallback(async () => {

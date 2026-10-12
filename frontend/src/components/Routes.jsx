@@ -4,7 +4,8 @@ import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
-import { apiFetch } from "../utils/api.js";
+import { apiFetch, getInstanceId } from "../utils/api.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 // eslint-disable-next-line i18next/no-literal-string -- Example hostname
@@ -260,7 +261,11 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     }, []);
 
     const load = useCallback(() => {
-        apiFetch("/routes", {}, onUnauth).then(setRoutes).catch(e => toast.error(localizeError(e, t), e)).finally(() => setLoading(false));
+        const key = stateNotificationKey('routes.load', getInstanceId());
+        apiFetch("/routes", {}, onUnauth)
+            .then(data => { toast.recover(key); setRoutes(data); })
+            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
+            .finally(() => setLoading(false));
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
         apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
         apiFetch("/server-names", {}, onUnauth).then(setServerLabels).catch(() => { });

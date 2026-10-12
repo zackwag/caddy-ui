@@ -1,7 +1,8 @@
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiFetch, getToken } from "../utils/api.js";
+import { apiFetch, getToken, getInstanceId } from "../utils/api.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
 
 export default function TLS({ toast, onUnauth, confirm }) {
     const { t, i18n } = useTranslation();
@@ -13,7 +14,11 @@ export default function TLS({ toast, onUnauth, confirm }) {
 
     const load = useCallback(() => {
         setLoading(true);
-        apiFetch("/tls", {}, onUnauth).then(setCerts).catch(e => toast.error(localizeError(e, t), e)).finally(() => setLoading(false));
+        const key = stateNotificationKey('tls.load', getInstanceId());
+        apiFetch("/tls", {}, onUnauth)
+            .then(data => { toast.recover(key); setCerts(data); })
+            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
+            .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
     }, [onUnauth]);
 

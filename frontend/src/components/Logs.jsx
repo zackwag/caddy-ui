@@ -2,7 +2,8 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { API, apiFetch, getToken } from "../utils/api.js";
+import { API, apiFetch, getToken, getInstanceId } from "../utils/api.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { resolveLogSource } from "../utils/logSource.js";
 
 export default function Logs({ toast, onUnauth,  noInstances }) {
@@ -37,13 +38,24 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         setRefreshing(false);
         const path = source === "caddy" ? "/logs" : "/logs/app";
         // App's first /status response can arrive after the initial log request.
-        const reportError = e => { if (!ignore && e.code !== 'NO_INSTANCES') toast.error(localizeError(e, t), e); };
+        const loadKey = stateNotificationKey('logs.load.' + source, getInstanceId());
+        const configKey = stateNotificationKey('logs.config', getInstanceId());
+        const reportError = (e, key) => {
+            if (!ignore && e.code !== 'NO_INSTANCES') toast.error(localizeError(e, t), e, { mode: 'state', key });
+        };
         apiFetch(path, {}, onUnauth)
-            .then(data => { if (!ignore) setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry))); })
-            .catch(reportError);
+            .then(data => {
+                if (!ignore) {
+                    toast.recover(loadKey);
+                    setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry)));
+                }
+            })
+            .catch(e => reportError(e, loadKey));
 
         if (source === "caddy" && !logConfig) {
-            apiFetch("/logs/config", {}, onUnauth).then(setLogConfig).catch(reportError);
+            apiFetch("/logs/config", {}, onUnauth)
+                .then(data => { if (!ignore) { toast.recover(configKey); setLogConfig(data); } })
+                .catch(e => reportError(e, configKey));
         }
 
         esRef.current?.close();
@@ -66,14 +78,18 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         const streamPath = source === "caddy" ? "/logs/stream" : "/logs/app/stream";
         const url = token ? `${API}${streamPath}?token=${token}` : `${API}${streamPath}`;
         const es = new EventSource(url);
+        const streamKey = stateNotificationKey('logs.stream.' + source, getInstanceId());
         es.onmessage = e => {
             if (esRef.current !== es) return;
             const data = JSON.parse(e.data);
             if (data.error && data.code !== 'LOG_FILE_MISSING') {
-                toast.error(localizeError(data, t), data);
+                toast.error(localizeError(data, t), data, { mode: 'state', key: streamKey });
             }
             const line = data.line || (data.entry ? JSON.stringify(data.entry) : null);
-            if (line) setLines(l => [...l.slice(-500), line]);
+            if (line) {
+                toast.recover(streamKey);
+                setLines(l => [...l.slice(-500), line]);
+            }
         };
         esRef.current = es;
         setLive(true);
@@ -120,7 +136,10 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         const path = source === "caddy" ? "/logs" : "/logs/app";
         apiFetch(path, {}, onUnauth)
             .then(d => {
-                if (loadId === loadIdRef.current) setLines(source === "caddy" ? (d.lines || []) : (d.entries || []).map(entry => JSON.stringify(entry)));
+                if (loadId === loadIdRef.current) {
+                    toast.recover(stateNotificationKey('logs.load.' + source, getInstanceId()));
+                    setLines(source === "caddy" ? (d.lines || []) : (d.entries || []).map(entry => JSON.stringify(entry)));
+                }
             })
             .catch(e => { if (loadId === loadIdRef.current) toast.error(localizeError(e, t), e); })
             .finally(() => { if (loadId === loadIdRef.current) setRefreshing(false); });
