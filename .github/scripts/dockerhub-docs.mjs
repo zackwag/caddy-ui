@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const readmeUrl = 'https://github.com/zackwag/caddy-ui';
@@ -60,7 +60,106 @@ function looksLikeMarker(line) {
     return editDistance(normalized, 'dockerhub') <= 2;
 }
 
-function parseBlocks(markdown) {
+function newMarkdownState() {
+    return { commentLine: null, rawTag: null, inlineTicks: null };
+}
+
+function findInlineClose(line, from, length) {
+    const runs = /`+/g;
+    runs.lastIndex = from;
+    for (let match; (match = runs.exec(line));) {
+        if (match[0].length === length) {
+            return { start: match.index, end: runs.lastIndex };
+        }
+    }
+    return null;
+}
+
+function hasInlineClose(lines, lineIndex, from, length) {
+    for (let index = lineIndex; index < lines.length; index++) {
+        // Inline spans may cross lines, but not paragraph boundaries.
+        if (index > lineIndex && lines[index].trim() === '') return false;
+        if (findInlineClose(lines[index], index === lineIndex ? from : 0, length)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function escapedAt(line, index) {
+    let count = 0;
+    while (index > 0 && line[--index] === '\\') count++;
+    return count % 2 === 1;
+}
+
+// Scan code/comment regions once; only ordinary Markdown is transformed.
+// Raw HTML code regions are pre, code, script, style, and textarea elements.
+function scanLine(line, lineIndex, lines, state, transform = text => text) {
+    let result = '';
+    let position = 0;
+
+    while (position < line.length) {
+        if (state.commentLine !== null) {
+            const closing = line.indexOf('-->', position);
+            const end = closing === -1 ? line.length : closing + 3;
+            result += line.slice(position, end);
+            position = end;
+            if (closing !== -1) state.commentLine = null;
+            continue;
+        }
+        if (state.rawTag) {
+            const closing = new RegExp(`</${state.rawTag.name}\\s*>`, 'i');
+            const match = closing.exec(line.slice(position));
+            const end = match ? position + match.index + match[0].length : line.length;
+            result += line.slice(position, end);
+            position = end;
+            if (match) state.rawTag = null;
+            continue;
+        }
+        if (state.inlineTicks !== null) {
+            const closing = findInlineClose(line, position, state.inlineTicks);
+            const end = closing ? closing.end : line.length;
+            result += line.slice(position, end);
+            position = end;
+            if (closing) state.inlineTicks = null;
+            continue;
+        }
+
+        const tokens = /`+|<!--|<(pre|code|script|style|textarea)\b[^>]*>/gi;
+        tokens.lastIndex = position;
+        const token = tokens.exec(line);
+        if (!token) {
+            result += transform(line.slice(position));
+            break;
+        }
+
+        result += transform(line.slice(position, token.index));
+        result += token[0];
+        position = tokens.lastIndex;
+
+        if (escapedAt(line, token.index)) continue;
+        if (token[0][0] === '`') {
+            if (hasInlineClose(lines, lineIndex, position, token[0].length)) {
+                state.inlineTicks = token[0].length;
+            }
+        } else if (token[0] === '<!--') {
+            state.commentLine = lineIndex + 1;
+        } else {
+            state.rawTag = { name: token[1].toLowerCase(), line: lineIndex + 1 };
+        }
+    }
+    return result;
+}
+
+function trimBlankLines(lines) {
+    let first = 0;
+    let last = lines.length;
+    while (first < last && lines[first].trim() === '') first++;
+    while (last > first && lines[last - 1].trim() === '') last--;
+    return lines.slice(first, last).join('\n');
+}
+
+export function parseBlocks(markdown) {
     const blocks = {
         backend: [],
         frontend: [],
@@ -69,7 +168,7 @@ function parseBlocks(markdown) {
 
     let active = null;
     let fence = null;
-    let commentLine = null;
+    const state = newMarkdownState();
 
     function report(line, message) {
         diagnostics.push(`README.md:${line}: ${message}`);
@@ -81,10 +180,10 @@ function parseBlocks(markdown) {
         const line = lines[index];
         const lineNumber = index + 1;
 
-        // Ordinary multiline HTML comments, including the README guide.
-        if (commentLine !== null) {
+        // A marker-looking line inside a comment or code span is literal text.
+        if (state.commentLine !== null || state.rawTag || state.inlineTicks !== null) {
             if (active) active.lines.push(line);
-            if (line.includes('-->')) commentLine = null;
+            scanLine(line, index, lines, state);
             continue;
         }
 
@@ -160,7 +259,7 @@ function parseBlocks(markdown) {
                     `${active.destination} from line ${active.line}.`,
                 );
             } else {
-                const content = active.lines.join('\n').trim();
+                const content = trimBlankLines(active.lines);
 
                 if (!content) {
                     report(active.line, 'Routing block is empty.');
@@ -190,14 +289,7 @@ function parseBlocks(markdown) {
             continue;
         }
 
-        // Other HTML comments are ordinary Markdown content.
-        const commentStart = line.indexOf('<!--');
-        if (
-            commentStart !== -1 &&
-            line.indexOf('-->', commentStart + 4) === -1
-        ) {
-            commentLine = lineNumber;
-        }
+        scanLine(line, index, lines, state);
 
         if (active) active.lines.push(line);
     }
@@ -208,8 +300,11 @@ function parseBlocks(markdown) {
     if (fence) {
         report(fence.line, 'Unclosed fenced code block.');
     }
-    if (commentLine !== null) {
-        report(commentLine, 'Unclosed HTML comment.');
+    if (state.commentLine !== null) {
+        report(state.commentLine, 'Unclosed HTML comment.');
+    }
+    if (state.rawTag) {
+        report(state.rawTag.line, `Unclosed HTML ${state.rawTag.name} code region.`);
     }
 
     for (const destination of ['backend', 'frontend']) {
@@ -225,45 +320,38 @@ function parseBlocks(markdown) {
     return blocks;
 }
 
-// Convert README anchor links while preserving fenced and inline code.
-function absoluteLinks(markdown) {
+// Use the same protected-region scanner for parsing and link conversion.
+export function absoluteLinks(markdown) {
+    const state = newMarkdownState();
+    const lines = markdown.split('\n');
     let fence = null;
 
-    return markdown.split('\n').map(line => {
-        const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-
+    return lines.map((line, index) => {
+        if (state.commentLine !== null || state.rawTag || state.inlineTicks !== null) {
+            return scanLine(line, index, lines, state, rewriteAnchors);
+        }
         if (fence) {
-            if (
-                marker &&
-                marker[1][0] === fence.character &&
-                marker[1].length >= fence.length &&
-                marker[2].trim() === ''
-            ) {
+            const closing = line.match(/^ {0,3}(`+|~+)\s*$/);
+            if (closing && closing[1][0] === fence.character && closing[1].length >= fence.length) {
                 fence = null;
             }
             return line;
         }
-
-        if (marker) {
-            fence = {
-                character: marker[1][0],
-                length: marker[1].length,
-            };
+        const opening = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+        if (opening && !(opening[1][0] === '`' && opening[2].includes('`'))) {
+            fence = { character: opening[1][0], length: opening[1].length };
             return line;
         }
-
         if (/^(?: {4}|\t)/.test(line)) return line;
-
-        // Code spans on this line stay untouched.
-        return line.replace(
-            /(`+)(.*?)\1|\]\((#[^\s)]+)\)/g,
-            (match, ticks, code, anchor) =>
-                ticks ? match : `](${readmeUrl}${anchor})`,
-        );
+        return scanLine(line, index, lines, state, rewriteAnchors);
     }).join('\n');
 }
 
-function renderPage(destination, selectedBlocks, version) {
+function rewriteAnchors(text) {
+    return text.replace(/\]\((#[^\s)]+)\)/g, `](${readmeUrl}$1)`);
+}
+
+export function renderPage(destination, selectedBlocks, version) {
     const title = destination === 'backend' ? 'Backend' : 'Frontend';
 
     const page = [
@@ -351,7 +439,9 @@ async function main() {
     }
 }
 
-main().catch(error => {
-    console.error(error.message);
-    process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    main().catch(error => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
+}
