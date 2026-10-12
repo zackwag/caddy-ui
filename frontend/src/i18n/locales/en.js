@@ -40,6 +40,18 @@ export default {
 
     errors: {
         backendUnreachable: 'Could not reach backend',
+        generic: 'The operation failed. See the application logs for details.',
+        network: 'Cannot reach the server. Check your connection.',
+        unauthorized: 'Your session has expired. Please sign in again.',
+        rateLimited: 'Too many requests. Please try again later.',
+        validationFailed: 'Validation failed. Check the configuration and application logs.',
+        notFound: 'The requested resource was not found.',
+        conflict: 'The operation conflicts with the current configuration.',
+        upstreamUnavailable: 'The Caddy server is unavailable.',
+        metricsUnavailable: 'Metrics are temporarily unavailable.',
+        validationWarning: 'Validation completed with warnings. See the application logs.',
+        operationWarning: 'The operation completed with warnings. See the application logs.',
+        viewLogs: 'View logs',
     },
 
     sidebar: {

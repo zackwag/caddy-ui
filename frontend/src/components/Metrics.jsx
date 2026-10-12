@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API, apiFetch } from "../utils/api.js";
@@ -24,7 +25,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                 // Keep the last good numbers through a failed refresh so a blip
                 // doesn't swap the cards for the "not enabled" card
                 setMetrics(prev => res.ok || !prev?.ok ? res : prev);
-                setRefreshError(res.ok ? null : res.error);
+                setRefreshError(res.ok ? null : localizeError(res, t));
             })
             .finally(() => setLoading(false));
     }, [onUnauth, t]);
@@ -45,7 +46,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
             toast.success(enabled ? t("metrics.enabledToast") : t("metrics.disabledToast"));
             if (enabled) setTimeout(load, 1000);
             else setMetrics({ ok: false, error: t("metrics.disabledToast") });
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSavingMetrics(false); }
     };
 

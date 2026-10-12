@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
@@ -38,8 +39,8 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     toastRef.current = toast;
 
     const load = useCallback(() => {
-        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(e => toastRef.current.error(e.message)).finally(() => setLoading(false));
-    }, [onUnauth]);
+        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(e => toastRef.current.error(localizeError(e, t), e)).finally(() => setLoading(false));
+    }, [onUnauth, t]);
 
     const discover = useCallback(async () => {
         setDiscovering(true);
@@ -48,7 +49,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             setDiscovered(containers);
             if (containers.length === 0) toastRef.current.success(t("instances.noNewContainers"));
         } catch (e) {
-            toastRef.current.error(e.message);
+            toastRef.current.error(localizeError(e, t), e);
             setDiscovered(null);
         } finally {
             setDiscovering(false);
@@ -162,7 +163,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             load();
             if (onInstanceChange) onInstanceChange();
         } catch (e) {
-            toast.error(e.message);
+            toast.error(localizeError(e, t), e);
         } finally {
             setSaving(false);
         }
@@ -176,7 +177,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             load();
             if (onInstanceChange) onInstanceChange();
         } catch (e) {
-            toast.error(e.message);
+            toast.error(localizeError(e, t), e);
         }
     };
 

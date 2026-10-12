@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -33,7 +34,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         setRefreshing(false);
         const path = source === "caddy" ? "/logs" : "/logs/app";
         // App's first /status response can arrive after the initial log request.
-        const reportError = e => { if (!ignore && e.code !== 'NO_INSTANCES') toast.error(e.message); };
+        const reportError = e => { if (!ignore && e.code !== 'NO_INSTANCES') toast.error(localizeError(e, t), e); };
         apiFetch(path, {}, onUnauth)
             .then(data => { if (!ignore) setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry))); })
             .catch(reportError);
@@ -115,7 +116,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
             .then(d => {
                 if (loadId === loadIdRef.current) setLines(source === "caddy" ? (d.lines || []) : (d.entries || []).map(entry => JSON.stringify(entry)));
             })
-            .catch(e => { if (loadId === loadIdRef.current) toast.error(e.message); })
+            .catch(e => { if (loadId === loadIdRef.current) toast.error(localizeError(e, t), e); })
             .finally(() => { if (loadId === loadIdRef.current) setRefreshing(false); });
     };
 
@@ -127,7 +128,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
             await apiFetch("/logs/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logConfig) }, onUnauth);
             toast.success(t("logs.configSaved"));
             setConfigDirty(false);
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSavingConfig(false); }
     };
 

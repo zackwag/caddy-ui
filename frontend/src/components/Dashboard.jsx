@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -46,7 +47,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                 toast.success(t("dashboard.labelRemoved"));
             }
             setEditingServer(null);
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const formatLastReload = (iso) => {

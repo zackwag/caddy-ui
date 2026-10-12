@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch, getToken } from "../utils/api.js";
@@ -12,7 +13,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
 
     const load = useCallback(() => {
         setLoading(true);
-        apiFetch("/tls", {}, onUnauth).then(setCerts).catch(e => toast.error(e.message)).finally(() => setLoading(false));
+        apiFetch("/tls", {}, onUnauth).then(setCerts).catch(e => toast.error(localizeError(e, t), e)).finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
     }, [onUnauth]);
 
@@ -23,7 +24,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
         try {
             await apiFetch(`/tls/${cert.domain}`, { method: "DELETE" }, onUnauth);
             toast.success(t("tls.deleted", { domain: cert.domain })); load();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const downloadCA = () => {
