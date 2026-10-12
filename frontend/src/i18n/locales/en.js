@@ -247,6 +247,8 @@ export default {
     },
 
     logs: {
+        caddySource: 'Caddy',
+        caddyUnavailable: 'Add a Caddy instance to view its access logs',
         configuration: 'Log Configuration',
         configSaved: 'Log config saved and reloaded',
         logging: 'Logging',

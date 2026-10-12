@@ -216,7 +216,7 @@ export default function App() {
             }
         });
       
-    }, [onUnauth, navigate, t]);
+    }, [onUnauth, t]);
 
     // caddy/ui logs dont depend on instance, so Logs stays reachable alongside Instances.
     useEffect(() => {

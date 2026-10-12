@@ -45,6 +45,9 @@ export default {
             // DOM/browser behavior
             '^(keydown|mousedown)$',
 
+            // Log source identifiers and export filename prefixes.
+            '^(app|caddy|caddy-access|caddy-ui)$',
+
             // internal state
             '^(new|err|warn|default|unauthorized|del|add|equal|skip)$',
             '^NO_INSTANCES$',

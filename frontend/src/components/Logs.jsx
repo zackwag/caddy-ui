@@ -134,7 +134,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     return (
         <div className="gap-16 logs-page">
             <div className="btn-row">
-                <button className={`btn ${source === "caddy" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSource("caddy")} disabled={noInstances} title={noInstances ? "Add a Caddy instance to view its access logs" : undefined}>Caddy</button>
+                <button className={`btn ${source === "caddy" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSource("caddy")} disabled={noInstances} title={noInstances ? t("logs.caddyUnavailable") : undefined}>{t("logs.caddySource")}</button>
                 <button className={`btn ${source === "app" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSource("app")}>caddy/ui</button>
             </div>
 
