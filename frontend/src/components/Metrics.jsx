@@ -20,7 +20,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
     const load = useCallback(() => {
         setLoading(true);
         apiFetch("/metrics", {}, onUnauth)
-            .catch(() => ({ ok: false, error: t("metrics.fetchFailed") }))
+            .catch(e => ({ ok: false, error: t('metrics.fetchFailed'), code: e.code, requestId: e.requestId }))
             .then(res => {
                 // Keep the last good numbers through a failed refresh so a blip
                 // doesn't swap the cards for the "not enabled" card

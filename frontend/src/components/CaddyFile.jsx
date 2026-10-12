@@ -290,7 +290,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         try {
             const result = await apiFetch(`/caddyfile/validations?fmt=${runFmt}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             if (result.formatted) setContent(result.formatted);
-            if (result.warnings?.length) toast.info(t('errors.validationWarning'));
+            if (result.warnings?.length) toast.info(t('errors.validationWarning'), result);
             else toast.success(t("caddyfile.valid"));
         } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setValidating(false); }
@@ -304,7 +304,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh);
-            if (result?.warning) toast.info(t('errors.operationWarning'));
+            if (result?.warning) toast.info(t('errors.operationWarning'), result);
             else toast.success(t("caddyfile.savedReloaded"));
             if (historyOpen) loadHistory();
         } catch (e) { toast.error(localizeError(e, t), e); }

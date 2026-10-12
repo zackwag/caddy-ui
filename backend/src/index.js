@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { loadCustomThemes } from './customThemes.js';
 import { getInstances, loadInstances } from './instances.js';
 import logger from './logger.js';
+import { diagnosticMiddleware } from './errorReporting.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
 import { instanceMiddleware } from './middleware/instance.js';
 import { initMonitor } from './notifications.js';
@@ -40,6 +41,7 @@ app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
+app.use(diagnosticMiddleware);
 
 app.use((req, res, next) => {
     const start = Date.now();
@@ -50,6 +52,7 @@ app.use((req, res, next) => {
             status: res.statusCode,
             elapsed,
             ip: req.ip,
+            requestId: req.diagnosticId,
         });
     });
     next();
@@ -117,7 +120,7 @@ app.use('/api/route-notes', routenotesRouter);
 app.use('/api/notifications', notificationsRouter);
 
 app.use((err, req, res, next) => {
-    logger.error(`Unhandled error`, { method: req.method, path: req.path, error: err.message, stack: err.stack });
+    logger.error(`Unhandled error`, { requestId: req.diagnosticId, method: req.method, path: req.path, error: err.message, stack: err.stack });
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
 

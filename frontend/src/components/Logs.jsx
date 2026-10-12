@@ -20,7 +20,10 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     const [logConfig, setLogConfig] = useState(null);
     const [configDirty, setConfigDirty] = useState(false);
     const [savingConfig, setSavingConfig] = useState(false);
-    const [logSearch, setLogSearch] = useState("");
+    // eslint-disable-next-line i18next/no-literal-string -- URL query parameter, not translatable UI text
+    const [logSearch, setLogSearch] = useState(() => new URLSearchParams(location.search).get("search") || "");
+    // eslint-disable-next-line i18next/no-literal-string -- URL query parameter, not translatable UI text
+    useEffect(() => { setLogSearch(new URLSearchParams(location.search).get("search") || ""); }, [location.search]);
     const [levelFilter, setLevelFilter] = useState("all");
     const [refreshing, setRefreshing] = useState(false);
     const bottomRef = useRef(null);
@@ -66,6 +69,9 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         es.onmessage = e => {
             if (esRef.current !== es) return;
             const data = JSON.parse(e.data);
+            if (data.error && data.code !== 'LOG_FILE_MISSING') {
+                toast.error(localizeError(data, t), data);
+            }
             const line = data.line || (data.entry ? JSON.stringify(data.entry) : null);
             if (line) setLines(l => [...l.slice(-500), line]);
         };

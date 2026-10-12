@@ -209,11 +209,16 @@ router.get('/stream', async (req, res) => {
 
     proc.stderr.on('data', (chunk) => {
         const msg = chunk.toString().trim();
-        if (msg) res.write(`data: ${JSON.stringify({ error: msg })}\n\n`);
+        if (msg) {
+            const missing = /no such file|not found/i.test(msg);
+            const code = missing ? 'LOG_FILE_MISSING' : 'LOG_STREAM_ERROR';
+            if (!missing) logger.error('Caddy log stream failed', { requestId: req.diagnosticId, code, detail: msg });
+            res.write(`data: ${JSON.stringify({ error: msg, code, requestId: req.diagnosticId })}\n\n`);
+        }
     });
 
     proc.on('error', () => {
-        res.write(`data: ${JSON.stringify({ error: `Log file not found at ${logPath}` })}\n\n`);
+        res.write(`data: ${JSON.stringify({ error: `Log file not found at ${logPath}`, code: 'LOG_FILE_MISSING', requestId: req.diagnosticId })}\n\n`);
         res.end();
     });
 

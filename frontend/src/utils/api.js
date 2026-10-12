@@ -1,4 +1,16 @@
+/* eslint-disable i18next/no-literal-string -- Internal API protocol identifiers, error codes, and diagnostics are not localized UI copy */
+
 export const API = "/api";
+
+export class ApiError extends Error {
+    constructor(message, { code = 'REQUEST_FAILED', requestId = null, status = null } = {}) {
+        super(message);
+        this.name = 'ApiError';
+        this.code = code;
+        this.requestId = requestId;
+        this.status = status;
+    }
+}
 
 export function getToken() { return localStorage.getItem('caddy_ui_token'); }
 export function setToken(token) {
@@ -37,26 +49,27 @@ export async function apiFetch(path, opts = {}, onUnauth) {
     const headers = { ...(opts.headers || {}) };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     headers['X-Instance-Id'] = getInstanceId();
-    const res = await fetch(`${API}${path}`, { ...opts, headers });
+    let res;
+    try {
+        res = await fetch(`${API}${path}`, { ...opts, headers });
+    } catch (cause) {
+        // No server received this request; keep browser-only details in console.
+        console.error('API connection failed', { path, cause });
+        throw new ApiError('Network connection failed', { code: 'NETWORK_ERROR' });
+    }
+    const ct = res.headers.get('content-type') || '';
+    const body = ct.includes('application/json') ? await res.json() : await res.text();
     if (res.status === 401) {
         setToken(null);
         if (onUnauth) onUnauth();
-        throw new Error('unauthorized');
     }
     if (!res.ok) {
-        const ct = res.headers.get("content-type") || "";
-        if (ct.includes("application/json")) {
-            const body = await res.json();
-            if (body.code === 'NO_INSTANCES') {
-                const err = new Error(body.error);
-                err.code = 'NO_INSTANCES';
-                throw err;
-            }
-            if (body.errors?.length) throw new Error(body.errors.join('\n'));
-            throw new Error(body.error || res.statusText);
-        }
-        throw new Error(res.statusText);
+        const payload = body && typeof body === 'object' ? body : {};
+        throw new ApiError(
+            payload.errors?.join('\n') || payload.error || res.statusText,
+            { code: payload.code || (res.status === 401 ? 'UNAUTHORIZED' : 'REQUEST_FAILED'),
+              requestId: payload.requestId || res.headers.get('X-Request-ID'), status: res.status },
+        );
     }
-    const ct = res.headers.get("content-type") || "";
-    return ct.includes("application/json") ? res.json() : res.text();
+    return body;
 }
