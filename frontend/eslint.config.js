@@ -49,6 +49,8 @@ export default [
     {
         files: [
             'src/i18n/**/*.{js,jsx}',
+            // Headless policy module with no user-facing copy.
+            'src/utils/notificationCenter.js',
             'src/lib/caddyfileMode.js',
         ],
         rules: {
