@@ -309,9 +309,11 @@ All backend variables have sensible defaults. Only set what you need to override
 
 <!-- dockerhub:backend:end -->
 
+<!-- dockerhub:backend:start -->
 ## Authentication
 
 Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. All API endpoints are protected and the login screen appears automatically.
+<!-- dockerhub:backend:end -->
 
 ## Custom Themes
 
@@ -447,6 +449,7 @@ blog.{$DOMAIN} {
 }
 ```
 
+<!-- dockerhub:backend:start -->
 ## Prometheus Metrics
 
 Enable Caddy's metrics endpoint from the Metrics tab, or add `metrics` to your Caddyfile global block manually. Set `CADDY_UI_PUBLIC_METRICS=true` to expose `/api/metrics/raw` without auth for Prometheus scraping.
@@ -472,7 +475,9 @@ Alongside Caddy's own metrics, the endpoint serves caddy-ui's upstream uptime hi
 | `caddy_ui_caddy_metrics_up` | Whether Caddy's `/metrics` could be scraped for the requested instance |
 
 Upstreams that haven't been checked in 5 minutes, and routes that haven't been checked in 12.5 minutes (2.5 route check intervals), are omitted: they've been removed from the config, skipped, or their instance is unreachable.
+<!-- dockerhub:backend:end -->
 
+<!-- dockerhub:backend:start -->
 ## Homepage Widget
 
 The status endpoint returns enriched data for use with [Homepage](https://gethomepage.dev):
@@ -503,7 +508,9 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
               label: Uptime
               format: text
 ```
+<!-- dockerhub:backend:end -->
 
+<!-- dockerhub:backend:start -->
 ## API Endpoints
 
 | Method | Endpoint | Description |
@@ -548,6 +555,7 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | `GET` | `/api/notifications/config` | Read notification settings |
 | `PUT` | `/api/notifications/config` | Update notification settings |
 | `POST` | `/api/notifications/test` | Send a test notification |
+<!-- dockerhub:backend:end -->
 
 ## Building from Source
 

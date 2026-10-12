@@ -267,7 +267,7 @@ function renderPage(destination, selectedBlocks, version) {
     const title = destination === 'backend' ? 'Backend' : 'Frontend';
 
     const page = [
-        `<!-- AUTO-GENERATED from README.md for release ${version}. Do not edit directly. -->`,
+        `<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release ${version}. Do not edit directly. -->`,
         '',
         `# caddy/ui — ${title}`,
         '',
