@@ -1083,7 +1083,6 @@ export const css = `
   .history-detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 12px 16px; }
   .caddyfile-history-controls { flex-shrink: 0; --pane-content-reserve: 100; }
   .history-diff-stats { flex-shrink: 0; }
-  .history-detail .history-row .history-entry { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
   .history-version-actions { margin-left: auto; flex-shrink: 0; }
   .history-preview:focus-visible, .history-versions:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .history-versions { min-width: 0; min-height: 0; overflow-y: auto; border-left: 1px solid var(--border); padding: 0 12px; }
@@ -2185,7 +2184,6 @@ export const css = `
     .caddyfile-page .editor-toolbar-actions { flex: 1; min-width: 0; }
     .history-detail { padding-top: 6px; padding-bottom: 6px; }
     .caddyfile-history-controls { --pane-content-reserve: 86; }
-    .caddyfile-history-controls .history-row { padding-top: 3px; padding-bottom: 3px; }
   }
 
   @media (max-width: 768px) {

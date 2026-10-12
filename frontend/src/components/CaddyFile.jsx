@@ -409,35 +409,27 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                         <div className="history-detail">
                             <div ref={historyControlsRef} className="caddyfile-history-controls">
                                 {history.length > 0 && (
-                                    <>
-                                        <div className="history-row">
-                                            <span className="history-entry history-entry--active" title={previewEntry ? formatTs(previewEntry.timestamp) : ""}>
-                                                {previewEntry ? formatTs(previewEntry.timestamp) : "Select a version"}
-                                                {previewEntry?.filename === history[0]?.filename && <span className="history-latest">latest</span>}
-                                            </span>
-                                            <div className="btn-row history-version-actions">
-                                                <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>↺ Restore</button>
-                                                <button className="btn btn-danger btn--sm" title="Delete snapshot" aria-label="Delete snapshot" onClick={() => deleteSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>✕</button>
-                                            </div>
+                                    <div className="history-compare">
+                                        <div className="history-range-picker">
+                                            <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± Diff</button>
+                                            <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>Raw</button>
                                         </div>
-                                        <div className="history-compare">
-                                            <div className="history-range-picker">
-                                                <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± Diff</button>
-                                                <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>Raw</button>
+                                        {previewMode === "diff" && (
+                                            <div className="select-wrap history-compare-select">
+                                                <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label="Compare against">
+                                                    <option value="current">vs. current file{isDirty ? " (saved)" : ""}</option>
+                                                    {history.filter(entry => entry.filename !== previewEntry?.filename).map(entry => (
+                                                        <option key={entry.filename} value={entry.filename}>vs. {formatTs(entry.timestamp)}</option>
+                                                    ))}
+                                                </select>
+                                                <span className="select-arrow">▾</span>
                                             </div>
-                                            {previewMode === "diff" && (
-                                                <div className="select-wrap history-compare-select">
-                                                    <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label="Compare against">
-                                                        <option value="current">vs. current file{isDirty ? " (saved)" : ""}</option>
-                                                        {history.filter(entry => entry.filename !== previewEntry?.filename).map(entry => (
-                                                            <option key={entry.filename} value={entry.filename}>vs. {formatTs(entry.timestamp)}</option>
-                                                        ))}
-                                                    </select>
-                                                    <span className="select-arrow">▾</span>
-                                                </div>
-                                            )}
+                                        )}
+                                        <div className="btn-row history-version-actions">
+                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>↺ Restore</button>
+                                            <button className="btn btn-danger btn--sm" title="Delete snapshot" aria-label="Delete snapshot" onClick={() => deleteSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>✕</button>
                                         </div>
-                                    </>
+                                    </div>
                                 )}
                             </div>
                             {historyLoading && history.length === 0 ? (
