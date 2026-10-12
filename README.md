@@ -14,12 +14,29 @@ Closing marker content: dockerhub:DESTINATION:end
 
 Include headings inside a block if they should appear in the generated page. Blocks may repeat and are collected in README order.
 Do not nest or overlap blocks. Keep start/end markers outside fenced code blocks. Close a block before any detailed content that should stay on GitHub (for example, the Mermaid diagram).
+Image-specific introductions and companion-image notices are marked frontend or
+backend near the document title. The generator supplies the image title and generated
+notice; the introductory prose comes from this README.
+A shared heading can be a both block followed by separate frontend/backend content
+blocks. Leave subsection headings unmarked when they are only for organizing GitHub.
 These markers select content; they do not generate or publish files themselves.
 -->
 
 # caddy/ui
 
 A modern web interface for managing your [Caddy](https://caddyserver.com) server. Built from scratch in a single conversation with Claude.
+
+<!-- dockerhub:frontend:start -->
+The web frontend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-backend), a web interface for managing your [Caddy](https://caddyserver.com) server. Built with React and served via Nginx.
+
+> This is the **frontend** image. You will also need the [backend image](https://hub.docker.com/r/zackwag/caddy-ui-backend).
+<!-- dockerhub:frontend:end -->
+
+<!-- dockerhub:backend:start -->
+The API backend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-frontend), a web interface for managing your [Caddy](https://caddyserver.com) server. Built with Node.js and Express.
+
+> This is the **backend** image. You will also need the [frontend image](https://hub.docker.com/r/zackwag/caddy-ui-frontend).
+<!-- dockerhub:backend:end -->
 
 ![Dashboard](https://img.shields.io/badge/status-active-00e5a0?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)

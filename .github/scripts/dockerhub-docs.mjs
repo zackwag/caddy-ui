@@ -264,16 +264,12 @@ function absoluteLinks(markdown) {
 }
 
 function renderPage(destination, selectedBlocks, version) {
-    const companion = destination === 'backend' ? 'frontend' : 'backend';
     const title = destination === 'backend' ? 'Backend' : 'Frontend';
 
     const page = [
         `<!-- AUTO-GENERATED from README.md for release ${version}. Do not edit directly. -->`,
         '',
         `# caddy/ui — ${title}`,
-        '',
-        `This is the **${destination}** image. Use it alongside the ` +
-        `[${companion} image](https://hub.docker.com/r/zackwag/caddy-ui-${companion}).`,
         '',
         absoluteLinks(selectedBlocks.join('\n\n')),
         '',
