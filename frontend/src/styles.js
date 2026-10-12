@@ -1076,7 +1076,15 @@ export const css = `
     grid-template-rows: minmax(0, var(--editor-share)) 16px minmax(0, var(--history-share));
     gap: 0;
   }
-  .caddyfile-history { min-height: 0; overflow-y: auto; }
+  .caddyfile-history { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .caddyfile-history > .card-header { flex-shrink: 0; }
+  .history-body { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; overflow: hidden; }
+  .history-body--versions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .history-detail { min-width: 0; min-height: 0; overflow: auto; padding: 12px 16px; }
+  .history-detail:focus-visible, .history-versions:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .history-versions { min-width: 0; min-height: 0; overflow-y: auto; border-left: 1px solid var(--border); padding: 0 12px; }
+  .history-versions .history-entry { width: 100%; text-align: left; border: 0; background: transparent; padding: 0; }
+  .history-version-select, .history-compare-select { flex: 1 1 180px; min-width: 0; }
   .caddyfile-history .history-preview { max-height: none; }
 
   .pane-divider {
@@ -2093,8 +2101,6 @@ export const css = `
   .history-entry--active { color: var(--accent); }
   .history-entry--default { color: var(--text); }
 
-  .history-body { padding: 0 16px; }
-
   /* ── Utility: History ─────────────────────────────────────────────────────── */
 
   .history-latest {
@@ -2106,8 +2112,6 @@ export const css = `
 
   /* ── Utility: History diff ────────────────────────────────────────────────── */
 
-  .history-detail { padding-bottom: 12px; }
-
   .history-compare {
     display: flex;
     align-items: center;
@@ -2116,7 +2120,6 @@ export const css = `
     margin-top: 4px;
   }
 
-  .history-compare-select { min-width: 220px; }
   .history-compare-select .config-select { padding-top: 3px; padding-bottom: 3px; font-size: 11px; }
 
   .history-diff-stats {

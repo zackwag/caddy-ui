@@ -127,11 +127,14 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [runFmt, setRunFmt] = useState(true);
     const [runSort, setRunSort] = useState(true);
     const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyListOpen, setHistoryListOpen] = useState(false);
     const [editorShare, setEditorShare] = useState(60);
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [previewEntry, setPreviewEntry] = useState(null);
     const [previewContent, setPreviewContent] = useState("");
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [compareLoading, setCompareLoading] = useState(false);
     const [previewMode, setPreviewMode] = useState("diff");
     const [compareTo, setCompareTo] = useState("current");
     const [compareContent, setCompareContent] = useState(null);
@@ -140,6 +143,18 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const pageRef = useRef(null);
     const toolbarRef = useRef(null);
     const historyHeaderRef = useRef(null);
+    const historyDetailRef = useRef(null);
+    const previewRequest = useRef(0);
+    const compareRequest = useRef(0);
+    const historyRequest = useRef(0);
+    const selectedFilename = useRef(null);
+    const comparisonFilename = useRef("current");
+
+    useEffect(() => () => {
+        historyRequest.current++;
+        previewRequest.current++;
+        compareRequest.current++;
+    }, []);
 
     useEffect(() => {
         apiFetch("/caddyfile", {}, onUnauth)
@@ -149,18 +164,35 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount only; toast isn't stable across renders
     }, [onUnauth]);
 
-    const loadHistory = () => {
+    const clearPreview = () => {
+        previewRequest.current++;
+        compareRequest.current++;
+        selectedFilename.current = null;
+        comparisonFilename.current = "current";
+        setPreviewEntry(null); setPreviewContent(""); setPreviewLoading(false);
+        setCompareTo("current"); setCompareContent(null); setCompareLoading(false);
+    };
+
+    const loadHistory = async () => {
+        const request = ++historyRequest.current;
         setHistoryLoading(true);
-        apiFetch("/caddyfile/history", {}, onUnauth).then(setHistory).catch(() => setHistory([])).finally(() => setHistoryLoading(false));
+        try {
+            const entries = await apiFetch("/caddyfile/history", {}, onUnauth);
+            if (request !== historyRequest.current) return;
+            setHistory(entries);
+            const selected = entries.find(entry => entry.filename === selectedFilename.current) || entries[0];
+            if (!selected) clearPreview();
+            else if (selected.filename !== selectedFilename.current) previewSnapshot(selected);
+        } catch (e) {
+            if (request === historyRequest.current) toast.error(e.message);
+        } finally {
+            if (request === historyRequest.current) setHistoryLoading(false);
+        }
     };
 
     const toggleHistory = () => {
-        if (!historyOpen) {
-            loadHistory();
-        }
+        if (!historyOpen) loadHistory();
         setHistoryOpen(o => !o);
-        setPreviewEntry(null);
-        setPreviewContent("");
     };
 
     // Snapshots never change once written, so each is fetched at most once.
@@ -172,20 +204,47 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     };
 
     const previewSnapshot = async (entry) => {
-        if (previewEntry?.filename === entry.filename) { setPreviewEntry(null); setPreviewContent(""); return; }
+        if (!entry) return;
+        if (selectedFilename.current === entry.filename) return;
+        const request = ++previewRequest.current;
+        compareRequest.current++;
+        selectedFilename.current = entry.filename;
+        comparisonFilename.current = "current";
+        setPreviewEntry(entry); setPreviewContent(""); setPreviewLoading(true);
+        setCompareTo("current"); setCompareContent(null); setCompareLoading(false);
+        historyDetailRef.current?.scrollTo({ top: 0 });
         try {
             const text = await fetchSnapshot(entry.filename);
-            setPreviewEntry(entry); setPreviewContent(text);
-            setCompareTo("current"); setCompareContent(null);
-        } catch (e) { toast.error(e.message); }
+            if (request === previewRequest.current) setPreviewContent(text);
+        } catch (e) {
+            if (request === previewRequest.current) {
+                selectedFilename.current = null;
+                setPreviewEntry(null);
+                toast.error(e.message);
+            }
+        } finally {
+            if (request === previewRequest.current) setPreviewLoading(false);
+        }
     };
 
     const changeCompareTo = async (target) => {
-        if (target === "current") { setCompareTo(target); setCompareContent(null); return; }
+        const request = ++compareRequest.current;
+        comparisonFilename.current = target;
+        setCompareTo(target); setCompareContent(null);
+        setCompareLoading(target !== "current");
+        if (target === "current") return;
         try {
             const text = await fetchSnapshot(target);
-            setCompareTo(target); setCompareContent(text);
-        } catch (e) { toast.error(e.message); }
+            if (request === compareRequest.current) setCompareContent(text);
+        } catch (e) {
+            if (request === compareRequest.current) {
+                comparisonFilename.current = "current";
+                setCompareTo("current");
+                toast.error(e.message);
+            }
+        } finally {
+            if (request === compareRequest.current) setCompareLoading(false);
+        }
     };
 
     const restoreSnapshot = async (entry) => {
@@ -194,7 +253,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
-            setContent(fresh); setOriginal(fresh); setHistoryOpen(false); setPreviewEntry(null);
+            setContent(fresh); setOriginal(fresh); setHistoryOpen(false); clearPreview();
             toast.success(`Restored from ${formatTs(entry.timestamp)}`);
             loadHistory();
         } catch (e) { toast.error(e.message); }
@@ -206,8 +265,8 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
             toast.success("Snapshot deleted");
             snapshotCache.current.delete(entry.filename);
-            if (previewEntry?.filename === entry.filename) { setPreviewEntry(null); setPreviewContent(""); }
-            if (compareTo === entry.filename) { setCompareTo("current"); setCompareContent(null); }
+            if (selectedFilename.current === entry.filename) clearPreview();
+            else if (comparisonFilename.current === entry.filename) changeCompareTo("current");
             loadHistory();
         } catch (e) { toast.error(e.message); }
     };
@@ -326,57 +385,101 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                 <div className="card card-flush caddyfile-history">
                     <div ref={historyHeaderRef} className="card-header">
                         <span className="section-label">Version History</span>
-                        <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}>↺ Refresh</button>
+                        <div className="btn-row">
+                            <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}>↺ Refresh</button>
+                            <button
+                                className={`btn btn--sm ${historyListOpen ? "btn-primary" : "btn-ghost"}`}
+                                onClick={() => setHistoryListOpen(open => !open)}
+                                aria-label={historyListOpen ? "Hide version list" : "Show version list"}
+                                title={historyListOpen ? "Hide version list" : "Show version list"}
+                                aria-expanded={historyListOpen}
+                                aria-controls="history-version-list"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M3 3v5h5" />
+                                    <path d="M3.05 13a9 9 0 1 0 .5-5" />
+                                    <path d="M12 7v5l3 2" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
-                    {historyLoading ? (
-                        <div className="card-body loading">Loading...</div>
-                    ) : history.length === 0 ? (
-                        <div className="card-empty">No snapshots yet — save your Caddyfile to create one</div>
-                    ) : (
-                        <div className="history-body">
-                            {history.map((entry, i) => (
-                                <div key={entry.filename}>
-                                    <div className="history-row">
-                                        <div
+                    <div className={`history-body${historyListOpen ? " history-body--versions" : ""}`}>
+                        <div ref={historyDetailRef} className="history-detail" role="region" aria-label="Version preview" tabIndex={0}>
+                            {history.length > 0 && (
+                                <>
+                                    <div className="history-compare">
+                                        <label className="history-version-select">
+                                            <span className="field-label">Version</span>
+                                            <div className="select-wrap">
+                                                <select className="config-select" value={previewEntry?.filename || ""} onChange={e => previewSnapshot(history.find(entry => entry.filename === e.target.value))} aria-label="History version">
+                                                    {!previewEntry && <option value="" disabled>Select a version</option>}
+                                                    {history.map((entry, i) => (
+                                                        <option key={entry.filename} value={entry.filename}>{formatTs(entry.timestamp)}{i === 0 ? " (latest)" : ""}</option>
+                                                    ))}
+                                                </select>
+                                                <span className="select-arrow">▾</span>
+                                            </div>
+                                        </label>
+                                        {previewMode === "diff" && (
+                                            <label className="history-compare-select">
+                                                <span className="field-label">Compare against</span>
+                                                <div className="select-wrap">
+                                                    <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label="Compare against">
+                                                        <option value="current">Current file{isDirty ? " (saved)" : ""}</option>
+                                                        {history.filter(entry => entry.filename !== previewEntry?.filename).map(entry => (
+                                                            <option key={entry.filename} value={entry.filename}>{formatTs(entry.timestamp)}</option>
+                                                        ))}
+                                                    </select>
+                                                    <span className="select-arrow">▾</span>
+                                                </div>
+                                            </label>
+                                        )}
+                                    </div>
+                                    <div className="history-compare">
+                                        <div className="history-range-picker">
+                                            <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± Diff</button>
+                                            <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>Raw</button>
+                                        </div>
+                                        <div className="btn-row">
+                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>↺ Restore</button>
+                                            <button className="btn btn-danger btn--sm" onClick={() => deleteSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>Delete version</button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                            {historyLoading && history.length === 0 ? (
+                                <div className="loading">Loading history...</div>
+                            ) : history.length === 0 ? (
+                                <div className="card-empty">No snapshots yet — save your Caddyfile to create one</div>
+                            ) : previewLoading || (previewMode === "diff" && compareLoading) ? (
+                                <div className="loading">Loading version...</div>
+                            ) : previewEntry ? (
+                                previewMode === "diff"
+                                    ? <CaddyfileDiff oldText={diffOld} newText={diffNew} />
+                                    : <div className="history-preview">{previewContent}</div>
+                            ) : (
+                                <div className="card-empty">Select a version to preview</div>
+                            )}
+                        </div>
+                        {historyListOpen && (
+                            <div id="history-version-list" className="history-versions" role="region" aria-label="Saved versions" tabIndex={0}>
+                                {history.map((entry, i) => (
+                                    <div key={entry.filename} className="history-row">
+                                        <button
                                             className={`history-entry ${previewEntry?.filename === entry.filename ? "history-entry--active" : "history-entry--default"}`}
                                             onClick={() => previewSnapshot(entry)}
+                                            aria-pressed={previewEntry?.filename === entry.filename}
+                                            title={entry.filename}
                                         >
                                             {formatTs(entry.timestamp)}
                                             {i === 0 && <span className="history-latest">latest</span>}
-                                        </div>
-                                        <div className="btn-row">
-                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(entry)}>↺ Restore</button>
-                                            <button className="btn btn-danger btn--sm" title="Delete snapshot" onClick={() => deleteSnapshot(entry)}>✕</button>
-                                        </div>
+                                        </button>
                                     </div>
-                                    {previewEntry?.filename === entry.filename && (
-                                        <div className="history-detail">
-                                            <div className="history-compare">
-                                                <div className="history-range-picker">
-                                                    <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± Diff</button>
-                                                    <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>Raw</button>
-                                                </div>
-                                                {previewMode === "diff" && (
-                                                    <div className="select-wrap history-compare-select">
-                                                        <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label="Compare against">
-                                                            <option value="current">vs. current file{isDirty ? " (saved)" : ""}</option>
-                                                            {history.filter(other => other.filename !== entry.filename).map(other => (
-                                                                <option key={other.filename} value={other.filename}>vs. {formatTs(other.timestamp)}</option>
-                                                            ))}
-                                                        </select>
-                                                        <span className="select-arrow">▾</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {previewMode === "diff"
-                                                ? <CaddyfileDiff oldText={diffOld} newText={diffNew} />
-                                                : <div className="history-preview">{previewContent}</div>}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                ))}
+                                {!historyLoading && history.length === 0 && <div className="card-empty">No saved versions</div>}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
