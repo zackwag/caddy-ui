@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export default function PaneDivider({ containerRef, primaryMinimumRef, secondaryMinimumRef, primaryPaneId, value, onChange }) {
+export default function PaneDivider({ containerRef, primaryMinimumRef, secondaryMinimumRef, secondaryControlsRef, primaryPaneId, value, onChange }) {
     const dividerRef = useRef(null);
     const [limits, setLimits] = useState({ min: 0, max: 100 });
 
@@ -9,23 +9,29 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
         const primaryMinimum = primaryMinimumRef.current;
         const secondaryMinimum = secondaryMinimumRef.current;
         const divider = dividerRef.current;
+        const secondaryControls = secondaryControlsRef?.current;
         if (!container || !primaryMinimum || !secondaryMinimum || !divider) return;
 
         const measure = () => {
             const available = container.clientHeight - divider.offsetHeight;
             if (available <= 0) return;
             // Leave room for the controls and content in each pane.
-            const min = Math.min(100, (primaryMinimum.offsetHeight + 34) / available * 100);
-            const max = Math.max(min, 100 - (secondaryMinimum.offsetHeight + 34) / available * 100);
+            const reserve = secondaryControls ? (parseFloat(getComputedStyle(secondaryControls).getPropertyValue('--pane-content-reserve')) || 100) : 34;
+            const secondarySize = secondaryMinimum.offsetHeight + (secondaryControls?.offsetHeight || 0) + reserve;
+            // On short screens give the preview room while keeping editor controls visible.
+            const primarySize = Math.max(primaryMinimum.offsetHeight + 2, Math.min(primaryMinimum.offsetHeight + 34, available - secondarySize));
+            const min = Math.min(100, primarySize / available * 100);
+            const max = Math.max(min, 100 - secondarySize / available * 100);
             setLimits(previous => previous.min === min && previous.max === max ? previous : { min, max });
         };
         const observer = new ResizeObserver(measure);
         observer.observe(container);
         observer.observe(primaryMinimum);
         observer.observe(secondaryMinimum);
+        if (secondaryControls) observer.observe(secondaryControls);
         measure();
         return () => observer.disconnect();
-    }, [containerRef, primaryMinimumRef, secondaryMinimumRef]);
+    }, [containerRef, primaryMinimumRef, secondaryMinimumRef, secondaryControlsRef]);
 
     useEffect(() => {
         const clamped = Math.max(limits.min, Math.min(limits.max, value));

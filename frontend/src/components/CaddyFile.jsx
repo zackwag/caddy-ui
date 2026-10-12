@@ -87,20 +87,20 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
     return <div ref={containerRef} className="caddyfile-editor" />;
 }
 
-function CaddyfileDiff({ oldText, newText }) {
+function CaddyfileDiff({ oldText, newText, previewRef }) {
     const lines = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
     const added = lines.filter(l => l.type === "add").length;
     const removed = lines.filter(l => l.type === "del").length;
     const shown = useMemo(() => collapseUnchanged(lines), [lines]);
 
-    if (!added && !removed) return <div className="history-preview history-diff-empty">No differences</div>;
+    if (!added && !removed) return <div ref={previewRef} className="history-preview history-diff-empty" role="region" aria-label="Version preview" tabIndex={0}>No differences</div>;
 
     return (
         <>
             <div className="history-diff-stats">
                 <span className="diff-stat--add">+{added}</span> <span className="diff-stat--del">−{removed}</span>
             </div>
-            <div className="history-preview history-diff">
+            <div ref={previewRef} className="history-preview history-diff" role="region" aria-label="Version preview" tabIndex={0}>
                 <div className="history-diff-lines">
                     {shown.map((line, i) => line.type === "skip" ? (
                         <div key={i} className="diff-skip">⋯ {line.count} unchanged line{line.count === 1 ? "" : "s"}</div>
@@ -143,7 +143,8 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const pageRef = useRef(null);
     const toolbarRef = useRef(null);
     const historyHeaderRef = useRef(null);
-    const historyDetailRef = useRef(null);
+    const historyPreviewRef = useRef(null);
+    const historyControlsRef = useRef(null);
     const previewRequest = useRef(0);
     const compareRequest = useRef(0);
     const historyRequest = useRef(0);
@@ -212,7 +213,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         comparisonFilename.current = "current";
         setPreviewEntry(entry); setPreviewContent(""); setPreviewLoading(true);
         setCompareTo("current"); setCompareContent(null); setCompareLoading(false);
-        historyDetailRef.current?.scrollTo({ top: 0 });
+        historyPreviewRef.current?.scrollTo({ top: 0 });
         try {
             const text = await fetchSnapshot(entry.filename);
             if (request === previewRequest.current) setPreviewContent(text);
@@ -376,6 +377,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                     containerRef={pageRef}
                     primaryMinimumRef={toolbarRef}
                     secondaryMinimumRef={historyHeaderRef}
+                    secondaryControlsRef={historyControlsRef}
                     primaryPaneId="caddyfile-editor-pane"
                     value={editorShare}
                     onChange={setEditorShare}
@@ -404,49 +406,40 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                         </div>
                     </div>
                     <div className={`history-body${historyListOpen ? " history-body--versions" : ""}`}>
-                        <div ref={historyDetailRef} className="history-detail" role="region" aria-label="Version preview" tabIndex={0}>
-                            {history.length > 0 && (
-                                <>
-                                    <div className="history-compare">
-                                        <label className="history-version-select">
-                                            <span className="field-label">Version</span>
-                                            <div className="select-wrap">
-                                                <select className="config-select" value={previewEntry?.filename || ""} onChange={e => previewSnapshot(history.find(entry => entry.filename === e.target.value))} aria-label="History version">
-                                                    {!previewEntry && <option value="" disabled>Select a version</option>}
-                                                    {history.map((entry, i) => (
-                                                        <option key={entry.filename} value={entry.filename}>{formatTs(entry.timestamp)}{i === 0 ? " (latest)" : ""}</option>
-                                                    ))}
-                                                </select>
-                                                <span className="select-arrow">▾</span>
+                        <div className="history-detail">
+                            <div ref={historyControlsRef} className="caddyfile-history-controls">
+                                {history.length > 0 && (
+                                    <>
+                                        <div className="history-row">
+                                            <span className="history-entry history-entry--active" title={previewEntry ? formatTs(previewEntry.timestamp) : ""}>
+                                                {previewEntry ? formatTs(previewEntry.timestamp) : "Select a version"}
+                                                {previewEntry?.filename === history[0]?.filename && <span className="history-latest">latest</span>}
+                                            </span>
+                                            <div className="btn-row history-version-actions">
+                                                <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>↺ Restore</button>
+                                                <button className="btn btn-danger btn--sm" title="Delete snapshot" aria-label="Delete snapshot" onClick={() => deleteSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>✕</button>
                                             </div>
-                                        </label>
-                                        {previewMode === "diff" && (
-                                            <label className="history-compare-select">
-                                                <span className="field-label">Compare against</span>
-                                                <div className="select-wrap">
+                                        </div>
+                                        <div className="history-compare">
+                                            <div className="history-range-picker">
+                                                <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± Diff</button>
+                                                <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>Raw</button>
+                                            </div>
+                                            {previewMode === "diff" && (
+                                                <div className="select-wrap history-compare-select">
                                                     <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label="Compare against">
-                                                        <option value="current">Current file{isDirty ? " (saved)" : ""}</option>
+                                                        <option value="current">vs. current file{isDirty ? " (saved)" : ""}</option>
                                                         {history.filter(entry => entry.filename !== previewEntry?.filename).map(entry => (
-                                                            <option key={entry.filename} value={entry.filename}>{formatTs(entry.timestamp)}</option>
+                                                            <option key={entry.filename} value={entry.filename}>vs. {formatTs(entry.timestamp)}</option>
                                                         ))}
                                                     </select>
                                                     <span className="select-arrow">▾</span>
                                                 </div>
-                                            </label>
-                                        )}
-                                    </div>
-                                    <div className="history-compare">
-                                        <div className="history-range-picker">
-                                            <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± Diff</button>
-                                            <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>Raw</button>
+                                            )}
                                         </div>
-                                        <div className="btn-row">
-                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>↺ Restore</button>
-                                            <button className="btn btn-danger btn--sm" onClick={() => deleteSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>Delete version</button>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
+                                    </>
+                                )}
+                            </div>
                             {historyLoading && history.length === 0 ? (
                                 <div className="loading">Loading history...</div>
                             ) : history.length === 0 ? (
@@ -455,8 +448,8 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                 <div className="loading">Loading version...</div>
                             ) : previewEntry ? (
                                 previewMode === "diff"
-                                    ? <CaddyfileDiff oldText={diffOld} newText={diffNew} />
-                                    : <div className="history-preview">{previewContent}</div>
+                                    ? <CaddyfileDiff oldText={diffOld} newText={diffNew} previewRef={historyPreviewRef} />
+                                    : <div ref={historyPreviewRef} className="history-preview" role="region" aria-label="Version preview" tabIndex={0}>{previewContent}</div>
                             ) : (
                                 <div className="card-empty">Select a version to preview</div>
                             )}

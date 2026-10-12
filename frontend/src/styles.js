@@ -1079,13 +1079,17 @@ export const css = `
   .caddyfile-history { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
   .caddyfile-history > .card-header { flex-shrink: 0; }
   .history-body { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; overflow: hidden; }
-  .history-body--versions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .history-detail { min-width: 0; min-height: 0; overflow: auto; padding: 12px 16px; }
-  .history-detail:focus-visible, .history-versions:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .history-body--versions { grid-template-columns: minmax(0, 1fr) fit-content(260px); }
+  .history-detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 12px 16px; }
+  .caddyfile-history-controls { flex-shrink: 0; --pane-content-reserve: 100; }
+  .history-diff-stats { flex-shrink: 0; }
+  .history-detail .history-row .history-entry { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+  .history-version-actions { margin-left: auto; flex-shrink: 0; }
+  .history-preview:focus-visible, .history-versions:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .history-versions { min-width: 0; min-height: 0; overflow-y: auto; border-left: 1px solid var(--border); padding: 0 12px; }
   .history-versions .history-entry { width: 100%; text-align: left; border: 0; background: transparent; padding: 0; }
-  .history-version-select, .history-compare-select { flex: 1 1 180px; min-width: 0; }
-  .caddyfile-history .history-preview { max-height: none; }
+  .caddyfile-history .history-preview { flex: 1; min-height: 0; max-height: none; overflow: auto; }
+  .history-detail .history-compare-select { min-width: 0; width: 220px; max-width: 100%; }
 
   .pane-divider {
     display: flex;
@@ -2120,6 +2124,7 @@ export const css = `
     margin-top: 4px;
   }
 
+  .history-compare-select { min-width: 220px; }
   .history-compare-select .config-select { padding-top: 3px; padding-bottom: 3px; font-size: 11px; }
 
   .history-diff-stats {
@@ -2173,6 +2178,16 @@ export const css = `
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
+  @media (max-height: 480px) {
+    .content:has(.caddyfile-page) { padding-top: 4px; padding-bottom: 4px; }
+    .caddyfile-page .editor-toolbar { flex-wrap: nowrap; }
+    .caddyfile-page .editor-toolbar > .btn-row:first-child { flex-direction: column; align-items: flex-start; }
+    .caddyfile-page .editor-toolbar-actions { flex: 1; min-width: 0; }
+    .history-detail { padding-top: 6px; padding-bottom: 6px; }
+    .caddyfile-history-controls { --pane-content-reserve: 86; }
+    .caddyfile-history-controls .history-row { padding-top: 3px; padding-bottom: 3px; }
+  }
+
   @media (max-width: 768px) {
     .hamburger { display: flex; }
     .sidebar {
@@ -2190,6 +2205,7 @@ export const css = `
     .metrics-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
     .cm-editor { min-height: 300px; }
     .cm-editor .cm-content { font-size: 16px; }
+    .history-body--versions { grid-template-columns: minmax(0, 1fr) minmax(0, 35%); }
     .modal-editor-wrap .cm-editor { min-height: 160px; max-height: 260px; }
     .modal-editor-wrap .cm-scroller { max-height: 260px; }
     .editor-toolbar { flex-direction: column; align-items: stretch; }
