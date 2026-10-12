@@ -41,7 +41,7 @@ jobs:
           node-version: 24
 
       - name: Generate Docker Hub descriptions
-        run: node scripts/dockerhub-docs.mjs
+        run: node .github/scripts/dockerhub-docs.mjs
 
       - name: Commit generated descriptions
         run: |

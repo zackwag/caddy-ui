@@ -41,6 +41,21 @@ CI runs this, plus `npm run lint` in both `backend/` and `frontend/`, on every P
 
 For anything touching `frontend/`, run the dev server and click through the affected view(s) in a browser before opening a PR — type-checking and the backend test suite don't cover rendering or interaction correctness. Check both the dark and light themes if you touched styling.
 
+## Docker Hub documentation
+
+`backend/DOCKERHUB.md` and `frontend/DOCKERHUB.md` are auto-generated. **Never edit them manually:** regeneration overwrites their contents.
+
+Maintain Docker Hub documentation in the canonical `README.md`, using the routing markers described in its leading comment. Use `both` for shared content, `backend` or `frontend` for image-specific content, and leave GitHub-only content unmarked. Changes to generated titles, notices, or other output framing belong in `.github/scripts/dockerhub-docs.mjs`.
+
+From the repository root:
+
+```bash
+node .github/scripts/dockerhub-docs.mjs --dry-run  # validate without writing
+node .github/scripts/dockerhub-docs.mjs            # regenerate for local review
+```
+
+The Release Please workflow regenerates both descriptions and commits any changes to the release PR branch. They become part of the tagged release, and the release workflow publishes the committed files to Docker Hub.
+
 ## Code style
 
 - Match the existing style in the file you're editing: ES modules, 4-space indentation, single quotes, semicolons.

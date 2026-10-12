@@ -43,6 +43,12 @@ There is no frontend test suite and no repo-wide lint/format command — `backen
 - **The backend Dockerfile bundles a Caddy binary** (`COPY --from=caddy:latest ...`) used by local-mode instances for `caddy fmt`, validation, and version detection (Docker mode runs the Caddy container's own binary) — it's expected to degrade gracefully if that binary is missing or mismatched, don't make it a hard dependency.
 - Environment variables are documented in the [README's table](README.md#environment-variables) — keep it in sync if you add, rename, or remove one.
 
+## Generated Docker Hub documentation
+
+- **Never manually edit `backend/DOCKERHUB.md` or `frontend/DOCKERHUB.md`.** They are generated from the marked blocks in the canonical `README.md` by `.github/scripts/dockerhub-docs.mjs`; manual changes are overwritten on regeneration.
+- Edit the source text and `dockerhub:both`, `dockerhub:backend`, or `dockerhub:frontend` routing markers in `README.md` instead. The leading README comment explains the marker rules. Output framing is maintained in the generator.
+- Run `node .github/scripts/dockerhub-docs.mjs --dry-run` to validate, or omit `--dry-run` to regenerate the files locally. The Release Please workflow regenerates and commits them on the release PR branch before tagging.
+
 ## Style
 
 ES modules throughout (`type: "module"` in both `package.json`s), 4-space indentation, single quotes, semicolons. Follow the conventions of the file you're editing rather than introducing a new style locally.
