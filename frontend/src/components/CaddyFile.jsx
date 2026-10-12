@@ -184,6 +184,9 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             const selected = entries.find(entry => entry.filename === selectedFilename.current) || entries[0];
             if (!selected) clearPreview();
             else if (selected.filename !== selectedFilename.current) previewSnapshot(selected);
+            else if (comparisonFilename.current !== "current" && !entries.some(entry => entry.filename === comparisonFilename.current)) {
+                changeCompareTo("current");
+            }
         } catch (e) {
             if (request === historyRequest.current) toast.error(e.message);
         } finally {
