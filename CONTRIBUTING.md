@@ -1,86 +1,38 @@
 # Contributing to caddy/ui
 
-Thanks for considering a contribution. This project is a two-service app (Node/Express backend, React/Vite frontend) that manages a Caddy server through its admin API — see the [README](README.md) for the full architecture overview.
+You can improve caddy/ui through code, documentation, and language support.
+Small, focused contributions are welcome, including clearer setup instructions
+and tested examples from your own deployment.
 
-## Getting set up
+| I want to… | Start here |
+|------------|------------|
+| Fix a bug, improve a view, or add a feature | [Codebase onboarding](https://zackwag.github.io/caddy-ui/contributing-codebase.html) · [Markdown](docs/src/contributing-codebase.md) |
+| Improve a guide, example, or screenshot | [Documentation onboarding](https://zackwag.github.io/caddy-ui/contributing-documentation.html) · [Markdown](docs/src/contributing-documentation.md) |
+| Help translate the UI after the localization foundation is merged | [Localization onboarding](https://zackwag.github.io/caddy-ui/contributing-localization.html) · [Markdown](docs/src/contributing-localization.md) |
 
-You don't need Docker for day-to-day development, but you do need a Caddy instance with its admin API reachable (`CADDY_ADMIN_URL`, default `http://caddy:2019`) for the backend to talk to.
+Documentation fixes can start in GitHub's browser editor. The documentation guide
+explains where to edit, how to preview a page, and how to submit your first PR.
+Code contributions use a local checkout and the relevant service's tests and lint.
+Localization onboarding is prepared for after [#202](https://github.com/zackwag/caddy-ui/pull/202)
+merges; use it only with a checkout containing that implementation.
 
-### Backend
+## Before opening a PR
 
-```bash
-cd backend
-npm install
-npm run dev   # node --watch src/index.js, listens on :3001 by default
-```
+Keep the change focused and explain the problem and resulting behavior. Use a
+Conventional Commit title (`docs:`, `fix:`, `feat:`, etc.) and run the checks in
+your contribution guide. Open the PR against `zackwag/caddy-ui`'s `main` branch.
+Do not edit `CHANGELOG.md` or bump versions by hand; release-please manages them.
 
-Relevant environment variables are documented in the [README's Environment Variables table](README.md#environment-variables). Most have safe local defaults.
+The README remains canonical for environment variables, API endpoints, the
+Compose example, and content selected for Docker Hub. Shared book references
+include those sections directly. Edit explanations and onboarding in `docs/src/`;
+never hand-edit the generated `backend/DOCKERHUB.md` or `frontend/DOCKERHUB.md`.
 
-### Frontend
+## Reporting a problem
 
-```bash
-cd frontend
-npm install
-npm run dev   # vite dev server
-```
+Open a [GitHub issue](https://github.com/zackwag/caddy-ui/issues) with the steps to
+reproduce it, your caddy/ui version, what you expected, and what happened.
+For larger changes, describe your proposal in an issue before doing substantial work.
 
-The `predev`/`prebuild` scripts fetch `src/lib/caddyfileMode.js` (the generated CodeMirror Caddyfile grammar) from [zackwag/caddyfile-codemirror](https://github.com/zackwag/caddyfile-codemirror) — that file is gitignored, not vendored. Run `npm run dev` or `npm run build` at least once with network access before working offline; after that the fetch script falls back to the local copy.
-
-## Tests
-
-Backend tests use [Vitest](https://vitest.dev/) and cover pure logic (Caddyfile parsing, formatting, validation, etc.):
-
-```bash
-cd backend
-npm test
-```
-
-CI runs this, plus `npm run lint` in both `backend/` and `frontend/`, on every PR against `main` (`.github/workflows/test.yml`). There is currently no frontend test suite — verify UI changes by running the app (see below).
-
-## Verifying UI changes
-
-For anything touching `frontend/`, run the dev server and click through the affected view(s) in a browser before opening a PR — type-checking and the backend test suite don't cover rendering or interaction correctness. Check both the dark and light themes if you touched styling.
-
-## Docker Hub documentation
-
-`backend/DOCKERHUB.md` and `frontend/DOCKERHUB.md` are auto-generated. **Never edit them manually:** regeneration overwrites their contents.
-
-Maintain Docker Hub documentation in the canonical `README.md`, using the routing markers described in its leading comment. Use `both` for shared content, `backend` or `frontend` for image-specific content, and leave GitHub-only content unmarked. Changes to generated titles, notices, or other output framing belong in `.github/scripts/dockerhub-docs.mjs`.
-
-From the repository root:
-
-```bash
-node .github/scripts/dockerhub-docs.mjs --dry-run  # validate without writing
-node .github/scripts/dockerhub-docs.mjs            # regenerate for local review
-```
-
-The Release Please workflow regenerates both descriptions and commits any changes to the release PR branch. They become part of the tagged release, and the release workflow publishes the committed files to Docker Hub.
-
-## Code style
-
-- Match the existing style in the file you're editing: ES modules, 4-space indentation, single quotes, semicolons.
-- Both `backend/` and `frontend/` have an ESLint config (`npm run lint` in each) that CI runs on every PR (`.github/workflows/test.yml`). It only checks for correctness issues (unused vars, React hook rules, etc.) — it doesn't enforce formatting, so consistency with surrounding code is still the bar for style.
-- Keep changes scoped — avoid drive-by refactors in unrelated files.
-
-## Commit messages / PR titles
-
-This repo loosely follows [Conventional Commits](https://www.conventionalcommits.org/) prefixes in PR titles (squash-merged), e.g.:
-
-- `feat: ...` — new functionality
-- `fix: ...` — bug fixes
-- `build: ...` — build/CI/dependency changes
-- `test: ...` — test-only changes
-
-Look at `git log` for more examples of the house style.
-
-## Opening a PR
-
-1. Branch off `main`.
-2. Keep the diff focused on one change.
-3. Make sure `npm test` passes in `backend/` if you touched backend code, and `npm run lint` passes in `backend/`/`frontend/` for whichever side you touched.
-4. Don't edit `CHANGELOG.md` or bump versions by hand — [release-please](https://github.com/googleapis/release-please) generates the changelog and version from your PR title's Conventional Commit prefix once it's merged to `main`.
-5. Open the PR against `main` — the `Test` workflow will run automatically.
-
-## Reporting issues
-
-Open a GitHub issue with steps to reproduce, your `caddy-ui` version (`GET /api/version` or the sidebar), and relevant logs (`LOG_LEVEL=debug` on the backend gives more detail). Stale issues without activity are auto-closed by `.github/workflows/stale.yml`, so keep threads updated if you're still waiting on something.
+See the [contribution hub](https://zackwag.github.io/caddy-ui/contributing.html)
+for the full onboarding paths, or [browse it as Markdown](docs/src/contributing.md).

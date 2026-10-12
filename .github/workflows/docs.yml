@@ -41,9 +41,6 @@ jobs:
           tar -xzf "$RUNNER_TEMP/mdbook.tar.gz" -C "$RUNNER_TEMP/mdbook-bin"
           echo "$RUNNER_TEMP/mdbook-bin" >> "$GITHUB_PATH"
 
-      - name: Prepare documentation
-        run: node .github/scripts/prepare-book.mjs
-
       - name: Build documentation
         env:
           REPOSITORY_NAME: ${{ github.event.repository.name }}

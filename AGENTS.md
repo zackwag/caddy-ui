@@ -33,7 +33,7 @@ There is no frontend test suite and no repo-wide lint/format command — `backen
 
 - If you changed `backend/src/**`, run `cd backend && npm test && npm run lint` and make sure both are green.
 - If you changed `frontend/src/**`, run `cd frontend && npm run lint`, and run the dev server to exercise the affected view in a browser. Don't claim a UI fix works without having rendered it — vitest doesn't cover the frontend.
-- Don't hand-edit `CHANGELOG.md` or bump versions — release-please generates both from Conventional Commit PR titles on `main`, so pick the prefix (`feat:` vs `fix:`, `!` for breaking) that matches the user-visible impact. The README Changelog table is frozen history for pre-`v1.18` releases.
+- Don't hand-edit `CHANGELOG.md` or bump versions — release-please generates both from Conventional Commit PR titles on `main`, so pick the prefix (`feat:` vs `fix:`, `!` for breaking) that matches the user-visible impact. The Changelog table in `docs/src/releases.md` is frozen history for pre-`v1.18` releases.
 
 ## Things to know before editing
 
@@ -44,6 +44,8 @@ There is no frontend test suite and no repo-wide lint/format command — `backen
 - Environment variables are documented in the [README's table](README.md#environment-variables) — keep it in sync if you add, rename, or remove one.
 
 ## Generated Docker Hub documentation
+
+- Detailed documentation is authored in `docs/src/`, with navigation in `docs/src/SUMMARY.md`. Build it directly with `mdbook build docs`; no preparation script is needed. Environment variables, API endpoints, the Compose example, and Docker Hub source blocks remain canonical in `README.md` and are included by book pages using named anchors.
 
 - **Never manually edit `backend/DOCKERHUB.md` or `frontend/DOCKERHUB.md`.** They are generated from the marked blocks in the canonical `README.md` by `.github/scripts/dockerhub-docs.mjs`; manual changes are overwritten on regeneration.
 - Edit the source text and `dockerhub:both`, `dockerhub:backend`, or `dockerhub:frontend` routing markers in `README.md` instead. The leading README comment explains the marker rules. Output framing is maintained in the generator.

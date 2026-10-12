@@ -1,30 +1,23 @@
 <!--
-Docker Hub documentation routing
-README.md is the canonical source. 
-
-Destinations:
-- both: include the block in both backend and frontend descriptions.
-- backend: include the block only in the backend description.
-- frontend: include the block only in the frontend description.
-Only explicitly marked blocks are selected for generated Docker Hub descriptions; unmarked content remains README-only.
-
-Syntax: put each marker in its own HTML comment on a separate line.
-Opening marker content: dockerhub:DESTINATION:start
-Closing marker content: dockerhub:DESTINATION:end
-
-Include headings inside a block if they should appear in the generated page. Blocks may repeat and are collected in README order.
-Do not nest or overlap blocks. Keep start/end markers outside fenced code blocks. Close a block before any detailed content that should stay on GitHub (for example, the Mermaid diagram).
-Image-specific introductions and companion-image notices are marked frontend or
-backend near the document title. The generator supplies the image title and generated
-notice; the introductory prose comes from this README.
-A shared heading can be a both block followed by separate frontend/backend content
-blocks. Leave subsection headings unmarked when they are only for organizing GitHub.
-These markers select content; they do not generate or publish files themselves.
+README.md is the canonical source for Docker Hub descriptions and shared book references.
+Only blocks marked dockerhub:both, dockerhub:backend or dockerhub:frontend are selected.
+Use matching start/end markers on separate lines; do not nest or overlap them.
+ANCHOR / ANCHOR_END comments let mdBook include shared sections directly.
+Keep environment variables, API reference and the Compose example here. Detailed
+explanations and onboarding live in docs/src/. Do not edit generated DOCKERHUB.md files.
 -->
 
 # caddy/ui
 
-A modern web interface for managing your [Caddy](https://caddyserver.com) server. Built from scratch in a single conversation with Claude.
+A modern, self-hosted web interface for managing your [Caddy](https://caddyserver.com) server. Built from scratch in a single conversation with Claude.
+
+![Status](https://img.shields.io/badge/status-active-00e5a0?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
+![Frontend](https://img.shields.io/badge/frontend-React-61dafb?style=flat-square)
+![Backend](https://img.shields.io/badge/backend-Node.js-339933?style=flat-square)
+
+<details>
+<summary>Docker image roles</summary>
 
 <!-- dockerhub:frontend:start -->
 The web frontend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-backend), a web interface for managing your [Caddy](https://caddyserver.com) server. Built with React and served via Nginx.
@@ -37,53 +30,31 @@ The API backend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-fronten
 
 > This is the **backend** image. You will also need the [frontend image](https://hub.docker.com/r/zackwag/caddy-ui-frontend).
 <!-- dockerhub:backend:end -->
+</details>
 
-![Dashboard](https://img.shields.io/badge/status-active-00e5a0?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
-![Frontend](https://img.shields.io/badge/frontend-React-61dafb?style=flat-square)
-![Backend](https://img.shields.io/badge/backend-Node.js-339933?style=flat-square)
-
+<!-- ANCHOR: overview -->
 <!-- dockerhub:both:start -->
 ## Overview
 
 caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker containers alongside your Caddy instance(s) and communicates with Caddy's built-in admin API. Your Caddyfile remains the source of truth — the UI reads from it, writes to it, and never takes ownership away from you. Manage one Caddy server or many from a single interface.
 
 <!-- dockerhub:both:end -->
+<!-- ANCHOR_END: overview -->
 
-## Screenshots
+Use caddy/ui to inspect server health, edit Caddyfiles, manage routes and TLS certificates,
+follow logs and metrics, and configure notifications from one place. It supports multiple
+instances, optional authentication, and responsive dark/light themes.
 
-### Dashboard
+![Dashboard](docs/src/screenshots/dashboard.png)
 
-![Dashboard](screenshots/dashboard.png)
+**[Read the documentation](https://zackwag.github.io/caddy-ui/)** ·
+[Browse the Markdown sources](docs/src/SUMMARY.md) ·
+[Contribute](CONTRIBUTING.md)
 
-### Caddyfile Editor
+<details>
+<summary>Full feature list</summary>
 
-![Caddyfile Editor](screenshots/caddyfile.png)
-
-### Route Manager
-
-![Route Manager](screenshots/routes.png)
-
-### TLS Certificates
-
-![TLS Certificates](screenshots/tls.png)
-
-### Access Logs
-
-![Access Logs](screenshots/logs.png)
-
-### Metrics
-
-![Metrics](screenshots/metrics.png)
-
-### Notifications
-
-![Notifications](screenshots/notifications.png)
-
-### Instances
-
-![Instances](screenshots/instances.png)
-
+<!-- ANCHOR: features -->
 <!-- dockerhub:both:start -->
 ## Features
 <!-- dockerhub:both:end -->
@@ -92,7 +63,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 <!-- dockerhub:frontend:start -->
 - **Dashboard** — Live server status, TLS state, an HTTP servers table (label, Server ID, listen address, route count) with optional labels, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
-- **Caddyfile Editor** — Edit your Caddyfile with [real Caddyfile-grammar syntax highlighting](#caddyfile-syntax-highlighting) (directives, matchers, placeholders, env vars — not a generic nginx approximation), live validation, `caddy fmt` formatting, automatic site block sorting, export/import, and full version history with inline preview and one-click rollback
+- **Caddyfile Editor** — Edit your Caddyfile with [real Caddyfile-grammar syntax highlighting](https://zackwag.github.io/caddy-ui/caddyfile.html#caddyfile-syntax-highlighting) (directives, matchers, placeholders, env vars — not a generic nginx approximation), live validation, `caddy fmt` formatting, automatic site block sorting, export/import, and full version history with inline preview and one-click rollback
 - **Route Manager** — View all reverse proxy routes across all HTTP servers, with a live health-status column (hover for uptime %), search/filter by domain, upstream, note, or server, sortable columns, a column picker to show/hide Title/Upstream/Server/ID, clickable domain and upstream links, edit routes in-place, and per-route notes
 - **TLS Certificates** — View cert status, expiry dates, and sortable columns for all managed domains. Detect and delete orphaned certs. Download Caddy's root CA cert with per-OS install instructions
 - **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, ERROR/WARN/INFO level filters, and log export
@@ -100,7 +71,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Metrics** — Request count, RPS, avg response time, status code breakdown, and p50/p95/p99 percentiles powered by Caddy's built-in Prometheus endpoint
 - **Uptime** — On the Metrics tab, uptime %, current state, and a status history timeline for every route's upstream, recorded every 30s in the background. Optional **route checks** also request each site through Caddy every 5 minutes (User-Agent `caddy-ui-route-check`), so a route counts as down when its upstream accepts connections but the site returns 5xx, times out, or serves a certificate a browser would reject (expired, wrong name, or not issued by a trusted CA — Caddy's own local CA is trusted automatically). An offline route shows why its last check failed, and routes that can't be checked meaningfully can be skipped individually. Route checks are off by default because those requests appear in Caddy's access logs and request metrics.
 - **Notifications** — Push alerts via ntfy, Discord, Slack, Pushover, or custom webhook when upstreams go offline/online, routes go down/recover (with route checks on), or TLS certs are expiring. Configurable debounce and per-trigger opt-in
-- **26 Themes + Custom Themes** — Choose from 13 dark and 13 light palettes (VT2026, Dracula, Nord, Catppuccin, Tokyo Night, Gruvbox, One Dark Pro, Solarized, Material, GitHub, Ayu, Night Owl, Metro, and more), or drop your own into [`THEMES_PATH`](#custom-themes) for a fully custom palette. Pick one palette for dark mode and one for light mode, then toggle between them with one click. First-run welcome modal helps new users choose. Preferences stored server-side in `settings.json`
+- **26 Themes + Custom Themes** — Choose from 13 dark and 13 light palettes (VT2026, Dracula, Nord, Catppuccin, Tokyo Night, Gruvbox, One Dark Pro, Solarized, Material, GitHub, Ayu, Night Owl, Metro, and more), or drop your own into [`THEMES_PATH`](https://zackwag.github.io/caddy-ui/themes.html#custom-themes) for a fully custom palette. Pick one palette for dark mode and one for light mode, then toggle between them with one click. First-run welcome modal helps new users choose. Preferences stored server-side in `settings.json`
 - **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
 - **Authentication** — Optional JWT-based login screen protecting the UI and authenticated API routes
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
@@ -135,7 +106,21 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - Structured JSON logging with configurable log level via `LOG_LEVEL`
 - Enriched status endpoint with route count, upstream health, and uptime for Homepage widget support
 <!-- dockerhub:backend:end -->
+<!-- ANCHOR_END: features -->
 
+</details>
+
+## Get started
+
+You need Docker Compose and a Caddy container with its admin API enabled inside your Docker network.
+Follow the [setup guide](https://zackwag.github.io/caddy-ui/setup.html) to configure Caddy,
+create the required directories, and deploy both caddy/ui containers. Then open
+`http://your-server:9877` and add or discover your instance.
+
+<details>
+<summary>Canonical Quick Start and Compose example</summary>
+
+<!-- ANCHOR: quick-start -->
 <!-- dockerhub:both:start -->
 ## Quick Start
 
@@ -241,7 +226,11 @@ docker compose up -d
 Open `http://your-server:9877` in your browser.
 
 <!-- dockerhub:both:end -->
+<!-- ANCHOR_END: quick-start -->
 
+</details>
+
+<!-- ANCHOR: architecture -->
 <!-- dockerhub:both:start -->
 ## Architecture
 caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
@@ -249,27 +238,24 @@ caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Ex
 In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
 
 <!-- dockerhub:both:end -->
+<!-- ANCHOR_END: architecture -->
 
-```mermaid
-graph LR
-    FE["caddy/ui frontend\nReact + Nginx\n:9877"]
-    BE["caddy/ui backend\nNode.js + Express\n:9876"]
-    DS[("Docker Socket\n/var/run/docker.sock")]
-    CA["Caddy\n:2019 admin API\n:80 / :443"]
-    UI_DATA[("caddy-ui data\n/etc/caddy-ui")]
+See the [architecture guide](https://zackwag.github.io/caddy-ui/architecture.html)
+for the service connections, and [instances](https://zackwag.github.io/caddy-ui/instances.html)
+for Docker and local-mode deployments.
 
-    FE -->|"/api/* proxy"| BE
-    BE -->|"admin API"| CA
-    BE -->|"upstream TCP checks + passive health pool"| CA
-    BE -->|"Prometheus metrics"| CA
-    BE -->|"/adapt validation"| CA
-    BE -->|"/pki/ca/local"| CA
-    BE <-->|"docker exec\nCaddyfile, logs, certs"| DS
-    DS <-->|"read / write / stream"| CA
-    BE <-->|"container discovery"| DS
-    BE <-->|"instances, history,\nnotes, settings, config"| UI_DATA
-```
+## Configuration and integrations
 
+The [configuration reference](https://zackwag.github.io/caddy-ui/configuration.html),
+[API reference](https://zackwag.github.io/caddy-ui/api.html), and
+[integration guides](https://zackwag.github.io/caddy-ui/integrations.html) organize the
+shared reference below, with additional guidance for [themes](https://zackwag.github.io/caddy-ui/themes.html)
+and [Caddyfile behavior](https://zackwag.github.io/caddy-ui/caddyfile.html).
+
+<details>
+<summary>Canonical environment variables, API and integration examples</summary>
+
+<!-- ANCHOR: environment-variables -->
 <!-- dockerhub:backend:start -->
 ## Environment Variables
 
@@ -279,7 +265,7 @@ All backend variables have sensible defaults. Only set what you need to override
 |----------|---------|-------------|
 | `APP_VERSION` | `dev` | caddy-ui's own version, exposed at `GET /api/version` and shown in the sidebar. Baked in automatically by the release build (`docker build --build-arg APP_VERSION=...`) — no need to set by hand unless building from source and want the UI to report a specific version. |
 | `CADDY_ADMIN_URL` | — | URL of Caddy's admin API. If set, a default instance is auto-created on first startup. If unset, caddy/ui starts with no instances and guides you through discovery. |
-| `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](#caddyfile-titles)) |
+| `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](https://zackwag.github.io/caddy-ui/caddyfile.html#caddyfile-titles)) |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the Caddy container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy Docker container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
@@ -292,7 +278,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
-| `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](#multi-instance)) |
+| `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://zackwag.github.io/caddy-ui/instances.html#multi-instance)) |
 | `JWT_SECRET` | — | Secret key for signing JWT tokens |
 | `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
 | `MAINTENANCE_PATH` | `/etc/caddy-ui/maintenance.json` | Path to the maintenance mode state file |
@@ -301,14 +287,17 @@ All backend variables have sensible defaults. Only set what you need to override
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
 | `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the per-instance server labels file |
 | `SETTINGS_PATH` | `/etc/caddy-ui/settings.json` | Path to the UI settings file (theme preferences, column visibility) |
-| `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](#custom-themes)) |
+| `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](https://zackwag.github.io/caddy-ui/themes.html#custom-themes)) |
 | `UPTIME_HISTORY_PATH` | `/etc/caddy-ui/uptime-history.json` | Path to the persisted upstream and route uptime history file |
 | `UPTIME_HISTORY_RETENTION_DAYS` | `7` | How many days of upstream and route health checks to retain |
 | `WWW_PATH` | `/etc/caddy-ui/www` | Directory for the maintenance page HTML file (created on first use) |
 | `NODE_EXTRA_CA_CERTS` | — | Path to a PEM bundle of extra CAs for route checks to trust, for sites with certificates from a private CA other than Caddy's local one (standard Node.js variable) |
 
 <!-- dockerhub:backend:end -->
+<!-- ANCHOR_END: environment-variables -->
 
+
+<!-- ANCHOR: authentication -->
 <!-- dockerhub:backend:start -->
 ## Authentication
 
@@ -316,141 +305,10 @@ Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`,
 
 `GET /api/auth/status` and `GET /api/version` remain public. `POST /api/auth/sessions` validates the configured credentials to issue a JWT; it does not require an existing token. With `CADDY_UI_PUBLIC_METRICS=true`, `GET /api/metrics` and `GET /api/metrics/raw` are also accessible without a JWT.
 <!-- dockerhub:backend:end -->
+<!-- ANCHOR_END: authentication -->
 
-## Custom Themes
 
-Drop your own palette in `THEMES_PATH` (`/etc/caddy-ui/themes` by default) — no rebuild or in-app editor needed. On startup, caddy/ui creates `themes/dark/` and `themes/light/` (with a template `README.md` in each) and scans both for `.json` files.
-
-The folder a file lives in determines whether it shows up under "Dark theme" or "Light theme" in the picker; the filename becomes its id. Each file needs a `label` and a `vars` object defining all 18 required CSS variables (colors for background, surface, borders, text, accents, and the Caddyfile editor) — see the generated `README.md` for the full schema and an example. Invalid or incomplete files are skipped and logged, not fatal to startup.
-
-## Multi-Instance
-
-caddy/ui can manage multiple Caddy instances from a single interface. There are two modes for accessing Caddy's files, and you can mix them per-instance:
-
-| | Docker mode | Local mode |
-|---|---|---|
-| **How it works** | `docker exec` via the Docker socket | Direct filesystem reads/writes |
-| **Volumes needed** | Docker socket only | Caddy's Caddyfile, logs, and data dirs mounted into the backend |
-| **Auto-discovery** | Yes | No |
-| **Container Name field** | Set to the Caddy container name | Leave empty |
-
-### Docker mode (recommended)
-
-Mount the Docker socket into the backend and let caddy/ui talk to Caddy containers via `docker exec`. No per-instance volume mounts needed.
-
-On first launch with no `CADDY_ADMIN_URL` set and no `instances.json`, caddy/ui starts with zero instances and redirects to the **Instances** page. From there:
-
-1. Click **Discover** — caddy/ui scans the Docker network for running Caddy containers
-2. Click **Add** on a discovered container — the form is pre-filled with the container's name, admin URL, and environment variables
-3. Review and save
-
-That's it. The instance appears in the sidebar and all pages load its data. Discovery also polls automatically every 30 seconds, so new containers appear on their own.
-
-To add more instances, put them on the same Docker network and they'll show up in discovery:
-
-```yaml
-  caddy-staging:
-    image: caddy:latest
-    container_name: caddy-staging
-    # ... ports, volumes, environment for the staging Caddy
-    networks:
-      - caddy-ui
-```
-
-### Local mode (no Docker socket)
-
-If you can't or don't want to mount the Docker socket, leave the **Container Name** field empty when adding an instance. caddy/ui will access Caddyfiles, logs, and certificates directly from the filesystem and use the bundled `caddy` binary for formatting, validation, and version detection. Reloads go through the instance's admin API.
-
-This requires mounting each Caddy instance's files into the backend container:
-
-```yaml
-  caddy-ui-backend:
-    volumes:
-      - /docker/caddy-ui:/etc/caddy-ui
-      - /docker/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - /docker/caddy/logs:/var/log/caddy
-      - /docker/caddy/data:/data
-```
-
-Mount each directory at the same path the Caddy container uses. The official Caddy image keeps its data in `/data/caddy` (certificates are in `/data/caddy/certificates`), so mounting the same host directory at `/data` lets the default **Data Path** of `/data/caddy` work unchanged. If you mount it elsewhere, point **Data Path** at the directory that contains `certificates`.
-
-Then add the instance manually on the Instances page with Container Name left empty. The paths in the instance config must match where the files are mounted in the backend container.
-
-> **Permissions:** The backend image runs as root, so it can read Caddy's files with no changes, including the private keys Caddy creates with owner-only permissions. You don't need to change the user Caddy runs as. If you run the backend as a non-root user (a `user:` setting, rootless Docker, or Podman), that user needs read access to Caddy's data directory and logs, and write access to the Caddyfile and the directory containing it (caddy/ui writes a temporary file there to validate edits). If the TLS page is empty, the backend log says whether the certificates path was missing or unreadable.
-
-> **Note:** When managing multiple instances in local mode, the mount paths can't collide. Two Caddy instances both using `/etc/caddy/Caddyfile` inside their own containers would need to be mounted to different paths in the backend (e.g., `/etc/caddy-prod/Caddyfile` and `/etc/caddy-staging/Caddyfile`). The same goes for data directories: only one instance can use `/data`, so mount another at e.g. `/data-staging` and set its **Data Path** to `/data-staging/caddy`.
-
-### Instance switcher
-
-When more than one instance is configured, an instance switcher dropdown appears in the sidebar showing each instance with its online/offline status. Switching instances navigates to the Dashboard and reloads all data from the selected instance.
-
-### Manual configuration
-
-Instances can also be configured via the REST API (`POST /api/instances`) or by placing an `instances.json` file at `/etc/caddy-ui/instances.json`:
-
-```json
-[
-  {
-    "id": "production",
-    "name": "Production",
-    "adminUrl": "http://caddy:2019",
-    "configPath": "/etc/caddy/Caddyfile",
-    "logPath": "/var/log/caddy/access.log",
-    "dataPath": "/data/caddy",
-    "containerName": "caddy",
-    "serverName": "srv0"
-  },
-  {
-    "id": "local-caddy",
-    "name": "Local Caddy",
-    "adminUrl": "http://localhost:2019",
-    "configPath": "/etc/caddy-local/Caddyfile",
-    "logPath": "/var/log/caddy-local/access.log",
-    "dataPath": "/data/caddy-local/caddy",
-    "containerName": "",
-    "serverName": "srv0"
-  }
-]
-```
-
-Set `containerName` to the Docker container name for Docker mode, or `""` for local mode.
-
-### Backward compatibility
-
-Setting `CADDY_ADMIN_URL` still creates a default instance on startup for existing deployments. Remove it to use discovery-based setup instead.
-
-## Caddyfile Titles
-
-When enabled, route titles are stored as `#` comments inside each site block in your Caddyfile instead of in `route-notes.json`. This keeps titles co-located with the routes they describe and follows caddy/ui's principle of using the Caddyfile as the source of truth.
-
-```caddyfile
-blog.example.com {
-    # My Blog
-    reverse_proxy 192.168.4.88:8250
-}
-```
-
-The first `#` comment inside a site block is treated as the title. It appears in the Route Manager search results and in the edit modal's Title field.
-
-**Auto-detection (default):** On startup, if `route-notes.json` has existing entries, Caddyfile titles are disabled so nothing changes. On a fresh install with no notes, it is enabled automatically.
-
-**Manual override:** Set the `CADDYFILE_TITLES` environment variable to `true` or `false` to force the behavior. When switching from `route-notes.json` to Caddyfile titles, existing notes will appear as the default title in the edit modal — save the route to write the title into the Caddyfile.
-
-## Environment Variables in Caddyfile
-
-Caddy supports `{$VAR_NAME}` syntax in the Caddyfile. Set the vars in your Caddy container's environment and they will be substituted at reload time:
-
-```caddyfile
-{
-    admin 0.0.0.0:2019
-    email {$EMAIL}
-}
-
-blog.{$DOMAIN} {
-    reverse_proxy 192.168.4.88:8250
-}
-```
-
+<!-- ANCHOR: prometheus-metrics -->
 <!-- dockerhub:backend:start -->
 ## Prometheus Metrics
 
@@ -478,7 +336,10 @@ Alongside Caddy's own metrics, the endpoint serves caddy-ui's upstream uptime hi
 
 Upstreams that haven't been checked in 5 minutes, and routes that haven't been checked in 12.5 minutes (2.5 route check intervals), are omitted: they've been removed from the config, skipped, or their instance is unreachable.
 <!-- dockerhub:backend:end -->
+<!-- ANCHOR_END: prometheus-metrics -->
 
+
+<!-- ANCHOR: homepage-widget -->
 <!-- dockerhub:backend:start -->
 ## Homepage Widget
 
@@ -511,7 +372,10 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
               format: text
 ```
 <!-- dockerhub:backend:end -->
+<!-- ANCHOR_END: homepage-widget -->
 
+
+<!-- ANCHOR: api-endpoints -->
 <!-- dockerhub:backend:start -->
 ## API Endpoints
 
@@ -558,22 +422,10 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | `PUT` | `/api/notifications/config` | Update notification settings |
 | `POST` | `/api/notifications/test` | Send a test notification |
 <!-- dockerhub:backend:end -->
+<!-- ANCHOR_END: api-endpoints -->
 
-## Building from Source
 
-```bash
-cd backend && docker build -t caddy-ui-backend .
-cd frontend && docker build -t caddy-ui-frontend .
-```
-
-The backend image copies the Caddy binary from `caddy:latest` at build time for `caddy fmt` formatting and version detection. To pin to a specific Caddy version, edit the first line of the backend Dockerfile before building:
-
-```dockerfile
-COPY --from=caddy:v2.11.2 /usr/bin/caddy /usr/bin/caddy
-```
-
-If you run Caddy outside of Docker (e.g. systemd), the backend will still work correctly — `caddy fmt` and version detection will degrade gracefully if the binary version doesn't match or is unavailable.
-
+<!-- ANCHOR: custom-nginx -->
 <!-- dockerhub:frontend:start -->
 ## Custom Nginx Config
 
@@ -585,98 +437,20 @@ volumes:
 ```
 
 <!-- dockerhub:frontend:end -->
+<!-- ANCHOR_END: custom-nginx -->
 
-## Caddyfile Syntax Highlighting
+</details>
 
-The editor's Caddyfile highlighting is a [CodeMirror 6](https://codemirror.net/) `StreamLanguage` mode generated from [**zackwag/caddyfile-codemirror**](https://github.com/zackwag/caddyfile-codemirror), a small companion repo that stays in sync — automatically, every day — with the Caddyfile keyword vocabulary (directives, global options, subdirectives, matcher names, and plugin vocabulary) from [**Sean Whalen**](https://github.com/seanthegeek)'s [**rouge-lexer-caddyfile**](https://github.com/seanthegeek/rouge-lexer-caddyfile), the [Rouge](http://rouge.jneen.net/) lexer Jekyll/GitHub Pages uses to highlight ` ```caddyfile ` code blocks. That gem is the actual research into Caddy's (and its most-downloaded plugins') documented syntax; the CodeMirror mode is a hand-written translation of its grammar into CodeMirror's token-stream API.
+## Docker images
 
-`frontend/scripts/fetch-caddyfile-mode.mjs` fetches the latest generated file at dev/build time (wired into `npm run dev` and `npm run build` via `predev`/`prebuild`), so `frontend/src/lib/caddyfileMode.js` is gitignored here rather than vendored by hand — it always reflects whatever `caddyfile-codemirror` last synced from the gem. If you're building offline, run `npm run dev`/`npm run build` once with connectivity first so the fetch has a local copy to fall back on.
-
-## Project Structure
-
-```text
-caddy-ui/
-├── backend/
-│   ├── src/
-│   │   ├── index.js
-│   │   ├── caddy.js
-│   │   ├── caddyfileTitles.js
-│   │   ├── containerFs.js         ← docker exec wrapper for file ops inside Caddy containers
-│   │   ├── docker.js
-│   │   ├── dockerDiscovery.js     ← auto-discover Caddy containers via Docker socket
-│   │   ├── instances.js
-│   │   ├── logger.js
-│   │   ├── notifications.js
-│   │   ├── settings.js
-│   │   ├── middleware/
-│   │   │   ├── auth.js
-│   │   │   └── instance.js
-│   │   └── routes/
-│   │       ├── auth.js
-│   │       ├── caddyfile.js
-│   │       ├── health.js
-│   │       ├── instances.js
-│   │       ├── logs.js
-│   │       ├── metrics.js
-│   │       ├── notifications.js
-│   │       ├── routenotes.js
-│   │       ├── routes.js
-│   │       ├── servernames.js
-│   │       ├── settings.js
-│   │       ├── status.js
-│   │       └── tls.js
-│   ├── Dockerfile
-│   ├── DOCKERHUB.md
-│   └── package.json
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── CaddyFile.jsx
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── Instances.jsx      ← instance management page with discovery
-│   │   │   ├── Login.jsx
-│   │   │   ├── Logs.jsx
-│   │   │   ├── Metrics.jsx
-│   │   │   ├── Notifications.jsx
-│   │   │   ├── Routes.jsx
-│   │   │   ├── Sidebar.jsx
-│   │   │   ├── ThemePicker.jsx
-│   │   │   ├── ThemeWelcome.jsx
-│   │   │   ├── TLS.jsx
-│   │   │   └── Toasts.jsx
-│   │   ├── hooks/
-│   │   │   ├── useClickOutside.js
-│   │   │   └── useInstanceStatus.js
-│   │   ├── utils/
-│   │   │   ├── api.js
-│   │   │   └── format.js
-│   │   ├── lib/
-│   │   │   └── caddyfileMode.js  (fetched at build time, gitignored)
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── styles.js
-│   ├── scripts/
-│   │   └── fetch-caddyfile-mode.mjs
-│   ├── Dockerfile
-│   ├── DOCKERHUB.md
-│   ├── nginx.conf
-│   ├── vite.config.js
-│   ├── index.html
-│   └── package.json
-├── .github/
-│   └── workflows/
-│       ├── beta.yml
-│       └── release.yml
-└── README.md
-```
-
-## Docker Hub
-
-| Image | Link |
-|-------|------|
+| Service | Image |
+|---------|-------|
 | Frontend | [zackwag/caddy-ui-frontend](https://hub.docker.com/r/zackwag/caddy-ui-frontend) |
 | Backend | [zackwag/caddy-ui-backend](https://hub.docker.com/r/zackwag/caddy-ui-backend) |
 
+Both images are required. The frontend serves the UI and proxies requests to the backend.
+
+<!-- ANCHOR: image-tags -->
 <!-- dockerhub:both:start -->
 ## Image Tags
 
@@ -689,31 +463,16 @@ See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
 for versioned image tags and release notes.
 
 <!-- dockerhub:both:end -->
+<!-- ANCHOR_END: image-tags -->
 
-## Changelog
+## Contributing
 
-Releases from `v1.18` onward are generated by [release-please](https://github.com/googleapis/release-please) from Conventional Commit PR titles — see [CHANGELOG.md](CHANGELOG.md). The table below covers earlier releases.
+You can contribute code, improve the documentation, or help with localization once its
+foundation is merged. Start with [CONTRIBUTING.md](CONTRIBUTING.md) to choose a path.
 
-| Version | Description |
-|---------|-------------|
-| `v1.17` | Report the running caddy-ui version via `GET /api/version` and the sidebar |
-| `v1.16` | Real Caddyfile-grammar syntax highlighting (directives, matchers, placeholders, env vars) in place of a generic nginx-mode approximation |
-| `v1.13` | `import` directive support in Caddyfile validation, reload, and sort; force-save option; validation timeout |
-| `v1.12` | Push notifications via ntfy, Discord, Slack, Pushover, or custom webhook; automated release workflow with Docker Hub sync |
-| `v1.11` | Caddy binary bundled, upstream pool health checks, CA download via admin API, simplified TLS cert deletion |
-| `v1.10.1` | Caddy `/adapt` API validation, Docker socket removal |
-| `v1.10` | React Router navigation, RESTful API audit, Homepage widget, enriched status endpoint |
-| `v1.9` | Dark/light theme, log export, root CA download, env var support in Caddyfile |
-| `v1.8` | Metrics tab, upstream uptime tracking |
-| `v1.7` | JWT auth, Caddy process info, metrics toggle, public metrics endpoint |
-| `v1.6` | Edit routes, route notes, Caddyfile syntax highlighting |
-| `v1.5` | Caddyfile version history, log search and level filters |
-| `v1.4` | Dashboard health summary, route search/filter, Caddyfile backup/restore |
-| `v1.3` | Upstream healthchecks, clickable domain/upstream links |
-| `v1.2` | TLS certificate tab, orphaned cert cleanup, mobile layout |
-| `v1.1` | Mobile responsive layout, hamburger menu |
-| `v1.0` | Initial release |
+## Releases and license
 
-## License
+See [GitHub releases](https://github.com/zackwag/caddy-ui/releases), [CHANGELOG.md](CHANGELOG.md),
+and the [earlier release history](https://zackwag.github.io/caddy-ui/releases.html#changelog).
 
-MIT
+MIT — see [LICENSE](LICENSE).

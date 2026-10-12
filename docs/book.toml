@@ -6,6 +6,8 @@ src = "src"
 
 [build]
 build-dir = "book"
+create-missing = false
+extra-watch-dirs = ["../README.md"]
 
 [output.html]
 theme = "theme"
@@ -14,6 +16,7 @@ preferred-dark-theme = "navy"
 additional-css = ["theme/palettes.css", "theme/caddy-ui.css"]
 no-section-label = true
 git-repository-url = "https://github.com/zackwag/caddy-ui"
+edit-url-template = "https://github.com/zackwag/caddy-ui/edit/main/docs/{path}"
 site-url = "/caddy-ui/"
 
 [output.html.playground]

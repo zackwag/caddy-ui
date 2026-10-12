@@ -149,9 +149,3 @@ frontend/src/lib/caddyfileMode.js
 
 # Generated mdBook output
 docs/book/
-docs/src/screenshots/
-docs/src/guide.md
-docs/src/contributing.md
-docs/theme/favicon.ico
-docs/theme/favicon.svg
-docs/theme/palettes.css
