@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { caddyGet } from '../caddy.js';
 import { execInInstance } from '../docker.js';
 import logger from '../logger.js';
+import { asAppError, errorChain } from '../AppError.js';
 import { checkInstanceUpstreams, resultsByUpstream } from '../upstreamChecks.js';
 
 const router = Router();
@@ -89,7 +90,9 @@ router.get('/', async (req, res) => {
             adminUrl,
         });
     } catch (err) {
-        res.json({ online: false, error: err.message });
+        const error = asAppError(err, 'CADDY_STATUS_UNAVAILABLE', { instanceId: req.instance.id });
+        logger.warn('Caddy status failed', { requestId: req.diagnosticId, code: error.code, causes: errorChain(error) });
+        res.json({ online: false, error: 'Caddy status unavailable', code: error.code });
     }
 });
 
@@ -118,7 +121,9 @@ router.get('/process', async (req, res) => {
 
         res.json({ ok: true, version, uptime, uptimeSeconds, memAlloc, memSys, lastReload, lastReloadSuccess });
     } catch (err) {
-        res.json({ ok: false, error: err.message });
+        const error = asAppError(err, 'METRICS_UNAVAILABLE', { instanceId: req.instance.id });
+        logger.warn('Caddy process metrics failed', { requestId: req.diagnosticId, code: error.code, causes: errorChain(error) });
+        res.json({ ok: false, error: 'Metrics unavailable', code: error.code });
     }
 });
 

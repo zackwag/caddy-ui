@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import logger from './logger.js';
+import { AppError, errorChain, publicError } from './AppError.js';
+import { errorDefinition } from './errorRegistry.js';
 
 export function errorCode(path, status) {
     if (status === 429) return 'RATE_LIMITED';
@@ -12,6 +14,14 @@ export function errorCode(path, status) {
     if (path.startsWith('/api/metrics') || path === '/api/status/process') return 'METRICS_UNAVAILABLE';
     if (path.startsWith('/api/status')) return 'CADDY_STATUS_UNAVAILABLE';
     return 'REQUEST_FAILED';
+}
+
+export function sendAppError(res, error) {
+    if (!(error instanceof AppError)) throw new TypeError('sendAppError expects AppError');
+    const definition = errorDefinition(error.code);
+    res.locals ??= {};
+    res.locals.appError = error;
+    return res.status(definition.status).json(publicError(error));
 }
 
 function details(body) {
@@ -36,11 +46,13 @@ export function diagnosticMiddleware(req, res, next) {
         if (!failed && !hasWarning) return originalJson(body);
         const code = body.code || errorCode(req.path, res.statusCode);
         const detail = details(body);
+        const appError = res.locals?.appError;
         const log = {
             requestId, code, method: req.method, path: req.path,
             status: res.statusCode, detail,
+            ...(appError ? { causes: errorChain(appError) } : {}),
         };
-        if (failed) logger[res.statusCode >= 500 || softFailure ? 'error' : 'warn']('API request failed', log);
+        if (failed) logger[appError ? errorDefinition(appError.code).level : (res.statusCode >= 500 || softFailure ? 'error' : 'warn')]('API request failed', log);
         else logger.warn('API returned a warning', log);
         return originalJson({
             ...body,
