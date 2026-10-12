@@ -1,0 +1,20 @@
+[book]
+title = "caddy/ui Documentation"
+authors = ["caddy/ui contributors"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+theme = "theme"
+default-theme = "light"
+preferred-dark-theme = "navy"
+additional-css = ["theme/palettes.css", "theme/caddy-ui.css"]
+no-section-label = true
+git-repository-url = "https://github.com/zackwag/caddy-ui"
+site-url = "/caddy-ui/"
+
+[output.html.playground]
+runnable = false
