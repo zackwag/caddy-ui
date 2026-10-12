@@ -13,6 +13,8 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
         if (!container || !primaryMinimum || !secondaryMinimum || !divider) return;
 
         const measure = () => {
+            // Fixed-height layouts hide the divider; keep the desktop split preference intact.
+            if (!divider.getClientRects().length) return;
             const available = container.clientHeight - divider.offsetHeight;
             if (available <= 0) return;
             // Leave room for the controls and content in each pane.
@@ -26,6 +28,7 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
         };
         const observer = new ResizeObserver(measure);
         observer.observe(container);
+        observer.observe(divider);
         observer.observe(primaryMinimum);
         observer.observe(secondaryMinimum);
         if (secondaryControls) observer.observe(secondaryControls);

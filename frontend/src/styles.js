@@ -2177,13 +2177,18 @@ export const css = `
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-  @media (max-height: 480px) {
-    .content:has(.caddyfile-page) { padding-top: 4px; padding-bottom: 4px; }
-    .caddyfile-page .editor-toolbar { flex-wrap: nowrap; }
-    .caddyfile-page .editor-toolbar > .btn-row:first-child { flex-direction: column; align-items: flex-start; }
-    .caddyfile-page .editor-toolbar-actions { flex: 1; min-width: 0; }
-    .history-detail { padding-top: 6px; padding-bottom: 6px; }
-    .caddyfile-history-controls { --pane-content-reserve: 86; }
+  /* Stack fixed-size panes when a viewport or input device makes dragging impractical. */
+  @media (max-width: 1024px), (pointer: coarse), (max-height: 480px) {
+    .caddyfile-page, .caddyfile-page--history {
+      display: flex;
+      flex-direction: column;
+      height: auto;
+      min-height: 100%;
+      gap: 16px;
+    }
+    .caddyfile-page > .editor-wrap { flex: 0 0 480px; height: 480px; }
+    .caddyfile-history { flex: 0 0 400px; height: 400px; }
+    .caddyfile-page > .pane-divider { display: none; }
   }
 
   @media (max-width: 768px) {
