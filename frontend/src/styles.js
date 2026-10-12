@@ -1071,7 +1071,27 @@ export const css = `
   .caddyfile-editor { flex: 1; min-height: 0; overflow: hidden; background: var(--editor-bg); }
   .caddyfile-editor .cm-editor { height: 100%; min-height: 0; }
   .caddyfile-page .editor-toolbar { flex-shrink: 0; }
-  .caddyfile-history { flex-shrink: 0; max-height: 40%; overflow-y: auto; }
+  .caddyfile-page--history {
+    display: grid;
+    grid-template-rows: minmax(0, var(--editor-share)) 16px minmax(0, var(--history-share));
+    gap: 0;
+  }
+  .caddyfile-history { min-height: 0; overflow-y: auto; }
+  .caddyfile-history .history-preview { max-height: none; }
+
+  .pane-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+    border-radius: 3px;
+  }
+  .pane-divider::after { content: ''; width: 40px; height: 3px; border-top: 1px solid var(--border2); border-bottom: 1px solid var(--border2); }
+  .pane-divider:hover, .pane-divider:active { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .pane-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .pane-divider:hover::after, .pane-divider:focus-visible::after { border-color: var(--accent); }
 
   .editor-toolbar {
     display: flex;

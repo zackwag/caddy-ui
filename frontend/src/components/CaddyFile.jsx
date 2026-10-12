@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import PaneDivider from "./PaneDivider.jsx";
 import { apiFetch, getToken } from "../utils/api.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
@@ -126,6 +127,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [runFmt, setRunFmt] = useState(true);
     const [runSort, setRunSort] = useState(true);
     const [historyOpen, setHistoryOpen] = useState(false);
+    const [editorShare, setEditorShare] = useState(60);
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [previewEntry, setPreviewEntry] = useState(null);
@@ -135,7 +137,9 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [compareContent, setCompareContent] = useState(null);
     const snapshotCache = useRef(new Map());
     const importInputRef = useRef(null);
-    const historyRef = useRef(null);
+    const pageRef = useRef(null);
+    const toolbarRef = useRef(null);
+    const historyHeaderRef = useRef(null);
 
     useEffect(() => {
         apiFetch("/caddyfile", {}, onUnauth)
@@ -153,7 +157,6 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const toggleHistory = () => {
         if (!historyOpen) {
             loadHistory();
-            setTimeout(() => historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
         }
         setHistoryOpen(o => !o);
         setPreviewEntry(null);
@@ -276,10 +279,14 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     if (loading) return <div className="loading">Loading Caddyfile...</div>;
 
     return (
-        <div className="gap-16 caddyfile-page">
-            <div className="editor-wrap">
+        <div
+            ref={pageRef}
+            className={`gap-16 caddyfile-page${historyOpen ? " caddyfile-page--history" : ""}`}
+            style={{ "--editor-share": `${editorShare}fr`, "--history-share": `${100 - editorShare}fr` }}
+        >
+            <div id="caddyfile-editor-pane" className="editor-wrap">
                 <CaddyfileCodeMirror value={content} onChange={setContent} theme={theme} />
-                <div className="editor-toolbar">
+                <div ref={toolbarRef} className="editor-toolbar">
                     <div className="btn-row">
                         <label className="editor-checkbox-label">
                             <input type="checkbox" className="editor-checkbox" checked={runFmt} onChange={e => setRunFmt(e.target.checked)} />
@@ -306,8 +313,18 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             </div>
 
             {historyOpen && (
-                <div ref={historyRef} className="card card-flush caddyfile-history">
-                    <div className="card-header">
+                <PaneDivider
+                    containerRef={pageRef}
+                    primaryMinimumRef={toolbarRef}
+                    secondaryMinimumRef={historyHeaderRef}
+                    primaryPaneId="caddyfile-editor-pane"
+                    value={editorShare}
+                    onChange={setEditorShare}
+                />
+            )}
+            {historyOpen && (
+                <div className="card card-flush caddyfile-history">
+                    <div ref={historyHeaderRef} className="card-header">
                         <span className="section-label">Version History</span>
                         <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}>↺ Refresh</button>
                     </div>
