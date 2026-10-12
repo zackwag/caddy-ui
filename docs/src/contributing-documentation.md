@@ -33,6 +33,7 @@ includes and produces the final sidebar and pages.
 | Screenshots | `docs/src/screenshots/` |
 | Page order and nesting | `docs/src/SUMMARY.md` |
 | Documentation theme | `docs/theme/` |
+| Comments beside paths in the generated project tree | `docs/project-structure-notes.json` |
 
 The book uses mdBook's built-in includes for shared references. Those references
 are authored once in the README; edit the original section there. Leave the
@@ -48,7 +49,8 @@ select excerpts for the book. Never edit `backend/DOCKERHUB.md` or
 Work in a checkout of your fork. Install the prebuilt
 [mdBook 0.5.4 binary for your environment](https://github.com/rust-lang/mdBook/releases/tag/v0.5.4)
 and put it on your `PATH`. For a Linux devcontainer or WSL, use the Linux binary;
-for a native Windows terminal, use the Windows binary.
+for a native Windows terminal, use the Windows binary. Install Node.js 22.12 or newer
+and run `npm ci --prefix docs --ignore-scripts` once before building or serving.
 
 From the repository root:
 
@@ -75,6 +77,12 @@ node .github/scripts/dockerhub-docs.mjs --dry-run
 ```
 
 ## Make the change easy to review
+
+Use fenced `mermaid` code blocks for diagrams. They render locally in the book
+and follow the selected light/dark theme; preview diagrams in the built book.
+The project tree is generated automatically. Add file/directory comments in
+`docs/project-structure-notes.json`, keyed by repository-relative path (directories
+end in `/`). Builds preserve these annotations; update the key after a rename.
 
 - Keep examples runnable and state any deployment assumptions.
 - Preserve code indentation, environment-variable names, and paths exactly.

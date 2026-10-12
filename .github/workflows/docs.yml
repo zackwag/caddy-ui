@@ -41,6 +41,12 @@ jobs:
           tar -xzf "$RUNNER_TEMP/mdbook.tar.gz" -C "$RUNNER_TEMP/mdbook-bin"
           echo "$RUNNER_TEMP/mdbook-bin" >> "$GITHUB_PATH"
 
+      - name: Install documentation dependencies
+        run: npm ci --prefix docs --ignore-scripts
+
+      - name: Test documentation tooling
+        run: npm test --prefix docs
+
       - name: Build documentation
         env:
           REPOSITORY_NAME: ${{ github.event.repository.name }}

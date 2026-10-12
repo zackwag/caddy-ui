@@ -45,7 +45,7 @@ There is no frontend test suite and no repo-wide lint/format command — `backen
 
 ## Generated Docker Hub documentation
 
-- Detailed documentation is authored in `docs/src/`, with navigation in `docs/src/SUMMARY.md`. Build it directly with `mdbook build docs`; no preparation script is needed. Environment variables, API endpoints, the Compose example, and Docker Hub source blocks remain canonical in `README.md` and are included by book pages using named anchors.
+- Detailed documentation is authored in `docs/src/`, with navigation in `docs/src/SUMMARY.md`. Install documentation dependencies once with `npm ci --prefix docs --ignore-scripts`, then build directly with `mdbook build docs`; no preparation script is needed. Node.js runs the project-tree preprocessor. Persistent tree annotations live in `docs/project-structure-notes.json`. Mermaid is served locally from the pinned documentation dependency. Run `npm test --prefix docs` when changing documentation tooling. Environment variables, API endpoints, the Compose example, and Docker Hub source blocks remain canonical in `README.md` and are included by book pages using named anchors.
 
 - **Never manually edit `backend/DOCKERHUB.md` or `frontend/DOCKERHUB.md`.** They are generated from the marked blocks in the canonical `README.md` by `.github/scripts/dockerhub-docs.mjs`; manual changes are overwritten on regeneration.
 - Edit the source text and `dockerhub:both`, `dockerhub:backend`, or `dockerhub:frontend` routing markers in `README.md` instead. The leading README comment explains the marker rules. Output framing is maintained in the generator.

@@ -33,6 +33,31 @@ body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
 .menu-title { font-size: 1.6rem; font-weight: 500; }
 .menu-bar { border-bottom: 1px solid var(--app-border); background: var(--app-surface); }
 .sidebar { border-right: 1px solid var(--app-border); }
+.sidebar-brand {
+    display: block;
+    padding: 20px 10px 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--app-border);
+    text-decoration: none;
+}
+.sidebar-wordmark {
+    display: block;
+    font-family: var(--mono-font);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--app-accent);
+}
+.sidebar-brand-subtitle {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--fg);
+}
+.mermaid { overflow-x: auto; margin: 1.5rem 0; text-align: center; }
+.mermaid svg { height: auto; }
 .chapter li { line-height: 2; }
 .chapter li a.active { font-weight: 600; }
 .content { max-width: 1000px; }

@@ -8,14 +8,21 @@ The root README remains canonical for environment variables, API endpoints, the
 Compose example, and all content selected for Docker Hub. Book reference pages
 use mdBook's built-in `{{#include}}` syntax with named `ANCHOR` / `ANCHOR_END`
 regions in `README.md`. Edit the shared source there; write detailed explanations
-and contribution guides in the book. There is no preparation or generation script
-for the book.
+and contribution guides in the book. The project-tree preprocessor generates the
+repository overview during each build; no separate preparation command is needed.
 
 ## Build and preview
 
 Install the prebuilt [mdBook 0.5.4 binary](https://github.com/rust-lang/mdBook/releases/tag/v0.5.4)
-for your environment and put it on your `PATH`. No Node.js packages or Rust toolchain
-are needed to build the documentation.
+for your environment and put it on your `PATH`. Install Node.js 22.12 or newer, then
+install the pinned Mermaid dependency once (repeat after lockfile changes):
+
+```sh
+npm ci --prefix docs --ignore-scripts
+```
+
+No Rust toolchain or extra mdBook plugin binary is needed. Mermaid's standalone
+browser bundle is copied into the book, so published diagrams work offline.
 
 From the repository root:
 
@@ -41,9 +48,29 @@ at migration time. Keep those tokens in sync when changing the frontend defaults
 `docs/theme/caddy-ui.css` maps those tokens to mdBook controls and layout rules.
 Fonts use the frontend families with local system fallbacks.
 
-Only rendered `docs/book/` output is ignored by Git. Source pages and assets are
-checked in. The existing Mermaid diagram remains a code block in this initial
-book; a renderer can be added separately.
+Source pages and assets are checked in; rendered `docs/book/` output and installed
+`node_modules/` are ignored by Git. Mermaid code fences render as diagrams and
+follow the light/dark theme. Invalid diagrams fall back to readable source and
+report the error in the browser console.
+
+## Generated project structure
+
+`docs/src/project-structure.md` contains a `{{#project-structure}}` placeholder.
+`docs/scripts/project-structure.mjs` expands it during `mdbook build` and `serve`,
+using tracked and new non-ignored repository files. Deleted files disappear;
+dependencies, generated output, and ignored files are excluded.
+
+Add annotations in `docs/project-structure-notes.json`, using repository-relative
+paths as keys and a trailing slash for directories. Existing annotations survive
+every build because the preprocessor never rewrites that file. Notes for absent
+paths remain stored but are not displayed; update their keys when renaming files.
+Explanations outside the placeholder in the Markdown page are also preserved.
+Source directories are watched during `mdbook serve`; run a build after changing
+files outside those watched directories.
+
+```sh
+npm test --prefix docs
+```
 
 ## GitHub Pages
 
