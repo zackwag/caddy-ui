@@ -53,7 +53,7 @@ export default {
             '^NO_INSTANCES$',
 
             // Log source IDs, query parameter and export filename prefixes.
-            '^(app|caddy|caddyui|dist|caddy-access|caddy-ui)$',
+            '^(app|caddy|dist|caddy-access|caddy-ui)$',
 
             // DOM and browser storage identifiers
             '^root$',

@@ -1,5 +1,5 @@
-// Query values are public links; "app" is the existing internal source ID.
+// Link destinations use the same IDs as the log source selector.
 export function resolveLogSource(search, noInstances = false) {
     if (noInstances) return 'app';
-    return new URLSearchParams(search).get('dist') === 'caddyui' ? 'app' : 'caddy';
+    return new URLSearchParams(search).get('dist') === 'app' ? 'app' : 'caddy';
 }
