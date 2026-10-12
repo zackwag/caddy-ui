@@ -102,7 +102,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Notifications** — Push alerts via ntfy, Discord, Slack, Pushover, or custom webhook when upstreams go offline/online, routes go down/recover (with route checks on), or TLS certs are expiring. Configurable debounce and per-trigger opt-in
 - **26 Themes + Custom Themes** — Choose from 13 dark and 13 light palettes (VT2026, Dracula, Nord, Catppuccin, Tokyo Night, Gruvbox, One Dark Pro, Solarized, Material, GitHub, Ayu, Night Owl, Metro, and more), or drop your own into [`THEMES_PATH`](#custom-themes) for a fully custom palette. Pick one palette for dark mode and one for light mode, then toggle between them with one click. First-run welcome modal helps new users choose. Preferences stored server-side in `settings.json`
 - **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
-- **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
+- **Authentication** — Optional JWT-based login screen protecting the UI and authenticated API routes
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 <!-- dockerhub:frontend:end -->
@@ -128,7 +128,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - Tails and streams access logs via SSE
 - Parses and updates log configuration in the global Caddyfile block
 - Persists server labels and route notes to disk
-- Optional JWT authentication protecting all API endpoints
+- Optional JWT authentication for protected API endpoints
 - Caddy process info and HTTP metrics via Prometheus endpoint
 - Metrics enable/disable toggle that modifies the Caddyfile global block
 - Optional public `/api/metrics/raw` endpoint for Prometheus scraping
@@ -312,7 +312,9 @@ All backend variables have sensible defaults. Only set what you need to override
 <!-- dockerhub:backend:start -->
 ## Authentication
 
-Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. All API endpoints are protected and the login screen appears automatically.
+Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. When enabled, protected API endpoints require a valid JWT and the login screen appears automatically.
+
+`GET /api/auth/status` and `GET /api/version` remain public. `POST /api/auth/sessions` validates the configured credentials to issue a JWT; it does not require an existing token. With `CADDY_UI_PUBLIC_METRICS=true`, `GET /api/metrics` and `GET /api/metrics/raw` are also accessible without a JWT.
 <!-- dockerhub:backend:end -->
 
 ## Custom Themes
@@ -676,7 +678,7 @@ caddy-ui/
 | Backend | [zackwag/caddy-ui-backend](https://hub.docker.com/r/zackwag/caddy-ui-backend) |
 
 <!-- dockerhub:both:start -->
-### Image Tags
+## Image Tags
 
 | Tag | Description |
 |-----|-------------|
