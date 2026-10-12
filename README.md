@@ -84,8 +84,13 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 
 ![Instances](screenshots/instances.png)
 
+<!-- dockerhub:both:start -->
 ## Features
+<!-- dockerhub:both:end -->
 
+### Frontend
+
+<!-- dockerhub:frontend:start -->
 - **Dashboard** — Live server status, TLS state, an HTTP servers table (label, Server ID, listen address, route count) with optional labels, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
 - **Caddyfile Editor** — Edit your Caddyfile with [real Caddyfile-grammar syntax highlighting](#caddyfile-syntax-highlighting) (directives, matchers, placeholders, env vars — not a generic nginx approximation), live validation, `caddy fmt` formatting, automatic site block sorting, export/import, and full version history with inline preview and one-click rollback
 - **Route Manager** — View all reverse proxy routes across all HTTP servers, with a live health-status column (hover for uptime %), search/filter by domain, upstream, note, or server, sortable columns, a column picker to show/hide Title/Upstream/Server/ID, clickable domain and upstream links, edit routes in-place, and per-route notes
@@ -100,35 +105,38 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Authentication** — Optional JWT-based login screen protecting the UI and all API endpoints
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
+<!-- dockerhub:frontend:end -->
+
+### Backend
+
+<!-- dockerhub:backend:start -->
+- Proxies requests to Caddy's admin API (`/config`, `/id`, `/load`)
+- Reads and writes the Caddyfile on disk
+- Runs `caddy validate` via Caddy's `/adapt` admin API endpoint
+- Runs `caddy fmt` and detects Caddy version via `docker exec` into the running Caddy container (requires Docker socket mount)
+- Sorts Caddyfile site blocks on save (public → internal → http)
+- Appends, updates, and removes site blocks when routes are managed via the UI
+- Fetches routes from all HTTP servers with recursive upstream extraction for complex route structures
+- Health checks use Caddy's reverse proxy upstream pool API as primary source, with TCP fallback for upstreams not yet in the pool
+- Persisted per-upstream uptime history with a configurable retention window (default 7 days)
+- Push notifications via ntfy, Discord, Slack, Pushover, or custom webhook — triggered on upstream offline/online and cert expiry
+- Configurable notification debounce to suppress repeat alerts
+- Reads TLS certificate files from disk and parses expiry dates
+- Detects and deletes orphaned, superseded, and expired certificates (resolves issuer directory automatically)
+- Root CA cert download via Caddy's `/pki/ca/local` admin API
+- Automatic Caddyfile snapshots on every save with configurable retention
+- Tails and streams access logs via SSE
+- Parses and updates log configuration in the global Caddyfile block
+- Persists server labels and route notes to disk
+- Optional JWT authentication protecting all API endpoints
+- Caddy process info and HTTP metrics via Prometheus endpoint
+- Metrics enable/disable toggle that modifies the Caddyfile global block
+- Optional public `/api/metrics/raw` endpoint for Prometheus scraping
+- Structured JSON logging with configurable log level via `LOG_LEVEL`
+- Enriched status endpoint with route count, upstream health, and uptime for Homepage widget support
+<!-- dockerhub:backend:end -->
 
 <!-- dockerhub:both:start -->
-## Architecture
-caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
-
-In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
-
-<!-- dockerhub:both:end -->
-
-```mermaid
-graph LR
-    FE["caddy/ui frontend\nReact + Nginx\n:9877"]
-    BE["caddy/ui backend\nNode.js + Express\n:9876"]
-    DS[("Docker Socket\n/var/run/docker.sock")]
-    CA["Caddy\n:2019 admin API\n:80 / :443"]
-    UI_DATA[("caddy-ui data\n/etc/caddy-ui")]
-
-    FE -->|"/api/* proxy"| BE
-    BE -->|"admin API"| CA
-    BE -->|"upstream TCP checks + passive health pool"| CA
-    BE -->|"Prometheus metrics"| CA
-    BE -->|"/adapt validation"| CA
-    BE -->|"/pki/ca/local"| CA
-    BE <-->|"docker exec\nCaddyfile, logs, certs"| DS
-    DS <-->|"read / write / stream"| CA
-    BE <-->|"container discovery"| DS
-    BE <-->|"instances, history,\nnotes, settings, config"| UI_DATA
-```
-
 ## Quick Start
 
 ### Prerequisites
@@ -231,6 +239,36 @@ docker compose up -d
 ```
 
 Open `http://your-server:9877` in your browser.
+
+<!-- dockerhub:both:end -->
+
+<!-- dockerhub:both:start -->
+## Architecture
+caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
+
+In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
+
+<!-- dockerhub:both:end -->
+
+```mermaid
+graph LR
+    FE["caddy/ui frontend\nReact + Nginx\n:9877"]
+    BE["caddy/ui backend\nNode.js + Express\n:9876"]
+    DS[("Docker Socket\n/var/run/docker.sock")]
+    CA["Caddy\n:2019 admin API\n:80 / :443"]
+    UI_DATA[("caddy-ui data\n/etc/caddy-ui")]
+
+    FE -->|"/api/* proxy"| BE
+    BE -->|"admin API"| CA
+    BE -->|"upstream TCP checks + passive health pool"| CA
+    BE -->|"Prometheus metrics"| CA
+    BE -->|"/adapt validation"| CA
+    BE -->|"/pki/ca/local"| CA
+    BE <-->|"docker exec\nCaddyfile, logs, certs"| DS
+    DS <-->|"read / write / stream"| CA
+    BE <-->|"container discovery"| DS
+    BE <-->|"instances, history,\nnotes, settings, config"| UI_DATA
+```
 
 <!-- dockerhub:backend:start -->
 ## Environment Variables
