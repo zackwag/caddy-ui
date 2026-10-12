@@ -63,6 +63,11 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
 ## Architecture
+<!-- dockerhub:architecture:start -->
+caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
+
+In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
+<!-- dockerhub:architecture:end -->
 
 ```mermaid
 graph LR
@@ -418,6 +423,51 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
               format: text
 ```
 
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/sessions` | Authenticate and receive a JWT token |
+| `GET` | `/api/auth/status` | Check if auth is enabled |
+| `GET` | `/api/metrics` | Parsed HTTP metrics for the Metrics tab |
+| `GET` | `/api/metrics/config` | Check if Caddy metrics directive is enabled |
+| `PUT` | `/api/metrics/config` | Enable or disable Caddy metrics directive |
+| `GET` | `/api/metrics/raw` | Raw Prometheus metrics (public if `CADDY_UI_PUBLIC_METRICS=true`) |
+| `GET` | `/api/status` | Server status, route count, upstream health, and uptime |
+| `GET` | `/api/status/caddy-config` | Full raw Caddy JSON config |
+| `GET` | `/api/status/process` | Caddy process info including version |
+| `GET` | `/api/caddyfile` | Read Caddyfile from disk |
+| `GET` | `/api/caddyfile?download=true` | Download Caddyfile as a timestamped attachment |
+| `PUT` | `/api/caddyfile` | Save, validate, format, and reload |
+| `POST` | `/api/caddyfile/validations` | Validate (and optionally format) without saving |
+| `POST` | `/api/caddyfile/reloads` | Reload Caddy from disk |
+| `GET` | `/api/caddyfile/history` | List all Caddyfile snapshots |
+| `GET` | `/api/caddyfile/history/:filename` | Read a specific snapshot |
+| `DELETE` | `/api/caddyfile/history/:filename` | Delete a snapshot |
+| `GET` | `/api/routes` | List all routes across all HTTP servers |
+| `POST` | `/api/routes` | Add a reverse proxy route |
+| `PATCH` | `/api/routes/:id` | Update a UI-managed route by ID |
+| `DELETE` | `/api/routes/:id` | Remove a route and its Caddyfile block |
+| `GET` | `/api/route-notes` | Read all route notes |
+| `PUT` | `/api/route-notes/:domain` | Set or clear a route note |
+| `GET` | `/api/health` | Check upstream health via Caddy pool API with TCP fallback |
+| `GET` | `/api/health/uptime` | Uptime stats per upstream from persisted history |
+| `GET` | `/api/health/history` | Raw timestamped checks for one upstream, for the route status history view |
+| `GET` | `/api/tls` | List all certificates with expiry and status |
+| `DELETE` | `/api/tls/:domain` | Delete an orphaned, superseded, or expired internal cert |
+| `GET` | `/api/tls/ca` | Download Caddy's root CA certificate |
+| `GET` | `/api/logs` | Last 200 lines of the access log |
+| `GET` | `/api/logs/stream` | SSE stream of live log output |
+| `GET` | `/api/logs/config` | Read log configuration |
+| `PUT` | `/api/logs/config` | Update log configuration |
+| `GET` | `/api/server-names` | Read server labels for the selected instance |
+| `GET` | `/api/server-names/all` | Read server labels for every instance |
+| `PUT` | `/api/server-names/:id` | Set a server label |
+| `DELETE` | `/api/server-names/:id` | Remove a server label |
+| `GET` | `/api/notifications/config` | Read notification settings |
+| `PUT` | `/api/notifications/config` | Update notification settings |
+| `POST` | `/api/notifications/test` | Send a test notification |
+
 ## Building from Source
 
 ```bash
@@ -432,6 +482,15 @@ COPY --from=caddy:v2.11.2 /usr/bin/caddy /usr/bin/caddy
 ```
 
 If you run Caddy outside of Docker (e.g. systemd), the backend will still work correctly — `caddy fmt` and version detection will degrade gracefully if the binary version doesn't match or is unavailable.
+
+## Custom Nginx Config
+
+The frontend proxies API requests to `caddy-ui-backend:3001` by default. This configuration also applies to prebuilt images. If your backend has a different hostname or port, mount a custom Nginx config:
+
+```yaml
+volumes:
+  - ./nginx.conf:/etc/nginx/conf.d/default.conf
+```
 
 ## Caddyfile Syntax Highlighting
 
@@ -523,6 +582,16 @@ caddy-ui/
 |-------|------|
 | Frontend | [zackwag/caddy-ui-frontend](https://hub.docker.com/r/zackwag/caddy-ui-frontend) |
 | Backend | [zackwag/caddy-ui-backend](https://hub.docker.com/r/zackwag/caddy-ui-backend) |
+
+### Image Tags
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Most recent stable build |
+| `edge` | Build from `main`; may contain unreleased changes |
+
+See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
+for versioned image tags and release notes.
 
 ## Changelog
 
