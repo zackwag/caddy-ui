@@ -63,11 +63,9 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
 ## Architecture
-<!-- dockerhub:architecture:start -->
 caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
 
 In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
-<!-- dockerhub:architecture:end -->
 
 ```mermaid
 graph LR
