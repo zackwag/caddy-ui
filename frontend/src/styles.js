@@ -1065,6 +1065,14 @@ export const css = `
     overflow: hidden;
   }
 
+  /* Flex sizing uses the content area below the topbar, including its padding. */
+  .caddyfile-page { height: 100%; min-height: 0; }
+  .caddyfile-page > .editor-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .caddyfile-editor { flex: 1; min-height: 0; overflow: hidden; background: var(--editor-bg); }
+  .caddyfile-editor .cm-editor { height: 100%; min-height: 0; }
+  .caddyfile-page .editor-toolbar { flex-shrink: 0; }
+  .caddyfile-history { flex-shrink: 0; max-height: 40%; overflow-y: auto; }
+
   .editor-toolbar {
     display: flex;
     align-items: center;

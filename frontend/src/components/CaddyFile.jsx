@@ -13,6 +13,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
     useEffect(() => {
         if (!containerRef.current) return;
         let view;
+        let cancelled = false;
 
         async function init() {
             const { EditorView, keymap, lineNumbers, highlightActiveLineGutter, drawSelection, highlightSpecialChars } = await import("@codemirror/view");
@@ -21,6 +22,8 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
             const { StreamLanguage, syntaxHighlighting, indentOnInput, bracketMatching } = await import("@codemirror/language");
             const { classHighlighter } = await import("@lezer/highlight");
             const { caddyfile } = await import("../lib/caddyfileMode.js");
+
+            if (cancelled) return;
 
             const isDark = theme === 'dark';
 
@@ -69,7 +72,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
         }
 
         init();
-        return () => { view?.destroy(); viewRef.current = null; };
+        return () => { cancelled = true; view?.destroy(); viewRef.current = null; };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme change; including `value` would tear it down on every keystroke
     }, [theme]);
 
@@ -80,7 +83,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
         if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
     }, [value]);
 
-    return <div ref={containerRef} style={{ minHeight: 420, background: "var(--editor-bg)" }} />;
+    return <div ref={containerRef} className="caddyfile-editor" />;
 }
 
 function CaddyfileDiff({ oldText, newText }) {
@@ -273,7 +276,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     if (loading) return <div className="loading">Loading Caddyfile...</div>;
 
     return (
-        <div className="gap-16">
+        <div className="gap-16 caddyfile-page">
             <div className="editor-wrap">
                 <CaddyfileCodeMirror value={content} onChange={setContent} theme={theme} />
                 <div className="editor-toolbar">
@@ -303,7 +306,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             </div>
 
             {historyOpen && (
-                <div ref={historyRef} className="card card-flush">
+                <div ref={historyRef} className="card card-flush caddyfile-history">
                     <div className="card-header">
                         <span className="section-label">Version History</span>
                         <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}>↺ Refresh</button>
