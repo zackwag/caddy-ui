@@ -1,7 +1,17 @@
 <!--
 README.md is the canonical source for Docker Hub descriptions and shared book references.
-Only blocks marked dockerhub:both, dockerhub:backend or dockerhub:frontend are selected.
-Use matching start/end markers on separate lines; do not nest or overlap them.
+
+Docker Hub routing — only blocks marked dockerhub:both, dockerhub:backend or
+dockerhub:frontend are selected. Use matching start/end markers on separate lines;
+do not nest or overlap them. Include headings inside a block if they should appear in
+the generated page. Blocks may repeat and are collected in README order. Keep
+start/end markers outside fenced code blocks. Close a block before detailed content
+that should stay on GitHub (for example, the Mermaid diagram). Image-specific
+introductions and companion-image notices are marked frontend or backend near the
+document title. The generator supplies the image title and generated notice; the
+introductory prose comes from this README. These markers select content; they do not
+generate or publish files themselves.
+
 ANCHOR / ANCHOR_END comments let mdBook include shared sections directly.
 Keep environment variables, API reference and the Compose example here. Detailed
 explanations and onboarding live in docs/src/. Do not edit generated DOCKERHUB.md files.
