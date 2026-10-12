@@ -82,3 +82,22 @@ a:hover { color: var(--app-accent); }
     html { --bg: white !important; --fg: black !important; }
     pre > code, pre > .hljs { background: #f5f5f5; color: black; }
 }
+
+/* Stronger documentation heading hierarchy */
+.content main h2 {
+    font-size: 2.6rem;
+    font-weight: 700;
+    margin: 3rem 0 1.2rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--app-border2);
+}
+.content main h3 {
+    font-size: 2.1rem;
+    font-weight: 600;
+    margin: 2.2rem 0 1rem;
+}
+.content main h4 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin: 1.8rem 0 0.8rem;
+}
