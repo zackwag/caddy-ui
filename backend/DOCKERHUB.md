@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.19.0. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.20.0. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -30,7 +30,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - Tails and streams access logs via SSE
 - Parses and updates log configuration in the global Caddyfile block
 - Persists server labels and route notes to disk
-- Optional JWT authentication protecting all API endpoints
+- Optional JWT authentication for protected API endpoints
 - Caddy process info and HTTP metrics via Prometheus endpoint
 - Metrics enable/disable toggle that modifies the Caddyfile global block
 - Optional public `/api/metrics/raw` endpoint for Prometheus scraping
@@ -153,7 +153,7 @@ All backend variables have sensible defaults. Only set what you need to override
 |----------|---------|-------------|
 | `APP_VERSION` | `dev` | caddy-ui's own version, exposed at `GET /api/version` and shown in the sidebar. Baked in automatically by the release build (`docker build --build-arg APP_VERSION=...`) — no need to set by hand unless building from source and want the UI to report a specific version. |
 | `CADDY_ADMIN_URL` | — | URL of Caddy's admin API. If set, a default instance is auto-created on first startup. If unset, caddy/ui starts with no instances and guides you through discovery. |
-| `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](https://github.com/zackwag/caddy-ui#caddyfile-titles)) |
+| `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](https://zackwag.github.io/caddy-ui/caddyfile.html#caddyfile-titles)) |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the Caddy container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy Docker container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
@@ -166,7 +166,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
-| `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://github.com/zackwag/caddy-ui#multi-instance)) |
+| `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://zackwag.github.io/caddy-ui/instances.html#multi-instance)) |
 | `JWT_SECRET` | — | Secret key for signing JWT tokens |
 | `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
 | `MAINTENANCE_PATH` | `/etc/caddy-ui/maintenance.json` | Path to the maintenance mode state file |
@@ -175,7 +175,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `ROUTE_NOTES_PATH` | `/etc/caddy-ui/route-notes.json` | Path to the route notes file |
 | `SERVER_NAMES_PATH` | `/etc/caddy-ui/server-names.json` | Path to the per-instance server labels file |
 | `SETTINGS_PATH` | `/etc/caddy-ui/settings.json` | Path to the UI settings file (theme preferences, column visibility) |
-| `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](https://github.com/zackwag/caddy-ui#custom-themes)) |
+| `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](https://zackwag.github.io/caddy-ui/themes.html#custom-themes)) |
 | `UPTIME_HISTORY_PATH` | `/etc/caddy-ui/uptime-history.json` | Path to the persisted upstream and route uptime history file |
 | `UPTIME_HISTORY_RETENTION_DAYS` | `7` | How many days of upstream and route health checks to retain |
 | `WWW_PATH` | `/etc/caddy-ui/www` | Directory for the maintenance page HTML file (created on first use) |
@@ -183,7 +183,9 @@ All backend variables have sensible defaults. Only set what you need to override
 
 ## Authentication
 
-Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. All API endpoints are protected and the login screen appears automatically.
+Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. When enabled, protected API endpoints require a valid JWT and the login screen appears automatically.
+
+`GET /api/auth/status` and `GET /api/version` remain public. `POST /api/auth/sessions` validates the configured credentials to issue a JWT; it does not require an existing token. With `CADDY_UI_PUBLIC_METRICS=true`, `GET /api/metrics` and `GET /api/metrics/raw` are also accessible without a JWT.
 
 ## Prometheus Metrics
 
@@ -287,7 +289,7 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | `PUT` | `/api/notifications/config` | Update notification settings |
 | `POST` | `/api/notifications/test` | Send a test notification |
 
-### Image Tags
+## Image Tags
 
 | Tag | Description |
 |-----|-------------|
