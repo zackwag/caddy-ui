@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.3](https://github.com/zackwag/caddy-ui/compare/v2.21.2...v2.21.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* centralize backend error contracts and diagnostics ([#221](https://github.com/zackwag/caddy-ui/issues/221)) ([07af6c3](https://github.com/zackwag/caddy-ui/commit/07af6c35ed605f5f5f30c66970ca509d4dc0b951))
+
 ## [2.21.2](https://github.com/zackwag/caddy-ui/compare/v2.21.1...v2.21.2) (2026-10-13)
 
 
