@@ -115,8 +115,8 @@ export default {
             '^(json|console|acme|orphaned|superseded|valid|expiring|expired)$',
             '^(ntfy|discord|slack|pushover|custom)$',
 
-            // Intl.DateTimeFormat option values.
-            '^(short|numeric|2-digit)$',
+            // Intl option values and formatToParts part types.
+            '^(short|numeric|2-digit|percent|percentSign|literal)$',
 
             // Platform names used as data labels in the CA instruction map.
             '^(iOS / iPadOS|macOS|Android|Windows)$',

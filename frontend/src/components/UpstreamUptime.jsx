@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
-import { formatNumber } from "../utils/format.js";
+import { formatPercent, formatPercentParts } from "../utils/format.js";
 import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 const STATUS = {
@@ -11,6 +11,12 @@ const STATUS = {
     offline: { labelKey: "uptime.offline", color: "var(--danger)" },
     unknown: { labelKey: "uptime.noData", color: null },
 };
+
+// Big stat number with the percent sign in the smaller unit style, wherever
+// the language puts it.
+const PercentStat = ({ value }) => formatPercentParts(value).map((part, i) => (
+    part.isSign ? <span key={i} className="ms-unit">{part.text}</span> : part.text
+));
 
 const uptimeColor = (pct) => pct >= 99 ? "var(--accent)" : pct >= 95 ? "var(--warn)" : "var(--danger)";
 
@@ -153,14 +159,14 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                         <div className="card">
                             <div className="card-title">{t("uptime.avgUptime")}</div>
                             <div className="stat-val" style={{ color: summary.avgPct !== null ? uptimeColor(summary.avgPct) : "var(--muted)" }}>
-                                {summary.avgPct !== null ? formatNumber(summary.avgPct) : "—"}{summary.avgPct !== null && <span className="ms-unit">%</span>}
+                                {summary.avgPct !== null ? <PercentStat value={summary.avgPct} /> : "—"}
                             </div>
                             <div className="stat-label">{t("uptime.acrossHistory")}</div>
                         </div>
                         <div className="card">
                             <div className="card-title">{t("uptime.lowestUptime")}</div>
                             <div className="stat-val" style={{ color: summary.lowest ? uptimeColor(summary.lowest.pct) : "var(--muted)" }}>
-                                {summary.lowest ? formatNumber(summary.lowest.pct) : "—"}{summary.lowest && <span className="ms-unit">%</span>}
+                                {summary.lowest ? <PercentStat value={summary.lowest.pct} /> : "—"}
                             </div>
                             <div className="stat-label uptime-lowest-label" title={summary.lowest?.domain}>
                                 {summary.lowest ? summary.lowest.title || summary.lowest.domain : t("uptime.noDataYet")}
@@ -224,7 +230,7 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                                             <div className="metrics-bar-track">
                                                                 <div className="metrics-bar-fill" style={{ width: `${r.pct}%`, background: uptimeColor(r.pct) }} />
                                                             </div>
-                                                            <div className="metrics-bar-count uptime-pct">{formatNumber(r.pct)}%</div>
+                                                            <div className="metrics-bar-count uptime-pct">{formatPercent(r.pct)}</div>
                                                         </div>
                                                     ) : <span className="cell-muted">—</span>}
                                                 </td>

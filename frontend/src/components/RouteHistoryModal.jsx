@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
-import { currentLocale, formatNumber } from "../utils/format.js";
+import { currentLocale, formatNumber, formatPercent } from "../utils/format.js";
 
 const RANGES = [
     { label: "1h", ms: 60 * 60 * 1000 },
@@ -205,7 +205,7 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                         <div className="history-stats">
                             <div>
                                 <span className="history-stat-label">{t("routeHistory.uptime")}</span>
-                                <span className="history-stat-val">{uptimePct !== null ? `${formatNumber(uptimePct)}%` : "—"}</span>
+                                <span className="history-stat-val">{uptimePct !== null ? formatPercent(uptimePct) : "—"}</span>
                             </div>
                             <div>
                                 <span className="history-stat-label">{t("routeHistory.checks")}</span>
