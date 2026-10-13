@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.20.2](https://github.com/zackwag/caddy-ui/compare/v2.20.1...v2.20.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* report stopped Caddy instances as offline ([#213](https://github.com/zackwag/caddy-ui/issues/213)) ([05674e3](https://github.com/zackwag/caddy-ui/commit/05674e3a85616a5641be4daf64a879191134add6))
+
+
+### Miscellaneous Chores
+
+* **dev:** add disposable Caddy integration environment ([#208](https://github.com/zackwag/caddy-ui/issues/208)) ([fa90d95](https://github.com/zackwag/caddy-ui/commit/fa90d953e3426cc835f30aebfc663f4ef923d824))
+
 ## [2.20.1](https://github.com/zackwag/caddy-ui/compare/v2.20.0...v2.20.1) (2026-10-12)
 
 
