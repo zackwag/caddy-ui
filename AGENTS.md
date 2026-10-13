@@ -9,7 +9,7 @@ Two independently deployed services, each with its own `package.json`:
 - `backend/` — Node.js (ES modules) + Express API on port 3001. Talks to Caddy's admin API, reads/writes the Caddyfile, tails logs, etc. Source in `backend/src/`, routes in `backend/src/routes/`, tests in `backend/test/`.
 - `frontend/` — React 19 + Vite SPA on port 80 (nginx in prod, Vite dev server locally). Source in `frontend/src/`, components in `frontend/src/components/`.
 
-There is no shared root `package.json` — always `cd backend` or `cd frontend` before running npm commands.
+The root `package.json` contains dependency-free development harness commands (`dev:with-caddy`, `dev:instances`, `test:dev-caddy`). Application commands still run in `backend` or `frontend`.
 
 ## Commands
 

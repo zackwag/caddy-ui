@@ -1065,6 +1065,45 @@ export const css = `
     overflow: hidden;
   }
 
+  /* Flex sizing uses the content area below the topbar, including its padding. */
+  .caddyfile-page { height: 100%; min-height: 0; }
+  .caddyfile-page > .editor-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .caddyfile-editor { flex: 1; min-height: 0; overflow: hidden; background: var(--editor-bg); }
+  .caddyfile-editor .cm-editor { height: 100%; min-height: 0; }
+  .caddyfile-page .editor-toolbar { flex-shrink: 0; }
+  .caddyfile-page--history {
+    display: grid;
+    grid-template-rows: minmax(0, var(--editor-share)) 16px minmax(0, var(--history-share));
+    gap: 0;
+  }
+  .caddyfile-history { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .caddyfile-history > .card-header { flex-shrink: 0; }
+  .history-body { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; overflow: hidden; }
+  .history-body--versions { grid-template-columns: minmax(0, 1fr) fit-content(260px); }
+  .history-detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 12px 16px; }
+  .caddyfile-history-controls { flex-shrink: 0; --pane-content-reserve: 100; }
+  .history-diff-stats { flex-shrink: 0; }
+  .history-version-actions { margin-left: auto; flex-shrink: 0; }
+  .history-preview:focus-visible, .history-versions:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .history-versions { min-width: 0; min-height: 0; overflow-y: auto; border-left: 1px solid var(--border); padding: 0 12px; }
+  .history-versions .history-entry { width: 100%; text-align: left; border: 0; background: transparent; padding: 0; }
+  .caddyfile-history .history-preview { flex: 1; min-height: 0; max-height: none; overflow: auto; }
+  .history-detail .history-compare-select { min-width: 0; width: 220px; max-width: 100%; }
+
+  .pane-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+    border-radius: 3px;
+  }
+  .pane-divider::after { content: ''; width: 40px; height: 3px; border-top: 1px solid var(--border2); border-bottom: 1px solid var(--border2); }
+  .pane-divider:hover, .pane-divider:active { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .pane-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .pane-divider:hover::after, .pane-divider:focus-visible::after { border-color: var(--accent); }
+
   .editor-toolbar {
     display: flex;
     align-items: center;
@@ -2090,8 +2129,6 @@ export const css = `
   .history-entry--active { color: var(--accent); }
   .history-entry--default { color: var(--text); }
 
-  .history-body { padding: 0 16px; }
-
   /* ── Utility: History ─────────────────────────────────────────────────────── */
 
   .history-latest {
@@ -2102,8 +2139,6 @@ export const css = `
   }
 
   /* ── Utility: History diff ────────────────────────────────────────────────── */
-
-  .history-detail { padding-bottom: 12px; }
 
   .history-compare {
     display: flex;
@@ -2167,6 +2202,20 @@ export const css = `
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
+  /* Stack fixed-size panes when a viewport or input device makes dragging impractical. */
+  @media (max-width: 1024px), (pointer: coarse), (max-height: 480px) {
+    .caddyfile-page, .caddyfile-page--history {
+      display: flex;
+      flex-direction: column;
+      height: auto;
+      min-height: 100%;
+      gap: 16px;
+    }
+    .caddyfile-page > .editor-wrap { flex: 0 0 480px; height: 480px; }
+    .caddyfile-history { flex: 0 0 400px; height: 400px; }
+    .caddyfile-page > .pane-divider { display: none; }
+  }
+
   @media (max-width: 768px) {
     .hamburger { display: flex; }
     .sidebar {
@@ -2184,6 +2233,7 @@ export const css = `
     .metrics-footer { flex-direction: column; align-items: flex-start; gap: 8px; }
     .cm-editor { min-height: 300px; }
     .cm-editor .cm-content { font-size: 16px; }
+    .history-body--versions { grid-template-columns: minmax(0, 1fr) minmax(0, 35%); }
     .modal-editor-wrap .cm-editor { min-height: 160px; max-height: 260px; }
     .modal-editor-wrap .cm-scroller { max-height: 260px; }
     .editor-toolbar { flex-direction: column; align-items: stretch; }

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.20.1](https://github.com/zackwag/caddy-ui/compare/v2.20.0...v2.20.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* improve Caddyfile editor layout, version history UX and faulty `dev` version ([#210](https://github.com/zackwag/caddy-ui/issues/210)) ([4f565fe](https://github.com/zackwag/caddy-ui/commit/4f565fe5c653e74b2c16fa0e2432f413c9ef7139))
+
 ## [2.20.0](https://github.com/zackwag/caddy-ui/compare/v2.19.0...v2.20.0) (2026-10-12)
 
 

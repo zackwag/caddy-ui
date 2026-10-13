@@ -36,3 +36,10 @@ For larger changes, describe your proposal in an issue before doing substantial 
 
 See the [contribution hub](https://zackwag.github.io/caddy-ui/contributing.html)
 for the full onboarding paths, or [browse it as Markdown](docs/src/contributing.md).
+
+## Testing with real Caddy instances
+
+Run `npm run dev:with-caddy` from the repository root for an isolated integration
+environment. See the codebase guide’s
+[Disposable Caddy integration environment](docs/src/development-caddy.md) page for
+prerequisites, instance commands, troubleshooting, and cleanup.

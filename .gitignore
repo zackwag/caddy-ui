@@ -149,3 +149,10 @@ frontend/src/lib/caddyfileMode.js
 
 # Generated mdBook output
 docs/book/
+
+# Disposable local integration-test state (retain until explicit cleanup)
+.dev-caddy/
+# Share an opt-in example without tracking personal Dev Container configuration
+!.devcontainer/
+.devcontainer/*
+!.devcontainer/devcontainer.example.json

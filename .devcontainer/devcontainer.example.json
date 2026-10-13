@@ -1,0 +1,17 @@
+{
+    "name": "caddy-ui with host Docker",
+    "image": "node:24-bookworm",
+    "remoteUser": "node",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    },
+    "postCreateCommand": "npm --prefix backend ci && npm --prefix frontend ci",
+    "remoteEnv": {
+        "REMOTE_CONTAINERS": "true"
+    },
+    "forwardPorts": [3001, 5173],
+    "portsAttributes": {
+        "3001": { "label": "caddy-ui backend", "onAutoForward": "silent" },
+        "5173": { "label": "caddy-ui frontend", "onAutoForward": "openBrowser" }
+    }
+}

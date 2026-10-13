@@ -16,5 +16,6 @@
 - [Images and releases](releases.md)
 - [Contributing](contributing.md)
     - [Codebase](contributing-codebase.md)
+        - [Disposable Caddy integration environment](development-caddy.md)
     - [Documentation](contributing-documentation.md)
     - [Localization — after merge](contributing-localization.md)
