@@ -78,7 +78,7 @@ body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
     color: var(--fg);
 }
 .mermaid { overflow-x: auto; margin: 1.5rem 0; text-align: center; }
-.mermaid svg { height: auto; }
+.mermaid svg { height: auto; max-width: none; }
 .chapter li { line-height: 2; }
 .chapter li a.active { font-weight: 600; }
 .content { max-width: 1000px; }
@@ -199,3 +199,13 @@ a:hover { color: var(--app-accent); }
 @container (min-width: 700px) {
     .docs-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+.content:has(.docs-architecture) {
+    --content-max-width: 1100px;
+    max-width: 1180px;
+    margin-inline: auto;
+}
+.docs-architecture > p { max-width: 75ch; }
+.docs-architecture .mermaid { padding: 1.6rem 0; }
+.docs-architecture-reference .table-wrapper { overflow-x: auto; }
+.docs-architecture-reference table { min-width: 600px; }

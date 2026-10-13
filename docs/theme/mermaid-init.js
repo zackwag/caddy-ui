@@ -1,7 +1,25 @@
 (() => {
+    function keepScrollKeys(event) {
+        const element = event.currentTarget;
+        // mdBook uses left/right arrows for chapter navigation. Keep the
+        // browser's native scrolling when a focused diagram or table overflows.
+        if (['ArrowLeft', 'ArrowRight'].includes(event.key) && element.scrollWidth > element.clientWidth) {
+            event.stopPropagation();
+        }
+    }
+    document.querySelectorAll('.docs-architecture-reference .table-wrapper').forEach(element => {
+        element.tabIndex = 0;
+        element.setAttribute('role', 'region');
+        element.setAttribute('aria-label', 'Service responsibilities');
+        element.addEventListener('keydown', keepScrollKeys);
+    });
     const diagrams = [...document.querySelectorAll('pre > code.language-mermaid')].map(code => {
         const element = document.createElement('div');
         element.className = 'mermaid';
+        element.tabIndex = 0;
+        element.setAttribute('role', 'region');
+        element.setAttribute('aria-label', 'Scrollable diagram');
+        element.addEventListener('keydown', keepScrollKeys);
         const source = code.textContent;
         code.parentElement.replaceWith(element);
         return { element, source };
@@ -27,6 +45,15 @@
                     securityLevel: 'strict',
                     theme: currentTheme(),
                     fontFamily: 'ui-monospace, monospace',
+                    themeVariables: { fontSize: '16px' },
+                    flowchart: {
+                        useMaxWidth: false,
+                        minNodeWidth: 180,
+                        wrappingWidth: 240,
+                        nodeSpacing: 40,
+                        rankSpacing: 50,
+                        curve: 'linear',
+                    },
                     suppressErrorRendering: true,
                 });
                 for (const { element, source } of diagrams) {
