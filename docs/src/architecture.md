@@ -10,12 +10,16 @@
 flowchart LR
     accTitle: Request flow
     accDescr: The frontend proxies API requests to the backend. The backend communicates with Caddy's admin API.
-    FE["caddy/ui frontend<br/>React + nginx"]
-    BE["caddy/ui backend<br/>Node.js + Express"]
-    CA["Caddy<br/>Admin API"]
+    FE["caddy/ui frontend<br/>React + nginx<br/>:9877"]
+    BE["caddy/ui backend<br/>Node.js + Express<br/>:9876"]
+    CA["Caddy<br/>:2019 Admin API<br/>:80 / :443"]
 
     FE -->|"/api/*"| BE
     BE -->|"Admin API"| CA
+    BE -->|"upstream TCP checks + passive health pool"| CA
+    BE -->|"Prometheus metrics"| CA
+    BE -->|"/adapt validation"| CA
+    BE -->|"/pki/ca/local"| CA
 ```
 
 The frontend serves the interface and proxies API requests. The backend handles
