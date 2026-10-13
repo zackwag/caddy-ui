@@ -92,6 +92,8 @@ services:
       - 9876:3001
     environment:
       - TZ=America/New_York
+      # Optional -- enable installed additional UI languages (English is always available)
+      - CADDY_UI_ADDITIONAL_LANGUAGES=de
       # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
       - CADDY_UI_PASSWORD=yourpassword
