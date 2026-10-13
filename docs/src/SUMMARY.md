@@ -19,3 +19,4 @@
         - [Disposable Caddy integration environment](development-caddy.md)
     - [Documentation](contributing-documentation.md)
     - [Localization](contributing-localization.md)
+    - [Feedback and improvements](contributing-feedback.md)

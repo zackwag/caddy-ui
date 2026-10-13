@@ -1,6 +1,6 @@
 # Contributing to caddy/ui
 
-You can improve caddy/ui through code, documentation, and language support.
+You can improve caddy/ui through code, documentation, language support, and feedback.
 Small, focused contributions are welcome, including clearer setup instructions
 and tested examples from your own deployment.
 
@@ -9,6 +9,7 @@ and tested examples from your own deployment.
 | Fix a bug, improve a view, or add a feature | [Codebase onboarding](https://zackwag.github.io/caddy-ui/contributing-codebase.html) · [Markdown](docs/src/contributing-codebase.md) |
 | Improve a guide, example, or screenshot | [Documentation onboarding](https://zackwag.github.io/caddy-ui/contributing-documentation.html) · [Markdown](docs/src/contributing-documentation.md) |
 | Help translate the UI after the localization foundation is merged | [Localization onboarding](https://zackwag.github.io/caddy-ui/contributing-localization.html) · [Markdown](docs/src/contributing-localization.md) |
+| Report a problem or suggest an improvement | [Feedback guide](https://zackwag.github.io/caddy-ui/contributing-feedback.html) · [Markdown](docs/src/contributing-feedback.md) |
 
 Documentation fixes can start in GitHub's browser editor. The documentation guide
 explains where to edit, how to preview a page, and how to submit your first PR.
@@ -27,12 +28,6 @@ The README remains canonical for environment variables, API endpoints, the
 Compose example, and content selected for Docker Hub. Shared book references
 include those sections directly. Edit explanations and onboarding in `docs/src/`;
 never hand-edit the generated `backend/DOCKERHUB.md` or `frontend/DOCKERHUB.md`.
-
-## Reporting a problem
-
-Open a [GitHub issue](https://github.com/zackwag/caddy-ui/issues) with the steps to
-reproduce it, your caddy/ui version, what you expected, and what happened.
-For larger changes, describe your proposal in an issue before doing substantial work.
 
 See the [contribution hub](https://zackwag.github.io/caddy-ui/contributing.html)
 for the full onboarding paths, or [browse it as Markdown](docs/src/contributing.md).

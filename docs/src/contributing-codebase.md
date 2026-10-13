@@ -71,7 +71,3 @@ Look at `git log` for more examples of the house style.
 3. Make sure `npm test` passes in `backend/` if you touched backend code, and `npm run lint` passes in `backend/`/`frontend/` for whichever side you touched.
 4. Don't edit `CHANGELOG.md` or bump versions by hand — [release-please](https://github.com/googleapis/release-please) generates the changelog and version from your PR title's Conventional Commit prefix once it's merged to `main`.
 5. Open the PR against `main` — the `Test` workflow will run automatically.
-
-## Reporting issues
-
-Open a GitHub issue with steps to reproduce, your `caddy-ui` version (`GET /api/version` or the sidebar), and relevant logs (`LOG_LEVEL=debug` on the backend gives more detail). Stale issues without activity are auto-closed by `.github/workflows/stale.yml`, so keep threads updated if you're still waiting on something.
