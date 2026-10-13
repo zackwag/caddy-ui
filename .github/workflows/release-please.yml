@@ -46,9 +46,6 @@ jobs:
       - name: Test Docker Hub generator
         run: node --test .github/scripts/dockerhub-docs.test.mjs
 
-      - name: Generate Docker Hub descriptions
-        run: node .github/scripts/dockerhub-docs.mjs
-
       - name: Commit generated descriptions
         run: |
           git add -- "$DOCKERHUB_BACKEND_PATH" "$DOCKERHUB_FRONTEND_PATH"
