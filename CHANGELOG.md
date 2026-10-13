@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.0](https://github.com/zackwag/caddy-ui/compare/v2.20.2...v2.21.0) (2026-10-13)
+
+
+### Features
+
+* add localization foundation ([#202](https://github.com/zackwag/caddy-ui/issues/202)) ([3afc5f0](https://github.com/zackwag/caddy-ui/commit/3afc5f0e1b335f56a711c818341d46ec4b4f4ce0))
+
 ## [2.20.2](https://github.com/zackwag/caddy-ui/compare/v2.20.1...v2.20.2) (2026-10-13)
 
 
