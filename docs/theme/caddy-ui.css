@@ -163,3 +163,39 @@ a:hover { color: var(--app-accent); }
     font-weight: 600;
     margin: 1.8rem 0 0.8rem;
 }
+
+.content:has(.docs-features) {
+    --content-max-width: 1100px;
+    max-width: 1180px;
+    margin-inline: auto;
+    container-type: inline-size;
+}
+.docs-feature-grid { display: grid; gap: 2.4rem; }
+.docs-feature-group {
+    min-width: 0;
+    padding: 2rem;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+}
+.content .docs-feature-group h2 {
+    margin-top: 0;
+    font-size: 2rem;
+    line-height: 1.4;
+}
+.docs-feature-group ul { list-style: none; padding: 0; }
+.docs-feature-group li { margin: 1.4rem 0; }
+.docs-feature-group li > strong:first-child { display: block; margin-bottom: 0.3rem; }
+.docs-feature-group > p:last-child { margin-bottom: 0; }
+.docs-feature-reference {
+    margin: 1.2rem 0;
+    padding: 1.4rem 1.8rem;
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+}
+.docs-feature-reference summary { cursor: pointer; font-family: var(--mono-font); }
+.docs-feature-reference[open] summary { margin-bottom: 1.6rem; }
+.docs-feature-reference li { margin-bottom: 1.2rem; }
+@container (min-width: 700px) {
+    .docs-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
