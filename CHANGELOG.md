@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.1](https://github.com/zackwag/caddy-ui/compare/v2.21.0...v2.21.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* restrict Caddy admin requests and harden documentation tooling ([#216](https://github.com/zackwag/caddy-ui/issues/216)) ([a4074db](https://github.com/zackwag/caddy-ui/commit/a4074db6e79580538bc3067791eaadbdaea2648d))
+
 ## [2.21.0](https://github.com/zackwag/caddy-ui/compare/v2.20.2...v2.21.0) (2026-10-13)
 
 
