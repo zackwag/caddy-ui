@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { formatPercent } from "../utils/format.js";
 
 export default function PaneDivider({ containerRef, primaryMinimumRef, secondaryMinimumRef, secondaryControlsRef, primaryPaneId, value, onChange }) {
     const { t } = useTranslation();
@@ -76,7 +77,7 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
             aria-valuemin={Math.round(limits.min)}
             aria-valuemax={Math.round(limits.max)}
             aria-valuenow={Math.round(value)}
-            aria-valuetext={t("caddyfile.paneSizes", { editor: Math.round(value), history: Math.round(100 - value) })}
+            aria-valuetext={t("caddyfile.paneSizes", { editor: formatPercent(Math.round(value)), history: formatPercent(Math.round(100 - value)) })}
             tabIndex={0}
             title={t("caddyfile.resizePanesHint")}
             onPointerDown={event => {

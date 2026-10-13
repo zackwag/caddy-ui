@@ -13,3 +13,12 @@ export function getAdditionalLanguages() {
 export function getEnabledLanguages() {
     return ['en', ...getAdditionalLanguages()];
 }
+
+// Normalizes a `language` setting from PUT /api/settings. Returns null to clear
+// it, the lowercase code if it's enabled, or undefined if it's not acceptable.
+export function normalizeLanguageSetting(value) {
+    if (value === null) return null;
+    if (typeof value !== 'string') return undefined;
+    const lang = value.trim().toLowerCase();
+    return getEnabledLanguages().includes(lang) ? lang : undefined;
+}

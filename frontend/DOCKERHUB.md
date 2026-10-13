@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.20.1. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.21.1. Do not edit directly. -->
 
 # caddy/ui — Frontend
 
@@ -92,6 +92,8 @@ services:
       - 9876:3001
     environment:
       - TZ=America/New_York
+      # Optional -- enable installed additional UI languages (English is always available)
+      - CADDY_UI_ADDITIONAL_LANGUAGES=de
       # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
       - CADDY_UI_PASSWORD=yourpassword
@@ -148,8 +150,9 @@ volumes:
 
 | Tag | Description |
 |-----|-------------|
-| `latest` | Most recent stable build |
-| `edge` | Build from `main`; may contain unreleased changes |
+| `latest` | Most recent stable release |
+| `beta` | Pre-release build of a specific branch or pull request, published manually for testing |
+| `edge` | Most recent build of any kind: every push to `main` and every `beta` build. May contain unreleased or unmerged changes |
 
 See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
 for versioned image tags and release notes.

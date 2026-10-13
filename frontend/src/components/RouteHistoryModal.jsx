@@ -2,6 +2,7 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
+import { currentLocale, formatNumber, formatPercent } from "../utils/format.js";
 
 const RANGES = [
     { label: "1h", ms: 60 * 60 * 1000 },
@@ -78,8 +79,8 @@ function buildAxisTicks(rangeStart, rangeEnd) {
 function formatAxisTime(ms, rangeMs) {
     const d = new Date(ms);
     return rangeMs > 24 * 60 * 60 * 1000
-        ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
-        : d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+        ? d.toLocaleDateString(currentLocale(), { month: "short", day: "numeric" })
+        : d.toLocaleTimeString(currentLocale(), { hour: "numeric", minute: "2-digit" });
 }
 
 function formatRelativeTime(ms, t) {
@@ -94,7 +95,7 @@ function formatRelativeTime(ms, t) {
 }
 
 function formatActivityTime(ms) {
-    return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
+    return new Date(ms).toLocaleString(currentLocale(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
 const STATUS_LABEL_KEYS = { online: "routeHistory.online", offline: "routeHistory.offline", unknown: "routeHistory.noData" };
@@ -188,7 +189,7 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                                     key={i}
                                     className={`history-segment history-segment--${seg.status}`}
                                     style={{ flexGrow: seg.end - seg.start }}
-                                    title={t("routeHistory.segmentTitle", { status: t(STATUS_LABEL_KEYS[seg.status]), start: new Date(seg.start).toLocaleString(), end: new Date(seg.end).toLocaleString() })}
+                                    title={t("routeHistory.segmentTitle", { status: t(STATUS_LABEL_KEYS[seg.status]), start: new Date(seg.start).toLocaleString(currentLocale()), end: new Date(seg.end).toLocaleString(currentLocale()) })}
                                 >
                                     <span className="history-segment-label">{t(STATUS_LABEL_KEYS[seg.status])}</span>
                                 </div>
@@ -205,11 +206,11 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                         <div className="history-stats">
                             <div>
                                 <span className="history-stat-label">{t("routeHistory.uptime")}</span>
-                                <span className="history-stat-val">{uptimePct !== null ? `${uptimePct}%` : "—"}</span>
+                                <span className="history-stat-val">{uptimePct !== null ? formatPercent(uptimePct) : "—"}</span>
                             </div>
                             <div>
                                 <span className="history-stat-label">{t("routeHistory.checks")}</span>
-                                <span className="history-stat-val">{entries.length}</span>
+                                <span className="history-stat-val">{formatNumber(entries.length)}</span>
                             </div>
                         </div>
 
@@ -217,11 +218,11 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                         <div className="history-activity-list">
                             {transitions.length === 0 ? (
                                 <div className="history-activity-empty">{t("routeHistory.noChanges")}</div>
-                            ) : transitions.map((t, i) => (
+                            ) : transitions.map((transition, i) => (
                                 <div key={i} className="history-activity-item">
-                                    <span className={`history-activity-dot history-activity-dot--${t.online ? "online" : "offline"}`} />
-                                    <span className="history-activity-label">{t.online ? t("routeHistory.online") : t("routeHistory.offline")}</span>
-                                    <span className="history-activity-time">{formatActivityTime(t.at)}</span>
+                                    <span className={`history-activity-dot history-activity-dot--${transition.online ? "online" : "offline"}`} />
+                                    <span className="history-activity-label">{transition.online ? t("routeHistory.online") : t("routeHistory.offline")}</span>
+                                    <span className="history-activity-time">{formatActivityTime(transition.at)}</span>
                                 </div>
                             ))}
                         </div>

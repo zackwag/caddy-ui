@@ -40,6 +40,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install documentation dependencies
+        run: npm ci --prefix docs --ignore-scripts
+
       - name: Generate Docker Hub descriptions
         run: node .github/scripts/dockerhub-docs.mjs
 

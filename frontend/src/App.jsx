@@ -86,7 +86,7 @@ export default function App() {
 
         async function bootstrapLanguage() {
             try {
-                const enabled = await fetchEnabledLanguages(API);
+                const enabled = await fetchEnabledLanguages();
                 const resolved = resolveLocale(enabled, null);
 
                 await loadLocale(resolved);
@@ -123,6 +123,7 @@ export default function App() {
             const resolvedLanguage = resolveLocale(enabledLanguages, s.language ?? null);
             await loadLocale(resolvedLanguage);
             setLanguage(resolvedLanguage);
+
 
             setCustomThemes(custom);
             const validIds = new Set([...THEME_LIST, ...custom].map(t => t.id));
@@ -167,7 +168,12 @@ export default function App() {
     const changeLanguage = async (lang) => {
         if (!enabledLanguages.includes(lang)) return;
 
-        await loadLocale(lang);
+        try {
+            await loadLocale(lang);
+        } catch {
+            toast.error(t('errors.languageLoadFailed'));
+            return;
+        }
         setLanguage(lang);
         persistSettings({ language: lang });
     };
@@ -213,11 +219,13 @@ export default function App() {
                 setNoInstances(true);
                 setStatus(null);
             } else {
-                setStatus({ online: false, error: t('errors.backendUnreachable') });
+                // Translated at render time so switching languages doesn't
+                // recreate this callback and re-poll /status.
+                setStatus({ online: false, errorKey: 'errors.backendUnreachable' });
             }
         });
       
-    }, [onUnauth, t]);
+    }, [onUnauth]);
 
     // caddy/ui logs dont depend on instance, so Logs stays reachable alongside Instances.
     useEffect(() => {

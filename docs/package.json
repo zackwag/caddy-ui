@@ -9,6 +9,7 @@
         "test": "node --test scripts/*.test.mjs"
     },
     "dependencies": {
-        "mermaid": "12.1.0"
+        "mermaid": "12.2.0",
+        "parse5-sax-parser": "8.0.0"
     }
 }

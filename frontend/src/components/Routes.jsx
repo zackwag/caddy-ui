@@ -1,11 +1,12 @@
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
+import { formatPercent } from "../utils/format.js";
 import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 // eslint-disable-next-line i18next/no-literal-string -- Example hostname
@@ -135,7 +136,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
 
                 {isCaddyfileManaged && siteBlockFailed ? (
                     <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4 }}>
-                        {t("routes.caddyfileLoadFailedBefore")} <strong>{t("routes.caddyfile")}</strong> {t("routes.caddyfileLoadFailedAfter")}
+                        <Trans i18nKey="routes.caddyfileLoadFailed" components={{ strong: <strong /> }} />
                     </div>
                 ) : isCaddyfileManaged && !inMaintenance ? (
                     <>
@@ -458,11 +459,11 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         if (status === "none") return t("routes.noUpstream");
         if (status === "pending") return history?.route ? t("routes.waitingForRouteCheck") : t("common.checking");
         const label = [t(STATUS_STYLE[status].labelKey), failure].filter(Boolean).join(" — ");
-        return pct !== null ? t("routes.uptimeTitle", { label, pct }) : label;
+        return pct !== null ? t("routes.uptimeTitle", { label, pct: formatPercent(pct) }) : label;
     };
 
     const getHealthDot = ({ status, pct }) => {
-        const pctText = pct !== null ? `${pct}%` : t("common.notAvailable");
+        const pctText = pct !== null ? formatPercent(pct) : t("common.notAvailable");
         if (status === "none") {
             return <span className="health-dot health-dot--none"><span className="sr-only">{t("routes.noUpstreamStatus", { pct: pctText })}</span></span>;
         }

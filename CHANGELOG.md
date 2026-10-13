@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.21.1](https://github.com/zackwag/caddy-ui/compare/v2.21.0...v2.21.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* restrict Caddy admin requests and harden documentation tooling ([#216](https://github.com/zackwag/caddy-ui/issues/216)) ([a4074db](https://github.com/zackwag/caddy-ui/commit/a4074db6e79580538bc3067791eaadbdaea2648d))
+
+## [2.21.0](https://github.com/zackwag/caddy-ui/compare/v2.20.2...v2.21.0) (2026-10-13)
+
+
+### Features
+
+* add localization foundation ([#202](https://github.com/zackwag/caddy-ui/issues/202)) ([3afc5f0](https://github.com/zackwag/caddy-ui/commit/3afc5f0e1b335f56a711c818341d46ec4b4f4ce0))
+
+## [2.20.2](https://github.com/zackwag/caddy-ui/compare/v2.20.1...v2.20.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* report stopped Caddy instances as offline ([#213](https://github.com/zackwag/caddy-ui/issues/213)) ([05674e3](https://github.com/zackwag/caddy-ui/commit/05674e3a85616a5641be4daf64a879191134add6))
+
+
+### Miscellaneous Chores
+
+* **dev:** add disposable Caddy integration environment ([#208](https://github.com/zackwag/caddy-ui/issues/208)) ([fa90d95](https://github.com/zackwag/caddy-ui/commit/fa90d953e3426cc835f30aebfc663f4ef923d824))
+
 ## [2.20.1](https://github.com/zackwag/caddy-ui/compare/v2.20.0...v2.20.1) (2026-10-12)
 
 

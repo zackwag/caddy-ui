@@ -53,6 +53,9 @@ router.get('/', async (req, res) => {
             checkInstanceUpstreams(adminUrl),
         ]);
 
+        // Configuration establishes availability; metrics and upstream checks are optional.
+        if (config.status === 'rejected') throw config.reason;
+
         const servers = Object.entries(config.value || {}).map(([name, server]) => ({
             name,
             listen: server.listen,

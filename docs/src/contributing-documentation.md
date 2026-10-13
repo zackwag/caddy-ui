@@ -70,9 +70,17 @@ mdbook build docs
 ```
 
 If you changed a marked README block, also validate the existing Docker Hub
-generator from the repository root (this requires Node.js):
+generator from the repository root (this requires Node.js and the documentation
+dependencies installed above):
+
+The generator uses parse5's HTML tokenizer to preserve comments, tag attributes
+and code elements while rewriting Markdown links. It keeps the original source
+text and does not sanitize HTML. Its tests cover browser-recognized comment
+endings, quoted and multiline attributes, custom tag names and nested code
+elements.
 
 ```sh
+node --test .github/scripts/dockerhub-docs.test.mjs
 node .github/scripts/dockerhub-docs.mjs --dry-run
 ```
 

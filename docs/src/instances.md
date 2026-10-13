@@ -11,6 +11,28 @@ caddy/ui can manage multiple Caddy instances from a single interface. There are 
 | **Auto-discovery** | Yes | No |
 | **Container Name field** | Set to the Caddy container name | Leave empty |
 
+### Approve admin origins
+
+Before using an additional instance, add its admin origin to
+`CADDY_ADMIN_ALLOWED_ORIGINS` in the **backend** environment and recreate the backend
+container or restart its process. This applies to both Docker and local mode,
+including existing registrations. The origin of `CADDY_ADMIN_URL` is already
+trusted; when it is unset, the Caddy API client trusts `http://caddy:2019`.
+
+For example, to use the staging container below and a production Caddy endpoint:
+
+```yaml
+  caddy-ui-backend:
+    environment:
+      - CADDY_ADMIN_ALLOWED_ORIGINS=http://caddy-staging:2019,http://caddy-prod:2019
+```
+
+Use the scheme, hostname and port from each instance's **Admin URL**, without a
+path or trailing slash. Discovery and registration do not approve an origin, and
+the form's live server lookup can fail until it is approved. See
+[Allowed Caddy admin origins](configuration.md#allowed-caddy-admin-origins) for
+matching rules and troubleshooting.
+
 ### Docker mode (recommended)
 
 Mount the Docker socket into the backend and let caddy/ui talk to Caddy containers via `docker exec`. No per-instance volume mounts needed.
@@ -19,9 +41,10 @@ On first launch with no `CADDY_ADMIN_URL` set and no `instances.json`, caddy/ui 
 
 1. Click **Discover** — caddy/ui scans the Docker network for running Caddy containers
 2. Click **Add** on a discovered container — the form is pre-filled with the container's name, admin URL, and environment variables
-3. Review and save
+3. Add the discovered admin origin to the backend's allowlist if needed, recreate
+   the backend container, then review and save the instance
 
-That's it. The instance appears in the sidebar and all pages load its data. Discovery also polls automatically every 30 seconds, so new containers appear on their own.
+The instance appears in the sidebar and all pages load its data. Discovery also polls automatically every 30 seconds, so new containers appear on their own.
 
 To add more instances, put them on the same Docker network and they'll show up in discovery:
 

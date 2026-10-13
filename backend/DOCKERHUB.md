@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.20.1. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.21.1. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -102,6 +102,8 @@ services:
       - 9876:3001
     environment:
       - TZ=America/New_York
+      # Optional -- enable installed additional UI languages (English is always available)
+      - CADDY_UI_ADDITIONAL_LANGUAGES=de
       # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
       - CADDY_UI_PASSWORD=yourpassword
@@ -153,13 +155,14 @@ All backend variables have sensible defaults. Only set what you need to override
 |----------|---------|-------------|
 | `APP_VERSION` | `dev` | caddy-ui's own version, exposed at `GET /api/version` and shown in the sidebar. Baked in automatically by the release build (`docker build --build-arg APP_VERSION=...`) — no need to set by hand unless building from source and want the UI to report a specific version. |
 | `CADDY_ADMIN_URL` | — | URL of Caddy's admin API. If set, a default instance is auto-created on first startup. If unset, caddy/ui starts with no instances and guides you through discovery. |
-| `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated additional UI language codes to enable (for example `de,fr`). English is always enabled; only languages with an installed frontend locale catalog are shown. |
-| `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](https://github.com/zackwag/caddy-ui#caddyfile-titles)) |
+| `CADDY_ADMIN_ALLOWED_ORIGINS` | — | Comma-separated additional trusted Caddy admin origins, e.g. `http://caddy-staging:2019,https://caddy-admin.example.com`. The origin of `CADDY_ADMIN_URL` (or `http://caddy:2019` when unset) is always allowed. Configure additional instances here and restart the backend before using them. |
+| `CADDYFILE_TITLES` | auto | Store route titles as `#` comments in the Caddyfile (see [Caddyfile Titles](https://zackwag.github.io/caddy-ui/caddyfile.html#caddyfile-titles)) |
 | `CADDY_CONFIG_PATH` | `/etc/caddy/Caddyfile` | Path to the Caddyfile inside the Caddy container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_CONTAINER_NAME` | `caddy` | Name of the Caddy Docker container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
+| `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated additional UI language codes to enable (for example `de,fr`). English is always enabled; only languages with an installed frontend locale catalog are shown. |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
@@ -181,6 +184,36 @@ All backend variables have sensible defaults. Only set what you need to override
 | `UPTIME_HISTORY_RETENTION_DAYS` | `7` | How many days of upstream and route health checks to retain |
 | `WWW_PATH` | `/etc/caddy-ui/www` | Directory for the maintenance page HTML file (created on first use) |
 | `NODE_EXTRA_CA_CERTS` | — | Path to a PEM bundle of extra CAs for route checks to trust, for sites with certificates from a private CA other than Caddy's local one (standard Node.js variable) |
+
+### Allowed Caddy admin origins
+
+Caddy configuration requests and reloads made through the backend's Caddy API client
+are restricted to trusted origins. An origin is the scheme, hostname and port, such
+as `http://caddy-staging:2019`; a different scheme or port is a different origin.
+The origin of `CADDY_ADMIN_URL` is automatically trusted. If that variable is unset,
+the client trusts `http://caddy:2019`, but no default instance is created.
+
+For additional instances, set `CADDY_ADMIN_ALLOWED_ORIGINS` on the **backend**:
+
+```yaml
+  caddy-ui-backend:
+    environment:
+      - CADDY_ADMIN_ALLOWED_ORIGINS=http://caddy-staging:2019,https://caddy-admin.example.com
+```
+
+Use exact HTTP/HTTPS origins without paths, credentials, query strings or fragments;
+wildcards are unsupported. Only include endpoints you trust to serve Caddy's admin
+API. Registering or discovering an instance does not add its origin to this list.
+The allowlist is read at startup, so recreate the backend container after changing
+its Compose environment (`docker compose up -d caddy-ui-backend`) or restart the
+backend process with the updated environment. Existing additional instances also
+need their origins listed.
+
+If a configuration request fails with `Caddy admin origin is not allowed`, compare
+the instance's **Admin URL** with `CADDY_ADMIN_URL` and the additional allowed origins,
+including the scheme and port. These client requests reject redirects; configure
+the final admin endpoint directly. An Admin URL may include a reverse proxy path
+prefix, but the allowlist entry should contain only its origin.
 
 ## Authentication
 
@@ -294,8 +327,9 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 
 | Tag | Description |
 |-----|-------------|
-| `latest` | Most recent stable build |
-| `edge` | Build from `main`; may contain unreleased changes |
+| `latest` | Most recent stable release |
+| `beta` | Pre-release build of a specific branch or pull request, published manually for testing |
+| `edge` | Most recent build of any kind: every push to `main` and every `beta` build. May contain unreleased or unmerged changes |
 
 See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
 for versioned image tags and release notes.

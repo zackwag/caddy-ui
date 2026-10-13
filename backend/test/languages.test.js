@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { getAdditionalLanguages, getEnabledLanguages } from '../src/languages.js';
+import { getAdditionalLanguages, getEnabledLanguages, normalizeLanguageSetting } from '../src/languages.js';
 
 const ORIGINAL_LANGUAGES = process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
 
@@ -27,5 +27,16 @@ describe('language configuration', () => {
         process.env.CADDY_UI_ADDITIONAL_LANGUAGES = 'de-DE, 1x, german, , de';
 
         expect(getAdditionalLanguages()).toEqual(['de']);
+    });
+
+    it('accepts only null or an enabled language as the saved language setting', () => {
+        process.env.CADDY_UI_ADDITIONAL_LANGUAGES = 'de';
+
+        expect(normalizeLanguageSetting(null)).toBeNull();
+        expect(normalizeLanguageSetting(' DE ')).toBe('de');
+        expect(normalizeLanguageSetting('en')).toBe('en');
+        expect(normalizeLanguageSetting('fr')).toBeUndefined();
+        expect(normalizeLanguageSetting(1)).toBeUndefined();
+        expect(normalizeLanguageSetting({})).toBeUndefined();
     });
 });

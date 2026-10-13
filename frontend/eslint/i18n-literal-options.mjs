@@ -20,7 +20,9 @@ export default {
             '^href$',
             '^src$',
             '^data-',
-            '^col$'
+            '^col$',
+            // Catalog key for <Trans>.
+            '^i18nKey$',
         ],
     },
 
@@ -30,6 +32,7 @@ export default {
             '^t$',
             // Incident key constructors take internal identifiers, not UI text.
             '^stateNotificationKey$',
+            '^i18n\\.t$',
             '^document\\.createElement$',
             '^window\\.open$',
         ],
@@ -39,6 +42,8 @@ export default {
         exclude: [
             // The notification policy 'mode' is an internal enum.
             '^mode$',
+            // Catalog key stored in state and translated at render time.
+            '^errorKey$',
             // CSS-in-JS / inline-style properties.
             '^(background|backgroundColor|color|font.*|lineHeight|caretColor|border.*|padding.*|margin.*|width|height|minWidth|minHeight|maxWidth|maxHeight|overflow.*|display|gap|alignItems|justifyContent|textAlign|textTransform|letterSpacing|cursor|opacity|boxShadow|flex.*|position|top|right|bottom|left|whiteSpace|behavior|block)$',
         ],
@@ -49,15 +54,12 @@ export default {
             // DOM/browser behavior
             '^(keydown|mousedown)$',
 
-            // Log source identifiers and export filename prefixes.
-            '^(app|caddy|caddy-access|caddy-ui)$',
+            // Log source IDs, query parameter and export filename prefixes.
+            '^(app|caddy|dist|caddy-access|caddy-ui)$',
 
             // internal state
             '^(new|err|warn|default|unauthorized|del|add|equal|skip)$',
             '^NO_INSTANCES$',
-
-            // Log source IDs, query parameter and export filename prefixes.
-            '^(app|caddy|dist|caddy-access|caddy-ui)$',
 
             // DOM and browser storage identifiers
             '^root$',
@@ -117,8 +119,8 @@ export default {
             '^(json|console|acme|orphaned|superseded|valid|expiring|expired)$',
             '^(ntfy|discord|slack|pushover|custom)$',
 
-            // Intl.DateTimeFormat option values.
-            '^(short|numeric|2-digit)$',
+            // Intl option values and formatToParts part types.
+            '^(short|numeric|2-digit|percent|percentSign|literal)$',
 
             // Platform names used as data labels in the CA instruction map.
             '^(iOS / iPadOS|macOS|Android|Windows)$',

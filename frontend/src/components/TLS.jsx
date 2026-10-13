@@ -1,11 +1,12 @@
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { apiFetch, getToken, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
+import { currentLocale } from "../utils/format.js";
 
 export default function TLS({ toast, onUnauth, confirm }) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
@@ -82,7 +83,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
     };
 
     const formatDate = (dateStr) => {
-        try { return new Date(dateStr).toLocaleDateString(i18n.resolvedLanguage || i18n.language, { month: 'short', day: 'numeric', year: 'numeric' }); }
+        try { return new Date(dateStr).toLocaleDateString(currentLocale(), { month: 'short', day: 'numeric', year: 'numeric' }); }
         catch { return dateStr; }
     };
 
@@ -105,7 +106,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
                     <div>
                         <div className="card-title" style={{ marginBottom: 4 }}>{t("tls.rootCaCertificate")}</div>
                         <div className="hint" style={{ maxWidth: 480, marginBottom: 10 }}>
-                            {t("tls.rootCaHintBefore")}<span style={{ color: "var(--accent)" }}>.internal</span>, <span style={{ color: "var(--accent)" }}>.home</span>{t("tls.rootCaHintAfter")}
+                            <Trans i18nKey="tls.rootCaHint" components={{ tld: <span style={{ color: "var(--accent)" }} /> }} />
                         </div>
                         <div className="flex-col-sm">
                             {[

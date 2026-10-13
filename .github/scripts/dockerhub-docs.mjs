@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readHtmlRegion } from '../../docs/scripts/html-region.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const readmeUrl = 'https://github.com/zackwag/caddy-ui';
@@ -60,8 +61,14 @@ function looksLikeMarker(line) {
     return editDistance(normalized, 'dockerhub') <= 2;
 }
 
-function newMarkdownState() {
-    return { commentLine: null, rawTag: null, inlineTicks: null };
+function newMarkdownState(lines) {
+    let offset = 0;
+    const lineOffsets = lines.map(line => {
+        const start = offset;
+        offset += line.length + 1;
+        return start;
+    });
+    return { htmlRegion: null, inlineTicks: null, source: lines.join('\n'), lineOffsets };
 }
 
 function findInlineClose(line, from, length) {
@@ -93,27 +100,20 @@ function escapedAt(line, index) {
 }
 
 // Scan code/comment regions once; only ordinary Markdown is transformed.
-// Raw HTML code regions are pre, code, script, style, and textarea elements.
+// HTML boundaries come from parse5; Markdown code spans keep their own rules.
 function scanLine(line, lineIndex, lines, state, transform = text => text) {
     let result = '';
     let position = 0;
 
     while (position < line.length) {
-        if (state.commentLine !== null) {
-            const closing = line.indexOf('-->', position);
-            const end = closing === -1 ? line.length : closing + 3;
+        if (state.htmlRegion) {
+            const end = Math.min(line.length, state.htmlRegion.endOffset - state.lineOffsets[lineIndex]);
             result += line.slice(position, end);
             position = end;
-            if (closing !== -1) state.commentLine = null;
-            continue;
-        }
-        if (state.rawTag) {
-            const closing = new RegExp(`</${state.rawTag.name}\\s*>`, 'i');
-            const match = closing.exec(line.slice(position));
-            const end = match ? position + match.index + match[0].length : line.length;
-            result += line.slice(position, end);
-            position = end;
-            if (match) state.rawTag = null;
+            if (!state.htmlRegion.unclosed &&
+                state.htmlRegion.endOffset <= state.lineOffsets[lineIndex] + position) {
+                state.htmlRegion = null;
+            }
             continue;
         }
         if (state.inlineTicks !== null) {
@@ -125,7 +125,7 @@ function scanLine(line, lineIndex, lines, state, transform = text => text) {
             continue;
         }
 
-        const tokens = /`+|<!--|<(pre|code|script|style|textarea)\b[^>]*>/gi;
+        const tokens = /`+|</g;
         tokens.lastIndex = position;
         const token = tokens.exec(line);
         if (!token) {
@@ -142,10 +142,12 @@ function scanLine(line, lineIndex, lines, state, transform = text => text) {
             if (hasInlineClose(lines, lineIndex, position, token[0].length)) {
                 state.inlineTicks = token[0].length;
             }
-        } else if (token[0] === '<!--') {
-            state.commentLine = lineIndex + 1;
         } else {
-            state.rawTag = { name: token[1].toLowerCase(), line: lineIndex + 1 };
+            const offset = state.lineOffsets[lineIndex] + token.index;
+            const region = readHtmlRegion(state.source.slice(offset));
+            if (region) {
+                state.htmlRegion = { ...region, endOffset: offset + region.endOffset, line: lineIndex + 1 };
+            }
         }
     }
     return result;
@@ -168,20 +170,20 @@ export function parseBlocks(markdown) {
 
     let active = null;
     let fence = null;
-    const state = newMarkdownState();
 
     function report(line, message) {
         diagnostics.push(`README.md:${line}: ${message}`);
     }
 
     const lines = markdown.split(/\r?\n/);
+    const state = newMarkdownState(lines);
 
     for (let index = 0; index < lines.length; index++) {
         const line = lines[index];
         const lineNumber = index + 1;
 
         // A marker-looking line inside a comment or code span is literal text.
-        if (state.commentLine !== null || state.rawTag || state.inlineTicks !== null) {
+        if (state.htmlRegion || state.inlineTicks !== null) {
             if (active) active.lines.push(line);
             scanLine(line, index, lines, state);
             continue;
@@ -300,11 +302,11 @@ export function parseBlocks(markdown) {
     if (fence) {
         report(fence.line, 'Unclosed fenced code block.');
     }
-    if (state.commentLine !== null) {
-        report(state.commentLine, 'Unclosed HTML comment.');
-    }
-    if (state.rawTag) {
-        report(state.rawTag.line, `Unclosed HTML ${state.rawTag.name} code region.`);
+    if (state.htmlRegion?.unclosed) {
+        const message = state.htmlRegion.kind === 'comment'
+            ? 'Unclosed HTML comment.'
+            : `Unclosed HTML ${state.htmlRegion.name} code region.`;
+        report(state.htmlRegion.line, message);
     }
 
     for (const destination of ['backend', 'frontend']) {
@@ -322,12 +324,12 @@ export function parseBlocks(markdown) {
 
 // Use the same protected-region scanner for parsing and link conversion.
 export function absoluteLinks(markdown) {
-    const state = newMarkdownState();
     const lines = markdown.split('\n');
+    const state = newMarkdownState(lines);
     let fence = null;
 
     return lines.map((line, index) => {
-        if (state.commentLine !== null || state.rawTag || state.inlineTicks !== null) {
+        if (state.htmlRegion || state.inlineTicks !== null) {
             return scanLine(line, index, lines, state, rewriteAnchors);
         }
         if (fence) {

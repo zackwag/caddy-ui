@@ -1,14 +1,12 @@
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
-
-// eslint-disable-next-line i18next/no-literal-string -- Caddyfile directive, not translatable UI copy
-const SERVER_NAME_DIRECTIVE = "name";
+import { currentLocale, formatNumber } from "../utils/format.js";
 
 export default function Dashboard({ status, toast, onUnauth }) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const [names, setNames] = useState({});
     const [editingServer, setEditingServer] = useState(null);
     const [editName, setEditName] = useState("");
@@ -52,7 +50,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
 
     const formatLastReload = (iso) => {
         if (!iso) return "—";
-        return new Date(iso).toLocaleString(i18n.resolvedLanguage || i18n.language, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return new Date(iso).toLocaleString(currentLocale(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     };
 
     if (!status) return <div className="loading">{t("common.loading")}</div>;
@@ -111,8 +109,8 @@ export default function Dashboard({ status, toast, onUnauth }) {
                             <div>
                                 <span className="field-label">{t("dashboard.heap")}</span>
                                 <div className="data-val">
-                                    {process.memAlloc !== null ? `${process.memAlloc} MB` : "—"}
-                                    {process.memSys !== null && <span className="inline-muted">/ {t("dashboard.systemMemory", { value: process.memSys })}</span>}
+                                    {process.memAlloc !== null ? `${formatNumber(process.memAlloc)} MB` : "—"}
+                                    {process.memSys !== null && <span className="inline-muted">/ {t("dashboard.systemMemory", { value: formatNumber(process.memSys) })}</span>}
                                 </div>
                             </div>
                             <div>
@@ -166,7 +164,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                 {!status.online && (
                     <div className="card card-danger">
                         <div className="card-title">{t("dashboard.connectionError")}</div>
-                        <div className="loading">{status.error}</div>
+                        <div className="loading">{status.errorKey ? t(status.errorKey) : status.error}</div>
                     </div>
                 )}
             </div>
@@ -194,7 +192,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                             <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={t("dashboard.labelPlaceholder")} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                         </div>
                         <div className="modal-hint">
-                            {t("dashboard.labelHintBefore")} <code>{SERVER_NAME_DIRECTIVE}</code> {t("dashboard.labelHintAfter")}
+                            <Trans i18nKey="dashboard.labelHint" components={{ code: <code /> }} />
                         </div>
                         <div className="btn-row flex-end">
                             <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>{t("common.cancel")}</button>
