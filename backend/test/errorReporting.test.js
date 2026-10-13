@@ -9,6 +9,19 @@ describe('API error reporting', () => {
         expect(errorCode('/api/status', 200)).toBe('CADDY_STATUS_UNAVAILABLE');
         expect(errorCode('/api/metrics', 200)).toBe('METRICS_UNAVAILABLE');
     });
+    it.each([
+        [401, 'UNAUTHORIZED'],
+        [403, 'FORBIDDEN'],
+    ])('reports HTTP %s with its distinct authentication or permission code', (statusCode, code) => {
+        const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+        const req = { method: 'PUT', path: '/api/settings' };
+        const res = { statusCode, setHeader: vi.fn(), json: vi.fn(x => x) };
+        diagnosticMiddleware(req, res, () => {});
+        const output = res.json({ error: 'Access denied' });
+        expect(output.code).toBe(code);
+        expect(output.requestId).toBe(req.diagnosticId);
+        expect(warn).toHaveBeenCalledWith('API request failed', expect.objectContaining({ code, status: statusCode }));
+    });
     it('adds an ID and code without replacing technical detail on 500 responses', () => {
         const req = { method: 'GET', path: '/api/settings' };
         const res = { statusCode: 500, setHeader: vi.fn(), json: vi.fn(x => x) };

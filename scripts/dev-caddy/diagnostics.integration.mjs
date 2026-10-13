@@ -18,6 +18,20 @@ test('real Caddy diagnostics preserve correlation, paths, codes and severity', {
         return logs.data.entries.filter(entry => entry.requestId === response.requestId);
     }
 
+    await t.test('updating an unknown instance returns a correlated 404 instead of a save failure', async () => {
+        const response = await stack.api('/instances/missing-diagnostic-instance', {
+            method: 'PUT', body: { name: 'Missing instance' },
+        });
+        assert.equal(response.status, 404);
+        assert.deepEqual(response.data, { code: 'INSTANCE_NOT_FOUND', error: 'Operation failed', requestId: response.requestId });
+        const entries = await diagnostics(response);
+        const failure = entries.find(entry => entry.message === 'API request failed');
+        assert.equal(failure.code, 'INSTANCE_NOT_FOUND');
+        assert.equal(failure.path, '/api/instances/missing-diagnostic-instance');
+        assert.equal(failure.level, 'warn');
+        assert.equal((await stack.api('/instances')).data.length, 1);
+    });
+
     await t.test('mounted validation and save routes keep their complete paths and semantic codes', async () => {
         for (const [path, method] of [
             ['/caddyfile/validations?fmt=false&probe=omit-from-log', 'POST'],

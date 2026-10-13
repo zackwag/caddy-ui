@@ -182,6 +182,27 @@ test('state errors deduplicate and recovery rearms them', options, async () => {
     } finally { await changePath(configPath); }
 });
 
+test('permission failures show localized feedback while keeping the active view', options, async () => {
+    const endpoint = '**/api/caddyfile/validations*';
+    await go('/caddyfile');
+    await waitForEditor();
+    await page.route(endpoint, route => route.fulfill({
+        status: 403, contentType: 'application/json',
+        body: JSON.stringify({ code: 'FORBIDDEN', error: 'private permission detail', requestId: 'permission-diagnostic' }),
+    }));
+    try {
+        await validate();
+        const toast = page.locator('.toast-error');
+        await toast.waitFor();
+        const text = await toast.textContent();
+        assert(text.includes('You do not have permission to perform this operation.'));
+        assert(!text.includes('private permission detail'));
+        assert(!text.includes('Your session has expired'));
+        assert.equal(await page.locator('.cm-editor').count(), 1);
+        assert.equal(new URL(await toast.locator('a').getAttribute('href'), origin).searchParams.get('search'), 'permission-diagnostic');
+    } finally { await page.unroute(endpoint); }
+});
+
 test('browser network loss has localized feedback without a server log link', options, async () => {
     await go('/caddyfile');
     await page.locator('.cm-editor').waitFor();
