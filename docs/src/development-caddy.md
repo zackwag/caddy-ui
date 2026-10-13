@@ -153,3 +153,30 @@ Engine. `npm run test:dev-caddy:integration` is an opt-in real-container smoke t
 uses a fresh namespace and purges only its own resources in a finally block,
 covering `/health`, `/error`, reload, logging, restart/recreation persistence and
 independent simultaneous instances. It requires Docker and may pull the pinned image.
+
+## Automated integration and browser checks
+
+Install the backend and frontend dependencies, then run:
+
+```sh
+npm run test:dev-caddy
+npm run test:dev-caddy:integration
+npm exec --prefix frontend -- playwright install chromium
+npm run test:dev-caddy:e2e
+```
+
+Integration checks also exercise the real backend's registration API: creating or
+removing a Docker container does not create or remove its UI registration. The
+tests cover reload, retained configuration, instance isolation and cleanup after
+failed startup. Browser checks cover localized errors, links to correlated logs,
+live log streams, incident recovery, network loss and the empty-instance state.
+
+Each suite uses a fresh labeled Docker namespace, temporary backend state and
+dynamic service ports. It does not read or change `.dev-caddy`. Readiness waits
+are bounded, and teardown stops its backend and browser before purging its own
+containers and volumes, including when a test fails. Tests do not use production
+configuration or require a running development stack.
+
+The browser suite uses Playwright's Chromium by default. Set
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an installed Chromium executable when
+using a managed environment that provides its own browser.

@@ -70,11 +70,20 @@ export default [
         rules: js.configs.recommended.rules,
     },
     {
-        files: ['scripts/**/*.mjs', , 'eslint/**/*.mjs'],
+        files: ['scripts/**/*.mjs', 'eslint/**/*.mjs'],
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',
             globals: globals.node,
+        },
+        rules: js.configs.recommended.rules,
+    },
+    {
+        files: ['e2e/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: { ...globals.node, ...globals.browser },
         },
         rules: js.configs.recommended.rules,
     },
