@@ -88,38 +88,6 @@ instances, optional authentication, and responsive dark/light themes.
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 <!-- dockerhub:frontend:end -->
 
-## Localization
-
-![Localization coverage](docs/localization-coverage.svg)
-
-English (`frontend/src/i18n/locales/en.js`) is the canonical localization schema and fallback language. Additional locale catalogs may translate any subset of the English keys; missing keys fall back to English. Locale catalogs may not introduce keys or key-tree shapes that do not exist in `en.js`.
-
-Every locale must define `test.languageLoaded`, which is used by the frontend language API integration test to verify that an advertised locale can actually be loaded.
-
-Translations are human-authored. Machine-generated, agentic, or bulk machine translations are not accepted.
-
-## Architecture
-
-```mermaid
-graph LR
-    FE["caddy/ui frontend\nReact + Nginx\n:9877"]
-    BE["caddy/ui backend\nNode.js + Express\n:9876"]
-    DS[("Docker Socket\n/var/run/docker.sock")]
-    CA["Caddy\n:2019 admin API\n:80 / :443"]
-    UI_DATA[("caddy-ui data\n/etc/caddy-ui")]
-
-    FE -->|"/api/* proxy"| BE
-    BE -->|"admin API"| CA
-    BE -->|"upstream TCP checks + passive health pool"| CA
-    BE -->|"Prometheus metrics"| CA
-    BE -->|"/adapt validation"| CA
-    BE -->|"/pki/ca/local"| CA
-    BE <-->|"docker exec\nCaddyfile, logs, certs"| DS
-    DS <-->|"read / write / stream"| CA
-    BE <-->|"container discovery"| DS
-    BE <-->|"instances, history,\nnotes, settings, config"| UI_DATA
-```
-
 ### Backend
 
 <!-- dockerhub:backend:start -->
@@ -509,6 +477,16 @@ for versioned image tags and release notes.
 
 <!-- dockerhub:both:end -->
 <!-- ANCHOR_END: image-tags -->
+
+## Localization
+
+![Localization coverage](docs/localization-coverage.svg)
+
+English (`frontend/src/i18n/locales/en.js`) is the canonical localization schema and fallback language. Additional locale catalogs may translate any subset of the English keys; missing keys fall back to English. Locale catalogs may not introduce keys or key-tree shapes that do not exist in `en.js`.
+
+Every locale must define `test.languageLoaded`, which is used by the frontend language API integration test to verify that an advertised locale can actually be loaded.
+
+Translations are human-authored. Machine-generated, agentic, or bulk machine translations are not accepted.
 
 ## Contributing
 
