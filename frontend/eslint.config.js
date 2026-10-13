@@ -70,7 +70,7 @@ export default [
         rules: js.configs.recommended.rules,
     },
     {
-        files: ['scripts/**/*.mjs', , 'eslint/**/*.mjs'],
+        files: ['scripts/**/*.mjs', 'eslint/**/*.mjs'],
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',
