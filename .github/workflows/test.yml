@@ -40,9 +40,11 @@ jobs:
         run: npm ci
 
       - name: Lint development harness
+        if: matrix.project == 'backend'
         run: npm run lint:dev-caddy --prefix ..
 
       - name: Test development lifecycle safety
+        if: matrix.project == 'backend'
         run: npm run test:dev-caddy --prefix ..
 
       - name: Run tests
