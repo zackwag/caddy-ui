@@ -200,7 +200,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                 changeCompareTo("current");
             }
         } catch (e) {
-            if (request === historyRequest.current) toast.error(e.message);
+            if (request === historyRequest.current) toast.error(localizeError(e, t), e);
         } finally {
             if (request === historyRequest.current) setHistoryLoading(false);
         }
