@@ -5,7 +5,8 @@ import { ERROR_REGISTRY, errorDefinition } from './errorRegistry.js';
 
 export function errorCode(path, status) {
     if (status === 429) return 'RATE_LIMITED';
-    if (status === 401 || status === 403) return 'UNAUTHORIZED';
+    if (status === 401) return 'UNAUTHORIZED';
+    if (status === 403) return 'FORBIDDEN';
     if (path.startsWith('/api/caddyfile') && status === 422) return 'CADDYFILE_VALIDATION_FAILED';
     if (status === 400 || status === 422) return 'VALIDATION_FAILED';
     if (status === 404) return 'NOT_FOUND';
