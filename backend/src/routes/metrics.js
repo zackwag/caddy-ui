@@ -3,6 +3,8 @@ import { readContainerFile, writeContainerFile } from '../containerFs.js';
 import { caddyLoad } from '../caddy.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
+import { asAppError, errorChain } from '../AppError.js';
+import { sendAppError } from '../errorReporting.js';
 import { ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
 import { getStatsForInstance } from '../uptimeHistory.js';
 
@@ -198,7 +200,9 @@ router.get('/', async (req, res) => {
 
         res.json({ ok: true, totalRequests, statusGroups, avgResponseMs, p50, p95, p99, rps, uptimeSeconds, scrapedAt: new Date().toISOString() });
     } catch (err) {
-        res.json({ ok: false, error: err.message });
+        const error = asAppError(err, 'METRICS_UNAVAILABLE', { instanceId: req.instance.id });
+        logger.warn('Metrics read failed', { requestId: req.diagnosticId, code: error.code, causes: errorChain(error) });
+        res.json({ ok: false, error: 'Metrics unavailable', code: error.code });
     }
 });
 
@@ -209,7 +213,7 @@ router.get('/config', async (req, res) => {
         const enabled = /^\s*metrics\s*$/m.test(content);
         res.json({ enabled });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendAppError(res, asAppError(err, 'CADDYFILE_READ_FAILED', { instanceId: req.instance.id }));
     }
 });
 
@@ -231,7 +235,7 @@ router.put('/config', async (req, res) => {
         logger.info(`Metrics config saved and reloaded`, { enabled });
         res.json({ ok: true, enabled });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendAppError(res, asAppError(err, 'METRICS_CONFIG_FAILED', { instanceId: req.instance.id }));
     }
 });
 

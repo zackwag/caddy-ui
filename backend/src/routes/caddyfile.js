@@ -6,6 +6,8 @@ import { readContainerFile, removeContainerPath, writeContainerFile } from '../c
 import { execInInstance } from '../docker.js';
 import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
 import logger from '../logger.js';
+import { asAppError } from '../AppError.js';
+import { sendAppError } from '../errorReporting.js';
 
 const router = Router();
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
@@ -299,7 +301,12 @@ function sortCaddyfile(content) {
 // GET /api/caddyfile?download=true
 router.get('/', async (req, res) => {
     const { configPath, containerName } = req.instance;
-    const content = await readContainerFile(containerName, configPath);
+    let content;
+    try {
+        content = await readContainerFile(containerName, configPath);
+    } catch (error) {
+        return sendAppError(res, asAppError(error, 'CADDYFILE_READ_FAILED', { instanceId: req.instance.id, configPath }));
+    }
     if (req.query.download === 'true') {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);

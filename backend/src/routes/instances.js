@@ -3,6 +3,8 @@ import { caddyGet } from '../caddy.js';
 import { discoverCaddyContainers } from '../dockerDiscovery.js';
 import { addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
 import logger from '../logger.js';
+import { asAppError } from '../AppError.js';
+import { sendAppError } from '../errorReporting.js';
 import { removeInstanceServerNames } from '../serverNames.js';
 import { validatePath, validateUrl } from '../validation.js';
 
@@ -69,7 +71,7 @@ router.get('/discover', async (req, res) => {
         res.json(unregistered);
     } catch (err) {
         logger.error('Docker discovery failed', { error: err.message });
-        res.status(500).json({ error: 'Docker discovery failed' });
+        sendAppError(res, asAppError(err, 'INSTANCE_DISCOVERY_FAILED'));
     }
 });
 
@@ -86,7 +88,7 @@ router.get('/servers', async (req, res) => {
         const servers = await caddyGet('/config/apps/http/servers', adminUrl);
         res.json(serverIdsFromConfig(servers));
     } catch (err) {
-        res.status(502).json({ error: `Could not read servers from Caddy: ${err.message}` });
+        sendAppError(res, asAppError(err, 'INSTANCE_CONNECTION_FAILED'));
     }
 });
 
@@ -120,7 +122,7 @@ router.post('/', async (req, res) => {
         res.status(201).json(instance);
     } catch (err) {
         logger.error('Failed to add instance', { error: err.message });
-        res.status(409).json({ error: err.message });
+        sendAppError(res, asAppError(err, 'INSTANCE_SAVE_FAILED'));
     }
 });
 
@@ -142,7 +144,7 @@ router.put('/:id', async (req, res) => {
         res.json(instance);
     } catch (err) {
         logger.error('Failed to update instance', { id, error: err.message });
-        res.status(404).json({ error: err.message });
+        sendAppError(res, asAppError(err, 'INSTANCE_SAVE_FAILED'));
     }
 });
 
@@ -155,7 +157,7 @@ router.delete('/:id', async (req, res) => {
         res.json({ ok: true });
     } catch (err) {
         logger.error('Failed to remove instance', { id, error: err.message });
-        res.status(400).json({ error: err.message });
+        sendAppError(res, asAppError(err, 'INSTANCE_REMOVE_FAILED'));
     }
 });
 

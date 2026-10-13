@@ -4,6 +4,8 @@ import { join, resolve, relative } from 'path';
 import { caddyGet } from '../caddy.js';
 import { describeReadError, listContainerDir, readContainerDir, readContainerFile, removeContainerPath } from '../containerFs.js';
 import logger from '../logger.js';
+import { AppError, asAppError } from '../AppError.js';
+import { sendAppError } from '../errorReporting.js';
 
 const router = Router();
 
@@ -163,7 +165,7 @@ router.delete('/:domain', async (req, res) => {
 
     if (!canDeleteInternal && !canDeleteAcme) {
         logger.warn(`Refused to delete cert`, { domain });
-        return res.status(403).json({ error: 'Cannot delete this cert — only orphaned, superseded, or expired internal certs can be removed' });
+        return sendAppError(res, new AppError('CERTIFICATE_DELETE_DENIED', { context: { domain } }));
     }
 
     const target = canDeleteInternal ? internalCert : acmeCert;
@@ -184,7 +186,7 @@ router.delete('/:domain', async (req, res) => {
         res.json({ ok: true, message: `Deleted cert for ${domain}` });
     } catch (err) {
         logger.error(`Failed to delete cert`, { domain, error: err.message });
-        res.status(500).json({ error: `Failed to delete cert: ${err.message}` });
+        sendAppError(res, asAppError(err, 'CERTIFICATE_DELETE_FAILED', { domain }));
     }
 });
 
@@ -206,7 +208,7 @@ router.get('/ca', async (req, res) => {
         res.send(pem);
     } catch (err) {
         logger.error(`Root CA download failed`, { error: err.message });
-        res.status(404).json({ error: `Root CA cert not found: ${err.message}` });
+        sendAppError(res, asAppError(err, 'CERTIFICATE_CA_UNAVAILABLE'));
     }
 });
 
