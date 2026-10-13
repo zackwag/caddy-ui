@@ -1,17 +1,38 @@
 {
-    "name": "caddy-ui with host Docker",
+    "name": "caddy-ui",
     "image": "node:24-bookworm",
     "remoteUser": "node",
     "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "username": "node"
+        },
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
     },
-    "postCreateCommand": "npm --prefix backend ci && npm --prefix frontend ci",
+    "postCreateCommand": {
+        "installDependencies": "npm --prefix backend ci && npm --prefix frontend ci && npm exec --prefix frontend -- playwright install --with-deps chromium",
+        "installMdbook": "mkdir -p \"$HOME/.local/bin\" && curl -fL https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-x86_64-unknown-linux-gnu.tar.gz -o /tmp/mdbook.tar.gz && tar --no-same-owner -xzf /tmp/mdbook.tar.gz -C \"$HOME/.local/bin\" mdbook && printf '\\nexport PATH=\"$HOME/.local/bin:$PATH\"\\n' >> \"$HOME/.bashrc\""
+    },
     "remoteEnv": {
+        "PATH": "${containerEnv:PATH}:/home/node/.local/bin",
         "REMOTE_CONTAINERS": "true"
     },
-    "forwardPorts": [3001, 5173],
+    "forwardPorts": [
+        3001,
+        5173,
+        3000
+    ],
     "portsAttributes": {
-        "3001": { "label": "caddy-ui backend", "onAutoForward": "silent" },
-        "5173": { "label": "caddy-ui frontend", "onAutoForward": "openBrowser" }
+        "3001": {
+            "label": "caddy-ui backend",
+            "onAutoForward": "silent"
+        },
+        "5173": {
+            "label": "caddy-ui frontend",
+            "onAutoForward": "openBrowser"
+        },
+        "3000": {
+            "label": "mdBook preview",
+            "onAutoForward": "openBrowser"
+        }
     }
 }
