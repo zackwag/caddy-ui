@@ -1,4 +1,5 @@
 name: Beta
+run-name: "Beta${{ inputs.pr && format(' (PR #{0})', inputs.pr) || (inputs.ref && format(' ({0})', inputs.ref)) || '' }}"
 
 on:
   workflow_dispatch:
@@ -7,9 +8,18 @@ on:
         description: "Branch or tag to build from (defaults to the selected branch)"
         required: false
         type: string
+      pr:
+        description: "Pull request number to build instead, including PRs from forks (overrides ref)"
+        required: false
+        type: string
 
 permissions:
   contents: read
+
+env:
+  # refs/pull/<n>/head lives in this repo, so fork PRs check out without
+  # adding the fork as a remote
+  BUILD_REF: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || inputs.ref || github.ref }}
 
 jobs:
   docker-backend:
@@ -19,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ env.BUILD_REF }}
 
       - name: Resolve short SHA
         id: sha
@@ -58,7 +68,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ env.BUILD_REF }}
 
       - name: Resolve short SHA
         id: sha

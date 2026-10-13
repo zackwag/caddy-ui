@@ -466,8 +466,9 @@ Both images are required. The frontend serves the UI and proxies requests to the
 
 | Tag | Description |
 |-----|-------------|
-| `latest` | Most recent stable build |
-| `edge` | Build from `main`; may contain unreleased changes |
+| `latest` | Most recent stable release |
+| `beta` | Pre-release build of a specific branch or pull request, published manually for testing |
+| `edge` | Most recent build of any kind: every push to `main` and every `beta` build. May contain unreleased or unmerged changes |
 
 See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
 for versioned image tags and release notes.
