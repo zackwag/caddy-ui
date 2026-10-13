@@ -6,7 +6,8 @@
         "dev:with-caddy": "node scripts/dev-caddy/dev.mjs",
         "dev:instances": "node scripts/dev-caddy/cli.mjs",
         "test:dev-caddy": "node --test scripts/dev-caddy/*.test.mjs",
-        "test:dev-caddy:integration": "node --test scripts/dev-caddy/integration.mjs",
+        "test:dev-caddy:integration": "node --test scripts/dev-caddy/integration.mjs scripts/dev-caddy/api.integration.mjs scripts/dev-caddy/diagnostics.integration.mjs",
+        "test:dev-caddy:e2e": "node --test frontend/e2e/error-logging.mjs",
         "lint:dev-caddy": "node backend/node_modules/eslint/bin/eslint.js --config backend/eslint.config.js scripts/dev-caddy"
     }
 }

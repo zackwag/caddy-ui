@@ -78,4 +78,13 @@ export default [
         },
         rules: js.configs.recommended.rules,
     },
+    {
+        files: ['e2e/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: { ...globals.node, ...globals.browser },
+        },
+        rules: js.configs.recommended.rules,
+    },
 ];
