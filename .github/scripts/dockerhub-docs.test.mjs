@@ -49,7 +49,7 @@ for (const tag of ['pre', 'code', 'script', 'style', 'textarea']) {
 }
 
 test('HTML code tags are case-insensitive and can close on the same line', () => {
-    const content = '<PRE>literal <!-- text</PRE> ordinary';
+    const content = '<PRE>literal text</PRE> ordinary';
     assert.equal(selected(content), content);
 });
 
@@ -113,6 +113,80 @@ test('escaped backticks do not suppress normal link conversion', () => {
         absoluteLinks('\\` [normal](#normal)'),
         '\\` [normal](https://github.com/zackwag/caddy-ui#normal)',
     );
+});
+
+for (const comment of [
+    '<!-- [literal](#literal) -->',
+    '<!-- [literal](#literal) --!>',
+    '<!-->',
+    '<!--->',
+]) {
+    test(`HTML comment ending is handled by the parser: ${comment}`, () => {
+        const content = `${comment} [outside](#outside)`;
+        assert.equal(selected(content), content);
+        assert.equal(absoluteLinks(content), `${comment} [outside](https://github.com/zackwag/caddy-ui#outside)`);
+    });
+}
+
+for (const name of ['pre-widget', 'code-example', 'script-widget', 'style-note', 'textarea-helper']) {
+    test(`${name} is not mistaken for a code element`, () => {
+        const content = `<${name}>[outside](#outside)</${name}>`;
+        assert.equal(selected(content), content);
+        assert.equal(absoluteLinks(content), `<${name}>[outside](https://github.com/zackwag/caddy-ui#outside)</${name}>`);
+    });
+}
+
+for (const content of [
+    '<div title="<pre>">[outside](#outside)</div>',
+    "<div title='<script>'>[outside](#outside)</div>",
+    '<div title="[attribute](#attribute) > <code>">[outside](#outside)</div>',
+    '<pre title="></pre> [attribute](#attribute)">[literal](#literal)</pre> [outside](#outside)',
+    "<code title='></code> [attribute](#attribute)'>[literal](#literal)</code> [outside](#outside)",
+    `<div title="multiline\n${end}\n<pre> [attribute](#attribute)">[outside](#outside)</div>`,
+    `<pre title="multiline\n${end}\n></pre>">[literal](#literal)</pre> [outside](#outside)`,
+]) {
+    test(`quoted HTML attributes preserve their exact source: ${content}`, () => {
+        assert.equal(selected(content), content);
+        assert.equal(absoluteLinks(content), content.replace('](#outside)', '](https://github.com/zackwag/caddy-ui#outside)'));
+    });
+}
+
+for (const tag of ['pre', 'code', 'script', 'style', 'textarea']) {
+    test(`${tag} end tags with ignored attributes close the protected region`, () => {
+        const content = `<${tag}>[literal](#literal)</${tag} ignored="value"> [outside](#outside)`;
+        assert.equal(selected(content), content);
+        assert.equal(absoluteLinks(content), content.replace('](#outside)', '](https://github.com/zackwag/caddy-ui#outside)'));
+    });
+}
+
+for (const tag of ['pre', 'code']) {
+    test(`nested ${tag} elements do not end protection at the inner closing tag`, () => {
+        const content = `<${tag}><${tag}>inner</${tag}>\n${end}\n[literal](#literal)</${tag}> [outside](#outside)`;
+        assert.equal(selected(content), content);
+        assert.equal(absoluteLinks(content), content.replace('](#outside)', '](https://github.com/zackwag/caddy-ui#outside)'));
+    });
+}
+
+test('script text is parsed in its HTML raw-text context', () => {
+    const content = `<script>const example = '<pre><!--';\n${end}\n[literal](#literal)</script> [outside](#outside)`;
+    assert.equal(selected(content), content);
+    assert.equal(absoluteLinks(content), content.replace('](#outside)', '](https://github.com/zackwag/caddy-ui#outside)'));
+});
+
+test('comments inside pre elements hide closing-tag and routing examples', () => {
+    const content = `<pre><!-- </pre>\n${end}\n--!> [literal](#literal)</pre> [outside](#outside)`;
+    assert.equal(selected(content), content);
+    assert.equal(absoluteLinks(content), content.replace('](#outside)', '](https://github.com/zackwag/caddy-ui#outside)'));
+});
+
+test('unterminated HTML comments still block generation', () => {
+    assert.throws(() => parseBlocks(`${start}\n<!-- unfinished`), /Unclosed HTML comment/);
+    assert.throws(() => parseBlocks(wrap('<PRE>literal <!-- text</PRE> ordinary')), /Unclosed HTML pre code region/);
+});
+
+test('HTML offsets preserve CRLF, Unicode and trailing whitespace during link conversion', () => {
+    const content = '<pre title="ä😀 >">\r\n[literal](#literal)\r\n</pre>  [outside](#outside)  \r\n';
+    assert.equal(absoluteLinks(content), content.replace('](#outside)', '](https://github.com/zackwag/caddy-ui#outside)'));
 });
 
 test('whole-page size validation counts UTF-8 bytes', () => {
