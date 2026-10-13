@@ -1,7 +1,5 @@
 # Project Structure
 
-## Project Structure
-
 <!-- 
 This tree is generated from the repository at build time. Add persistent comments
 in `docs/project-structure-notes.json`; use paths relative to the repository root

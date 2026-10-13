@@ -96,6 +96,9 @@ end in `/`). Builds preserve these annotations; update the key after a rename.
 - Preserve code indentation, environment-variable names, and paths exactly.
 - Use relative links between book pages and include the target heading when useful.
 - For a new page, add its Markdown file and an entry in `SUMMARY.md`.
+- Give each page one `#` title and use `##` for its main sections. Shared includes
+  should contain the section's content without repeating the page title; mdBook
+  also adds section headings to the sidebar.
 - Remove credentials and private information from examples and screenshots.
 - For layout or theme changes, include a screenshot and check desktop/mobile views.
 

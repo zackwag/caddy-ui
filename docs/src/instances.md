@@ -1,7 +1,5 @@
 # Multi-Instance
 
-## Multi-Instance
-
 caddy/ui can manage multiple Caddy instances from a single interface. There are two modes for accessing Caddy's files, and you can mix them per-instance:
 
 | | Docker mode | Local mode |
@@ -11,7 +9,7 @@ caddy/ui can manage multiple Caddy instances from a single interface. There are 
 | **Auto-discovery** | Yes | No |
 | **Container Name field** | Set to the Caddy container name | Leave empty |
 
-### Docker mode (recommended)
+## Docker mode (recommended)
 
 Mount the Docker socket into the backend and let caddy/ui talk to Caddy containers via `docker exec`. No per-instance volume mounts needed.
 
@@ -34,7 +32,7 @@ To add more instances, put them on the same Docker network and they'll show up i
       - caddy-ui
 ```
 
-### Local mode (no Docker socket)
+## Local mode (no Docker socket)
 
 If you can't or don't want to mount the Docker socket, leave the **Container Name** field empty when adding an instance. caddy/ui will access Caddyfiles, logs, and certificates directly from the filesystem and use the bundled `caddy` binary for formatting, validation, and version detection. Reloads go through the instance's admin API.
 
@@ -57,11 +55,11 @@ Then add the instance manually on the Instances page with Container Name left em
 
 > **Note:** When managing multiple instances in local mode, the mount paths can't collide. Two Caddy instances both using `/etc/caddy/Caddyfile` inside their own containers would need to be mounted to different paths in the backend (e.g., `/etc/caddy-prod/Caddyfile` and `/etc/caddy-staging/Caddyfile`). The same goes for data directories: only one instance can use `/data`, so mount another at e.g. `/data-staging` and set its **Data Path** to `/data-staging/caddy`.
 
-### Instance switcher
+## Instance switcher
 
 When more than one instance is configured, an instance switcher dropdown appears in the sidebar showing each instance with its online/offline status. Switching instances navigates to the Dashboard and reloads all data from the selected instance.
 
-### Manual configuration
+## Manual configuration
 
 Instances can also be configured via the REST API (`POST /api/instances`) or by placing an `instances.json` file at `/etc/caddy-ui/instances.json`:
 
@@ -92,6 +90,6 @@ Instances can also be configured via the REST API (`POST /api/instances`) or by 
 
 Set `containerName` to the Docker container name for Docker mode, or `""` for local mode.
 
-### Backward compatibility
+## Backward compatibility
 
 Setting `CADDY_ADMIN_URL` still creates a default instance on startup for existing deployments. Remove it to use discovery-based setup instead.

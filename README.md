@@ -71,6 +71,7 @@ instances, optional authentication, and responsive dark/light themes.
 
 ### Frontend
 
+<!-- ANCHOR: frontend-features -->
 <!-- dockerhub:frontend:start -->
 - **Dashboard** — Live server status, TLS state, an HTTP servers table (label, Server ID, listen address, route count) with optional labels, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
 - **Caddyfile Editor** — Edit your Caddyfile with [real Caddyfile-grammar syntax highlighting](https://zackwag.github.io/caddy-ui/caddyfile.html#caddyfile-syntax-highlighting) (directives, matchers, placeholders, env vars — not a generic nginx approximation), live validation, `caddy fmt` formatting, automatic site block sorting, export/import, and full version history with inline preview and one-click rollback
@@ -87,9 +88,11 @@ instances, optional authentication, and responsive dark/light themes.
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 <!-- dockerhub:frontend:end -->
+<!-- ANCHOR_END: frontend-features -->
 
 ### Backend
 
+<!-- ANCHOR: backend-features -->
 <!-- dockerhub:backend:start -->
 - Proxies requests to Caddy's admin API (`/config`, `/id`, `/load`)
 - Reads and writes the Caddyfile on disk
@@ -116,6 +119,7 @@ instances, optional authentication, and responsive dark/light themes.
 - Structured JSON logging with configurable log level via `LOG_LEVEL`
 - Enriched status endpoint with route count, upstream health, and uptime for Homepage widget support
 <!-- dockerhub:backend:end -->
+<!-- ANCHOR_END: backend-features -->
 <!-- ANCHOR_END: features -->
 
 </details>
@@ -242,9 +246,9 @@ Open `http://your-server:9877` in your browser.
 
 </details>
 
-<!-- ANCHOR: architecture -->
 <!-- dockerhub:both:start -->
 ## Architecture
+<!-- ANCHOR: architecture -->
 caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
 
 In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
@@ -388,9 +392,9 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 <!-- ANCHOR_END: homepage-widget -->
 
 
-<!-- ANCHOR: api-endpoints -->
 <!-- dockerhub:backend:start -->
 ## API Endpoints
+<!-- ANCHOR: api-endpoints -->
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
