@@ -15,4 +15,12 @@
     subtitle.textContent = 'Documentation';
     brand.append(mark, subtitle);
     scrollbox.prepend(brand);
+
+    const footer = document.createElement('div');
+    footer.className = 'sidebar-footer';
+    const license = document.createElement('a');
+    license.href = 'https://github.com/zackwag/caddy-ui/blob/main/LICENSE';
+    license.textContent = 'MIT License';
+    footer.append(license);
+    scrollbox.after(footer);
 })();

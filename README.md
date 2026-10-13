@@ -481,7 +481,7 @@ for versioned image tags and release notes.
 
 ## Localization
 
-![Localization coverage](docs/localization-coverage.svg)
+![Localization coverage](docs/src/assets/localization-coverage.svg)
 
 English (`frontend/src/i18n/locales/en.js`) is the canonical localization schema and fallback language. Additional locale catalogs may translate any subset of the English keys; missing keys fall back to English. Locale catalogs may not introduce keys or key-tree shapes that do not exist in `en.js`.
 

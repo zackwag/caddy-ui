@@ -6,7 +6,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(scriptDir, '..');
 const repoDir = path.resolve(frontendDir, '..');
 const localesDir = path.join(frontendDir, 'src', 'i18n', 'locales');
-const coveragePath = path.join(repoDir, 'docs', 'localization-coverage.svg');
+const coveragePath = path.join(repoDir, 'docs', 'src', 'assets', 'localization-coverage.svg');
 
 function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);

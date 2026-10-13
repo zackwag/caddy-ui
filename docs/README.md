@@ -42,6 +42,8 @@ If you edited Docker Hub source blocks, also run
 ## Styling and assets
 
 Screenshots live in `docs/src/screenshots/`; the root README also references them.
+The localization coverage SVG lives in `docs/src/assets/` so mdBook copies it
+into the site. Regenerate it with `npm run i18n:coverage --prefix frontend`.
 The book's favicon is copied from the frontend logo. `docs/theme/palettes.css`
 contains the frontend's default VT2026 and CoarseEverywhere color tokens copied
 at migration time. Keep those tokens in sync when changing the frontend defaults.

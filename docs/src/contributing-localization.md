@@ -1,6 +1,6 @@
 # Contributing to localization
 
-![Localization coverage](localization-coverage.svg)
+![Localization coverage](assets/localization-coverage.svg)
 
 You can start with a handful of related strings in a language you know. A locale
 does not have to be complete: missing translations fall back to English, so a

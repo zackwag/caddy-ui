@@ -32,7 +32,28 @@ body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
 .menu-title, h1, h2, h3, .chapter { font-family: var(--mono-font); }
 .menu-title { font-size: 1.6rem; font-weight: 500; }
 .menu-bar { border-bottom: 1px solid var(--app-border); background: var(--app-surface); }
-.sidebar { border-right: 1px solid var(--app-border); }
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--app-border);
+}
+.sidebar .sidebar-scrollbox {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    height: auto;
+}
+.sidebar-footer {
+    flex-shrink: 0;
+    padding: 12px 20px;
+    border-top: 1px solid var(--app-border);
+    font-family: var(--mono-font);
+    font-size: 10px;
+    color: var(--app-muted);
+    letter-spacing: 0.5px;
+}
+.sidebar-footer a { color: inherit; text-decoration: none; }
+.sidebar-footer a:hover { color: var(--app-accent); text-decoration: underline; }
 .sidebar-brand {
     display: block;
     padding: 20px 10px 16px;
