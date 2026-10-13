@@ -83,6 +83,47 @@ body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
 .chapter li a.active { font-weight: 600; }
 .content { max-width: 1000px; }
 .content main { line-height: 1.65; }
+.content:has(.docs-landing) {
+    --content-max-width: 1400px;
+    max-width: 1480px;
+    margin-inline: auto;
+    container-type: inline-size;
+}
+.docs-landing {
+    display: grid;
+    gap: 3rem;
+    align-items: start;
+}
+.docs-landing-intro, .docs-landing-previews { min-width: 0; }
+.docs-landing-intro > p:first-child { margin-top: 0; }
+.docs-landing-preview { margin: 0; }
+.docs-landing-preview a { display: block; }
+.docs-landing-preview img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    object-position: top;
+    box-sizing: border-box;
+    border: 1px solid var(--app-border2);
+    border-radius: 6px;
+}
+.docs-landing-preview figcaption {
+    margin-top: 0.8rem;
+    font-family: var(--mono-font);
+    font-size: 1.2rem;
+}
+.docs-landing-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.6rem;
+    margin-top: 2rem;
+}
+@container (min-width: 900px) {
+    .docs-landing { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr); }
+    .docs-landing-previews > .docs-landing-preview img { aspect-ratio: 3 / 1; }
+}
 h1, h2, h3 { font-weight: 500; line-height: 1.35; }
 h1 { padding-bottom: 1rem; border-bottom: 1px solid var(--app-border2); }
 pre { border: 1px solid var(--app-border2); border-radius: 6px; }
