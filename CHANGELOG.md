@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.21.2](https://github.com/zackwag/caddy-ui/compare/v2.21.1...v2.21.2) (2026-10-13)
+
+
+### Reverts
+
+* restore Caddy instance URL behavior ([4d07537](https://github.com/zackwag/caddy-ui/commit/4d07537c747922b2e7fc6f0d5f91a4a74456e3d7))
+* restore Caddy instance URL behavior pending security review ([#219](https://github.com/zackwag/caddy-ui/issues/219)) ([4d07537](https://github.com/zackwag/caddy-ui/commit/4d07537c747922b2e7fc6f0d5f91a4a74456e3d7))
+
 ## [2.21.1](https://github.com/zackwag/caddy-ui/compare/v2.21.0...v2.21.1) (2026-10-13)
 
 

@@ -76,20 +76,6 @@ not lifecycle management: it scans all Caddy images, assumes admin port 2019, an
 suggests container IPs that may be unreachable from a host on Docker Desktop.
 Use the printed address rather than relying on discovery there.
 
-The harness sets `CADDY_ADMIN_URL` to the default instance's printed address, so
-its origin is automatically trusted. For extra instances, copy their printed admin
-origins into `CADDY_ADMIN_ALLOWED_ORIGINS` and restart the harness with that variable
-set before using the instance form's server lookup or loading configuration:
-
-```sh
-# Replace these example ports with the admin ports printed for alpha and beta.
-CADDY_ADMIN_ALLOWED_ORIGINS=http://127.0.0.1:49152,http://127.0.0.1:49153 npm run dev:with-caddy
-```
-
-If recreation changes an instance's admin port, update both its registration and
-the allowlist, then restart the harness. See
-[Allowed Caddy admin origins](configuration.md#allowed-caddy-admin-origins).
-
 ## Editable files and deterministic failures
 
 Each instance has one persistent, labeled Docker volume mounted at `/data/dev-caddy`:

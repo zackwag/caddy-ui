@@ -2,50 +2,6 @@ import logger from './logger.js';
 
 export const CADDY_ADMIN_URL = (process.env.CADDY_ADMIN_URL || 'http://caddy:2019').replace(/\/+$/, '');
 
-function parseCaddyAdminUrl(value) {
-    if (typeof value !== 'string') {
-        throw new Error('Caddy admin URL must be a string');
-    }
-
-    const url = new URL(value);
-    if (!['http:', 'https:'].includes(url.protocol) ||
-        url.username || url.password || url.search || url.hash) {
-        throw new Error('Caddy admin URL must use HTTP/HTTPS without credentials, query, or fragment');
-    }
-
-    return url;
-}
-
-const ALLOWED_CADDY_ORIGINS = new Set([
-    parseCaddyAdminUrl(CADDY_ADMIN_URL).origin,
-    ...(process.env.CADDY_ADMIN_ALLOWED_ORIGINS || '')
-        .split(',')
-        .map(value => value.trim())
-        .filter(Boolean)
-        .map(value => parseCaddyAdminUrl(value).origin),
-]);
-
-function buildCaddyUrl(base, path) {
-    const admin = parseCaddyAdminUrl(base);
-
-    if (!ALLOWED_CADDY_ORIGINS.has(admin.origin)) {
-        throw new Error('Caddy admin origin is not allowed');
-    }
-
-    if (typeof path !== 'string' || !path.startsWith('/') ||
-        path.startsWith('//') || path.includes('\\') ||
-        [...path].some(char => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127)) {
-        throw new Error('Invalid Caddy API path');
-    }
-
-    const url = new URL(`${admin.href.replace(/\/+$/, '')}${path}`);
-    if (url.origin !== admin.origin || url.username || url.password) {
-        throw new Error('Caddy API URL must stay on the allowed origin');
-    }
-
-    return url.href;
-}
-
 const HEADERS = {
     'Content-Type': 'application/json',
     'Origin': 'http://0.0.0.0:2019',
@@ -64,14 +20,13 @@ export function withTimeout(promise, ms, label) {
 
 async function caddyRequest(method, path, body, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
-    const url = buildCaddyUrl(base, path);
+    const url = `${base}${path}`;
     const start = Date.now();
     logger.debug(`Caddy API request`, { method, path, adminUrl: base });
 
     try {
         const res = await withTimeout(
             fetch(url, {
-                redirect: 'error',
                 method,
                 headers: HEADERS,
                 body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -109,14 +64,13 @@ export const caddyDelete = (path, adminUrl) => caddyRequest('DELETE', path, unde
 
 export async function caddyLoad(caddyfileContent, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
-    const url = buildCaddyUrl(base, '/load');
+    const url = `${base}/load`;
     const start = Date.now();
     logger.info(`Caddy reload initiated`, { adminUrl: base });
 
     try {
         const res = await withTimeout(
             fetch(url, {
-                redirect: 'error',
                 method: 'POST',
                 headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
                 body: caddyfileContent,
