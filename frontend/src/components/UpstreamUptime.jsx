@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
+import { formatNumber } from "../utils/format.js";
 import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 const STATUS = {
@@ -152,14 +153,14 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                         <div className="card">
                             <div className="card-title">{t("uptime.avgUptime")}</div>
                             <div className="stat-val" style={{ color: summary.avgPct !== null ? uptimeColor(summary.avgPct) : "var(--muted)" }}>
-                                {summary.avgPct ?? "—"}{summary.avgPct !== null && <span className="ms-unit">%</span>}
+                                {summary.avgPct !== null ? formatNumber(summary.avgPct) : "—"}{summary.avgPct !== null && <span className="ms-unit">%</span>}
                             </div>
                             <div className="stat-label">{t("uptime.acrossHistory")}</div>
                         </div>
                         <div className="card">
                             <div className="card-title">{t("uptime.lowestUptime")}</div>
                             <div className="stat-val" style={{ color: summary.lowest ? uptimeColor(summary.lowest.pct) : "var(--muted)" }}>
-                                {summary.lowest?.pct ?? "—"}{summary.lowest && <span className="ms-unit">%</span>}
+                                {summary.lowest ? formatNumber(summary.lowest.pct) : "—"}{summary.lowest && <span className="ms-unit">%</span>}
                             </div>
                             <div className="stat-label uptime-lowest-label" title={summary.lowest?.domain}>
                                 {summary.lowest ? summary.lowest.title || summary.lowest.domain : t("uptime.noDataYet")}
@@ -223,7 +224,7 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
                                                             <div className="metrics-bar-track">
                                                                 <div className="metrics-bar-fill" style={{ width: `${r.pct}%`, background: uptimeColor(r.pct) }} />
                                                             </div>
-                                                            <div className="metrics-bar-count uptime-pct">{r.pct}%</div>
+                                                            <div className="metrics-bar-count uptime-pct">{formatNumber(r.pct)}%</div>
                                                         </div>
                                                     ) : <span className="cell-muted">—</span>}
                                                 </td>

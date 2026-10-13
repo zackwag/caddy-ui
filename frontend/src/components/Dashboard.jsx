@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
-import { currentLocale } from "../utils/format.js";
+import { currentLocale, formatNumber } from "../utils/format.js";
 
 export default function Dashboard({ status, toast, onUnauth }) {
     const { t } = useTranslation();
@@ -108,8 +108,8 @@ export default function Dashboard({ status, toast, onUnauth }) {
                             <div>
                                 <span className="field-label">{t("dashboard.heap")}</span>
                                 <div className="data-val">
-                                    {process.memAlloc !== null ? `${process.memAlloc} MB` : "—"}
-                                    {process.memSys !== null && <span className="inline-muted">/ {t("dashboard.systemMemory", { value: process.memSys })}</span>}
+                                    {process.memAlloc !== null ? `${formatNumber(process.memAlloc)} MB` : "—"}
+                                    {process.memSys !== null && <span className="inline-muted">/ {t("dashboard.systemMemory", { value: formatNumber(process.memSys) })}</span>}
                                 </div>
                             </div>
                             <div>

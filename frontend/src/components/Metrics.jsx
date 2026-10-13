@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API, apiFetch } from "../utils/api.js";
-import { currentLocale } from "../utils/format.js";
+import { currentLocale, formatNumber } from "../utils/format.js";
 import UpstreamUptime from "./UpstreamUptime.jsx";
 
 // eslint-disable-next-line i18next/no-literal-string -- Prometheus scrape endpoint
@@ -110,18 +110,18 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                     <div className="grid-3">
                         <div className="card">
                             <div className="card-title">{t("metrics.totalRequests")}</div>
-                            <div className="stat-val">{metrics.totalRequests.toLocaleString(currentLocale())}</div>
+                            <div className="stat-val">{formatNumber(metrics.totalRequests)}</div>
                             <div className="stat-label">{t("metrics.sinceProcessStart")}</div>
                         </div>
                         <div className="card">
                             <div className="card-title">{t("metrics.requestsPerSecond")}</div>
-                            <div className="stat-val data-val--accent">{metrics.rps ?? "—"}</div>
+                            <div className="stat-val data-val--accent">{metrics.rps != null ? formatNumber(metrics.rps) : "—"}</div>
                             <div className="stat-label">{t("metrics.avgOverUptime")}</div>
                         </div>
                         <div className="card">
                             <div className="card-title">{t("metrics.avgResponse")}</div>
                             <div className="stat-val" style={{ color: metrics.avgResponseMs > 500 ? "var(--warn)" : "var(--text)" }}>
-                                {metrics.avgResponseMs}<span className="ms-unit">ms</span>
+                                {formatNumber(metrics.avgResponseMs)}<span className="ms-unit">ms</span>
                             </div>
                             <div className="stat-label">{t("metrics.meanResponseTime")}</div>
                         </div>
@@ -139,7 +139,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                                             <div className="metrics-bar-track">
                                                 <div className="metrics-bar-fill" style={{ width: `${pct}%`, background: statusColors[group] }} />
                                             </div>
-                                            <div className="metrics-bar-count">{count}</div>
+                                            <div className="metrics-bar-count">{formatNumber(count)}</div>
                                         </div>
                                     );
                                 })}
@@ -156,7 +156,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                                     <div key={label}>
                                         <div className="percentile-header">
                                             <span className="percentile-label">{label}</span>
-                                            <span className="percentile-val" style={{ color }}>{val}<span className="percentile-unit">ms</span></span>
+                                            <span className="percentile-val" style={{ color }}>{formatNumber(val)}<span className="percentile-unit">ms</span></span>
                                         </div>
                                         <div className="percentile-bar-track">
                                             <div className="percentile-bar-fill" style={{ width: `${Math.min(100, (val / (metrics.p99 || 1)) * 100)}%`, background: color }} />

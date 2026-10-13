@@ -7,6 +7,12 @@ export function currentLocale() {
     return i18n.resolvedLanguage || i18n.language;
 }
 
+// Digit grouping and decimal separator for the UI language; non-numbers pass
+// through so a missing field renders as before instead of throwing.
+export function formatNumber(value) {
+    return typeof value === 'number' ? value.toLocaleString(currentLocale()) : value;
+}
+
 export function formatTs(timestamp) {
     const ts = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
     return new Date(ts).toLocaleString(currentLocale(), {
