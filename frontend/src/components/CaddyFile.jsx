@@ -126,8 +126,7 @@ function CaddyfileDiff({ oldText, newText, previewRef }) {
 }
 
 export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
-    const { t, i18n } = useTranslation();
-    const locale = i18n.resolvedLanguage || i18n.language;
+    const { t } = useTranslation();
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
     const [loading, setLoading] = useState(true);
@@ -261,19 +260,19 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     };
 
     const restoreSnapshot = async (entry) => {
-        if (!await confirm(t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp, locale) }), { confirmLabel: t("caddyfile.restore") })) return;
+        if (!await confirm(t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("caddyfile.restore") })) return;
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh); setHistoryOpen(false); clearPreview();
-            toast.success(t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp, locale) }));
+            toast.success(t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
             loadHistory();
         } catch (e) { toast.error(e.message); }
     };
 
     const deleteSnapshot = async (entry) => {
-        if (!await confirm(t("caddyfile.deleteSnapshotConfirm", { timestamp: formatTs(entry.timestamp, locale) }), { confirmLabel: t("common.delete"), danger: true })) return;
+        if (!await confirm(t("caddyfile.deleteSnapshotConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("common.delete"), danger: true })) return;
         try {
             await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
             toast.success(t("caddyfile.snapshotDeleted"));
@@ -431,7 +430,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                                 <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label={t("caddyfile.compareAgainst")}>
                                                     <option value="current">{t("caddyfile.vsCurrent")}{isDirty ? ` ${t("caddyfile.savedMarker")}` : ""}</option>
                                                     {history.filter(entry => entry.filename !== previewEntry?.filename).map(entry => (
-                                                        <option key={entry.filename} value={entry.filename}>{t("caddyfile.vsSnapshot", { timestamp: formatTs(entry.timestamp, locale) })}</option>
+                                                        <option key={entry.filename} value={entry.filename}>{t("caddyfile.vsSnapshot", { timestamp: formatTs(entry.timestamp) })}</option>
                                                     ))}
                                                 </select>
                                                 <span className="select-arrow">▾</span>
@@ -468,7 +467,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                             aria-pressed={previewEntry?.filename === entry.filename}
                                             title={entry.filename}
                                         >
-                                            {formatTs(entry.timestamp, locale)}
+                                            {formatTs(entry.timestamp)}
                                             {i === 0 && <span className="history-latest">{t("caddyfile.latest")}</span>}
                                         </button>
                                     </div>

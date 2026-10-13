@@ -85,7 +85,7 @@ export default function App() {
 
         async function bootstrapLanguage() {
             try {
-                const enabled = await fetchEnabledLanguages(API);
+                const enabled = await fetchEnabledLanguages();
                 const resolved = resolveLocale(enabled, null);
 
                 await loadLocale(resolved);
@@ -118,11 +118,7 @@ export default function App() {
         Promise.all([
             fetchSettings(onUnauth),
             fetchCustomThemes(onUnauth).catch(() => []),
-        ]).then(async ([s, custom]) => {
-            const resolvedLanguage = resolveLocale(enabledLanguages, s.language ?? null);
-            await loadLocale(resolvedLanguage);
-            setLanguage(resolvedLanguage);
-
+        ]).then(([s, custom]) => {
             setCustomThemes(custom);
             const validIds = new Set([...THEME_LIST, ...custom].map(t => t.id));
             const dk = validIds.has(s.darkPalette) ? s.darkPalette : DEFAULTS.darkPalette;
@@ -135,6 +131,12 @@ export default function App() {
             setRouteCheckExcludes(Array.isArray(s.routeCheckExcludes) ? s.routeCheckExcludes : []);
             setSettingsLoaded(true);
             if (s.firstTimeRun) setShowThemeWelcome(true);
+
+            // Applied last so a locale chunk that fails to load (e.g. a stale
+            // hash after a redeploy) leaves the UI in its current language
+            // instead of discarding the rest of the settings.
+            const resolvedLanguage = resolveLocale(enabledLanguages, s.language ?? null);
+            loadLocale(resolvedLanguage).then(() => setLanguage(resolvedLanguage)).catch(() => {});
         }).catch(() => {
             setSettingsLoaded(true);
         });
@@ -166,7 +168,12 @@ export default function App() {
     const changeLanguage = async (lang) => {
         if (!enabledLanguages.includes(lang)) return;
 
-        await loadLocale(lang);
+        try {
+            await loadLocale(lang);
+        } catch {
+            toast.error(t('errors.languageLoadFailed'));
+            return;
+        }
         setLanguage(lang);
         persistSettings({ language: lang });
     };
@@ -212,11 +219,12 @@ export default function App() {
                 setNoInstances(true);
                 setStatus(null);
             } else {
-                setStatus({ online: false, error: t('errors.backendUnreachable') });
+                // Translated at render time so switching languages doesn't
+                // recreate this callback and re-poll /status.
+                setStatus({ online: false, errorKey: 'errors.backendUnreachable' });
             }
         });
-      
-    }, [onUnauth, t]);
+    }, [onUnauth]);
 
     // caddy/ui logs dont depend on instance, so Logs stays reachable alongside Instances.
     useEffect(() => {

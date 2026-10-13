@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API, apiFetch } from "../utils/api.js";
+import { currentLocale } from "../utils/format.js";
 import UpstreamUptime from "./UpstreamUptime.jsx";
 
 // eslint-disable-next-line i18next/no-literal-string -- Prometheus scrape endpoint
@@ -19,7 +20,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
     const load = useCallback(() => {
         setLoading(true);
         apiFetch("/metrics", {}, onUnauth)
-            .catch(() => ({ ok: false, error: t("metrics.fetchFailed") }))
+            .catch(() => ({ ok: false, error: i18n.t("metrics.fetchFailed") }))
             .then(res => {
                 // Keep the last good numbers through a failed refresh so a blip
                 // doesn't swap the cards for the "not enabled" card
@@ -27,7 +28,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                 setRefreshError(res.ok ? null : res.error);
             })
             .finally(() => setLoading(false));
-    }, [onUnauth, t]);
+    }, [onUnauth, i18n]);
 
     useEffect(() => {
         load();
@@ -54,7 +55,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
     const formatScrapedAt = (iso) => {
         if (!iso) return "";
         const ts = iso.endsWith('Z') ? iso : iso + 'Z';
-        return new Date(ts).toLocaleTimeString(i18n.resolvedLanguage || i18n.language, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+        return new Date(ts).toLocaleTimeString(currentLocale(), { hour: 'numeric', minute: '2-digit', second: '2-digit' });
     };
 
     return (
@@ -109,7 +110,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                     <div className="grid-3">
                         <div className="card">
                             <div className="card-title">{t("metrics.totalRequests")}</div>
-                            <div className="stat-val">{metrics.totalRequests.toLocaleString()}</div>
+                            <div className="stat-val">{metrics.totalRequests.toLocaleString(currentLocale())}</div>
                             <div className="stat-label">{t("metrics.sinceProcessStart")}</div>
                         </div>
                         <div className="card">

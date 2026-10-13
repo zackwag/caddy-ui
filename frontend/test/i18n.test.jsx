@@ -18,14 +18,16 @@ describe('i18n integration', () => {
     });
 
     it('loads the probe key for every installed locale advertised by the language API', async () => {
-        vi.stubGlobal('fetch', vi.fn(async () => ({
-            json: async () => ({ languages: [...availableLocales, 'zz'] }),
-        })));
+        vi.stubGlobal('localStorage', { getItem: () => null });
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(
+            JSON.stringify({ languages: [...availableLocales, 'zz'] }),
+            { headers: { 'Content-Type': 'application/json' } },
+        )));
 
-        const enabled = await fetchEnabledLanguages('/api');
+        const enabled = await fetchEnabledLanguages();
 
         expect(enabled).toEqual(availableLocales);
-        expect(fetch).toHaveBeenCalledWith('/api/languages');
+        expect(fetch).toHaveBeenCalledWith('/api/languages', expect.anything());
 
         for (const locale of enabled) {
             await loadLocale(locale);

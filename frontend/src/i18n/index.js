@@ -1,5 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { apiFetch } from '../utils/api.js';
 import en from './locales/en.js';
 
 const localeModules = import.meta.glob([
@@ -29,9 +30,8 @@ i18n
         },
     });
 
-export async function fetchEnabledLanguages(apiBase) {
-    const response = await fetch(`${apiBase}/languages`);
-    const languageConfig = await response.json();
+export async function fetchEnabledLanguages() {
+    const languageConfig = await apiFetch('/languages');
 
     const available = new Set(availableLocales);
     const enabled = (
@@ -77,7 +77,7 @@ export async function loadLocale(locale) {
 export function resolveLocale(enabledLanguages, savedLanguage = null) {
     const enabled = new Set(enabledLanguages);
 
-    if (savedLanguage && enabled.has(savedLanguage.toLowerCase())) {
+    if (typeof savedLanguage === 'string' && enabled.has(savedLanguage.toLowerCase())) {
         return savedLanguage.toLowerCase();
     }
 

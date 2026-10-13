@@ -17,7 +17,7 @@ const EMPTY_FORM = {
 };
 
 export default function Instances({ toast, onUnauth, confirm, onInstanceChange }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [instances, setInstances] = useState([]);
     const instanceStatus = useInstanceStatus(onUnauth);
     const [loading, setLoading] = useState(true);
@@ -46,14 +46,14 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
         try {
             const containers = await apiFetch("/instances/discover", {}, onUnauth);
             setDiscovered(containers);
-            if (containers.length === 0) toastRef.current.success(t("instances.noNewContainers"));
+            if (containers.length === 0) toastRef.current.success(i18n.t("instances.noNewContainers"));
         } catch (e) {
             toastRef.current.error(e.message);
             setDiscovered(null);
         } finally {
             setDiscovering(false);
         }
-    }, [onUnauth, t]);
+    }, [onUnauth, i18n]);
 
     const didAutoDiscover = useRef(false);
 

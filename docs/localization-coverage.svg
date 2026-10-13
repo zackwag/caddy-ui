@@ -19,9 +19,9 @@
 <text x="16" y="68" class="label">en</text>
 <rect x="72" y="54" width="420" height="18" rx="4" class="track"/>
 <rect x="72" y="54" width="420" height="18" rx="4" class="fill"/>
-<text x="604" y="68" text-anchor="end" class="value">100.0% · 421/421</text>
+<text x="604" y="68" text-anchor="end" class="value">100.0% · 430/430</text>
 <text x="16" y="100" class="label">de</text>
 <rect x="72" y="86" width="420" height="18" rx="4" class="track"/>
 <rect x="72" y="86" width="1" height="18" rx="4" class="fill"/>
-<text x="604" y="100" text-anchor="end" class="value">0.2% · 1/421</text>
+<text x="604" y="100" text-anchor="end" class="value">0.2% · 1/430</text>
 </svg>

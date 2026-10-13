@@ -20,7 +20,9 @@ export default {
             '^href$',
             '^src$',
             '^data-',
-            '^col$'
+            '^col$',
+            // Catalog key for <Trans>.
+            '^i18nKey$',
         ],
     },
 
@@ -28,6 +30,7 @@ export default {
         exclude: [
             '^navigate$',
             '^t$',
+            '^i18n\\.t$',
             '^document\\.createElement$',
             '^window\\.open$',
         ],
@@ -35,6 +38,8 @@ export default {
 
     'object-properties': {
         exclude: [
+            // Catalog key stored in state and translated at render time.
+            '^errorKey$',
             // CSS-in-JS / inline-style properties.
             '^(background|backgroundColor|color|font.*|lineHeight|caretColor|border.*|padding.*|margin.*|width|height|minWidth|minHeight|maxWidth|maxHeight|overflow.*|display|gap|alignItems|justifyContent|textAlign|textTransform|letterSpacing|cursor|opacity|boxShadow|flex.*|position|top|right|bottom|left|whiteSpace|behavior|block)$',
         ],

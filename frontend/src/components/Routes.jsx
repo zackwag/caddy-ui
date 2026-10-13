@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch } from "../utils/api.js";
@@ -133,7 +133,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
 
                 {isCaddyfileManaged && siteBlockFailed ? (
                     <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4 }}>
-                        {t("routes.caddyfileLoadFailedBefore")} <strong>{t("routes.caddyfile")}</strong> {t("routes.caddyfileLoadFailedAfter")}
+                        <Trans i18nKey="routes.caddyfileLoadFailed" components={{ strong: <strong /> }} />
                     </div>
                 ) : isCaddyfileManaged && !inMaintenance ? (
                     <>

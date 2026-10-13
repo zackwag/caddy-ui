@@ -40,6 +40,7 @@ export default {
 
     errors: {
         backendUnreachable: 'Could not reach backend',
+        languageLoadFailed: 'Could not load that language. Try reloading the page.',
     },
 
     sidebar: {
@@ -151,8 +152,7 @@ export default {
         editLabel: 'Edit Label',
         connectionError: 'Connection Error',
         labelPlaceholder: 'e.g. "HTTPS Sites" or "Internal Services"',
-        labelHintBefore: 'Only shown in caddy/ui. Leave blank to remove it. To change the Server ID itself, set',
-        labelHintAfter: "in your Caddyfile's global servers option.",
+        labelHint: "Only shown in caddy/ui. Leave blank to remove it. To change the Server ID itself, set <code>name</code> in your Caddyfile's global <code>servers</code> option.",
     },
 
     instances: {
@@ -214,8 +214,7 @@ export default {
         needsRenewal: 'Needs renewal',
         loadingCertificates: 'Loading certificates...',
         rootCaCertificate: 'Root CA Certificate',
-        rootCaHintBefore: 'Install this on your devices to trust internal TLD domains (e.g. ',
-        rootCaHintAfter: ") served by Caddy's built-in CA. Required after a fresh Caddy install or server rebuild.",
+        rootCaHint: "Install this on your devices to trust internal TLD domains (e.g. <tld>.internal</tld>, <tld>.home</tld>) served by Caddy's built-in CA. Required after a fresh Caddy install or server rebuild.",
         iosInstruction: 'Open the file → Settings → Profile Downloaded → Install',
         macosInstruction: 'Open Keychain Access → drag in cert → set to Always Trust',
         androidInstruction: 'Settings → Security → Install from storage',
@@ -397,8 +396,7 @@ export default {
         titleMigrationHint: 'Save to store this title as a comment in your Caddyfile.',
         titleClearHint: 'Leave blank to clear the title.',
         maintenanceEditHint: 'This route is in maintenance mode. Disable maintenance to edit the Caddyfile content.',
-        caddyfileLoadFailedBefore: "This route is defined in your Caddyfile but couldn't be loaded for inline editing. Use the",
-        caddyfileLoadFailedAfter: 'tab to edit it directly.',
+        caddyfileLoadFailed: "This route is defined in your Caddyfile but couldn't be loaded for inline editing. Use the <strong>Caddyfile</strong> tab to edit it directly.",
         caddyfile: 'Caddyfile',
         domain: 'Domain',
         upstream: 'Upstream',

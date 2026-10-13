@@ -17,6 +17,41 @@ function leafCount(node) {
     return Object.values(node).reduce((sum, value) => sum + leafCount(value), 0);
 }
 
+// i18next resolves plurals by suffixing the key with the target language's
+// CLDR categories, so a locale may need forms English never uses (Polish
+// `_few`/`_many`, Arabic `_zero`/`_two`, ...).
+const PLURAL_KEY = /^(.+?)(_ordinal)?_(zero|one|two|few|many|other)$/;
+
+function pluralBase(key) {
+    const match = key.match(PLURAL_KEY);
+    return match ? `${match[1]}${match[2] || ''}` : null;
+}
+
+function isPluralVariant(reference, key) {
+    const base = pluralBase(key);
+    return base !== null && typeof reference[`${base}_other`] === 'string';
+}
+
+// Counts English leaves the candidate covers. A plural group counts as
+// translated when the candidate supplies any of its forms, since languages
+// don't share the same set of plural categories.
+export function translatedCount(reference, candidate) {
+    if (!isObject(candidate)) return 0;
+
+    const candidatePluralBases = new Set(
+        Object.keys(candidate)
+            .filter(key => isPluralVariant(reference, key))
+            .map(pluralBase),
+    );
+
+    return Object.entries(reference).reduce((sum, [key, value]) => {
+        if (isObject(value)) return sum + translatedCount(value, candidate[key]);
+        if (typeof candidate[key] === 'string') return sum + 1;
+        const base = pluralBase(key);
+        return sum + (base !== null && candidatePluralBases.has(base) ? 1 : 0);
+    }, 0);
+}
+
 function requireProbe(locale, catalog) {
     if (typeof catalog?.test?.languageLoaded !== 'string' || catalog.test.languageLoaded.trim() === '') {
         throw new Error(`${locale}.js must define a non-empty test.languageLoaded string`);
@@ -36,7 +71,7 @@ function validateReference(node, currentPath = 'en') {
     }
 }
 
-function validateSubset(reference, candidate, locale, currentPath = '') {
+export function validateSubset(reference, candidate, locale, currentPath = '') {
     if (!isObject(candidate)) {
         throw new Error(`${locale}.js must export an object`);
     }
@@ -45,6 +80,7 @@ function validateSubset(reference, candidate, locale, currentPath = '') {
         const keyPath = currentPath ? `${currentPath}.${key}` : key;
 
         if (!Object.hasOwn(reference, key)) {
+            if (isPluralVariant(reference, key) && typeof value === 'string') continue;
             throw new Error(`${locale}.js contains unknown key "${keyPath}"`);
         }
 
@@ -104,7 +140,7 @@ function coverageStats(catalogs, english) {
     return [...catalogs.entries()]
         .sort(([a], [b]) => a === 'en' ? -1 : b === 'en' ? 1 : a.localeCompare(b))
         .map(([locale, catalog]) => {
-            const translated = leafCount(catalog);
+            const translated = translatedCount(english, catalog);
             return {
                 locale,
                 translated,
@@ -189,4 +225,6 @@ async function main() {
     throw new Error(`unknown localization command "${command}"`);
 }
 
-await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    await main();
+}
