@@ -2,6 +2,9 @@
 // All UI copy lives in i18n catalogs, never in raw server error messages.
 export const ERROR_MESSAGES = Object.freeze({
     UNAUTHORIZED: 'errors.unauthorized',
+    FORBIDDEN: 'errors.forbidden',
+    LOG_FILE_MISSING: 'errors.logFileMissing',
+    LOG_STREAM_ERROR: 'errors.logStreamError',
     RATE_LIMITED: 'errors.rateLimited',
     VALIDATION_FAILED: 'errors.validationFailed',
     CADDYFILE_VALIDATION_FAILED: 'errors.validationFailed',
