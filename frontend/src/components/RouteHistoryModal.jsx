@@ -216,11 +216,11 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                         <div className="history-activity-list">
                             {transitions.length === 0 ? (
                                 <div className="history-activity-empty">{t("routeHistory.noChanges")}</div>
-                            ) : transitions.map((t, i) => (
+                            ) : transitions.map((transition, i) => (
                                 <div key={i} className="history-activity-item">
-                                    <span className={`history-activity-dot history-activity-dot--${t.online ? "online" : "offline"}`} />
-                                    <span className="history-activity-label">{t.online ? t("routeHistory.online") : t("routeHistory.offline")}</span>
-                                    <span className="history-activity-time">{formatActivityTime(t.at)}</span>
+                                    <span className={`history-activity-dot history-activity-dot--${transition.online ? "online" : "offline"}`} />
+                                    <span className="history-activity-label">{transition.online ? t("routeHistory.online") : t("routeHistory.offline")}</span>
+                                    <span className="history-activity-time">{formatActivityTime(transition.at)}</span>
                                 </div>
                             ))}
                         </div>
