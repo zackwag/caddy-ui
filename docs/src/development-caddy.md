@@ -168,8 +168,14 @@ npm run test:dev-caddy:e2e
 Integration checks also exercise the real backend's registration API: creating or
 removing a Docker container does not create or remove its UI registration. The
 tests cover reload, retained configuration, instance isolation and cleanup after
-failed startup. Browser checks cover localized errors, links to correlated logs,
+failed startup. Diagnostic regressions check complete route paths, semantic error
+codes, sanitized read failures, warning severity and request-ID correlation.
+Browser checks cover localized errors, links to correlated logs,
 live log streams, incident recovery, network loss and the empty-instance state.
+
+The Test workflow runs lifecycle and browser checks against Docker and Chromium.
+Its required Test check includes the integration job, so container or browser
+failures cannot be hidden by passing unit tests.
 
 Each suite uses a fresh labeled Docker namespace, temporary backend state and
 dynamic service ports. It does not read or change `.dev-caddy`. Readiness waits

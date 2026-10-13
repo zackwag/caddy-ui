@@ -48,7 +48,7 @@ app.use((req, res, next) => {
     res.on('finish', () => {
         const elapsed = Date.now() - start;
         const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
-        logger[level](`${req.method} ${req.path}`, {
+        logger[level](`${req.method} ${req.diagnosticPath}`, {
             status: res.statusCode,
             elapsed,
             ip: req.ip,
@@ -120,7 +120,7 @@ app.use('/api/route-notes', routenotesRouter);
 app.use('/api/notifications', notificationsRouter);
 
 app.use((err, req, res, next) => {
-    logger.error(`Unhandled error`, { requestId: req.diagnosticId, method: req.method, path: req.path, error: err.message, stack: err.stack });
+    logger.error(`Unhandled error`, { requestId: req.diagnosticId, method: req.method, path: req.diagnosticPath || req.path, error: err.message, stack: err.stack });
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
 

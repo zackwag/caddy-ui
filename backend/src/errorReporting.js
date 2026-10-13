@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import logger from './logger.js';
 import { AppError, errorChain, publicError } from './AppError.js';
-import { errorDefinition } from './errorRegistry.js';
+import { ERROR_REGISTRY, errorDefinition } from './errorRegistry.js';
 
 export function errorCode(path, status) {
     if (status === 429) return 'RATE_LIMITED';
@@ -33,26 +33,35 @@ function details(body) {
 // code and request ID even when a route catches an exception internally.
 export function diagnosticMiddleware(req, res, next) {
     const requestId = randomUUID();
+    // Mounted routers temporarily strip their prefix from req.path. Capture the
+    // original path once, without query parameters, before routing begins.
+    const path = (req.originalUrl || req.path).split('?')[0];
     req.diagnosticId = requestId;
+    req.diagnosticPath = path;
     res.setHeader('X-Request-ID', requestId);
     const originalJson = res.json.bind(res);
     res.json = function diagnosticJson(body) {
         if (!body || typeof body !== 'object' || Array.isArray(body)) return originalJson(body);
         // A few endpoints intentionally return HTTP 200 with ok:false / online:false.
         const softFailure = (body.ok === false && Boolean(body.error))
-            || (req.path === '/api/status' && body.online === false && Boolean(body.error));
+            || (path.replace(/\/$/, '') === '/api/status' && body.online === false && Boolean(body.error));
         const failed = res.statusCode >= 400 || softFailure;
         const hasWarning = !failed && Boolean(body.warning || (Array.isArray(body.warnings) && body.warnings.length));
         if (!failed && !hasWarning) return originalJson(body);
-        const code = body.code || errorCode(req.path, res.statusCode);
+        const code = body.code || errorCode(path, res.statusCode);
         const detail = details(body);
         const appError = res.locals?.appError;
         const log = {
-            requestId, code, method: req.method, path: req.path,
+            requestId, code, method: req.method, path,
             status: res.statusCode, detail,
             ...(appError ? { causes: errorChain(appError) } : {}),
         };
-        if (failed) logger[appError ? errorDefinition(appError.code).level : (res.statusCode >= 500 || softFailure ? 'error' : 'warn')]('API request failed', log);
+        if (failed) {
+            const level = appError ? errorDefinition(appError.code).level
+                : Object.hasOwn(ERROR_REGISTRY, code) ? errorDefinition(code).level
+                : res.statusCode >= 500 || softFailure ? 'error' : 'warn';
+            logger[level]('API request failed', log);
+        }
         else logger.warn('API returned a warning', log);
         return originalJson({
             ...body,
