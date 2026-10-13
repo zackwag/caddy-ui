@@ -1,7 +1,9 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PaneDivider from "./PaneDivider.jsx";
-import { apiFetch, getToken } from "../utils/api.js";
+import { apiFetch, getToken, getInstanceId } from "../utils/api.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
 
@@ -166,9 +168,10 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     }, []);
 
     useEffect(() => {
+        const key = stateNotificationKey('caddyfile.load', getInstanceId());
         apiFetch("/caddyfile", {}, onUnauth)
-            .then(t => { setContent(t); setOriginal(t); })
-            .catch(e => toast.error(e.message))
+            .then(content => { toast.recover(key); setContent(content); setOriginal(content); })
+            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount only; toast isn't stable across renders
     }, [onUnauth]);
@@ -196,7 +199,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                 changeCompareTo("current");
             }
         } catch (e) {
-            if (request === historyRequest.current) toast.error(e.message);
+            if (request === historyRequest.current) toast.error(localizeError(e, t), e);
         } finally {
             if (request === historyRequest.current) setHistoryLoading(false);
         }
@@ -232,7 +235,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             if (request === previewRequest.current) {
                 selectedFilename.current = null;
                 setPreviewEntry(null);
-                toast.error(e.message);
+                toast.error(localizeError(e, t), e);
             }
         } finally {
             if (request === previewRequest.current) setPreviewLoading(false);
@@ -252,7 +255,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             if (request === compareRequest.current) {
                 comparisonFilename.current = "current";
                 setCompareTo("current");
-                toast.error(e.message);
+                toast.error(localizeError(e, t), e);
             }
         } finally {
             if (request === compareRequest.current) setCompareLoading(false);
@@ -268,7 +271,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             setContent(fresh); setOriginal(fresh); setHistoryOpen(false); clearPreview();
             toast.success(t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
             loadHistory();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const deleteSnapshot = async (entry) => {
@@ -280,7 +283,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             if (selectedFilename.current === entry.filename) clearPreview();
             else if (comparisonFilename.current === entry.filename) changeCompareTo("current");
             loadHistory();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const validate = async () => {
@@ -288,9 +291,9 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         try {
             const result = await apiFetch(`/caddyfile/validations?fmt=${runFmt}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             if (result.formatted) setContent(result.formatted);
-            if (result.warnings?.length) result.warnings.forEach(w => toast.info(w));
+            if (result.warnings?.length) toast.info(t('errors.validationWarning'), result);
             else toast.success(t("caddyfile.valid"));
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setValidating(false); }
     };
 
@@ -302,16 +305,16 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh);
-            if (result?.warning) toast.info(result.message || t("caddyfile.reloadFailed"));
+            if (result?.warning) toast.info(t('errors.operationWarning'), result);
             else toast.success(t("caddyfile.savedReloaded"));
             if (historyOpen) loadHistory();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSaving(false); }
     };
 
     const reload = async () => {
         try { await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth); toast.success(t("caddyfile.reloadedFromDisk")); }
-        catch (e) { toast.error(e.message); }
+        catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const exportFile = () => {
@@ -332,7 +335,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                 setContent(fresh); setOriginal(fresh);
                 toast.success(t("caddyfile.importedReloaded"));
                 if (historyOpen) loadHistory();
-            } catch (err) { toast.error(err.message); }
+            } catch (err) { toast.error(localizeError(err, t), err); }
         };
         reader.readAsText(file);
         e.target.value = "";

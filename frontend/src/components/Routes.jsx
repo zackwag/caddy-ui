@@ -1,10 +1,12 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
-import { apiFetch } from "../utils/api.js";
+import { apiFetch, getInstanceId } from "../utils/api.js";
 import { formatPercent } from "../utils/format.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 // eslint-disable-next-line i18next/no-literal-string -- Example hostname
@@ -260,7 +262,11 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     }, []);
 
     const load = useCallback(() => {
-        apiFetch("/routes", {}, onUnauth).then(setRoutes).catch(e => toast.error(e.message)).finally(() => setLoading(false));
+        const key = stateNotificationKey('routes.load', getInstanceId());
+        apiFetch("/routes", {}, onUnauth)
+            .then(data => { toast.recover(key); setRoutes(data); })
+            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
+            .finally(() => setLoading(false));
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
         apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
         apiFetch("/server-names", {}, onUnauth).then(setServerLabels).catch(() => { });
@@ -293,7 +299,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             await apiFetch("/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, onUnauth);
             toast.success(t("routes.added", { domain: form.domain }));
             setNewModal(false); load(); loadHealth();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const deleteCaddyfileBlock = async (domain) => {
@@ -306,7 +312,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             }
             toast.success(t("routes.removed"));
             setEditModal(null); load(); loadHealth();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const handleEditSave = async ({ form, title, content }) => {
@@ -327,7 +333,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             }
             setNotes(n => { const u = { ...n }; if (title.trim()) u[domain] = title.trim(); else delete u[domain]; return u; });
             setEditModal(null); load(); loadHealth();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const deleteRoute = async (id, domain) => {
@@ -339,7 +345,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                 setNotes(n => { const u = { ...n }; delete u[domain]; return u; });
             }
             toast.success(t("routes.removed")); load(); loadHealth();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const toggleMaintenance = async (domain) => {
@@ -355,7 +361,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                 ? t("routes.maintenanceDisabled", { domain })
                 : t("routes.maintenanceEnabled", { domain }));
             load(); loadHealth();
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
     const getHost = getRouteHost;

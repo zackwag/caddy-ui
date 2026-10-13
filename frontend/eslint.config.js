@@ -4,6 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import i18next from 'eslint-plugin-i18next';
 import i18nLiteralOptions from './eslint/i18n-literal-options.mjs';
+import localizedErrorToast from './eslint/localized-error-toast.mjs';
 
 export default [
     {
@@ -26,6 +27,11 @@ export default [
             'react-hooks': reactHooks,
             'react-refresh': reactRefresh,
             i18next,
+            local: {
+                rules: {
+                    'localized-error-toast': localizedErrorToast,
+                },
+            },
         },
         rules: {
             ...js.configs.recommended.rules,
@@ -37,11 +43,14 @@ export default [
                 { allowConstantExport: true, allowExportNames: ['useToast', 'useConfirm'] },
             ],
             'i18next/no-literal-string': ['warn', i18nLiteralOptions],
+            'local/localized-error-toast': 'error',
         },
     },
     {
         files: [
             'src/i18n/**/*.{js,jsx}',
+            // Headless policy module with no user-facing copy.
+            'src/utils/notificationCenter.js',
             'src/lib/caddyfileMode.js',
         ],
         rules: {
@@ -61,7 +70,7 @@ export default [
         rules: js.configs.recommended.rules,
     },
     {
-        files: ['scripts/**/*.mjs'],
+        files: ['scripts/**/*.mjs', , 'eslint/**/*.mjs'],
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',

@@ -1,39 +1,67 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { API, apiFetch, getToken } from "../utils/api.js";
+import { useLocation } from "react-router-dom";
+import { API, apiFetch, getToken, getInstanceId } from "../utils/api.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
+import { resolveLogSource } from "../utils/logSource.js";
 
 export default function Logs({ toast, onUnauth,  noInstances }) {
     const { t } = useTranslation();
+    const location = useLocation();
     const [lines, setLines] = useState([]);
-    const [source, setSource] = useState(noInstances ? "app" : "caddy");
+    // Manual tab selection lasts only for this navigation. A new link to /logs
+    // must apply its destination even when the component is already mounted.
+    const [selection, setSelection] = useState(null);
+    const source = noInstances ? "app" : selection?.key === location.key
+        ? selection.source : resolveLogSource(location.search, noInstances);
+    const setSource = source => setSelection({ key: location.key, source });
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
     const [logConfig, setLogConfig] = useState(null);
     const [configDirty, setConfigDirty] = useState(false);
     const [savingConfig, setSavingConfig] = useState(false);
-    const [logSearch, setLogSearch] = useState("");
+    // eslint-disable-next-line i18next/no-literal-string -- URL query parameter, not translatable UI text
+    const [logSearch, setLogSearch] = useState(() => new URLSearchParams(location.search).get("search") || "");
+    // eslint-disable-next-line i18next/no-literal-string -- URL query parameter, not translatable UI text
+    useEffect(() => { setLogSearch(new URLSearchParams(location.search).get("search") || ""); }, [location.search]);
     const [levelFilter, setLevelFilter] = useState("all");
     const [refreshing, setRefreshing] = useState(false);
     const bottomRef = useRef(null);
     const esRef = useRef(null);
+    const loadIdRef = useRef(0);
 
     useEffect(() => {
         let ignore = false;
+        loadIdRef.current += 1;
+        setLines([]);
+        setRefreshing(false);
         const path = source === "caddy" ? "/logs" : "/logs/app";
-        // NO_INSTANCES is expected before App's first /status call resolves; the source switch effect handles it.
-        const reportError = e => { if ( e.code !== 'NO_INSTANCES' ) toast.error(e.message); };
+        // App's first /status response can arrive after the initial log request.
+        const loadKey = stateNotificationKey('logs.load.' + source, getInstanceId());
+        const configKey = stateNotificationKey('logs.config', getInstanceId());
+        const reportError = (e, key) => {
+            if (!ignore && e.code !== 'NO_INSTANCES') toast.error(localizeError(e, t), e, { mode: 'state', key });
+        };
         apiFetch(path, {}, onUnauth)
-            .then(data => { if (!ignore) setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry))); })
-            .catch(reportError);
+            .then(data => {
+                if (!ignore) {
+                    toast.recover(loadKey);
+                    setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry)));
+                }
+            })
+            .catch(e => reportError(e, loadKey));
 
         if (source === "caddy" && !logConfig) {
-            apiFetch("/logs/config", {}, onUnauth).then(setLogConfig).catch(reportError);
+            apiFetch("/logs/config", {}, onUnauth)
+                .then(data => { if (!ignore) { toast.recover(configKey); setLogConfig(data); } })
+                .catch(e => reportError(e, configKey));
         }
 
         esRef.current?.close();
         esRef.current = null;
         setLive(false);
-        return() => { ignore = true; };
+        return () => { ignore = true; loadIdRef.current += 1; };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when source changes; toast isn't stable across renders
     }, [onUnauth, source]);
 
@@ -44,22 +72,24 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only auto-scroll when new lines arrive, not on every search/filter keystroke
     }, [lines]);
 
-    useEffect(() => {
-        if (noInstances && source === "caddy") {
-            setSource("app");
-        }
-    }, [noInstances, source]);
-
     const toggleLive = () => {
         if (live) { esRef.current?.close(); esRef.current = null; setLive(false); return; }
         const token = getToken();
         const streamPath = source === "caddy" ? "/logs/stream" : "/logs/app/stream";
         const url = token ? `${API}${streamPath}?token=${token}` : `${API}${streamPath}`;
         const es = new EventSource(url);
+        const streamKey = stateNotificationKey('logs.stream.' + source, getInstanceId());
         es.onmessage = e => {
+            if (esRef.current !== es) return;
             const data = JSON.parse(e.data);
+            if (data.error && data.code !== 'LOG_FILE_MISSING') {
+                toast.error(localizeError(data, t), data, { mode: 'state', key: streamKey });
+            }
             const line = data.line || (data.entry ? JSON.stringify(data.entry) : null);
-            if (line) setLines(l => [...l.slice(-500), line]);
+            if (line) {
+                toast.recover(streamKey);
+                setLines(l => [...l.slice(-500), line]);
+            }
         };
         esRef.current = es;
         setLive(true);
@@ -102,11 +132,17 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
 
     const refreshLogs = () => {
         setRefreshing(true);
+        const loadId = loadIdRef.current;
         const path = source === "caddy" ? "/logs" : "/logs/app";
         apiFetch(path, {}, onUnauth)
-            .then(d => setLines(source === "caddy" ? (d.lines || []) : (d.entries || []).map(entry => JSON.stringify(entry))))
-            .catch(e => toast.error(e.message))
-            .finally(() => setRefreshing(false));
+            .then(d => {
+                if (loadId === loadIdRef.current) {
+                    toast.recover(stateNotificationKey('logs.load.' + source, getInstanceId()));
+                    setLines(source === "caddy" ? (d.lines || []) : (d.entries || []).map(entry => JSON.stringify(entry)));
+                }
+            })
+            .catch(e => { if (loadId === loadIdRef.current) toast.error(localizeError(e, t), e); })
+            .finally(() => { if (loadId === loadIdRef.current) setRefreshing(false); });
     };
 
     const updateConfig = (key, value) => { setLogConfig(c => ({ ...c, [key]: value })); setConfigDirty(true); };
@@ -117,7 +153,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
             await apiFetch("/logs/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logConfig) }, onUnauth);
             toast.success(t("logs.configSaved"));
             setConfigDirty(false);
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSavingConfig(false); }
     };
 

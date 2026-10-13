@@ -31,6 +31,8 @@ export default {
             '^navigate$',
             '^t$',
             '^i18n\\.t$',
+            // Incident key constructors take internal identifiers, not UI text.
+            '^stateNotificationKey$',
             '^document\\.createElement$',
             '^window\\.open$',
         ],
@@ -40,6 +42,8 @@ export default {
         exclude: [
             // Catalog key stored in state and translated at render time.
             '^errorKey$',
+            // The notification policy 'mode' is an internal enum.
+            '^mode$',
             // CSS-in-JS / inline-style properties.
             '^(background|backgroundColor|color|font.*|lineHeight|caretColor|border.*|padding.*|margin.*|width|height|minWidth|minHeight|maxWidth|maxHeight|overflow.*|display|gap|alignItems|justifyContent|textAlign|textTransform|letterSpacing|cursor|opacity|boxShadow|flex.*|position|top|right|bottom|left|whiteSpace|behavior|block)$',
         ],
@@ -56,6 +60,9 @@ export default {
             // internal state
             '^(new|err|warn|default|unauthorized|del|add|equal|skip)$',
             '^NO_INSTANCES$',
+
+            // Log source IDs, query parameter and export filename prefixes.
+            '^(app|caddy|dist|caddy-access|caddy-ui)$',
 
             // DOM and browser storage identifiers
             '^root$',

@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
@@ -117,7 +118,7 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
             const param = route ? `route=${encodeURIComponent(route)}` : `upstream=${encodeURIComponent(upstream)}`;
             apiFetch(`/health/history?${param}&since=${since}`, {}, onUnauth)
                 .then(data => { if (!cancelled) { setEntries(data.entries); setIntervalMs(data.intervalMs || 0); setError(null); } })
-                .catch(e => { if (!cancelled) setError(e.message); });
+                .catch(e => { if (!cancelled) setError(localizeError(e, t)); });
         };
         load();
         if (!autoRefresh) return () => { cancelled = true; };

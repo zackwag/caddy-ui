@@ -20,7 +20,7 @@ export default function Login({ onLogin, sessionExpired }) {
                 body: JSON.stringify({ username, password }),
             });
             const data = await res.json();
-            if (!res.ok) { setError(data.error || t("login.failed")); return; }
+            if (!res.ok) { setError(t("login.failed")); return; }
             setToken(data.token);
             onLogin();
         } catch {

@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
@@ -93,11 +94,11 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
     const load = useCallback(() => {
         apiFetch("/routes", {}, onUnauth)
             .then(r => { setRoutes(r); setError(null); })
-            .catch(e => setError(e.message));
+            .catch(e => setError(localizeError(e, t)));
         apiFetch("/health/uptime", {}, onUnauth).then(setUptime).catch(() => { });
         if (routeChecks) apiFetch("/health/uptime?kind=route", {}, onUnauth).then(setRouteUptime).catch(() => { });
         apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
-    }, [onUnauth, routeChecks]);
+    }, [onUnauth, routeChecks, t]);
 
     useEffect(() => {
         load();

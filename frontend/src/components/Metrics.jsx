@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API, apiFetch } from "../utils/api.js";
@@ -20,12 +21,12 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
     const load = useCallback(() => {
         setLoading(true);
         apiFetch("/metrics", {}, onUnauth)
-            .catch(() => ({ ok: false, error: i18n.t("metrics.fetchFailed") }))
+            .catch(e => ({ ok: false, error: i18n.t('metrics.fetchFailed'), code: e.code, requestId: e.requestId }))
             .then(res => {
                 // Keep the last good numbers through a failed refresh so a blip
                 // doesn't swap the cards for the "not enabled" card
                 setMetrics(prev => res.ok || !prev?.ok ? res : prev);
-                setRefreshError(res.ok ? null : res.error);
+                setRefreshError(res.ok ? null : localizeError(res, i18n.t));
             })
             .finally(() => setLoading(false));
     }, [onUnauth, i18n]);
@@ -46,7 +47,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
             toast.success(enabled ? t("metrics.enabledToast") : t("metrics.disabledToast"));
             if (enabled) setTimeout(load, 1000);
             else setMetrics({ ok: false, error: t("metrics.disabledToast") });
-        } catch (e) { toast.error(e.message); }
+        } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSavingMetrics(false); }
     };
 

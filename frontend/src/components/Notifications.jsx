@@ -1,3 +1,4 @@
+import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
@@ -52,7 +53,7 @@ export default function Notifications({ toast, onUnauth }) {
             setConfig(saved);
             toast.success(t("notifications.saved"));
         } catch (err) {
-            toast.error(err.message);
+            toast.error(localizeError(err, t), err);
         } finally {
             setSaving(false);
         }
@@ -64,7 +65,7 @@ export default function Notifications({ toast, onUnauth }) {
             await apiFetch('/notifications/test', { method: 'POST' }, onUnauth);
             toast.success(t("notifications.testSent"));
         } catch (err) {
-            toast.error(err.message);
+            toast.error(localizeError(err, t), err);
         } finally {
             setTesting(false);
         }
