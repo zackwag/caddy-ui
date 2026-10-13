@@ -7,7 +7,7 @@ Choose the path that matches what you would like to improve:
 |------|---------------------------|------------|
 | Codebase | Reproduce a bug, improve an existing view, or add a focused test | [Codebase onboarding](contributing-codebase.md) |
 | Documentation | Fix an unclear setup step, add an example, or explain a special case | [Documentation onboarding](contributing-documentation.md) |
-| Localization | Translate a small set of related UI strings into a language you know | [Localization onboarding](contributing-localization.md) — available after the foundation is merged |
+| Localization | Translate a small set of related UI strings into a language you know | [Localization onboarding](contributing-localization.md) |
 
 Documentation changes can start in GitHub's browser editor. Code changes and local
 previews use a checkout of the repository. The onboarding pages explain the files

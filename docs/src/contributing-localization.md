@@ -1,9 +1,6 @@
 # Contributing to localization
 
-> **Available after merge:** this path depends on the
-> [localization foundation in #202](https://github.com/zackwag/caddy-ui/pull/202).
-> This documentation branch does not include that implementation. Begin from a
-> checkout containing `frontend/src/i18n/locales/` and the localization scripts.
+![Localization coverage](localization-coverage.svg)
 
 You can start with a handful of related strings in a language you know. A locale
 does not have to be complete: missing translations fall back to English, so a
