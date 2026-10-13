@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.4](https://github.com/zackwag/caddy-ui/compare/v2.21.3...v2.21.4) (2026-10-13)
+
+
+### Bug Fixes
+
+* localize error feedback and centralize notification policies ([#222](https://github.com/zackwag/caddy-ui/issues/222)) ([8f26738](https://github.com/zackwag/caddy-ui/commit/8f26738335e6b6ea28acf76cd013c3d0e8e554b4))
+
 ## [2.21.3](https://github.com/zackwag/caddy-ui/compare/v2.21.2...v2.21.3) (2026-10-13)
 
 
