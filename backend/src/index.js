@@ -135,7 +135,10 @@ startUpstreamMonitor();
 startRouteMonitor();
 startUpdateCheck();
 
-app.listen(PORT, () => {
+app.listen(PORT, error => {
+    // Express 5 passes listen failures to this callback. Keep them fatal so
+    // startup cannot report success without a bound HTTP server.
+    if (error) throw error;
     logger.info(`Caddy UI backend running`, { port: PORT, version: APP_VERSION });
     logger.info(`Caddy admin API`, { url: CADDY_ADMIN_URL });
     logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });

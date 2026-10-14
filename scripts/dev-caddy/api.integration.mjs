@@ -60,22 +60,22 @@ test('failed backend startup still removes its Caddy containers and volumes', { 
     assert.deepEqual(await harness.names('volume'), []);
 });
 
-test('injected backend bind failure reports EADDRINUSE and cleans up its Caddy resources', { timeout: 60000 }, async t => {
+test('real backend bind failure reports EADDRINUSE and cleans up its Caddy resources', { timeout: 60000 }, async t => {
     const project = randomBytes(8).toString('hex');
     const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-port-collision-'));
     t.after(() => rm(directory, { recursive: true, force: true }));
     const entry = join(directory, 'occupied-port.mjs');
-    // Inject a real socket bind error in the fixture process, independently of
-    // the application's handling of listen errors.
+    // Occupy the fixture's selected port before importing the real backend.
     await writeFile(entry, `import { createServer } from 'node:net';
 const blocker = createServer();
 await new Promise(resolve => blocker.listen(Number(process.env.PORT), '127.0.0.1', resolve));
-createServer().listen(Number(process.env.PORT), '127.0.0.1');
+await import(${JSON.stringify(new URL('../../backend/src/index.js', import.meta.url).href)});
 `);
     await assert.rejects(startTestStack({ project, backendEntry: entry }), error => {
         assert.match(error.message, /Backend exited \(1\) before readiness/);
         assert.match(error.message, /EADDRINUSE/);
         assert.doesNotMatch(error.message, /Readiness timeout/);
+        assert.doesNotMatch(error.message, /Caddy UI backend running/);
         return true;
     });
     const harness = new Harness(project);
