@@ -183,6 +183,11 @@ are bounded, and teardown stops its backend and browser before purging its own
 containers and volumes, including when a test fails. Tests do not use production
 configuration or require a running development stack.
 
+The backend lets the OS allocate its port (`PORT=0`) and reports the bound port
+through Node's IPC channel before HTTP readiness checks. It keeps ownership of
+that port throughout startup, allowing concurrent fixtures without reserving and
+releasing candidate ports.
+
 The browser suite uses Playwright's Chromium by default. Set
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an installed Chromium executable when
 using a managed environment that provides its own browser.

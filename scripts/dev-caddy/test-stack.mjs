@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { backendEnvironment, checkDocker, Harness } from './harness.mjs';
@@ -33,13 +32,28 @@ export async function waitFor(url, accept = response => response.ok, timeoutMs =
     throw new Error(`Readiness timeout at ${url}`, { cause: lastError });
 }
 
-async function availablePort() {
-    const server = createServer();
-    server.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    const { port } = server.address();
-    await new Promise(resolve => server.close(resolve));
-    return port;
+export function waitForBackendPort(backend, { signal, timeoutMs = 15000 } = {}) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => finish(reject, new Error('Backend did not report its listening port before readiness')), timeoutMs);
+        const onAbort = () => finish(reject, signal.reason);
+        const onMessage = message => {
+            if (message?.type !== 'caddy-ui:listening') return;
+            if (!Number.isInteger(message.port) || message.port < 1 || message.port > 65535) {
+                finish(reject, new Error('Backend reported an invalid listening port'));
+                return;
+            }
+            finish(resolve, message.port);
+        };
+        function finish(settle, value) {
+            clearTimeout(timer);
+            backend.removeListener('message', onMessage);
+            signal?.removeEventListener('abort', onAbort);
+            settle(value);
+        }
+        backend.on('message', onMessage);
+        signal?.addEventListener('abort', onAbort, { once: true });
+        if (signal?.aborted) onAbort();
+    });
 }
 
 async function stopProcess(child) {
@@ -80,19 +94,19 @@ export async function startTestStack({ project = randomBytes(8).toString('hex'),
         instances.set('alpha', first);
         await waitFor(first.httpUrl + '/health');
         await waitFor(first.instance.adminUrl + '/config/');
-        const port = await availablePort();
         const version = VERSION + '-' + project;
-        const env = { ...backendEnvironment(directory, first.instance), PORT: String(port), APP_VERSION: version, LOG_LEVEL: 'info', CADDY_UI_ADDITIONAL_LANGUAGES: 'de' };
+        const env = { ...backendEnvironment(directory, first.instance), PORT: '0', APP_VERSION: version, LOG_LEVEL: 'info', CADDY_UI_ADDITIONAL_LANGUAGES: 'de' };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
         await mkdir(join(directory, 'backend'), { recursive: true });
         await writeFile(env.INSTANCES_PATH, JSON.stringify([{ id: 'default', ...first.instance }]));
         await writeFile(env.SETTINGS_PATH, JSON.stringify({ firstTimeRun: false, theme: 'dark', language: 'en', routeChecks: false }));
-        backend = spawn(process.execPath, [resolve(root, backendEntry)], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+        backend = spawn(process.execPath, [resolve(root, backendEntry)], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
         for (const stream of [backend.stdout, backend.stderr]) stream.on('data', chunk => { output = (output + chunk).slice(-64000); });
         const startup = new AbortController();
         backend.on('error', error => startup.abort(error));
         // close follows stdout/stderr draining, so startup diagnostics are complete.
         backend.once('close', (code, signal) => startup.abort(new Error(`Backend exited (${code ?? signal}) before readiness`)));
+        const port = await waitForBackendPort(backend, { signal: startup.signal });
         const url = `http://127.0.0.1:${port}`;
         await waitFor(url + '/api/version', async response => {
             return response.ok && (await response.json()).version === version;

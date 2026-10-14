@@ -135,15 +135,18 @@ startUpstreamMonitor();
 startRouteMonitor();
 startUpdateCheck();
 
-app.listen(PORT, error => {
+const server = app.listen(PORT, error => {
     // Express 5 passes listen failures to this callback. Keep them fatal so
     // startup cannot report success without a bound HTTP server.
     if (error) throw error;
-    logger.info(`Caddy UI backend running`, { port: PORT, version: APP_VERSION });
+    const port = server.address().port;
+    logger.info(`Caddy UI backend running`, { port, version: APP_VERSION });
     logger.info(`Caddy admin API`, { url: CADDY_ADMIN_URL });
     logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });
     logger.info(`Public metrics`, { enabled: publicMetrics });
     logger.info(`Enabled languages`, { languages: getEnabledLanguages() });
+    // Launchers using IPC can discover an OS-assigned port after it is bound.
+    if (process.connected) process.send({ type: 'caddy-ui:listening', port });
     initMonitor();
     initCaddyfileTitles().then(() => cleanupOrphanedNotes());
 });

@@ -65,10 +65,11 @@ test('real backend bind failure reports EADDRINUSE and cleans up its Caddy resou
     const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-port-collision-'));
     t.after(() => rm(directory, { recursive: true, force: true }));
     const entry = join(directory, 'occupied-port.mjs');
-    // Occupy the fixture's selected port before importing the real backend.
+    // Force a fixed-port collision independently of the fixture's PORT=0 default.
     await writeFile(entry, `import { createServer } from 'node:net';
 const blocker = createServer();
 await new Promise(resolve => blocker.listen(Number(process.env.PORT), '127.0.0.1', resolve));
+process.env.PORT = String(blocker.address().port);
 await import(${JSON.stringify(new URL('../../backend/src/index.js', import.meta.url).href)});
 `);
     await assert.rejects(startTestStack({ project, backendEntry: entry }), error => {
@@ -81,6 +82,24 @@ await import(${JSON.stringify(new URL('../../backend/src/index.js', import.meta.
     const harness = new Harness(project);
     assert.deepEqual(await harness.names(), []);
     assert.deepEqual(await harness.names('volume'), []);
+});
+
+test('concurrent real backends own distinct OS-assigned ports', { timeout: 60000 }, async t => {
+    const results = await Promise.allSettled([startTestStack(), startTestStack()]);
+    for (const result of results) {
+        if (result.status === 'fulfilled') t.after(() => result.value.close());
+    }
+    for (const result of results) if (result.status === 'rejected') throw result.reason;
+    const [first, second] = results.map(result => result.value);
+    assert.notEqual(new URL(first.url).port, new URL(second.url).port);
+    const versions = await Promise.all([first.api('/version'), second.api('/version')]);
+    assert(versions.every(response => response.status === 200));
+    assert.notEqual(versions[0].data.version, versions[1].data.version);
+    await Promise.all([first.close(), second.close()]);
+    for (const stack of [first, second]) {
+        assert.deepEqual(await stack.harness.names(), []);
+        assert.deepEqual(await stack.harness.names('volume'), []);
+    }
 });
 
 test('fixture refuses a namespace already used by another test stack', { timeout: 60000 }, async t => {
