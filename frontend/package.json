@@ -13,7 +13,9 @@
         "i18n:check": "node scripts/localization.mjs check",
         "i18n:coverage": "node scripts/localization.mjs coverage",
         "i18n:preview": "vite --config playground/vite.config.js",
-        "i18n:preview:build": "vite build --config playground/vite.config.js"
+        "i18n:preview:build": "vite build --config playground/vite.config.js",
+        "i18n:preview:capture": "node playground/capture.mjs",
+        "i18n:preview:check-capture": "node --test playground/capture.integration.mjs"
     },
     "dependencies": {
         "@codemirror/commands": "^6.11.1",

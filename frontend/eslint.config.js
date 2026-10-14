@@ -72,7 +72,7 @@ export default [
         rules: js.configs.recommended.rules,
     },
     {
-        files: ['scripts/**/*.mjs', 'eslint/**/*.mjs', 'playground/vite.config.js'],
+        files: ['scripts/**/*.mjs', 'eslint/**/*.mjs', 'playground/**/*.mjs', 'playground/vite.config.js'],
         languageOptions: {
             ecmaVersion: 'latest',
             sourceType: 'module',

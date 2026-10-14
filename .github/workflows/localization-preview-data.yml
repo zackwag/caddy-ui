@@ -1,0 +1,48 @@
+name: Localization preview data
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/src/**'
+      - 'backend/package*.json'
+      - 'frontend/src/components/Dashboard.jsx'
+      - 'frontend/src/utils/api.js'
+      - 'frontend/src/utils/format.js'
+      - 'frontend/playground/capture*'
+      - 'scripts/dev-caddy/harness.mjs'
+      - '.github/workflows/localization-preview-data.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Capture real Caddy states
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+      - name: Prepare disposable Caddy
+        run: |
+          docker info
+          docker pull caddy:2.10.2-alpine
+      - name: Capture real responses and clean up
+        run: node frontend/playground/capture.mjs
+      - name: Publish reviewable capture
+        uses: actions/upload-artifact@v7
+        with:
+          name: localization-preview-${{ github.sha }}
+          path: frontend/playground/captures/dashboard.json
+          if-no-files-found: error
+          retention-days: 30
