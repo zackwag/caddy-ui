@@ -122,7 +122,7 @@ router.post('/', async (req, res) => {
         res.status(201).json(instance);
     } catch (err) {
         logger.error('Failed to add instance', { error: err.message });
-        sendAppError(res, asAppError(err, /already exists/i.test(err.message) ? 'CONFLICT' : 'INSTANCE_SAVE_FAILED'));
+        sendAppError(res, asAppError(err, 'INSTANCE_SAVE_FAILED'));
     }
 });
 
@@ -144,7 +144,7 @@ router.put('/:id', async (req, res) => {
         res.json(instance);
     } catch (err) {
         logger.error('Failed to update instance', { id, error: err.message });
-        sendAppError(res, asAppError(err, /not found/i.test(err.message) ? 'INSTANCE_NOT_FOUND' : 'INSTANCE_SAVE_FAILED'));
+        sendAppError(res, asAppError(err, 'INSTANCE_SAVE_FAILED'));
     }
 });
 

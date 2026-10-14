@@ -58,7 +58,12 @@ export async function apiFetch(path, opts = {}, onUnauth) {
         throw new ApiError('Network connection failed', { code: 'NETWORK_ERROR' });
     }
     const ct = res.headers.get('content-type') || '';
-    const body = ct.includes('application/json') ? await res.json() : await res.text();
+    let body;
+    try {
+        body = ct.includes('application/json') ? await res.json() : await res.text();
+    } catch {
+        body = null;
+    }
     if (res.status === 401) {
         setToken(null);
         if (onUnauth) onUnauth();

@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname } from 'path';
+import { AppError } from './AppError.js';
 import logger from './logger.js';
 
 const INSTANCES_PATH = process.env.INSTANCES_PATH || '/etc/caddy-ui/instances.json';
@@ -66,7 +67,7 @@ export function getInstance(id) {
 export async function addInstance(instance) {
     const instances = getInstances();
     if (instances.find(i => i.id === instance.id)) {
-        throw new Error(`Instance "${instance.id}" already exists`);
+        throw new AppError('CONFLICT', { message: `Instance "${instance.id}" already exists` });
     }
     instances.push(instance);
     await saveInstances(instances);
@@ -77,7 +78,7 @@ export async function addInstance(instance) {
 export async function updateInstance(id, updates) {
     const instances = getInstances();
     const idx = instances.findIndex(i => i.id === id);
-    if (idx === -1) throw new Error(`Instance "${id}" not found`);
+    if (idx === -1) throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
     instances[idx] = { ...instances[idx], ...updates, id };
     await saveInstances(instances);
     logger.info('Instance updated', { id });
@@ -87,7 +88,7 @@ export async function updateInstance(id, updates) {
 export async function removeInstance(id) {
     const instances = getInstances();
     const idx = instances.findIndex(i => i.id === id);
-    if (idx === -1) throw new Error(`Instance "${id}" not found`);
+    if (idx === -1) throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
     instances.splice(idx, 1);
     await saveInstances(instances);
     logger.info('Instance removed', { id });
