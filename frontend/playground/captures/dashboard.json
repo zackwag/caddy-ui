@@ -1,7 +1,7 @@
 {
   "formatVersion": 1,
   "source": {
-    "commit": "f1baabe1cf6d897cb8c57be4e125b81b1c09436b",
+    "commit": "3f566d52b5bd2ed804ec3c0cc34183d11a8bdb9b",
     "sourceHash": "05f8ffcd5f542c752e44273b36568ed8df7c82283fd889335c2b23362ba464d5",
     "caddyImage": "caddy:2.10.2-alpine"
   },
@@ -64,8 +64,8 @@
               "version": "v2.10.2",
               "uptime": "1s",
               "uptimeSeconds": 1,
-              "memAlloc": 4.4,
-              "memSys": 17.8,
+              "memAlloc": 4.5,
+              "memSys": 17.6,
               "lastReload": "2025-01-01T12:00:00.000Z",
               "lastReloadSuccess": true
             }
@@ -171,9 +171,9 @@
               "version": "v2.10.2",
               "uptime": "1s",
               "uptimeSeconds": 1,
-              "memAlloc": 6.1,
-              "memSys": 17.8,
-              "lastReload": "2025-01-01T12:00:00.000Z",
+              "memAlloc": 5.5,
+              "memSys": 17.6,
+              "lastReload": "2025-01-01T12:00:00.166Z",
               "lastReloadSuccess": true
             }
           }

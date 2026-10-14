@@ -72,6 +72,10 @@ export default [
         rules: js.configs.recommended.rules,
     },
     {
+        files: ['playground/Workbench.jsx'],
+        languageOptions: { globals: { __PREVIEW_SOURCE_HASH__: 'readonly' } },
+    },
+    {
         files: ['scripts/**/*.mjs', 'eslint/**/*.mjs', 'playground/**/*.mjs', 'playground/vite.config.js'],
         languageOptions: {
             ecmaVersion: 'latest',
@@ -88,5 +92,9 @@ export default [
             globals: { ...globals.node, ...globals.browser },
         },
         rules: js.configs.recommended.rules,
+    },
+    {
+        files: ['playground/check-browser.mjs'],
+        languageOptions: { globals: globals.browser },
     },
 ];

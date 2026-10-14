@@ -15,7 +15,8 @@
         "i18n:preview": "vite --config playground/vite.config.js",
         "i18n:preview:build": "vite build --config playground/vite.config.js",
         "i18n:preview:capture": "node playground/capture.mjs",
-        "i18n:preview:check-capture": "node --test playground/capture.integration.mjs"
+        "i18n:preview:check-capture": "node --test playground/capture.integration.mjs",
+        "i18n:preview:check-browser": "node playground/check-browser.mjs"
     },
     "dependencies": {
         "@codemirror/commands": "^6.11.1",
@@ -38,7 +39,7 @@
         "eslint-plugin-react-hooks": "^7.1.1",
         "eslint-plugin-react-refresh": "^0.5.7",
         "globals": "^17.13.0",
-        "playwright": "1.62.1",
+        "playwright": "^1.62.1",
         "vite": "^8.3.2",
         "vitest": "^5.0.3"
     }

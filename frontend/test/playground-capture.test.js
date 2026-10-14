@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createReplayFetch, validateCapture } from '../playground/capture-format.js';
-import { normalizeCapture } from '../playground/capture.mjs';
+import { createReplayFetch, normalizeCapture, validateCapture } from '../playground/capture-format.js';
 
 const record = { request: { method: 'GET', path: '/status', body: null },
     response: { status: 200, headers: { 'content-type': 'application/json' }, body: { online: true, servers: [] } } };
@@ -23,6 +22,21 @@ describe('captured localization data', () => {
         expect(validateCapture(capture)).toBe(capture);
         expect(() => validateCapture({ ...capture, formatVersion: 2 })).toThrow();
         expect(() => validateCapture({ ...capture, scenarios: [{ id: 'online', requests: [record, record] }] })).toThrow(/duplicate/);
+    });
+    it('retains time differences and case-insensitive request-ID correlations', () => {
+        const id = 'e1111111-1111-4111-8111-111111111111';
+        const normalized = normalizeCapture([id, id.toUpperCase(), '2026-10-14T12:00:00.000Z', '2026-10-14T12:00:01.500Z']);
+        expect(normalized[0]).toBe(normalized[1]);
+        expect(Date.parse(normalized[3]) - Date.parse(normalized[2])).toBe(1500);
+    });
+    it('preserves JSON scalar, text and no-content response semantics', async () => {
+        const scalar = createReplayFetch([{ ...record, response: { ...record.response, body: 'a JSON string' } }]);
+        expect(await (await scalar('/api/status')).json()).toBe('a JSON string');
+        const text = createReplayFetch([{ ...record, response: { ...record.response, headers: { 'content-type': 'text/plain' }, body: 'raw text' } }]);
+        expect(await (await text('/api/status')).text()).toBe('raw text');
+        const empty = createReplayFetch([{ ...record, response: { ...record.response, status: 204, body: '' } }]);
+        expect(await (await empty('/api/status')).text()).toBe('');
+        expect(await (await scalar(new Request('http://preview.local/api/status'))).json()).toBe('a JSON string');
     });
     it('returns fresh real-shaped responses and preserves soft HTTP-200 failure contracts', async () => {
         const replay = createReplayFetch([{ ...record, response: { ...record.response, body: { ok: false, code: 'METRICS_UNAVAILABLE' } } }]);

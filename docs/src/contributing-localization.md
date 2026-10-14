@@ -59,23 +59,27 @@ Set `CADDY_UI_ADDITIONAL_LANGUAGES` in the backend environment to include your
 language code, restart the backend, and select the language in the UI. A matching
 locale file must exist for that language to be available.
 
-### Visual translation playground, when available
+### Visual translation playground
 
-The visual playground is a separate contribution. Check `npm run` in `frontend/`:
-use this path only if it lists `i18n:preview`.
+The playground is a lightweight contributor tool. From `frontend/`:
 
 ```sh
 npm run i18n:preview
 ```
 
 Open `http://localhost:5174`. Choose an installed locale, search for an English
-key or saved value, and try your translation in the available component previews.
-Some keys may not have a registered preview yet.
+key or saved value, choose a component state, and try your translation in its real
+component preview. Some keys may not have a registered preview yet. Highlights
+identify matching text, tooltips, or input labels; the context inspector provides
+DOM selectors and interpolation values. Ambiguous wording is marked explicitly.
 
 The playground keeps drafts only for the current session. Copy your value and
 paste it into the target locale file yourself; it does not save edits to the
 catalog. Reloading discards drafts. Preserve placeholders and review any warnings.
-The playground can preview its registered fixtures without a running backend.
+The playground replays captured real-backend responses without a running backend
+or Docker. **Copy preview link** shares a key, language, and state without including
+draft text. For capture refresh, optional browser checks, and adding component
+states, see the [playground developer guide](https://github.com/zackwag/caddy-ui/blob/main/frontend/playground/README.md).
 
 ## Submit a focused PR
 
