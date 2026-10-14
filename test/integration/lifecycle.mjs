@@ -5,7 +5,6 @@ export class FixtureScope {
     #disposers;
     #parentSignal;
     #onAbort;
-    #closed = false;
     #cleanup;
 
     constructor(signal) {
@@ -28,7 +27,7 @@ export class FixtureScope {
 
     async run(action) {
         this.signal.throwIfAborted();
-        if (this.#closed) throw new Error('Fixture is closed');
+        if (this.#cleanup) throw new Error('Fixture is closed');
         const pending = Promise.resolve().then(() => {
             this.signal.throwIfAborted();
             return action();
@@ -50,9 +49,6 @@ export class FixtureScope {
     }
 
     close() {
-        // Set #closed synchronously so run() rejects immediately, even if
-        // close()'s async body has not yet drained #pending.
-        this.#closed = true;
         return this.#cleanup ??= Promise.resolve().then(async () => {
             this.#parentSignal?.removeEventListener('abort', this.#onAbort);
             this.#controller.abort(new Error('Fixture is closed'));
