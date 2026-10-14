@@ -7,7 +7,7 @@ A modern web interface for managing your [Caddy](https://caddyserver.com) server
 
 {{#include ../../README.md:overview}}
 
-Start with [setup](setup.md), explore the [features](features.md) and [screenshots](screenshots.md), or read the [architecture guide](architecture.md).
+Start with the [quickstart](setup.md), explore the [features](features.md) and [screenshots](screenshots.md), or read the [architecture guide](architecture.md).
 
 </div>
 <div class="docs-landing-previews">

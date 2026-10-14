@@ -127,7 +127,7 @@ instances, optional authentication, and responsive dark/light themes.
 ## Get started
 
 You need Docker Compose and a Caddy container with its admin API enabled inside your Docker network.
-Follow the [setup guide](https://zackwag.github.io/caddy-ui/setup.html) to configure Caddy,
+Follow the [quickstart guide](https://zackwag.github.io/caddy-ui/setup.html) to configure Caddy,
 create the required directories, and deploy both caddy/ui containers. Then open
 `http://your-server:9877` and add or discover your instance.
 
@@ -140,11 +140,14 @@ create the required directories, and deploy both caddy/ui containers. Then open
 
 ### Prerequisites
 
+<!-- ANCHOR: quick-start-prerequisites -->
 - Docker and Docker Compose
 - An existing Caddy container with the admin API enabled on `0.0.0.0:2019`
+<!-- ANCHOR_END: quick-start-prerequisites -->
 
 ### 1. Enable Caddy's admin API
 
+<!-- ANCHOR: quick-start-admin-api -->
 Add the following to your Caddyfile global block:
 
 ```caddyfile
@@ -155,22 +158,28 @@ Add the following to your Caddyfile global block:
 ```
 
 > Note: the `CADDY_ADMIN` environment variable does not configure this — it must be set in the Caddyfile.
+<!-- ANCHOR_END: quick-start-admin-api -->
 
 ### 2. Create required directories
 
+<!-- ANCHOR: quick-start-directories -->
 ```bash
 mkdir -p /docker/caddy/logs
 mkdir -p /docker/caddy-ui
 ```
+<!-- ANCHOR_END: quick-start-directories -->
 
 ### 3. Generate a JWT secret (if using auth)
 
+<!-- ANCHOR: quick-start-auth -->
 ```bash
 openssl rand -base64 32
 ```
+<!-- ANCHOR_END: quick-start-auth -->
 
 ### 4. Update your compose file
 
+<!-- ANCHOR: quick-start-compose -->
 ```yaml
 services:
   caddy:
@@ -232,14 +241,17 @@ networks:
 ```
 
 The backend only needs two volumes: the **Docker socket** (to interact with Caddy containers via `docker exec` and discover new instances) and its own **config directory** (for instance registry, history, and settings). No Caddy volume mounts required — all Caddyfile, log, and certificate operations go through the Docker socket.
+<!-- ANCHOR_END: quick-start-compose -->
 
 ### 5. Deploy
 
+<!-- ANCHOR: quick-start-deploy -->
 ```bash
 docker compose up -d
 ```
 
 Open `http://your-server:9877` in your browser.
+<!-- ANCHOR_END: quick-start-deploy -->
 
 <!-- dockerhub:both:end -->
 <!-- ANCHOR_END: quick-start -->

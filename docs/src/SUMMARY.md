@@ -4,7 +4,7 @@
     - [Features](features.md)
     - [Screenshots](screenshots.md)
     - [Architecture](architecture.md)
-- [Setup](setup.md)
+- [Quickstart](setup.md)
 - [Configuration](configuration.md)
     - [Instances](instances.md)
     - [Custom themes](themes.md)
