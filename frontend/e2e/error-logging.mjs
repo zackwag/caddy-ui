@@ -125,20 +125,31 @@ test('application log streams deliver new correlated errors', options, async () 
 });
 
 test('Caddy log streams deliver real HTTP errors', options, async () => {
+    const initialLogs = page.waitForResponse(response => new URL(response.url()).pathname === '/api/logs'
+        && response.request().method() === 'GET');
     await go('/logs?dist=caddy');
-    await page.locator('.logs-page').waitFor();
+    const snapshot = await initialLogs;
+    assert.equal(snapshot.status(), 200);
+    await snapshot.finished();
+    await page.locator('.log-line').first().waitFor();
     const connected = page.waitForResponse(response => response.url().includes('/api/logs/stream'));
     await page.getByRole('button', { name: /Live/ }).click();
-    for (let attempt = 0; attempt < 30; attempt++) {
-        const processes = await stack.harness.run(['exec', stack.harness.resource('alpha'), 'ps']);
-        if (/tail .* -f/.test(processes)) break;
-        assert(attempt < 29, 'Caddy tail process did not start');
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    // Establish browser delivery after the snapshot, rather than relying on a
+    // tail process existing or SSE headers arriving before it starts reading.
+    const readyMarker = 'browser-stream-ready-' + Date.now();
+    let streaming = false;
+    const delivered = page.waitForFunction(marker => document.querySelector('.log-wrap')?.textContent.includes(marker), readyMarker)
+        .then(() => { streaming = true; });
+    await Promise.all([delivered, (async () => {
+        for (let attempt = 0; attempt < 30 && !streaming; attempt++) {
+            await fetch(stack.instances.get('alpha').httpUrl + '/health?case=' + readyMarker, { signal: AbortSignal.timeout(1000) });
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    })()]);
+    assert.equal((await connected).status(), 200);
     const marker = 'browser-live-' + Date.now();
     await page.locator('.search-input').fill(marker);
     assert.equal((await fetch(stack.instances.get('alpha').httpUrl + '/error?case=' + marker)).status, 503);
-    assert.equal((await connected).status(), 200);
     await page.waitForFunction(marker => document.querySelector('.log-wrap')?.textContent.includes(marker), marker);
     await page.getByRole('button', { name: /Stop/ }).click();
 });
