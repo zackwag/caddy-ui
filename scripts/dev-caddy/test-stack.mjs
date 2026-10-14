@@ -4,11 +4,24 @@ import { once } from 'node:events';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { backendEnvironment, checkDocker, Harness } from './harness.mjs';
+import { backendEnvironment, checkDocker, Harness, IMAGE } from './harness.mjs';
 import { FixtureScope } from './fixture-scope.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const VERSION = 'dev-caddy-integration';
+
+async function claimNamespace(harness) {
+    try {
+        return await harness.run(['create', '--name', `caddy-ui-test-${harness.project}-lease`,
+            '--label', 'io.caddy-ui.test-fixture=true', '--label', `io.caddy-ui.test-project=${harness.project}`,
+            '--network', 'none', '--entrypoint', 'sh', IMAGE, '-c', 'true']);
+    } catch (cause) {
+        if (/already in use/.test(cause.stderr || cause.message)) {
+            throw new Error('Integration tests require a fresh, empty Docker namespace; another fixture already holds its lease', { cause });
+        }
+        throw cause;
+    }
+}
 
 export async function waitFor(url, accept = response => response.ok, timeoutMs = 15000, { signal } = {}) {
     const deadline = Date.now() + timeoutMs;
@@ -81,6 +94,9 @@ export async function startTestStack({ project = randomBytes(8).toString('hex'),
 
     try {
         await scope.run(() => checkDocker());
+        // Docker's container-name claim is atomic across processes and clients.
+        // Retain this stopped, unmounted container until every cleanup completes.
+        await scope.acquire(() => claimNamespace(harness), id => harness.run(['rm', id]));
         const [containers, volumes] = await scope.run(() => Promise.all([harness.names(), harness.names('volume')]));
         if (containers.length || volumes.length) throw new Error('Integration tests require a fresh, empty Docker namespace');
         const directory = await scope.acquire(() => mkdtemp(join(tmpdir(), 'caddy-ui-integration-')),

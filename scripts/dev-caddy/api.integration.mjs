@@ -136,3 +136,23 @@ test('fixture refuses a namespace already used by another test stack', { timeout
     assert.equal((await stack.harness.inspect('container', stack.harness.resource('alpha'))).State.Running, true);
     assert.equal((await stack.api('/caddyfile')).status, 200);
 });
+
+test('simultaneous fixtures claim a namespace exclusively until cleanup completes', { timeout: 60000 }, async t => {
+    const project = randomBytes(8).toString('hex');
+    const results = await Promise.allSettled([useTestStack(t, { project }), useTestStack(t, { project })]);
+    const successes = results.filter(result => result.status === 'fulfilled');
+    const failures = results.filter(result => result.status === 'rejected');
+    assert.equal(successes.length, 1);
+    assert.equal(failures.length, 1);
+    assert.match(failures[0].reason.message, /another fixture already holds its lease/);
+    const stack = successes[0].value;
+    assert.equal((await stack.api('/caddyfile')).status, 200);
+    assert.equal((await stack.harness.inspect('container', stack.harness.resource('alpha'))).State.Running, true);
+    assert(await stack.harness.inspect('volume', stack.harness.resource('alpha')));
+    await stack.close();
+    assert.deepEqual(await stack.harness.names(), []);
+    assert.deepEqual(await stack.harness.names('volume'), []);
+    // A completed cleanup releases the lease, allowing explicit namespace reuse.
+    const next = await useTestStack(t, { project });
+    assert.equal((await next.api('/caddyfile')).status, 200);
+});

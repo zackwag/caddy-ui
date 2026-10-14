@@ -188,6 +188,13 @@ signal. It waits for in-flight resource creation before stopping services and
 purging resources, so an acquisition that finishes after a timeout is still
 cleaned up. Every cleanup layer is attempted even when another layer fails.
 
+Before inspecting or creating Caddy resources, a fixture atomically claims its
+namespace with a stopped Docker container named `caddy-ui-test-<namespace>-lease`.
+The lease uses separate test-fixture labels and is removed after all other
+cleanup layers. Concurrent clients cannot acquire the same namespace. If a
+process is killed without cleanup, inspect its lease and verify the owner has
+stopped before manually removing that specific lease container.
+
 The backend lets the OS allocate its port (`PORT=0`) and reports the bound port
 through Node's IPC channel before HTTP readiness checks. It keeps ownership of
 that port throughout startup, allowing concurrent fixtures without reserving and
