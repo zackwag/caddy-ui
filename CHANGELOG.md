@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.6](https://github.com/zackwag/caddy-ui/compare/v2.21.5...v2.21.6) (2026-10-14)
+
+
+### Reverts
+
+* remove redundant #closed flag from FixtureScope ([#234](https://github.com/zackwag/caddy-ui/issues/234)) ([bbbc119](https://github.com/zackwag/caddy-ui/commit/bbbc11904efd7dd7d9e0dbc3f1be80ef6b45a34a))
+
 ## [2.21.5](https://github.com/zackwag/caddy-ui/compare/v2.21.4...v2.21.5) (2026-10-14)
 
 
