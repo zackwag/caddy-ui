@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.5](https://github.com/zackwag/caddy-ui/compare/v2.21.4...v2.21.5) (2026-10-14)
+
+
+### Bug Fixes
+
+* harden error handling in API client, instances, and error registry ([#231](https://github.com/zackwag/caddy-ui/issues/231)) ([d5ce4f9](https://github.com/zackwag/caddy-ui/commit/d5ce4f9765e5b23094ff25578696362f37f86a36))
+
 ## [2.21.4](https://github.com/zackwag/caddy-ui/compare/v2.21.3...v2.21.4) (2026-10-13)
 
 
