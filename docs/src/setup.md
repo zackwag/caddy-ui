@@ -1,6 +1,5 @@
 # Quickstart
 
-> [!NOTE]
 > For Caddy installations outside Docker, see [local-mode instances](instances.md#local-mode-no-docker-socket).
 
 ## Prerequisites
