@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { startTestStack } from './test-stack.mjs';
+import { useTestStack } from './test-stack.mjs';
 
 const invalid = ':80 {\n    integration_diagnostic_bad_directive\n}\n';
 
 test('real Caddy diagnostics preserve correlation, paths, codes and severity', { timeout: 120000 }, async t => {
-    const stack = await startTestStack();
-    t.after(() => stack.close());
+    const stack = await useTestStack(t);
     const alpha = stack.instances.get('alpha');
     const original = (await stack.api('/caddyfile')).data;
 

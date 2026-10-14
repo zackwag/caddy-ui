@@ -5,9 +5,11 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
+import { FixtureScope } from '../../scripts/dev-caddy/fixture-scope.mjs';
 import { startTestStack } from '../../scripts/dev-caddy/test-stack.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
+let scope;
 let stack;
 let vite;
 let browser;
@@ -19,21 +21,22 @@ const browserRequests = [];
 const invalid = ':80 {\n  integration_browser_bad_directive\n}\n';
 const options = { timeout: 45000 };
 
-before(async () => {
-    stack = await startTestStack();
-    await promisify(execFile)(process.execPath, ['frontend/scripts/fetch-caddyfile-mode.mjs'], { cwd: root, timeout: 30000 });
-    vite = await createServer({
+before(async t => {
+    scope = new FixtureScope(t.signal);
+    stack = await scope.acquire(() => startTestStack({ signal: scope.signal }), stack => stack.close());
+    await scope.run(() => promisify(execFile)(process.execPath, ['frontend/scripts/fetch-caddyfile-mode.mjs'], { cwd: root, timeout: 30000, signal: scope.signal }));
+    vite = await scope.acquire(() => createServer({
         root: resolve(root, 'frontend'),
         cacheDir: resolve(stack.directory, 'vite-cache'),
         server: { host: '127.0.0.1', port: 0, proxy: { '/api': stack.url } },
-    });
-    await vite.listen();
+    }), vite => vite.close());
+    await scope.run(() => vite.listen());
     origin = vite.resolvedUrls.local[0].replace(/\/$/, '');
-    browser = await chromium.launch({
+    browser = await scope.acquire(() => chromium.launch({
         ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
-    });
-    context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    page = await context.newPage();
+    }), browser => browser.close());
+    context = await scope.acquire(() => browser.newContext({ viewport: { width: 1440, height: 900 } }), context => context.close());
+    page = await scope.run(() => context.newPage());
     page.setDefaultTimeout(10000);
     page.on('pageerror', error => pageErrors.push(error.message));
     page.on('request', request => browserRequests.push({ url: request.url() }));
@@ -55,13 +58,7 @@ before(async () => {
     }
 }, { timeout: 180000 });
 
-after(async () => {
-    const errors = [];
-    for (const close of [() => browser?.close(), () => vite?.close(), () => stack?.close()]) {
-        try { await close(); } catch (error) { errors.push(error); }
-    }
-    if (errors.length) throw new AggregateError(errors, 'Browser integration cleanup failed');
-});
+after(() => scope?.close());
 
 const go = path => page.goto(origin + path);
 async function waitForView(selector, timeout = 10000) {

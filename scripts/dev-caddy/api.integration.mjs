@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { Harness } from './harness.mjs';
-import { startTestStack } from './test-stack.mjs';
+import { startTestStack, useTestStack } from './test-stack.mjs';
 
 test('real backend: container lifecycle and UI registration are independent', { timeout: 120000 }, async t => {
-    const stack = await startTestStack();
-    t.after(() => stack.close());
+    const stack = await useTestStack(t);
     let alpha = stack.instances.get('alpha');
     const beta = await stack.create('beta');
     assert.equal((await stack.api('/instances')).data.length, 1);
@@ -47,9 +46,9 @@ test('real backend: container lifecycle and UI registration are independent', { 
     assert.deepEqual(await stack.harness.names('volume'), []);
 });
 
-test('failed backend startup still removes its Caddy containers and volumes', { timeout: 60000 }, async () => {
+test('failed backend startup still removes its Caddy containers and volumes', { timeout: 60000 }, async t => {
     const project = randomBytes(8).toString('hex');
-    await assert.rejects(startTestStack({ project, backendEntry: 'nonexistent-integration-entry.mjs' }), error => {
+    await assert.rejects(useTestStack(t, { project, backendEntry: 'nonexistent-integration-entry.mjs' }), error => {
         assert.match(error.message, /Backend exited \(1\) before readiness/);
         assert.match(error.message, /MODULE_NOT_FOUND/);
         assert.doesNotMatch(error.message, /Readiness timeout/);
@@ -72,7 +71,7 @@ await new Promise(resolve => blocker.listen(Number(process.env.PORT), '127.0.0.1
 process.env.PORT = String(blocker.address().port);
 await import(${JSON.stringify(new URL('../../backend/src/index.js', import.meta.url).href)});
 `);
-    await assert.rejects(startTestStack({ project, backendEntry: entry }), error => {
+    await assert.rejects(useTestStack(t, { project, backendEntry: entry }), error => {
         assert.match(error.message, /Backend exited \(1\) before readiness/);
         assert.match(error.message, /EADDRINUSE/);
         assert.doesNotMatch(error.message, /Readiness timeout/);
@@ -85,10 +84,7 @@ await import(${JSON.stringify(new URL('../../backend/src/index.js', import.meta.
 });
 
 test('concurrent real backends own distinct OS-assigned ports', { timeout: 60000 }, async t => {
-    const results = await Promise.allSettled([startTestStack(), startTestStack()]);
-    for (const result of results) {
-        if (result.status === 'fulfilled') t.after(() => result.value.close());
-    }
+    const results = await Promise.allSettled([useTestStack(t), useTestStack(t)]);
     for (const result of results) if (result.status === 'rejected') throw result.reason;
     const [first, second] = results.map(result => result.value);
     assert.notEqual(new URL(first.url).port, new URL(second.url).port);
@@ -102,9 +98,40 @@ test('concurrent real backends own distinct OS-assigned ports', { timeout: 60000
     }
 });
 
+test('cancellation during backend startup kills the child and purges Caddy resources', { timeout: 60000 }, async t => {
+    const project = randomBytes(8).toString('hex');
+    const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-cancel-startup-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const entry = join(directory, 'pending-backend.mjs');
+    const marker = join(directory, 'pid');
+    await writeFile(entry, `import { writeFile } from 'node:fs/promises';
+await writeFile(${JSON.stringify(marker)}, String(process.pid));
+setInterval(() => {}, 1000);
+`);
+    const cancellation = new AbortController();
+    const started = startTestStack({ project, backendEntry: entry, signal: cancellation.signal });
+    t.after(async () => {
+        cancellation.abort();
+        await started.then(stack => stack.close(), () => {});
+    });
+    let pid;
+    for (let attempt = 0; attempt < 200 && !pid; attempt++) {
+        try { pid = Number(await readFile(marker, 'utf8')); }
+        catch (error) { if (error.code !== 'ENOENT') throw error; }
+        if (!pid) await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert(pid, 'Fixture backend did not start');
+    const reason = new Error('cancelled during startup');
+    cancellation.abort(reason);
+    await assert.rejects(started, error => error.cause === reason);
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    const harness = new Harness(project);
+    assert.deepEqual(await harness.names(), []);
+    assert.deepEqual(await harness.names('volume'), []);
+});
+
 test('fixture refuses a namespace already used by another test stack', { timeout: 60000 }, async t => {
-    const stack = await startTestStack();
-    t.after(() => stack.close());
+    const stack = await useTestStack(t);
     await assert.rejects(startTestStack({ project: stack.harness.project }), /fresh, empty Docker namespace/);
     assert.equal((await stack.harness.inspect('container', stack.harness.resource('alpha'))).State.Running, true);
     assert.equal((await stack.api('/caddyfile')).status, 200);

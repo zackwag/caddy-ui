@@ -183,6 +183,11 @@ are bounded, and teardown stops its backend and browser before purging its own
 containers and volumes, including when a test fails. Tests do not use production
 configuration or require a running development stack.
 
+Fixture cleanup is registered before startup and follows the test's cancellation
+signal. It waits for in-flight resource creation before stopping services and
+purging resources, so an acquisition that finishes after a timeout is still
+cleaned up. Every cleanup layer is attempted even when another layer fails.
+
 The backend lets the OS allocate its port (`PORT=0`) and reports the bound port
 through Node's IPC channel before HTTP readiness checks. It keeps ownership of
 that port throughout startup, allowing concurrent fixtures without reserving and
