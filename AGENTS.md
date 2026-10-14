@@ -8,6 +8,7 @@ Two independently deployed services, each with its own `package.json`:
 
 - `backend/` — Node.js (ES modules) + Express API on port 3001. Talks to Caddy's admin API, reads/writes the Caddyfile, tails logs, etc. Source in `backend/src/`, routes in `backend/src/routes/`, tests in `backend/test/`.
 - `frontend/` — React 19 + Vite SPA on port 80 (nginx in prod, Vite dev server locally). Source in `frontend/src/`, components in `frontend/src/components/`.
+- `test/integration/` — disposable Caddy/backend fixtures and Node integration scenarios. `frontend/e2e/` adds Playwright/Vite fixtures and browser scenarios. Development commands stay in `scripts/dev-caddy/`; tests reuse its Docker harness.
 
 The root `package.json` contains dependency-free development harness commands (`dev:with-caddy`, `dev:instances`, `test:dev-caddy`). Application commands still run in `backend` or `frontend`.
 
@@ -17,7 +18,7 @@ The root `package.json` contains dependency-free development harness commands (`
 # Backend
 cd backend && npm install
 cd backend && npm run dev     # node --watch src/index.js
-cd backend && npm test        # vitest run — the only automated test suite in this repo
+cd backend && npm test        # vitest run — backend unit and API contract tests
 cd backend && npm run lint    # eslint .
 
 # Frontend
@@ -26,9 +27,16 @@ cd frontend && npm run dev    # vite dev server (predev fetches caddyfileMode.js
 cd frontend && npm run build  # vite build (prebuild fetches caddyfileMode.js)
 cd frontend && npm run lint   # eslint .
 cd frontend && npm test       # vitest + localization contract
+
+# Disposable integration fixtures (from the repository root)
+npm run test:dev-caddy              # harness/lifecycle/readiness tests, no Docker
+npm run test:dev-caddy:integration  # real Caddy, backend API and startup scenarios
+npm run test:dev-caddy:e2e          # isolated browser scenarios; suite prepares editor mode once
 ```
 
 There is no repo-wide lint/format command — `backend/` and `frontend/` each have their own ESLint config (`eslint.config.js`), run separately. Lint also guards frontend user-facing literals; it doesn't enforce formatting, so match existing style by hand.
+
+Integration infrastructure is limited to three support modules: `test/integration/lifecycle.mjs` owns acquisition/cleanup, `test/integration/stack.mjs` assembles Caddy and the backend, and `frontend/e2e/fixture.mjs` adds Vite/Chromium. Keep UI actions and assertions in scenarios, and do not share mutable fixtures between browser tests. Run the affected root suite and `npm run lint:dev-caddy` when changing this infrastructure; browser files also use frontend lint.
 
 ## Before finishing a task
 

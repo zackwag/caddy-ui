@@ -149,8 +149,8 @@ resets UI state without touching any Caddy volumes.
 
 Run harness lint with `npm run lint:dev-caddy` (requires backend dependencies)
 and lifecycle safety tests with `npm run test:dev-caddy`. They need no Docker
-Engine. `npm run test:dev-caddy:integration` is an opt-in real-container smoke test. It
-uses a fresh namespace and purges only its own resources in a finally block,
+Engine. `npm run test:dev-caddy:integration` runs real-container checks. They
+use fresh namespaces and purge only their own resources,
 covering `/health`, `/error`, reload, logging, restart/recreation persistence and
 independent simultaneous instances. It requires Docker and may pull the pinned image.
 
@@ -177,7 +177,7 @@ The Test workflow runs lifecycle and browser checks against Docker and Chromium.
 Its required Test check includes the integration job, so container or browser
 failures cannot be hidden by passing unit tests.
 
-Each suite uses a fresh labeled Docker namespace, temporary backend state and
+Each fixture uses a fresh labeled Docker namespace, temporary backend state and
 dynamic service ports. It does not read or change `.dev-caddy`. Readiness waits
 are bounded, and teardown stops its backend and browser before purging its own
 containers and volumes, including when a test fails. Tests do not use production
@@ -203,3 +203,44 @@ releasing candidate ports.
 The browser suite uses Playwright's Chromium by default. Set
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an installed Chromium executable when
 using a managed environment that provides its own browser.
+
+### Code boundaries and review order
+
+Read the support code in this order:
+
+| File | Responsibility |
+| --- | --- |
+| `scripts/dev-caddy/harness.mjs` | Existing Docker operations, ownership checks and environment paths; shared by development commands and tests. |
+| `test/integration/lifecycle.mjs` | Resource acquisition, cancellation and reverse-order cleanup. It has no Docker, backend or browser dependencies. |
+| `test/integration/stack.mjs` | Claim namespace, create Caddy, seed temporary state, start backend, discover its bound port, and wait for HTTP readiness. |
+| `frontend/e2e/fixture.mjs` | Add Vite, Chromium, a browser context and bounded diagnostics to the same resource owner. |
+
+`FixtureScope.run` tracks a step that must finish before cleanup.
+`acquire` also registers disposal of the returned resource, including a resource
+that arrives after cancellation. `defer` registers cleanup for partial resources
+such as a container creation that fails after creating its volume. `close` is
+idempotent, waits for pending steps, and attempts every disposer in reverse order.
+The scope's bookkeeping is private; callers use these methods and its signal.
+
+`useTestStack` registers the owner with a Node test before acquiring resources.
+The browser fixture passes its own owner to `createTestStack`, so the browser,
+frontend, backend and Caddy resources follow one cleanup order.
+
+Scenario files contain the actions and expected behavior:
+
+- `test/integration/caddy.mjs`: Caddy lifecycle and persistent data without the UI backend.
+- `test/integration/api.mjs`: registration versus container lifecycle and instance isolation.
+- `test/integration/startup.mjs`: failed startup, cancellation, port ownership and namespace exclusivity.
+- `test/integration/diagnostics.mjs`: public error contracts and correlated backend logs.
+- `frontend/e2e/error-logging.mjs`: browser feedback, live logs, recovery, network loss and locale fallback.
+
+`*.test.mjs` files in the integration package exercise lifecycle and readiness
+without Docker. The root npm commands select unit, container and browser suites
+explicitly; CI invokes those same commands. A bounded browser-suite hook prepares
+editor mode once, rather than downloading it during each fixture acquisition.
+
+Each browser scenario gets its own entire stack, including its registry, page,
+locale and viewport. This costs more startup time than one shared stack, but
+scenarios can be selected or reordered without inheriting another test's state.
+Uncaught JavaScript errors are checked during each scenario's teardown, rather
+than attributed to a separate test at the end of the file.
