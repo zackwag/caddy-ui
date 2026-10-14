@@ -135,10 +135,7 @@ startUpstreamMonitor();
 startRouteMonitor();
 startUpdateCheck();
 
-const server = app.listen(PORT, error => {
-    // Express 5 passes listen failures to this callback. Keep them fatal so
-    // startup cannot report success without a bound HTTP server.
-    if (error) throw error;
+const server = app.listen(PORT, () => {
     const port = server.address().port;
     logger.info(`Caddy UI backend running`, { port, version: APP_VERSION });
     logger.info(`Caddy admin API`, { url: CADDY_ADMIN_URL });
@@ -150,3 +147,5 @@ const server = app.listen(PORT, error => {
     initMonitor();
     initCaddyfileTitles().then(() => cleanupOrphanedNotes());
 });
+// Bind failures (EADDRINUSE, EACCES) emit 'error', not the listen callback.
+server.on('error', error => { throw error; });

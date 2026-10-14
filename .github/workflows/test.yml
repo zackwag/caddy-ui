@@ -77,7 +77,7 @@ jobs:
       - name: Prepare real Caddy and Chromium
         run: |
           docker info
-          docker pull caddy:2.10.2-alpine
+          docker pull "$(node -e "import('./scripts/dev-caddy/harness.mjs').then(m => process.stdout.write(m.IMAGE))")"
           npm exec --prefix frontend -- playwright install --with-deps chromium
 
       - name: Test lifecycle, registration and instance isolation

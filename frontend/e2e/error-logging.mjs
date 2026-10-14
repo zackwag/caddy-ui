@@ -23,9 +23,13 @@ async function scenario(t) {
             await page.keyboard.insertText(text);
         },
         async validate() {
-            const response = page.waitForResponse(response => response.url().includes('/api/caddyfile/validations'));
+            const pending = page.waitForResponse(r =>
+                r.url().includes('/api/caddyfile/validations') && r.request().method() === 'POST');
             await page.getByRole('button', { name: /Validate/ }).click();
-            return (await response).json();
+            const response = await pending;
+            const body = await response.json();
+            body.requestId ??= await response.headerValue('X-Request-ID');
+            return body;
         },
     };
 }
