@@ -1,6 +1,10 @@
 # Configuration
 
+<div class="docs-environment-variables">
+
 {{#include ../../README.md:environment-variables}}
+
+</div>
 
 {{#include ../../README.md:authentication}}
 

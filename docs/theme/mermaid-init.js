@@ -7,11 +7,23 @@
             event.stopPropagation();
         }
     }
-    document.querySelectorAll('.docs-architecture-reference .table-wrapper').forEach(element => {
+    document.querySelectorAll('.docs-architecture-reference .table-wrapper, .docs-environment-variables .table-wrapper').forEach(element => {
         element.tabIndex = 0;
         element.setAttribute('role', 'region');
-        element.setAttribute('aria-label', 'Service responsibilities');
+        element.setAttribute('aria-label', element.closest('.docs-environment-variables') ? 'Environment variables' : 'Service responsibilities');
         element.addEventListener('keydown', keepScrollKeys);
+    });
+    // Prefer breaks between URL components without adding characters to copied values.
+    document.querySelectorAll('.docs-environment-variables td:nth-child(2) code').forEach(code => {
+        const value = code.textContent;
+        if (!/^https?:\/\//.test(value)) return;
+        const start = value.indexOf('://') + 3;
+        const parts = [value.slice(0, start), ...value.slice(start).split(/(?=\/)/)];
+        code.replaceChildren();
+        parts.forEach((part, index) => {
+            if (index) code.append(document.createElement('wbr'));
+            code.append(part);
+        });
     });
     const diagrams = [...document.querySelectorAll('pre > code.language-mermaid')].map(code => {
         const element = document.createElement('div');

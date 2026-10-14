@@ -135,6 +135,17 @@ pre > code, pre > .hljs { background: var(--app-editor-bg); color: var(--app-edi
 code { font-family: var(--mono-font); }
 table { width: 100%; }
 table td, table th { padding: 10px 14px; }
+.docs-environment-variables table {
+    table-layout: fixed;
+    min-width: 700px;
+}
+.docs-environment-variables th { box-sizing: border-box; }
+.docs-environment-variables th:first-child { width: 30%; }
+.docs-environment-variables th:nth-child(2) { width: 22%; }
+.docs-environment-variables td {
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
 blockquote { border-radius: 0 6px 6px 0; }
 a:hover { color: var(--app-accent); }
 /* Use readable foreground for navigation; the app's muted token is too dim
