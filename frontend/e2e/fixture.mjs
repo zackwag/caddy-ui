@@ -17,14 +17,20 @@ export function prepareBrowserTests() {
 // survives into the next scenario, including after failure or cancellation.
 export async function useBrowserFixture(t) {
     const scope = new FixtureScope(t.signal);
+    let diagnostics;
     const pageErrors = [];
     const requests = [];
     t.after(async () => {
-        await scope.close();
+        try { await diagnostics?.captureFinal(); } finally { await scope.close(); }
         assert.deepEqual(pageErrors, [], 'Uncaught browser JavaScript errors');
     });
 
-    const stack = await createTestStack(scope);
+    if (process.env.ETOE_DIAGNOSTICS_DIR) {
+        const { createDiagnostics } = await import('../../test/diagnostics/observe.mjs');
+        diagnostics = await createDiagnostics(t, scope);
+    }
+    const stack = await createTestStack(scope, { project: diagnostics?.project });
+    await diagnostics?.stackReady(stack);
     const vite = await scope.acquire(() => createServer({
         root: frontend,
         cacheDir: resolve(stack.directory, 'vite-cache'),
@@ -33,10 +39,12 @@ export async function useBrowserFixture(t) {
     await scope.run(() => vite.listen());
     const origin = vite.resolvedUrls.local[0].replace(/\/$/, '');
     const browser = await scope.acquire(() => chromium.launch({
+        ...diagnostics?.launchOptions,
         ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
     }), browser => browser.close());
     const context = await scope.acquire(() => browser.newContext({ viewport: { width: 1440, height: 900 } }), context => context.close());
     const page = await scope.run(() => context.newPage());
+    await diagnostics?.attach(page, context);
     page.setDefaultTimeout(10000);
     const record = entry => {
         requests.push(entry);
@@ -71,6 +79,7 @@ export async function useBrowserFixture(t) {
             break;
         } catch (error) {
             if (!networkChanged || attempt === 2) throw error;
+            diagnostics?.record('bootstrap-retry', { attempt: attempt + 1 });
         }
     }
     return { stack, page, context, origin, waitForView };

@@ -8,6 +8,10 @@
         "test:dev-caddy": "node --test scripts/dev-caddy/*.test.mjs test/integration/*.test.mjs",
         "test:dev-caddy:integration": "node --test test/integration/caddy.mjs test/integration/api.mjs test/integration/startup.mjs test/integration/diagnostics.mjs",
         "test:dev-caddy:e2e": "node --test frontend/e2e/error-logging.mjs",
-        "lint:dev-caddy": "node backend/node_modules/eslint/bin/eslint.js --config backend/eslint.config.js scripts/dev-caddy test/integration"
+        "lint:dev-caddy": "node backend/node_modules/eslint/bin/eslint.js --config backend/eslint.config.js scripts/dev-caddy test/integration",
+        "diagnostics:etoe": "node test/diagnostics/run.mjs",
+        "test:etoe-diagnostics": "node --test test/diagnostics/*.test.mjs",
+        "test:etoe-diagnostics:integration": "node --test test/diagnostics/safety.integration.mjs",
+        "lint:etoe-diagnostics": "node backend/node_modules/eslint/bin/eslint.js --config backend/eslint.config.js test/diagnostics"
     }
 }
