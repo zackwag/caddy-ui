@@ -5,36 +5,23 @@ import { request } from 'node:http';
 import { mkdtemp, mkdir, writeFile, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { backendEnvironment, checkDocker, Harness, IMAGE } from '../../scripts/dev-caddy/harness.mjs';
-import { CAPTURE_VERSION, validateCapture } from './capture-format.js';
+import { CAPTURE_VERSION, normalizeCapture, validateCapture } from './capture-format.js';
 import { sourceFingerprint } from './capture-source.mjs';
 
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
 const paths = ['/status', '/status/process', '/server-names', '/health'];
 
-export function normalizeCapture(value, replacements = []) {
-    const ids = new Map();
-    function visit(value) {
-        if (typeof value === 'string') {
-            for (const [from, to] of replacements) value = value.replaceAll(from, to);
-            return value.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, id => {
-                if (!ids.has(id)) ids.set(id, `00000000-0000-4000-8000-${String(ids.size + 1).padStart(12, '0')}`);
-                return ids.get(id);
-            }).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/g, '2025-01-01T12:00:00.000Z');
-        }
-        if (Array.isArray(value)) return value.map(visit);
-        if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, visit(child)]));
-        return value;
-    }
-    return visit(value);
-}
-
-export async function captureDashboard({ output = resolve(import.meta.dirname, 'captures/dashboard.json'), backendEntry = resolve(root, 'backend/src/index.js') } = {}) {
+export async function captureDashboard({ output = resolve(import.meta.dirname, 'captures/dashboard.json'), backendEntry = resolve(root, 'backend/src/index.js'), onNamespace = () => {} } = {}) {
     if (process.platform === 'win32') throw new Error('Capture requires a Unix socket. Run it in Linux CI, WSL, or a Dev Container; replay works without Docker.');
     await checkDocker();
+    const context = process.env.DOCKER_CONTEXT;
+    const endpoint = !context && process.env.DOCKER_HOST ? process.env.DOCKER_HOST
+        : (await exec('docker', ['context', 'inspect', ...(context ? [context] : []), '--format', '{{.Endpoints.docker.Host}}'])).stdout.trim();
+    if (!endpoint.startsWith('unix://')) throw new Error('Capture needs a Unix Docker socket accessible to both the CLI and backend. Use Docker-outside-of-Docker in a Dev Container, WSL, or Linux CI.');
     const directory = await mkdtemp(resolve(tmpdir(), 'caddy-ui-preview-'));
     const harness = new Harness(randomBytes(8).toString('hex'));
     let backend;
@@ -81,10 +68,12 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         return { id, requests };
     }
     try {
+        onNamespace(harness.project);
         assert.deepEqual(await harness.names(), []);
         assert.deepEqual(await harness.names('volume'), []);
         const info = await harness.create('preview');
         const env = { ...backendEnvironment(directory, info.instance), PORT: socketPath,
+            DOCKER_SOCKET: fileURLToPath(endpoint.replace(/^unix:/, 'file:')),
             APP_VERSION: 'dev-caddy-preview', CADDY_UI_PUBLIC_METRICS: 'false', CADDY_UI_ADDITIONAL_LANGUAGES: '',
             CADDY_SERVER_NAME: 'srv0', NODE_ENV: 'development' };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
@@ -167,7 +156,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     const [output, ...extra] = process.argv.slice(2);
     if (extra.length) throw new Error('Usage: npm run i18n:preview:capture -- [output.json]');
     try {
-        const capture = await captureDashboard(output ? { output: resolve(output) } : {});
+        const capture = await captureDashboard({ ...(output ? { output: resolve(output) } : {}),
+            onNamespace: project => console.log(`Capture owns Docker namespace ${project}.`) });
         console.log(`Captured ${capture.scenarios.length} real Dashboard states from ${capture.source.commit}. Resources cleaned up.`);
     } catch (error) { console.error(error, error.cause); process.exitCode = 1; }
 }

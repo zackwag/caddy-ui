@@ -1,0 +1,297 @@
+{
+  "formatVersion": 1,
+  "source": {
+    "commit": "f1baabe1cf6d897cb8c57be4e125b81b1c09436b",
+    "sourceHash": "05f8ffcd5f542c752e44273b36568ed8df7c82283fd889335c2b23362ba464d5",
+    "caddyImage": "caddy:2.10.2-alpine"
+  },
+  "normalization": [
+    "Request IDs",
+    "ISO timestamps",
+    "Private capture addresses and paths; measurements remain as observed"
+  ],
+  "scenarios": [
+    {
+      "id": "dashboard-online",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/status",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000001"
+            },
+            "body": {
+              "online": true,
+              "serverCount": 1,
+              "routeCount": 3,
+              "upstreamsOnline": 0,
+              "upstreamsTotal": 0,
+              "uptime": "1s",
+              "servers": [
+                {
+                  "name": "srv0",
+                  "listen": [
+                    ":80"
+                  ],
+                  "routeCount": 3
+                }
+              ],
+              "tlsEnabled": true,
+              "adminUrl": "http://caddy-preview:2019"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/status/process",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000002"
+            },
+            "body": {
+              "ok": true,
+              "version": "v2.10.2",
+              "uptime": "1s",
+              "uptimeSeconds": 1,
+              "memAlloc": 4.4,
+              "memSys": 17.8,
+              "lastReload": "2025-01-01T12:00:00.000Z",
+              "lastReloadSuccess": true
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/server-names",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000003"
+            },
+            "body": {
+              "srv0": "Playground HTTP"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000004"
+            },
+            "body": []
+          }
+        },
+        {
+          "request": {
+            "method": "PUT",
+            "path": "/server-names/srv0",
+            "body": {
+              "name": "Playground HTTP"
+            }
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000005"
+            },
+            "body": {
+              "ok": true,
+              "id": "srv0",
+              "name": "Playground HTTP"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "dashboard-empty",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/status",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000006"
+            },
+            "body": {
+              "online": true,
+              "serverCount": 0,
+              "routeCount": 0,
+              "upstreamsOnline": 0,
+              "upstreamsTotal": 0,
+              "uptime": "1s",
+              "servers": [],
+              "tlsEnabled": true,
+              "adminUrl": "http://caddy-preview:2019"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/status/process",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000007"
+            },
+            "body": {
+              "ok": true,
+              "version": "v2.10.2",
+              "uptime": "1s",
+              "uptimeSeconds": 1,
+              "memAlloc": 6.1,
+              "memSys": 17.8,
+              "lastReload": "2025-01-01T12:00:00.000Z",
+              "lastReloadSuccess": true
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/server-names",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000008"
+            },
+            "body": {
+              "srv0": "Playground HTTP"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000009"
+            },
+            "body": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "dashboard-stopped",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/status",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000010"
+            },
+            "body": {
+              "online": false,
+              "error": "Caddy status unavailable",
+              "code": "CADDY_STATUS_UNAVAILABLE",
+              "requestId": "00000000-0000-4000-8000-000000000010"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/status/process",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000011"
+            },
+            "body": {
+              "ok": false,
+              "error": "Metrics unavailable",
+              "code": "METRICS_UNAVAILABLE",
+              "requestId": "00000000-0000-4000-8000-000000000011"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/server-names",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000012"
+            },
+            "body": {
+              "srv0": "Playground HTTP"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health",
+            "body": null
+          },
+          "response": {
+            "status": 500,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000013"
+            },
+            "body": {
+              "error": "fetch failed",
+              "code": "REQUEST_FAILED",
+              "requestId": "00000000-0000-4000-8000-000000000013"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

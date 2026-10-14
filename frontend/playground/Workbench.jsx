@@ -1,11 +1,15 @@
-import { useState } from 'react';
-import { I18nextProvider } from 'react-i18next';
+import { useEffect, useMemo, useState } from 'react';
 import { flattenCatalog, placeholders, readValue } from './model.js';
-import { scenarios } from './registry.jsx';
+import { capture, scenarios } from './registry.jsx';
+import PreviewFrame from './PreviewFrame.jsx';
+
+const EMPTY = Object.freeze({});
 
 export default function Workbench({ catalogs, preview }) {
-    const [locale, setLocale] = useState('de' in catalogs ? 'de' : 'en');
-    const [selected, setSelected] = useState('common.delete');
+    const initial = new URLSearchParams(location.search);
+    const [locale, setLocale] = useState(Object.hasOwn(catalogs, initial.get('locale')) ? initial.get('locale') : ('de' in catalogs ? 'de' : 'en'));
+    const [selected, setSelected] = useState(typeof readValue(catalogs.en, initial.get('key') || '') === 'string' ? initial.get('key') : 'common.delete');
+    const [state, setState] = useState(initial.get('state') || '');
     const [query, setQuery] = useState('');
     const [drafts, setDrafts] = useState({});
     const [copyStatus, setCopyStatus] = useState('');
@@ -13,9 +17,18 @@ export default function Workbench({ catalogs, preview }) {
     const entries = flattenCatalog(catalogs.en);
     const english = readValue(catalogs.en, selected);
     const saved = readValue(catalogs[locale], selected);
-    const overrides = drafts[locale] || {};
+    const overrides = drafts[locale] || EMPTY;
     const draft = overrides[selected] ?? saved ?? english;
     const matching = scenarios.filter((scenario) => scenario.keys.includes(selected));
+    const active = matching.find(scenario => scenario.id === state) || matching[0];
+    const config = useMemo(() => ({ scenario: active?.id, locale, selected, overrides, light }), [active?.id, locale, selected, overrides, light]);
+    useEffect(() => {
+        const url = new URL(location.href);
+        url.searchParams.set('key', selected);
+        url.searchParams.set('locale', locale);
+        if (active) url.searchParams.set('state', active.id); else url.searchParams.delete('state');
+        history.replaceState(null, '', url);
+    }, [selected, locale, active]);
     const filtered = entries.filter(([key, value]) =>
         `${key} ${value} ${readValue(catalogs[locale], key) || ''}`
             .toLowerCase()
@@ -81,6 +94,8 @@ export default function Workbench({ catalogs, preview }) {
                     {light ? 'Dark' : 'Light'} previews
                 </button>
             </header>
+            <p className="capture-source">Captured from commit <code>{capture.source.commit.slice(0, 7)}</code> · {capture.source.caddyImage}</p>
+            {capture.source.sourceHash !== __PREVIEW_SOURCE_HASH__ && <p role="alert">Captured data differs from the current backend or Dashboard sources. Refresh it with <code>npm run i18n:preview:capture</code>.</p>}
             <div className="workspace">
                 <aside>
                     <label htmlFor="key-search">Search keys and translations</label>
@@ -113,17 +128,13 @@ export default function Workbench({ catalogs, preview }) {
                 </aside>
                 <section className="detail">
                     <h2>{selected}</h2>
+                    {active && <label className="scenario-selector">Component state
+                        <select value={active.id} onChange={event => setState(event.target.value)}>
+                            {matching.map(scenario => <option key={scenario.id} value={scenario.id}>{scenario.title}</option>)}
+                        </select>
+                    </label>}
                     <div className="gallery">
-                        <I18nextProvider i18n={preview}>
-                            {matching.map(({ id, title, Component }) => (
-                                <article key={id}>
-                                    <h3>{title}</h3>
-                                    <div className="fixture">
-                                        <Component />
-                                    </div>
-                                </article>
-                            ))}
-                        </I18nextProvider>
+                        {active && <PreviewFrame config={config} title={active.title} />}
                         {!matching.length && (
                             <p className="empty">
                                 No component fixture registered for this key yet. You can still
@@ -157,6 +168,7 @@ export default function Workbench({ catalogs, preview }) {
                     <div className="actions">
                         <button onClick={() => copy(draft)}>Copy value</button>
                         <button onClick={() => copy(selected)}>Copy key</button>
+                        <button onClick={() => copy(location.href)}>Copy preview link</button>
                         <button onClick={reset}>Reset this key</button>
                         <span role="status">{copyStatus}</span>
                     </div>

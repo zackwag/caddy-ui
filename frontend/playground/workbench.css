@@ -87,7 +87,7 @@
 }
 .gallery {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
 }
 .gallery article,
@@ -102,33 +102,14 @@
     font-size: 14px;
     margin-bottom: 12px;
 }
-.fixture {
-    position: relative;
-    isolation: isolate;
-    min-height: 180px;
-    display: grid;
-    align-items: center;
-}
-/* Contain production overlays inside each gallery card. */
-.fixture .modal-overlay {
-    position: relative;
-    inset: auto;
-    padding: 8px;
-    background: transparent;
-}
-.fixture .modal {
-    width: 100%;
-    min-width: 0;
-}
-.fixture .toast-wrap {
-    position: relative;
-    inset: auto;
-    width: 100%;
-}
-.fixture .toast {
-    max-width: 100%;
-    overflow-wrap: anywhere;
-}
+.preview-state { min-width: 0; }
+.preview-state iframe { display: block; width: 100%; border: 1px solid var(--border2); border-radius: 6px; background: var(--bg); }
+.preview-context { font-size: 13px; }
+.preview-context summary { cursor: pointer; margin-top: 12px; }
+.preview-context pre { max-height: 260px; overflow: auto; }
+.scenario-selector { margin-bottom: 16px; }
+.scenario-selector select { display: block; max-width: 100%; margin-top: 8px; }
+.capture-source { color: var(--muted); }
 .editors {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -143,16 +124,6 @@
 .workbench textarea {
     resize: vertical;
     margin-bottom: 12px;
-}
-.workbench .light .fixture,
-.light .fixture {
-    --text: #18202c;
-    --muted: #566273;
-    --surface: #fff;
-    --bg: #f4f6f8;
-    --border: #d2d7df;
-    --border2: #bcc4ce;
-    --accent: #007850;
 }
 @media (max-width: 760px) {
     .workspace,
