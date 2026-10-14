@@ -1,0 +1,77 @@
+name: E2E pre-fix diagnostics
+
+on:
+  workflow_call:
+    inputs:
+      trials:
+        type: string
+        default: '3'
+      seed:
+        type: string
+        default: '12345'
+      profiles:
+        type: string
+        default: all
+      scope:
+        type: string
+        default: suite
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    name: Collect pre-fix evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      TZ: UTC
+      DIAGNOSTIC_TRIALS: ${{ inputs.trials }}
+      DIAGNOSTIC_SEED: ${{ inputs.seed }}
+      DIAGNOSTIC_PROFILES: ${{ inputs.profiles }}
+      DIAGNOSTIC_SCOPE: ${{ inputs.scope }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install pinned application and browser dependencies
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix frontend
+          docker info
+          docker pull "$(node -e "import('./scripts/dev-caddy/harness.mjs').then(m => process.stdout.write(m.IMAGE))")"
+          npm exec --prefix frontend -- playwright install --with-deps chromium
+          ip -Version
+
+      - name: Verify evidence rules and cleanup safety
+        run: |
+          npm run test:etoe-diagnostics
+          npm run lint:etoe-diagnostics
+          npm run test:etoe-diagnostics:integration
+
+      - name: Collect randomized pre-fix trials
+        run: >-
+          npm run diagnostics:etoe --
+          --trials "$DIAGNOSTIC_TRIALS"
+          --seed "$DIAGNOSTIC_SEED"
+          --profiles "$DIAGNOSTIC_PROFILES"
+          --scope "$DIAGNOSTIC_SCOPE"
+          --output "$RUNNER_TEMP/etoe-diagnostics"
+
+      - name: Retain raw traces, per-trial evidence and summary
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: etoe-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/etoe-diagnostics/
+          if-no-files-found: warn
+          retention-days: 30
