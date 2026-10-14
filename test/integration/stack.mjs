@@ -4,13 +4,13 @@ import { once } from 'node:events';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { backendEnvironment, checkDocker, Harness, IMAGE } from './harness.mjs';
-import { FixtureScope } from './fixture-scope.mjs';
+import { backendEnvironment, checkDocker, Harness, IMAGE } from '../../scripts/dev-caddy/harness.mjs';
+import { FixtureScope } from './lifecycle.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const VERSION = 'dev-caddy-integration';
 
-async function claimNamespace(harness) {
+export async function claimNamespace(harness) {
     try {
         return await harness.run(['create', '--name', `caddy-ui-test-${harness.project}-lease`,
             '--label', 'io.caddy-ui.test-fixture=true', '--label', `io.caddy-ui.test-project=${harness.project}`,
@@ -23,7 +23,7 @@ async function claimNamespace(harness) {
     }
 }
 
-export async function waitFor(url, accept = response => response.ok, timeoutMs = 15000, { signal } = {}) {
+export async function waitForHttp(url, { accept = response => response.ok, timeoutMs = 15000, signal } = {}) {
     const deadline = Date.now() + timeoutMs;
     let lastError;
     while (Date.now() < deadline) {
@@ -33,7 +33,7 @@ export async function waitFor(url, accept = response => response.ok, timeoutMs =
             const response = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
             if (await accept(response)) {
                 signal?.throwIfAborted();
-                return;
+                return response;
             }
         } catch (error) {
             // Process failures are terminal, even when fetch never connects.
@@ -80,19 +80,20 @@ async function stopProcess(child) {
 
 // Each suite owns fresh resources and a temporary registry. It never uses .dev-caddy.
 export function useTestStack(t, options = {}) {
-    const scope = new FixtureScope(t.signal);
+    const signal = options.signal ? AbortSignal.any([t.signal, options.signal]) : t.signal;
+    const scope = new FixtureScope(signal);
     t.after(() => scope.close());
-    return startTestStack({ ...options, scope });
+    return createTestStack(scope, options);
 }
 
-export async function startTestStack({ project = randomBytes(8).toString('hex'), backendEntry = 'backend/src/index.js',
-    signal, scope = new FixtureScope(signal) } = {}) {
-    const harness = new Harness(project);
+// Browser fixtures pass their owner here so all services share one cleanup order.
+export async function createTestStack(scope, { project = randomBytes(8).toString('hex'), backendEntry = 'backend/src/index.js' } = {}) {
     const instances = new Map();
     let output = '';
     const close = () => scope.close();
 
     try {
+        const harness = new Harness(project);
         await scope.run(() => checkDocker());
         // Docker's container-name claim is atomic across processes and clients.
         // Retain this stopped, unmounted container until every cleanup completes.
@@ -104,8 +105,8 @@ export async function startTestStack({ project = randomBytes(8).toString('hex'),
         scope.defer(() => harness.removeAll({ confirmed: true, purge: true }));
         const first = await scope.run(() => harness.create('alpha'));
         instances.set('alpha', first);
-        await waitFor(first.httpUrl + '/health', undefined, 15000, { signal: scope.signal });
-        await waitFor(first.instance.adminUrl + '/config/', undefined, 15000, { signal: scope.signal });
+        await waitForHttp(first.httpUrl + '/health', { signal: scope.signal });
+        await waitForHttp(first.instance.adminUrl + '/config/', { signal: scope.signal });
         const version = VERSION + '-' + project;
         const env = { ...backendEnvironment(directory, first.instance), PORT: '0', APP_VERSION: version, LOG_LEVEL: 'info', CADDY_UI_ADDITIONAL_LANGUAGES: 'de' };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
@@ -124,9 +125,10 @@ export async function startTestStack({ project = randomBytes(8).toString('hex'),
         const readySignal = AbortSignal.any([scope.signal, startup.signal]);
         const port = await waitForBackendPort(backend, { signal: readySignal });
         const url = `http://127.0.0.1:${port}`;
-        await waitFor(url + '/api/version', async response => {
-            return response.ok && (await response.json()).version === version;
-        }, 15000, { signal: readySignal });
+        await waitForHttp(url + '/api/version', {
+            accept: async response => response.ok && (await response.json()).version === version,
+            signal: readySignal,
+        });
         return {
             harness, directory, url, instances, close,
             async api(path, { method = 'GET', body, instanceId = 'default', plain = false } = {}) {
@@ -141,7 +143,7 @@ export async function startTestStack({ project = randomBytes(8).toString('hex'),
             },
             async create(name) {
                 const info = await scope.run(() => harness.create(name));
-                await waitFor(info.httpUrl + '/health', undefined, 15000, { signal: scope.signal });
+                await waitForHttp(info.httpUrl + '/health', { signal: scope.signal });
                 instances.set(name, info);
                 return info;
             },

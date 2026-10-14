@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { useTestStack } from './test-stack.mjs';
+import { useTestStack } from './stack.mjs';
 
 const invalid = ':80 {\n    integration_diagnostic_bad_directive\n}\n';
 

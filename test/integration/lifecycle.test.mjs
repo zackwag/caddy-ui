@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
-import { FixtureScope } from './fixture-scope.mjs';
+import { FixtureScope } from './lifecycle.mjs';
 
 test('test timeout disposes an acquisition that completes after cancellation', async t => {
     const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-cancellation-'));
@@ -14,7 +14,7 @@ test('test timeout disposes an acquisition that completes after cancellation', a
     const disposed = join(directory, 'disposed');
     await writeFile(entry, `import test from 'node:test';
 import { writeFile } from 'node:fs/promises';
-import { FixtureScope } from ${JSON.stringify(new URL('./fixture-scope.mjs', import.meta.url).href)};
+import { FixtureScope } from ${JSON.stringify(new URL('./lifecycle.mjs', import.meta.url).href)};
 test('cancel during acquisition', { timeout: 20 }, async t => {
     const scope = new FixtureScope(t.signal);
     t.after(() => scope.close());
