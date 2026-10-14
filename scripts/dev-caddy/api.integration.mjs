@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { Harness } from './harness.mjs';
 import { startTestStack } from './test-stack.mjs';
@@ -46,7 +49,35 @@ test('real backend: container lifecycle and UI registration are independent', { 
 
 test('failed backend startup still removes its Caddy containers and volumes', { timeout: 60000 }, async () => {
     const project = randomBytes(8).toString('hex');
-    await assert.rejects(startTestStack({ project, backendEntry: 'nonexistent-integration-entry.mjs' }), /Integration startup failed/);
+    await assert.rejects(startTestStack({ project, backendEntry: 'nonexistent-integration-entry.mjs' }), error => {
+        assert.match(error.message, /Backend exited \(1\) before readiness/);
+        assert.match(error.message, /MODULE_NOT_FOUND/);
+        assert.doesNotMatch(error.message, /Readiness timeout/);
+        return true;
+    });
+    const harness = new Harness(project);
+    assert.deepEqual(await harness.names(), []);
+    assert.deepEqual(await harness.names('volume'), []);
+});
+
+test('injected backend bind failure reports EADDRINUSE and cleans up its Caddy resources', { timeout: 60000 }, async t => {
+    const project = randomBytes(8).toString('hex');
+    const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-port-collision-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const entry = join(directory, 'occupied-port.mjs');
+    // Inject a real socket bind error in the fixture process, independently of
+    // the application's handling of listen errors.
+    await writeFile(entry, `import { createServer } from 'node:net';
+const blocker = createServer();
+await new Promise(resolve => blocker.listen(Number(process.env.PORT), '127.0.0.1', resolve));
+createServer().listen(Number(process.env.PORT), '127.0.0.1');
+`);
+    await assert.rejects(startTestStack({ project, backendEntry: entry }), error => {
+        assert.match(error.message, /Backend exited \(1\) before readiness/);
+        assert.match(error.message, /EADDRINUSE/);
+        assert.doesNotMatch(error.message, /Readiness timeout/);
+        return true;
+    });
     const harness = new Harness(project);
     assert.deepEqual(await harness.names(), []);
     assert.deepEqual(await harness.names('volume'), []);

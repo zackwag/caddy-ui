@@ -10,16 +10,26 @@ import { backendEnvironment, checkDocker, Harness } from './harness.mjs';
 const root = resolve(import.meta.dirname, '../..');
 const VERSION = 'dev-caddy-integration';
 
-export async function waitFor(url, accept = response => response.ok, timeoutMs = 15000) {
+export async function waitFor(url, accept = response => response.ok, timeoutMs = 15000, { signal } = {}) {
     const deadline = Date.now() + timeoutMs;
     let lastError;
     while (Date.now() < deadline) {
+        signal?.throwIfAborted();
         try {
-            const response = await fetch(url, { signal: AbortSignal.timeout(Math.max(1, Math.min(1000, deadline - Date.now()))) });
-            if (await accept(response)) return;
-        } catch (error) { lastError = error; }
+            const timeout = AbortSignal.timeout(Math.max(1, Math.min(1000, deadline - Date.now())));
+            const response = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+            if (await accept(response)) {
+                signal?.throwIfAborted();
+                return;
+            }
+        } catch (error) {
+            // Process failures are terminal, even when fetch never connects.
+            signal?.throwIfAborted();
+            lastError = error;
+        }
         await new Promise(resolve => setTimeout(resolve, 100));
     }
+    signal?.throwIfAborted();
     throw new Error(`Readiness timeout at ${url}`, { cause: lastError });
 }
 
@@ -51,7 +61,6 @@ export async function startTestStack({ project = randomBytes(8).toString('hex'),
     const instances = new Map();
     let backend;
     let output = '';
-    let startupError;
     let cleanup;
     const close = () => cleanup ??= (async () => {
         // Cleanup all layers even if stopping a process or removing a resource fails.
@@ -80,12 +89,14 @@ export async function startTestStack({ project = randomBytes(8).toString('hex'),
         await writeFile(env.SETTINGS_PATH, JSON.stringify({ firstTimeRun: false, theme: 'dark', language: 'en', routeChecks: false }));
         backend = spawn(process.execPath, [resolve(root, backendEntry)], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
         for (const stream of [backend.stdout, backend.stderr]) stream.on('data', chunk => { output = (output + chunk).slice(-64000); });
-        backend.on('error', error => { startupError = error; });
+        const startup = new AbortController();
+        backend.on('error', error => startup.abort(error));
+        // close follows stdout/stderr draining, so startup diagnostics are complete.
+        backend.once('close', (code, signal) => startup.abort(new Error(`Backend exited (${code ?? signal}) before readiness`)));
         const url = `http://127.0.0.1:${port}`;
         await waitFor(url + '/api/version', async response => {
-            if (startupError || backend.exitCode !== null) throw startupError || new Error('Backend exited before readiness');
             return response.ok && (await response.json()).version === version;
-        });
+        }, 15000, { signal: startup.signal });
         return {
             harness, directory, url, instances, close,
             async api(path, { method = 'GET', body, instanceId = 'default', plain = false } = {}) {
