@@ -1,5 +1,9 @@
 .workbench {
-    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
     padding: 24px;
     color: var(--text);
     background: var(--bg);
@@ -42,12 +46,26 @@
 }
 .workspace {
     display: grid;
+    flex: 1;
+    min-height: 0;
     grid-template-columns: 300px minmax(0, 1fr);
     gap: 24px;
     margin-top: 24px;
 }
 .workbench aside {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
+    min-height: 0;
+}
+.workbench aside > :not(nav) {
+    flex-shrink: 0;
+}
+.workbench .detail {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
 }
 .workbench input,
 .workbench textarea {
@@ -63,7 +81,8 @@
     margin-bottom: 8px;
 }
 .workbench nav {
-    max-height: 70vh;
+    flex: 1;
+    min-height: 0;
     overflow: auto;
 }
 .workbench nav button {
@@ -130,10 +149,19 @@
     .editors {
         grid-template-columns: 1fr;
     }
+    .workspace {
+        flex: none;
+    }
+    .workbench .detail {
+        overflow: visible;
+        scrollbar-gutter: auto;
+    }
     .workbench nav {
+        flex: none;
         max-height: 220px;
     }
     .workbench {
         padding: 16px;
+        overflow-y: auto;
     }
 }

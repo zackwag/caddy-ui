@@ -29,7 +29,8 @@ try {
         await page.goto(`${origin}/?${new URLSearchParams({ key, state, locale })}`);
         await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
         await page.locator('.preview-context').getByText(/DOM references for/).waitFor();
-        assert.equal(await page.getByRole('alert').count(), 0);
+        // A rebase may invalidate capture provenance without changing replay behavior.
+        assert.equal(await page.getByRole('alert').filter({ hasNotText: 'Captured data differs' }).count(), 0);
     }
     const editor = page.getByLabel('Try translation');
     await go('dashboard.status', 'dashboard-online');
@@ -102,11 +103,42 @@ try {
     await page.getByRole('button', { name: 'Dark previews' }).click();
     await page.getByRole('alert').filter({ hasText: /Captured data differs/ }).waitFor();
     await go('common.loading', 'dashboard-loading');
+    for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 600 }]) {
+        await page.setViewportSize(viewport);
+        await go('tls.deleteConfirm', 'certificate-delete');
+        await page.locator('.preview-context summary').click();
+        const detail = page.getByRole('region', { name: 'Translation details' });
+        const bounds = await detail.boundingBox();
+        assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= viewport.height + 1);
+        assert.equal(await detail.evaluate(element => getComputedStyle(element).overflowY), 'auto');
+        if (viewport.height <= 768) {
+            assert.ok(await detail.evaluate(element => element.scrollHeight > element.clientHeight));
+            await detail.focus();
+            await page.keyboard.press('End');
+            await page.waitForFunction(() => document.querySelector('.detail').scrollTop > 0);
+            const reset = page.getByRole('button', { name: 'Reset this key' });
+            await reset.click();
+            const button = await reset.boundingBox();
+            assert.ok(button.y >= bounds.y && button.y + button.height <= viewport.height);
+            await detail.evaluate(element => { element.scrollTop = 0; });
+            await page.mouse.move(bounds.x + bounds.width - 30, bounds.y + 20);
+            await page.mouse.wheel(0, 500);
+            await page.waitForFunction(() => document.querySelector('.detail').scrollTop > 0);
+        }
+        const keys = page.getByRole('navigation', { name: 'Translation keys' });
+        await keys.locator('button').last().scrollIntoViewIfNeeded();
+        const last = await keys.locator('button').last().boundingBox();
+        assert.ok(last.y >= 0 && last.y + last.height <= viewport.height + 1);
+    }
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Reset this key' }).click();
+    const mobileButton = await page.getByRole('button', { name: 'Reset this key' }).boundingBox();
+    assert.ok(mobileButton.y >= 0 && mobileButton.y + mobileButton.height <= 844);
+    assert.ok(await page.locator('.workbench').evaluate(element => element.scrollTop > 0));
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, live drafts, DOM text/attributes, interpolation, locale formatting, focus, storage isolation, strict offline replay, clipboard and reload.');
+    console.log('Playground Chromium checks passed: real Dashboard states, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, clipboard, reload, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

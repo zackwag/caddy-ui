@@ -126,7 +126,7 @@ export default function Workbench({ catalogs, preview }) {
                         ))}
                     </nav>
                 </aside>
-                <section className="detail">
+                <section className="detail" aria-label="Translation details" tabIndex={0}>
                     <h2>{selected}</h2>
                     {active && <label className="scenario-selector">Component state
                         <select value={active.id} onChange={event => setState(event.target.value)}>
