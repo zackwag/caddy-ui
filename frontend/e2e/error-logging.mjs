@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
+import de from '../src/i18n/locales/de.js';
+import en from '../src/i18n/locales/en.js';
 import { FixtureScope } from '../../scripts/dev-caddy/fixture-scope.mjs';
 import { startTestStack } from '../../scripts/dev-caddy/test-stack.mjs';
 
@@ -229,11 +231,18 @@ test('phone layout and incomplete locale fallback retain diagnostic links', opti
     await go('/caddyfile');
     await waitForEditor();
     await page.getByRole('combobox', { name: 'Choose language' }).selectOption('de');
+    const locale = await page.evaluateHandle(async () => (await import('/src/i18n/index.js')).default);
+    try {
+        await page.waitForFunction(({ i18n, sentinel }) => i18n.language === 'de'
+            && i18n.hasResourceBundle('de', 'translation') && i18n.t('test.languageLoaded') === sentinel
+            && i18n.getResource('de', 'translation', 'errors.validationFailed') === undefined,
+        { i18n: locale, sentinel: de.test.languageLoaded });
+    } finally { await locale.dispose(); }
     await page.setViewportSize({ width: 390, height: 844 });
     await edit(invalid);
     const failure = await validate();
     await page.locator('.toast-error a').last().waitFor();
-    assert((await page.locator('.toast-error').last().textContent()).includes('Validation failed.'));
+    assert((await page.locator('.toast-error').last().textContent()).includes(en.errors.validationFailed));
     await page.locator('.toast-error a').last().click();
     await page.waitForFunction(id => document.querySelector('.log-wrap')?.textContent.includes(id), failure.requestId);
 });
