@@ -15,7 +15,7 @@ export function prepareBrowserTests() {
 
 // One scenario owns the whole stack. No page, registry, locale or viewport state
 // survives into the next scenario, including after failure or cancellation.
-export async function useBrowserFixture(t) {
+export async function useBrowserFixture(t, options) {
     const scope = new FixtureScope(t.signal);
     const pageErrors = [];
     const requests = [];
@@ -24,7 +24,7 @@ export async function useBrowserFixture(t) {
         assert.deepEqual(pageErrors, [], 'Uncaught browser JavaScript errors');
     });
 
-    const stack = await createTestStack(scope);
+    const stack = await createTestStack(scope, options);
     const vite = await scope.acquire(() => createServer({
         root: frontend,
         cacheDir: resolve(stack.directory, 'vite-cache'),
