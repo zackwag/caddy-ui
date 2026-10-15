@@ -74,7 +74,7 @@ export async function useBrowserFixture(t) {
     for (let attempt = 0; attempt < 3; attempt++) {
         networkChanged = false;
         try {
-            await scope.run(() => page.goto(origin + '/dashboard'));
+            await scope.run(() => page.goto(origin + '/dashboard', { waitUntil: 'domcontentloaded' }));
             await waitForView('.shell');
             break;
         } catch (error) {

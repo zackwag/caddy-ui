@@ -15,7 +15,9 @@ async function scenario(t) {
     const { page, origin, waitForView } = fixture;
     return {
         ...fixture,
-        go: path => page.goto(origin + path),
+        // A transient toast can expire while an unrelated stylesheet delays load.
+        // Each scenario waits for the component/notification it actually needs.
+        go: path => page.goto(origin + path, { waitUntil: 'domcontentloaded' }),
         waitForEditor: () => waitForView('.cm-editor'),
         async edit(text) {
             await page.locator('.cm-content').click();
