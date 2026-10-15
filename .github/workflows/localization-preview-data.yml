@@ -8,6 +8,7 @@ on:
       - 'backend/src/**'
       - 'backend/package*.json'
       - 'frontend/src/components/Dashboard.jsx'
+      - 'frontend/src/components/Notifications.jsx'
       - 'frontend/src/utils/api.js'
       - 'frontend/src/utils/format.js'
       - 'frontend/playground/capture*'

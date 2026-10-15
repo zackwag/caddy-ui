@@ -103,6 +103,11 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         assert(online.requests[0].response.body.servers.length > 0);
         assert.equal(online.requests[1].response.body.ok, true);
         online.requests.push(label);
+        // Read untouched defaults from this capture's private state directory.
+        // Never configure a real destination or send a notification for preview data.
+        const notifications = { id: 'notifications-default', requests: [await successful('/notifications/config')] };
+        assert.equal(notifications.requests[0].response.body.enabled, false);
+        assert.equal(notifications.requests[0].response.body.provider, 'ntfy');
         const adminHeaders = { 'Content-Type': 'application/json', Origin: 'http://0.0.0.0:2019' };
         const original = await (await fetch(info.instance.adminUrl + '/config/', { headers: adminHeaders, signal: AbortSignal.any([startup.signal, AbortSignal.timeout(5000)]) })).json();
         const empty = structuredClone(original);
@@ -120,7 +125,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         result = validateCapture({ formatVersion: CAPTURE_VERSION,
             source: { commit: commit.trim(), sourceHash: await sourceFingerprint(), caddyImage: IMAGE },
             normalization: ['Request IDs', 'ISO timestamps', 'Private capture addresses and paths; measurements remain as observed'],
-            scenarios: normalizeCapture([online, noServers, stopped], [
+            scenarios: normalizeCapture([online, noServers, stopped, notifications], [
                 [info.instance.adminUrl, 'http://caddy-preview:2019'],
                 [new URL(info.instance.adminUrl).host, 'caddy-preview:2019'],
                 [info.instance.containerName, 'caddy-ui-dev-preview'], [directory, '/capture-state'],
@@ -158,6 +163,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     try {
         const capture = await captureDashboard({ ...(output ? { output: resolve(output) } : {}),
             onNamespace: project => console.log(`Capture owns Docker namespace ${project}.`) });
-        console.log(`Captured ${capture.scenarios.length} real Dashboard states from ${capture.source.commit}. Resources cleaned up.`);
+        console.log(`Captured ${capture.scenarios.length} real Dashboard/configuration profiles from ${capture.source.commit}. Resources cleaned up.`);
     } catch (error) { console.error(error, error.cause); process.exitCode = 1; }
 }
