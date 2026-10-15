@@ -25,8 +25,26 @@ function dashboardKeys(profile) {
 const titles = { 'dashboard-online': 'Dashboard: running Caddy', 'dashboard-empty': 'Dashboard: no HTTP servers',
     'dashboard-stopped': 'Dashboard: stopped Caddy' };
 
+const loginKeys = ['login.serverManager', 'login.username', 'login.password', 'login.signIn'];
+const welcomeKeys = ['themeWelcome.title', 'themeWelcome.hint', 'themeWelcome.dark', 'themeWelcome.light',
+    'themeWelcome.preview', 'themeWelcome.accent', 'themeWelcome.info', 'themeWelcome.highlight',
+    'themeWelcome.danger', 'themeWelcome.warn', 'themeWelcome.language', 'themeWelcome.apply'];
+const controlKeys = ['languagePicker.chooseLanguage', 'themePicker.chooseThemes', 'themePicker.darkTheme',
+    'themePicker.lightTheme', 'themePicker.exportTitle', 'themePicker.exportJson'];
+
 // Register actual component states, not alternative implementations of the UI.
 export const scenarios = [
+    { id: 'login', title: 'Sign-in form', kind: 'login', keys: loginKeys },
+    { id: 'login-session-expired', title: 'Sign-in: expired session', kind: 'login', sessionExpired: true,
+        remountOnTranslation: true, keys: [...loginKeys, 'login.sessionExpired'] },
+    { id: 'theme-welcome-dark', title: 'First-run theme selection: dark palette', kind: 'theme-welcome',
+        keys: [...welcomeKeys, 'themeWelcome.darkTheme'] },
+    { id: 'theme-welcome-light', title: 'First-run theme selection: light palette', kind: 'theme-welcome',
+        setup: 'welcome-light', keys: [...welcomeKeys, 'themeWelcome.lightTheme'] },
+    { id: 'appearance-controls-dark', title: 'Top-bar controls: dark mode', kind: 'appearance-controls',
+        setup: 'theme-menu', mode: 'dark', keys: [...controlKeys, 'themePicker.switchToLight'] },
+    { id: 'appearance-controls-light', title: 'Top-bar controls: light mode', kind: 'appearance-controls',
+        setup: 'theme-menu', mode: 'light', keys: [...controlKeys, 'themePicker.switchToDark'] },
     { id: 'route-delete', title: 'Route deletion', kind: 'route-confirmation',
         keys: ['routes.deleteConfirm', 'common.delete', 'common.cancel'] },
     { id: 'certificate-delete', title: 'Certificate deletion (interpolation)', kind: 'certificate-confirmation',

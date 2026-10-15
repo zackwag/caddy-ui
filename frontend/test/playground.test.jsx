@@ -39,4 +39,18 @@ describe('localization playground', () => {
             for (const key of scenario.keys) expect(typeof readValue(en, key)).toBe('string');
         }
     });
+    it('adds 27 distinct onboarding and appearance keys without invented API records', () => {
+        const added = scenarios.filter(scenario => ['login', 'theme-welcome', 'appearance-controls'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        const keys = new Set(added.flatMap(scenario => scenario.keys));
+        expect(added).toHaveLength(6);
+        expect([...keys].filter(key => !existing.has(key))).toHaveLength(27);
+        expect(added.every(scenario => !scenario.profile)).toBe(true);
+        // These native optgroup labels and custom-theme branches need a
+        // separate inspection/data path; do not inflate visible DOM coverage.
+        expect(keys.has('themeWelcome.custom')).toBe(false);
+        expect(keys.has('themeWelcome.builtIn')).toBe(false);
+        expect(keys.has('themePicker.custom')).toBe(false);
+        expect(keys.has('themePicker.builtIn')).toBe(false);
+    });
 });

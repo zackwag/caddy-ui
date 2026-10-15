@@ -44,6 +44,28 @@ One state may cover several keys, and shared keys can occur in several states.
 Current states cover the Dashboard with running/stopped Caddy and no HTTP servers, its loading
 view, label-edit dialog, and successful label save; route/certificate confirmations and a
 notification toast remain available. Unregistered keys explicitly show that no fixture exists.
+Six additional states cover 27 more distinct keys (66 in total):
+
+| Production component | Prepared states | New keys |
+| --- | --- | ---: |
+| `Login` | Normal form and expired session | 5 |
+| `ThemeWelcome` | Dark and light palette selection | 14 |
+| `ThemePicker` and `LanguagePicker` | Open theme menu in dark and light mode | 8 |
+
+These use the actual components, built-in `THEME_LIST`, and installed locale list. They
+need no server responses or new captures. Theme choices and mode toggles stay in frame-local
+state. The workbench's light/dark button still controls the surrounding preview palette.
+Language selectors and the welcome dialog's Apply action do not persist settings; choose the
+preview language in the workbench. The theme export button can download the real built-in
+theme JSON, using the production exporter. Custom-theme branches and native optgroup labels
+are not counted as visible registered keys in this batch.
+
+The sign-in form has no recorded authentication endpoint. Submitting it deliberately fails
+through the existing strict replay guard and shows an unrecorded-request warning; it cannot
+contact a backend or create a session. Authentication loading/failure states need real
+capture support before they can be registered. Session-expired wording is rebuilt on locale
+and draft changes, including translations that the production component caches at mount.
+
 The label dialog is opened through the production edit action, and the saved-label state runs
 the actual Save handler against its recorded response. Navigation stays inside the selected
 component preview; this tool is not a replacement for testing the complete application.
@@ -118,6 +140,9 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run i18n:preview:check
 The browser check starts and stops its own Vite server on an OS-assigned port. It needs no
 backend or Docker and is not invoked by CI. An API connection-error log during its deliberately
 unrecorded-write probe is expected. Existing frontend unit/lint checks still cover the tool.
+It walks all 27 new keys in their actual component DOM, edits and resets each one, checks
+session-message refresh across locales, verifies theme-export interpolation and download,
+and checks that the login card and open theme menu fit their frames without resize feedback.
 
 Confirmation actions remain inert. Their normal keyboard listeners are confined to their frame.
 The light toggle applies an actual production palette to the preview. Prepared action-generated
