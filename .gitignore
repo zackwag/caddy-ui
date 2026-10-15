@@ -159,3 +159,6 @@ docs/book/
 
 # Standalone localization contributor preview
 frontend/dist-playground/
+
+# Generated documentation screenshots
+docs/src/screenshots/*.png
