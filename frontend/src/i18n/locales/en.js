@@ -45,6 +45,8 @@ export default {
         network: 'Cannot reach the server. Check your connection.',
         unauthorized: 'Your session has expired. Please sign in again.',
         forbidden: 'You do not have permission to perform this operation.',
+        ntfyDestinationBlocked: 'This ntfy destination is blocked by the server policy. Internal and loopback endpoints require approval in the backend environment. Please contact your administrator.',
+        webhookDestinationBlocked: 'Private and loopback destinations are blocked for this notification provider. Environment-based approval is supported only for ntfy. Please contact your administrator.',
         logFileMissing: 'The log file was not found.',
         logStreamError: 'Could not stream Caddy logs. See the application logs for details.',
         rateLimited: 'Too many requests. Please try again later.',

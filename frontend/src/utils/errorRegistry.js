@@ -3,6 +3,8 @@
 export const ERROR_MESSAGES = Object.freeze({
     UNAUTHORIZED: 'errors.unauthorized',
     FORBIDDEN: 'errors.forbidden',
+    NTFY_DESTINATION_BLOCKED: 'errors.ntfyDestinationBlocked',
+    WEBHOOK_DESTINATION_BLOCKED: 'errors.webhookDestinationBlocked',
     LOG_FILE_MISSING: 'errors.logFileMissing',
     LOG_STREAM_ERROR: 'errors.logStreamError',
     RATE_LIMITED: 'errors.rateLimited',

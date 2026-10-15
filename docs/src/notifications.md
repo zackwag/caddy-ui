@@ -40,6 +40,8 @@ The policy limits where UI-configured notifications can send requests. It does n
 
 ### Troubleshooting
 
+A rejected ntfy destination returns `NTFY_DESTINATION_BLOCKED` (HTTP 403). The UI explains that internal and loopback endpoints require approval in the backend environment and asks the user to contact their administrator. The accompanying **View logs** link leads to correlated diagnostics with the technical policy reason below. Other webhook providers return `WEBHOOK_DESTINATION_BLOCKED` and explain that environment-based internal approval is available only for ntfy.
+
 - `internal_url_not_approved`: the active URL does not exactly match the URL allowlist, or an unlisted endpoint resolved to a non-public destination.
 - `outside_internal_policy`: no resolved address passed the subnet policy and the applicable loopback/link-local checks. Check both A and AAAA records from the backend's network namespace.
 - `dns_lookup_failed` / `invalid_or_empty_dns_answer`: check container DNS, hostname spelling, and resolution from the backend.

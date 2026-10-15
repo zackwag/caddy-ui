@@ -27,6 +27,18 @@ describe('ntfy operator policy', () => {
         await expect(fixture().resolve(url)).rejects.toThrow('internal_url_not_approved');
     });
 
+    it('identifies internal policy denials separately from DNS failures', async () => {
+        await expect(fixture({ urls: [], addresses: ['127.0.0.1'] }).resolve(topic)).rejects.toMatchObject({
+            code: 'NTFY_DESTINATION_BLOCKED', status: 403, context: { reason: 'internal_url_not_approved' },
+        });
+        await expect(fixture({ addresses: ['127.0.0.1'] }).resolve(topic)).rejects.toMatchObject({
+            code: 'NTFY_DESTINATION_BLOCKED', context: { reason: 'outside_internal_policy' },
+        });
+        const { resolve, lookup } = fixture();
+        lookup.mockRejectedValueOnce(new Error('DNS failed'));
+        await expect(resolve(topic)).rejects.not.toHaveProperty('code', 'NTFY_DESTINATION_BLOCKED');
+    });
+
     it('requires both the URL and the network permission', async () => {
         await expect(fixture({ cidrs: [] }).resolve(topic)).rejects.toThrow('outside_internal_policy');
         await expect(fixture({ urls: [] }).resolve(topic)).rejects.toThrow('internal_url_not_approved');

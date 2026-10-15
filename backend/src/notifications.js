@@ -1,5 +1,6 @@
 import { isIP } from 'net';
 import { sendNtfy } from './ntfyTransport.js';
+import { AppError } from './AppError.js';
 import { X509Certificate } from 'crypto';
 import { join } from 'path';
 import { listContainerDir, readContainerFile } from './containerFs.js';
@@ -281,11 +282,11 @@ async function validateWebhookUrl(url) {
 
     const host = parsed.hostname.toLowerCase();
     if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host === 'metadata.google.internal') {
-        throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
+        throw new AppError('WEBHOOK_DESTINATION_BLOCKED', { message: `Webhook URL must not target internal/private addresses: ${host}` });
     }
 
     if (isIP(host) && isUnsafeIpAddress(host)) {
-        throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
+        throw new AppError('WEBHOOK_DESTINATION_BLOCKED', { message: `Webhook URL must not target internal/private addresses: ${host}` });
     }
 
     const records = await dns.lookup(host, { all: true, verbatim: true });
@@ -293,7 +294,7 @@ async function validateWebhookUrl(url) {
         throw new Error(`Webhook URL host does not resolve: ${host}`);
     }
     if (records.some((r) => isUnsafeIpAddress(r.address))) {
-        throw new Error(`Webhook URL must not resolve to internal/private addresses: ${host}`);
+        throw new AppError('WEBHOOK_DESTINATION_BLOCKED', { message: `Webhook URL must not resolve to internal/private addresses: ${host}` });
     }
 
     const port = parsed.port ? `:${parsed.port}` : '';

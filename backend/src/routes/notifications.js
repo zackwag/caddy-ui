@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import logger from '../logger.js';
+import { AppError } from '../AppError.js';
+import { sendAppError } from '../errorReporting.js';
 
 const router = Router();
 const CONFIG_PATH = process.env.NOTIFICATIONS_CONFIG_PATH || '/etc/caddy-ui/notifications.json';
@@ -75,6 +77,7 @@ router.post('/test', async (req, res) => {
         });
         res.json({ ok: true, message: 'Test notification sent' });
     } catch (err) {
+        if (err instanceof AppError) return sendAppError(res, err);
         logger.error('Test notification failed', { error: err.message });
         res.status(500).json({ error: `Failed to send: ${err.message}` });
     }

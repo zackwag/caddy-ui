@@ -16,8 +16,19 @@ describe('semantic error presentation registry', () => {
             expect(typeof en.errors[name]).toBe('string');
         }
     });
+    it('explains administrator action for internal ntfy destinations without exposing raw details', () => {
+        const translate = key => en.errors[key.split('.')[1]];
+        const message = localizeError({ code: 'NTFY_DESTINATION_BLOCKED', message: 'private URL with secret topic' }, translate);
+        expect(message).toContain('backend environment');
+        expect(message).toContain('contact your administrator');
+        expect(message).not.toContain('secret topic');
+        const other = localizeError({ code: 'WEBHOOK_DESTINATION_BLOCKED' }, translate);
+        expect(other).toContain('supported only for ntfy');
+    });
     it.each([
         ['FORBIDDEN', 'errors.forbidden'],
+        ['NTFY_DESTINATION_BLOCKED', 'errors.ntfyDestinationBlocked'],
+        ['WEBHOOK_DESTINATION_BLOCKED', 'errors.webhookDestinationBlocked'],
         ['LOG_FILE_MISSING', 'errors.logFileMissing'],
         ['LOG_STREAM_ERROR', 'errors.logStreamError'],
     ])('localizes the reviewed backend code %s', (code, key) => {

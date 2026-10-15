@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { promises as dns } from 'node:dns';
 import { BlockList, isIP } from 'node:net';
 import logger from './logger.js';
+import { AppError } from './AppError.js';
 
 function normalizeAddress(address) {
     if (typeof address !== 'string' || !isIP(address) || address.includes('%')) return null;
@@ -130,6 +131,11 @@ export function createNtfyPolicy({ env = process.env, lookup = dns.lookup, log =
         if (observations.size > 256) observations.delete(observations.keys().next().value);
         if (reason) {
             log.warn('ntfy destination blocked', { ...meta, event: 'ntfy.destination_blocked' });
+            if (reason === 'internal_url_not_approved' || reason === 'outside_internal_policy') {
+                throw new AppError('NTFY_DESTINATION_BLOCKED', {
+                    message: `ntfy destination blocked: ${reason}`, context: { reason, endpointId },
+                });
+            }
             throw new Error(`ntfy destination blocked: ${reason}`);
         }
         log.debug('ntfy destination approved', { ...meta, event: 'ntfy.destination_approved', selectedAddress: selected.address });

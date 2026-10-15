@@ -46,9 +46,11 @@ it('requires the UI-selected URL as well as operator permission on the actual no
     vi.stubEnv('CADDY_UI_NTFY_ALLOW_LINK_LOCAL', 'false');
     const { default: router } = await import('../src/routes/notifications.js');
     const { updateMonitorConfig } = await import('../src/notifications.js');
+    const { diagnosticMiddleware } = await import('../src/errorReporting.js');
     stopMonitor = updateMonitorConfig;
     const app = express();
     app.use(express.json());
+    app.use(diagnosticMiddleware);
     app.use('/api/notifications', router);
     const api = `${await listen(app)}/api/notifications`;
     const call = (path, body) => fetch(api + path, body ? {
@@ -71,10 +73,24 @@ it('requires the UI-selected URL as well as operator permission on the actual no
         CADDY_UI_NTFY_ALLOWED_INTERNAL_NETWORKS: ['0.0.0.0/0'],
     });
     const denied = await call('/test');
-    expect(denied.status).toBe(500);
-    expect(await denied.json()).toMatchObject({ error: expect.stringContaining('internal_url_not_approved') });
+    expect(denied.status).toBe(403);
+    const error = await denied.json();
+    expect(error).toMatchObject({ code: 'NTFY_DESTINATION_BLOCKED', requestId: expect.any(String) });
+    expect(error.requestId).toBe(denied.headers.get('X-Request-ID'));
+    expect(JSON.stringify(error)).not.toMatch(/internal_url_not_approved|127\.0\.0\.1|approved|other-topic/);
     expect(delivered).toHaveLength(1);
     await call('/config', settings);
     expect((await call('/test')).status).toBe(200);
+    expect(delivered).toHaveLength(2);
+    for (const [provider, options] of [
+        ['discord', { discord: { webhookUrl: topic } }],
+        ['slack', { slack: { webhookUrl: topic } }],
+        ['custom', { custom: { url: topic } }],
+    ]) {
+        await call('/config', { ...settings, provider, ...options });
+        const blocked = await call('/test');
+        expect(blocked.status).toBe(403);
+        expect(await blocked.json()).toMatchObject({ code: 'WEBHOOK_DESTINATION_BLOCKED' });
+    }
     expect(delivered).toHaveLength(2);
 });
