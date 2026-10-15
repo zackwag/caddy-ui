@@ -300,6 +300,10 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated additional UI language codes to enable (for example `de,fr`). English is always enabled; only languages with an installed frontend locale catalog are shown. |
+| `CADDY_UI_NTFY_ALLOWED_INTERNAL_URLS` | `[]` | JSON array of complete ntfy topic URLs allowed to use the internal network policy. Exact normalized matches only; the UI still selects the active URL. See [self-hosted ntfy](https://zackwag.github.io/caddy-ui/notifications.html#self-hosted-ntfy-on-a-private-network). |
+| `CADDY_UI_NTFY_ALLOWED_INTERNAL_NETWORKS` | `[]` | JSON array of approved IPv4/IPv6 CIDRs for the listed ntfy URLs, for example `["192.168.178.0/24","fd12:3456::/48"]`. A listed URL must resolve within this policy. `0.0.0.0/0` and `::/0` deliberately grant broad access for their respective address families. |
+| `CADDY_UI_NTFY_ALLOW_LOOPBACK` | `false` | Permit loopback destinations for ntfy only when the URL and subnet are also approved. Refers to the backend's network namespace. |
+| `CADDY_UI_NTFY_ALLOW_LINK_LOCAL` | `false` | Permit link-local destinations for ntfy only when the URL and subnet are also approved. This can include metadata services; enable only for an intentional endpoint. |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |

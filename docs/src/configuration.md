@@ -8,4 +8,4 @@
 
 {{#include ../../README.md:authentication}}
 
-For deployment-specific behavior, see [instances](instances.md), [themes](themes.md), and [Caddyfile behavior](caddyfile.md).
+For deployment-specific behavior, see [notifications](notifications.md), [instances](instances.md), [themes](themes.md), and [Caddyfile behavior](caddyfile.md).
