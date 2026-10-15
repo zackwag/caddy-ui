@@ -92,6 +92,17 @@ function scheduleReport() {
         } else if (!setupStep && scenario.setup === 'theme-menu') {
             const trigger = element.querySelector('button.theme-picker-trigger');
             if (trigger) { setupStep = 1; trigger.click(); }
+        } else if (!setupStep && scenario.kind === 'notification-settings') {
+            const provider = element.querySelector('select.config-select');
+            const toggle = element.querySelector('.notifications-enabled-btn');
+            if (provider && toggle) {
+                setupStep = 1;
+                // Prepare the production form through its real change handlers.
+                // The only recorded response is the untouched disabled default.
+                provider.value = scenario.provider;
+                provider.dispatchEvent(new Event('change', { bubbles: true }));
+                if (scenario.enabled) toggle.click();
+            }
         }
         const records = [...observations.values()];
         const references = markReferences(element, config.selected, records);

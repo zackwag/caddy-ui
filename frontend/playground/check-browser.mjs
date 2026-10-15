@@ -163,6 +163,49 @@ try {
     await frame().locator('.login-error').filter({ hasText: en.login.serverUnreachable }).waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
 
+    const notificationStates = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        return scenarios.filter(scenario => scenario.kind === 'notification-settings');
+    });
+    const notificationKeys = new Set();
+    for (const scenario of notificationStates) {
+        await go(scenario.keys[0], scenario.id);
+        await page.waitForFunction(({ provider, enabled }) => {
+            const doc = document.querySelector('iframe').contentDocument;
+            return doc.querySelector('select.config-select')?.value === provider &&
+                doc.querySelector('.notifications-enabled-btn')?.classList.contains('btn-danger') === Boolean(enabled);
+        }, scenario);
+        for (const key of scenario.keys.filter(key => !notificationKeys.has(key))) {
+            await page.getByRole('navigation', { name: 'Translation keys' }).getByRole('button', { name: key, exact: true }).click();
+            await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
+            await editor.fill(`${readValue(en, key)} [preview]`);
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return [...elements].some(element => [element.textContent, element.getAttribute('placeholder')]
+                    .some(value => value?.includes('[preview]')));
+            }, key);
+            await page.getByRole('button', { name: 'Reset this key' }).click();
+            notificationKeys.add(key);
+        }
+    }
+    assert.equal(notificationKeys.size, 30);
+    await go('notifications.jsonSchemaHint', 'notifications-custom');
+    await frame().locator('input[type="url"]').fill('https://preview.invalid/notify');
+    await page.getByRole('navigation', { name: 'Translation keys' }).getByRole('button', { name: 'notifications.httpMethod', exact: true }).click();
+    assert.equal(await frame().locator('input[type="url"]').inputValue(), 'https://preview.invalid/notify');
+    await frame().locator('select.config-select').last().selectOption('PUT');
+    const lastField = await frame().locator('input[type="number"]').boundingBox();
+    const notificationFrame = await page.locator('iframe').boundingBox();
+    assert.ok(lastField.y + lastField.height <= notificationFrame.y + notificationFrame.height + 1);
+    await frame().getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: PUT /api/notifications/config' }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
+    await go('notifications.disable', 'notifications-enabled');
+    await frame().getByRole('button', { name: 'Test notification', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: POST /api/notifications/test' }).waitFor();
+    await go('notifications.enable', 'notifications-ntfy');
+    assert.equal(await frame().getByRole('button', { name: 'Test notification', exact: true }).isDisabled(), true);
+
     for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 600 }]) {
         await page.setViewportSize(viewport);
         await go('tls.deleteConfirm', 'certificate-delete');
@@ -198,7 +241,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, 27 added onboarding/appearance keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
+    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

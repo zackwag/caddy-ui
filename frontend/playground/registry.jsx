@@ -31,9 +31,29 @@ const welcomeKeys = ['themeWelcome.title', 'themeWelcome.hint', 'themeWelcome.da
     'themeWelcome.danger', 'themeWelcome.warn', 'themeWelcome.language', 'themeWelcome.apply'];
 const controlKeys = ['languagePicker.chooseLanguage', 'themePicker.chooseThemes', 'themePicker.darkTheme',
     'themePicker.lightTheme', 'themePicker.exportTitle', 'themePicker.exportJson'];
+const notificationKeys = ['notifications.title', 'notifications.provider', 'notifications.triggers',
+    'notifications.upstreamOffline', 'notifications.upstreamOnline', 'notifications.certExpiring',
+    'notifications.updateAvailable', 'notifications.routeOffline', 'notifications.routeOnline',
+    'notifications.routeAlertHint', 'notifications.debounce', 'notifications.cooldownMinutes',
+    'notifications.cooldownHint', 'notifications.testNotification'];
+const notificationProviders = [
+    { provider: 'ntfy', title: 'ntfy', keys: ['notifications.ntfyTopicUrl'] },
+    { provider: 'discord', title: 'Discord', keys: ['notifications.discordWebhookUrl', 'notifications.discordHint'] },
+    { provider: 'slack', title: 'Slack', keys: ['notifications.slackWebhookUrl', 'notifications.slackHint'] },
+    { provider: 'pushover', title: 'Pushover', keys: ['notifications.userKey', 'notifications.userKeyPlaceholder',
+        'notifications.apiToken', 'notifications.apiTokenPlaceholder', 'notifications.pushoverHint'] },
+    { provider: 'custom', title: 'Custom webhook', keys: ['notifications.webhookUrl', 'notifications.httpMethod',
+        'notifications.jsonSchema', 'notifications.jsonSchemaHint'] },
+];
 
 // Register actual component states, not alternative implementations of the UI.
 export const scenarios = [
+    ...notificationProviders.map(({ provider, title, keys }) => ({ id: `notifications-${provider}`,
+        title: `Notification settings: ${title}`, kind: 'notification-settings', profile: 'notifications-default', provider,
+        keys: [...notificationKeys, 'notifications.enable', ...keys] })),
+    { id: 'notifications-enabled', title: 'Notification settings: enabled (local only)', kind: 'notification-settings',
+        profile: 'notifications-default', provider: 'ntfy', enabled: true,
+        keys: [...notificationKeys, 'notifications.disable', 'notifications.ntfyTopicUrl'] },
     { id: 'login', title: 'Sign-in form', kind: 'login', keys: loginKeys },
     { id: 'login-session-expired', title: 'Sign-in: expired session', kind: 'login', sessionExpired: true,
         remountOnTranslation: true, keys: [...loginKeys, 'login.sessionExpired'] },
@@ -50,7 +70,7 @@ export const scenarios = [
     { id: 'certificate-delete', title: 'Certificate deletion (interpolation)', kind: 'certificate-confirmation',
         keys: ['tls.deleteConfirm', 'common.delete', 'common.cancel'] },
     { id: 'notification-saved', title: 'Notification settings saved', kind: 'notification-toast', keys: ['notifications.saved'] },
-    ...capture.scenarios.map(profile => ({ id: profile.id, title: titles[profile.id], kind: 'dashboard',
+    ...capture.scenarios.filter(profile => Object.hasOwn(titles, profile.id)).map(profile => ({ id: profile.id, title: titles[profile.id], kind: 'dashboard',
         profile: profile.id, keys: dashboardKeys(profile) })),
     { id: 'dashboard-edit-label', title: 'Dashboard: edit server label', kind: 'dashboard', profile: 'dashboard-online',
         setup: 'edit-label', keys: [...dashboardKeys(capture.scenarios[0]), 'dashboard.labelPlaceholder',

@@ -7,6 +7,7 @@ import Login from '../src/components/Login.jsx';
 import ThemeWelcome from '../src/components/ThemeWelcome.jsx';
 import ThemePicker from '../src/components/ThemePicker.jsx';
 import LanguagePicker from '../src/components/LanguagePicker.jsx';
+import Notifications from '../src/components/Notifications.jsx';
 import { availableLocales } from '../src/i18n/index.js';
 import { THEME_LIST } from '../src/styles.js';
 import { apiFetch } from '../src/utils/api.js';
@@ -82,11 +83,17 @@ function AppearanceControlsFixture({ initialMode }) {
     </div>;
 }
 
+function NotificationSettingsFixture() {
+    const toast = useToast();
+    return <><Notifications toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
+}
+
 export default function FixtureView({ scenario }) {
     switch (scenario.kind) {
         case 'login': return <Login onLogin={noop} sessionExpired={scenario.sessionExpired} />;
         case 'theme-welcome': return <ThemeWelcomeFixture />;
         case 'appearance-controls': return <AppearanceControlsFixture initialMode={scenario.mode} />;
+        case 'notification-settings': return <NotificationSettingsFixture />;
         case 'route-confirmation': return <RouteConfirmation />;
         case 'certificate-confirmation': return <CertificateConfirmation />;
         case 'notification-toast': return <NotificationToast />;
