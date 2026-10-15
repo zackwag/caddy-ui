@@ -1,6 +1,8 @@
-# Pre-fix E2E diagnostics
+# E2E diagnostic experiments
 
-This manual experiment repeats the existing application E2E scenarios with opt-in instrumentation. It preserves their actions, assertions, timers and existing bootstrap retry. It does not apply the proposed fixes or change required PR checks.
+This manual experiment repeats the checked-out revision's application E2E scenarios with opt-in instrumentation. The collector does not apply fixes or change required PR checks. Candidate branches can change the fixtures/scenarios being measured, so compare source commits and hashes before interpreting results as a before/after comparison. The original pre-fix evidence remains pinned to its source revision.
+
+See [the E2E fix candidates](FIXES.md) for the independent fixes and their local validation. The historical diagnostic workflow dispatcher still targets `dev/etoe-diagnostics`; use the local CLI below when measuring `fix/e-to-e`. No workflow routing or publication permission changes are included in the fix branch.
 
 ## Run on a fork
 
@@ -124,7 +126,7 @@ npm exec --prefix frontend -- playwright show-trace /path/to/trace.zip
 
 ## Results and statistics
 
-A green **collection** job means the experiment collected outcomes and verified scoped cleanup. Individual E2E trials can fail, including the expected delayed-stylesheet reproduction. Their exit codes and native test results are retained. Collection errors, cancellation or incomplete native results fail the collector and retain partial artifacts.
+A green **collection** job means the experiment collected outcomes and verified scoped cleanup. Individual E2E trials can fail, including controlled reproduction failures. Their exit codes and native test results are retained. Collection errors, cancellation or incomplete native results fail the collector and retain partial artifacts.
 
 Reports include per-profile and per-scenario outcomes, descriptive 95% Wilson intervals, network interruptions, passing trials that encountered interruptions, existing bootstrap retry counts, toast signatures and capture notes. Interrupted trials and unavailable controls are excluded from rate denominators. Failures with incomplete diagnostic evidence still retain their execution outcome and are not silently converted into passes.
 

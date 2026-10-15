@@ -57,7 +57,7 @@ export async function cleanupTrial(directory, nonce, run) {
 }
 
 function summaryMarkdown(metadata, trials) {
-    const lines = ['# Pre-fix E2E diagnostic experiment', '', `Source commit: \`${metadata.commit}\`. Seed: \`${metadata.config.seed}\`.`, '',
+    const lines = ['# E2E diagnostic experiment', '', `Source commit: \`${metadata.commit}\`. Seed: \`${metadata.config.seed}\`.`, '',
         '**Collection status and test outcomes are separate. A green collection job does not mean these E2E trials passed.**', '',
         '| Profile | Recorded / eligible | Incomplete or unavailable | Captures with notes | Failed | Failure rate (95% Wilson interval) | Network interruptions | Passing trials with interruptions | Existing bootstrap retries | Toast signatures |', '|---|---:|---:|---:|---:|---|---:|---:|---:|---:|'];
     for (const row of summarize(trials)) {
@@ -67,7 +67,7 @@ function summaryMarkdown(metadata, trials) {
     }
     lines.push('', 'Normal cold starts estimate observed suite reliability in this environment. The other profiles are causal controls and must not be pooled into that failure rate.', '',
         'Trials within this job share a runner. Wilson intervals are descriptive under an independence assumption; retain run/job identity and use multiple jobs for stronger statistical conclusions.', '',
-        'The original scenarios, assertions, six-second notification timer, ten-second element waits and existing three-attempt bootstrap retry remain in place. Instrumentation itself can affect timing. No candidate fix is applied.', '',
+        'This report describes the checked-out revision, which may contain candidate fixes. Compare its source commit and hashes with the chosen baseline. Instrumentation itself can affect timing.', '',
         '## Per-scenario outcomes', '', '| Profile / scenario | Executed | Failed |', '|---|---:|---:|');
     const cases = new Map();
     for (const trial of trials.filter(trial => !trial.interrupted && !trial.timedOut && !trial.unavailable)) for (const event of trial.cases) {
@@ -101,7 +101,7 @@ export async function experiment(config) {
         metadata.dirty = !!(await exec('git', ['status', '--porcelain'], { cwd: root })).stdout.trim();
         metadata.docker = (await exec('docker', ['version', '--format', '{{.Server.Version}}'])).stdout.trim();
         metadata.caddyImage = JSON.parse((await exec('docker', ['image', 'inspect', IMAGE, '--format', '{{json .RepoDigests}}'])).stdout);
-        for (const path of ['frontend/e2e/error-logging.mjs', 'frontend/e2e/fixture.mjs', 'frontend/package-lock.json', 'backend/package-lock.json',
+        for (const path of ['frontend/e2e/error-logging.mjs', 'frontend/e2e/fixture.mjs', 'test/integration/stack.mjs', 'test/integration/lifecycle.mjs', 'frontend/package-lock.json', 'backend/package-lock.json',
             'frontend/caddyfile-mode.sha', 'frontend/src/utils/notificationCenter.js', 'test/diagnostics/observe.mjs', 'test/diagnostics/analysis.mjs', 'test/diagnostics/run.mjs']) {
             metadata.sourceHashes[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex');
         }

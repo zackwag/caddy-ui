@@ -2,7 +2,6 @@
 // Browser globals are used only in callbacks serialized by Playwright.
 import { createHash } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
-import { once } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -13,12 +12,47 @@ const exec = promisify(execFile);
 const LIMIT = 10000;
 export const projectFor = (nonce, name) => createHash('sha256').update(nonce + '\0' + name).digest('hex').slice(0, 16);
 
+// Expected teardown is not a capture failure. Retain early exits (including 0),
+// spawn errors and forced shutdown, and wait for close so pipes are drained.
+export function trackObserver(type, child, metadata, record) {
+    const state = { type, started: Date.now(), shutdownRequested: null, exited: null, closed: null, code: null, signal: null, forced: false };
+    metadata.observers.push(state);
+    let spawnFailed = false, stopping;
+    const closed = new Promise(resolve => child.once('close', () => { state.closed = Date.now(); resolve(); }));
+    child.on('error', error => {
+        spawnFailed = true;
+        metadata.captureErrors.push(`${type} observer: ${error.message}`);
+        record('observer-error', { observer: type, message: error.message });
+    });
+    child.once('exit', (code, signal) => {
+        Object.assign(state, { exited: Date.now(), code, signal });
+        const expected = state.shutdownRequested !== null && !state.forced && (code === 0 || code === 143 || signal === 'SIGTERM');
+        if (!expected && !spawnFailed && !state.forced) metadata.captureErrors.push(`${type} observer exited unexpectedly (${code ?? signal})`);
+        record('observer-exit', { observer: type, code, signal, expected, forced: state.forced });
+    });
+    return { child, stop(graceMs = 1000) {
+        stopping ??= (async () => {
+            if (!child.pid || child.exitCode !== null || child.signalCode !== null) return closed;
+            state.shutdownRequested = Date.now();
+            record('observer-stop-requested', { observer: type });
+            child.kill('SIGTERM');
+            const force = setTimeout(() => {
+                state.forced = true;
+                metadata.captureErrors.push(`${type} observer required SIGKILL during teardown`);
+                child.kill('SIGKILL');
+            }, graceMs);
+            try { await closed; } finally { clearTimeout(force); }
+        })();
+        return stopping;
+    } };
+}
+
 export async function createDiagnostics(t, scope, { staticControl = false } = {}) {
     const directory = join(process.env.ETOE_DIAGNOSTICS_DIR, createHash('sha256').update(t.name).digest('hex').slice(0, 12));
     await mkdir(directory, { recursive: true });
     const metadata = { name: t.name, profile: process.env.ETOE_DIAGNOSTICS_PROFILE,
         project: staticControl ? null : projectFor(process.env.ETOE_DIAGNOSTICS_NONCE, t.name),
-        started: Date.now(), captureErrors: [] };
+        started: Date.now(), captureErrors: [], observers: [] };
     const timeline = [];
     const system = [];
     const monitors = [];
@@ -34,13 +68,7 @@ export async function createDiagnostics(t, scope, { staticControl = false } = {}
     await writeFile(join(directory, 'ownership.json'), JSON.stringify({ name: t.name, project: metadata.project }), { flag: 'wx' });
     await save('metadata.json', metadata);
     scope.defer(async () => {
-        for (const child of monitors) {
-            if (!child.pid || child.exitCode !== null || child.signalCode !== null) continue;
-            const exited = once(child, 'exit');
-            child.kill('SIGTERM');
-            const force = setTimeout(() => child.kill('SIGKILL'), 1000);
-            try { await exited; } finally { clearTimeout(force); }
-        }
+        for (const monitor of monitors) await monitor.stop();
         let netlog = [];
         await safely('Chromium NetLog', async () => { netlog = netlogEvents(JSON.parse(await readFile(join(directory, 'browser-netlog.json'), 'utf8'))); });
         metadata.finished = Date.now();
@@ -54,10 +82,7 @@ export async function createDiagnostics(t, scope, { staticControl = false } = {}
             '--format', '{{.TimeNano}} {{.Type}} {{.Action}}']],
     ]) {
         const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-        monitors.push(child);
-        let observerFailed = false;
-        child.on('error', error => { observerFailed = true; metadata.captureErrors.push(`${type} observer: ${error.message}`); });
-        child.once('exit', code => { if (code && !observerFailed) metadata.captureErrors.push(`${type} observer exited (${code})`); });
+        monitors.push(trackObserver(type, child, metadata, record));
         for (const [stream, name] of [[child.stdout, type], [child.stderr, type + '-stderr']]) {
             createInterface({ input: stream }).on('line', line => {
                 if (system.length >= LIMIT) { if (!metadata.captureErrors.includes('System events truncated')) metadata.captureErrors.push('System events truncated'); return; }
