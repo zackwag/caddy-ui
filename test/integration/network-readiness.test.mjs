@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { containerNetworkProbe, waitForContainerNetwork } from './stack.mjs';
 
-function probeFixture({ visible = true, disabled = '0', generation = '0', flags = '80' } = {}) {
+function probeFixture({ visible = true, vanished = false, disabled = '0', generation = '0', flags = '80' } = {}) {
     let peerCalls = 0;
     const files = {
         '/sys/class/net/veth-owned/ifindex': '31',
@@ -11,8 +11,11 @@ function probeFixture({ visible = true, disabled = '0', generation = '0', flags 
         '/proc/net/if_inet6': `fe800000000000000000000000000001 1f 40 20 ${flags} veth-owned`,
     };
     const probe = containerNetworkProbe('owned-container', { platform: 'linux', peer: async () => { peerCalls++; return 31; },
-        list: async () => visible ? ['lo', 'veth-owned'] : ['lo'],
-        read: async path => { assert.ok(Object.hasOwn(files, path), path); return files[path]; } });
+        list: async () => visible ? ['lo', ...(vanished ? ['veth-removed'] : []), 'veth-owned'] : ['lo'],
+        read: async path => {
+            if (path.includes('veth-removed')) throw Object.assign(new Error('interface removed'), { code: 'ENOENT' });
+            assert.ok(Object.hasOwn(files, path), path); return files[path];
+        } });
     return { probe, files, peerCalls: () => peerCalls };
 }
 
@@ -34,6 +37,10 @@ test('another interface address cannot satisfy the owned interface readiness', a
     const fixture = probeFixture();
     fixture.files['/proc/net/if_inet6'] = fixture.files['/proc/net/if_inet6'].replace('veth-owned', 'veth-other');
     assert.equal((await fixture.probe()).status, 'pending');
+});
+
+test('an unrelated interface disappearing during enumeration does not fail owned readiness', async () => {
+    assert.equal((await probeFixture({ vanished: true }).probe()).status, 'ready');
 });
 
 test('Docker outside the browser namespace and non-Linux hosts do not wait for an invisible interface', async () => {

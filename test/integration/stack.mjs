@@ -25,7 +25,13 @@ export function containerNetworkProbe(container, { platform = process.platform, 
         if (!Number.isInteger(index) || index < 1) throw new Error('Owned container reported an invalid interface index');
         let name;
         for (const candidate of await list('/sys/class/net')) {
-            if (candidate.startsWith('veth') && Number(await read(`/sys/class/net/${candidate}/ifindex`, 'utf8')) === index) name = candidate;
+            if (!candidate.startsWith('veth')) continue;
+            try {
+                if (Number(await read(`/sys/class/net/${candidate}/ifindex`, 'utf8')) === index) name = candidate;
+            } catch (error) {
+                // Another container may disappear between listing and reading.
+                if (error.code !== 'ENOENT') throw error;
+            }
         }
         if (!name) return { status: 'not-applicable', reason: 'Owned Docker interface is outside the browser network namespace' };
         const result = { interface: { index, name } };
