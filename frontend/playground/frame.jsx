@@ -70,6 +70,7 @@ i18n.options.postProcess = ['playground-context'];
 
 const style = document.createElement('style');
 style.textContent = css + '\nbody { margin: 0; padding: 16px; min-height: 0; } [data-preview-key] { outline: 2px solid var(--accent); outline-offset: 3px; } [data-preview-ambiguous] { outline-style: dashed; }';
+style.textContent += '\nbody[data-preview-kind="login"] { padding: 0; }';
 document.head.append(style);
 
 function scheduleReport() {
@@ -85,14 +86,35 @@ function scheduleReport() {
         } else if (setupStep === 1 && scenario.setup === 'label-saved') {
             const save = element.querySelector('.modal .btn-primary');
             if (save) { setupStep = 2; save.click(); }
+        } else if (!setupStep && scenario.setup === 'welcome-light') {
+            const light = element.querySelector('.modal .btn-ghost');
+            if (light) { setupStep = 1; light.click(); }
+        } else if (!setupStep && scenario.setup === 'theme-menu') {
+            const trigger = element.querySelector('button.theme-picker-trigger');
+            if (trigger) { setupStep = 1; trigger.click(); }
+        } else if (!setupStep && scenario.kind === 'notification-settings') {
+            const provider = element.querySelector('select.config-select');
+            const toggle = element.querySelector('.notifications-enabled-btn');
+            if (provider && toggle) {
+                setupStep = 1;
+                // Prepare the production form through its real change handlers.
+                // The only recorded response is the untouched disabled default.
+                provider.value = scenario.provider;
+                provider.dispatchEvent(new Event('change', { bubbles: true }));
+                if (scenario.enabled) toggle.click();
+            }
         }
         const records = [...observations.values()];
         const references = markReferences(element, config.selected, records);
+        // Login fills the viewport. Measuring its shell and then adding padding
+        // would grow the iframe indefinitely; size it from the actual card.
+        const content = scenario.kind === 'login' ? element.querySelector('.login-card') : element;
         const report = { type: 'preview-report', scenario: scenario.id, references,
             selected: config.selected, locale: config.locale,
             observations: records, misses: [...misses], height: Math.max(scenario.kind === 'dashboard' ? 300 : 260,
-                Math.ceil(element.getBoundingClientRect().height + 32),
-                ...[...element.querySelectorAll('.modal, .toast-wrap')].map(element => Math.ceil(element.getBoundingClientRect().height + 32))) };
+                Math.ceil((content?.getBoundingClientRect().height || 0) + 32),
+                ...[...element.querySelectorAll('.modal, .toast-wrap')].map(element => Math.ceil(element.getBoundingClientRect().height + 32)),
+                ...[...element.querySelectorAll('.theme-picker-menu')].map(element => Math.ceil(element.getBoundingClientRect().bottom + 16))) };
         const signature = JSON.stringify(report);
         if (signature !== reportSignature) { reportSignature = signature; send(report); }
     });
@@ -114,7 +136,10 @@ async function configurePreview(event) {
     config = next;
     const translationKey = JSON.stringify([next.locale, next.overrides]);
     if (translations !== translationKey) { observations.clear(); translations = translationKey; }
-    const stateKey = scenario.setup === 'label-saved' ? JSON.stringify([scenario.id, next.locale, next.overrides]) : scenario.id;
+    // Login's session-expired message, like the saved-label toast, is translated
+    // on mount. Recreate it when drafts or locale change to avoid stale wording.
+    const stateKey = scenario.setup === 'label-saved' || scenario.remountOnTranslation
+        ? JSON.stringify([scenario.id, next.locale, next.overrides]) : scenario.id;
     if (configuredState !== stateKey) {
         misses.clear(); observations.clear(); setupStep = 0;
         const profile = capture.scenarios.find(profile => profile.id === scenario.profile);
@@ -133,6 +158,7 @@ async function configurePreview(event) {
     await i18n.changeLanguage(next.locale);
     if (disposed || currentRevision !== revision) return;
     document.documentElement.lang = next.locale;
+    document.body.dataset.previewKind = scenario.kind;
     flushSync(() => root.render(<MemoryRouter key={stateKey} initialEntries={['/dashboard']}>
         <I18nextProvider i18n={i18n}><FixtureView scenario={scenario} /></I18nextProvider>
     </MemoryRouter>));

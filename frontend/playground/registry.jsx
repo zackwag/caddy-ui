@@ -25,14 +25,52 @@ function dashboardKeys(profile) {
 const titles = { 'dashboard-online': 'Dashboard: running Caddy', 'dashboard-empty': 'Dashboard: no HTTP servers',
     'dashboard-stopped': 'Dashboard: stopped Caddy' };
 
+const loginKeys = ['login.serverManager', 'login.username', 'login.password', 'login.signIn'];
+const welcomeKeys = ['themeWelcome.title', 'themeWelcome.hint', 'themeWelcome.dark', 'themeWelcome.light',
+    'themeWelcome.preview', 'themeWelcome.accent', 'themeWelcome.info', 'themeWelcome.highlight',
+    'themeWelcome.danger', 'themeWelcome.warn', 'themeWelcome.language', 'themeWelcome.apply'];
+const controlKeys = ['languagePicker.chooseLanguage', 'themePicker.chooseThemes', 'themePicker.darkTheme',
+    'themePicker.lightTheme', 'themePicker.exportTitle', 'themePicker.exportJson'];
+const notificationKeys = ['notifications.title', 'notifications.provider', 'notifications.triggers',
+    'notifications.upstreamOffline', 'notifications.upstreamOnline', 'notifications.certExpiring',
+    'notifications.updateAvailable', 'notifications.routeOffline', 'notifications.routeOnline',
+    'notifications.routeAlertHint', 'notifications.debounce', 'notifications.cooldownMinutes',
+    'notifications.cooldownHint', 'notifications.testNotification'];
+const notificationProviders = [
+    { provider: 'ntfy', title: 'ntfy', keys: ['notifications.ntfyTopicUrl'] },
+    { provider: 'discord', title: 'Discord', keys: ['notifications.discordWebhookUrl', 'notifications.discordHint'] },
+    { provider: 'slack', title: 'Slack', keys: ['notifications.slackWebhookUrl', 'notifications.slackHint'] },
+    { provider: 'pushover', title: 'Pushover', keys: ['notifications.userKey', 'notifications.userKeyPlaceholder',
+        'notifications.apiToken', 'notifications.apiTokenPlaceholder', 'notifications.pushoverHint'] },
+    { provider: 'custom', title: 'Custom webhook', keys: ['notifications.webhookUrl', 'notifications.httpMethod',
+        'notifications.jsonSchema', 'notifications.jsonSchemaHint'] },
+];
+
 // Register actual component states, not alternative implementations of the UI.
 export const scenarios = [
+    ...notificationProviders.map(({ provider, title, keys }) => ({ id: `notifications-${provider}`,
+        title: `Notification settings: ${title}`, kind: 'notification-settings', profile: 'notifications-default', provider,
+        keys: [...notificationKeys, 'notifications.enable', ...keys] })),
+    { id: 'notifications-enabled', title: 'Notification settings: enabled (local only)', kind: 'notification-settings',
+        profile: 'notifications-default', provider: 'ntfy', enabled: true,
+        keys: [...notificationKeys, 'notifications.disable', 'notifications.ntfyTopicUrl'] },
+    { id: 'login', title: 'Sign-in form', kind: 'login', keys: loginKeys },
+    { id: 'login-session-expired', title: 'Sign-in: expired session', kind: 'login', sessionExpired: true,
+        remountOnTranslation: true, keys: [...loginKeys, 'login.sessionExpired'] },
+    { id: 'theme-welcome-dark', title: 'First-run theme selection: dark palette', kind: 'theme-welcome',
+        keys: [...welcomeKeys, 'themeWelcome.darkTheme'] },
+    { id: 'theme-welcome-light', title: 'First-run theme selection: light palette', kind: 'theme-welcome',
+        setup: 'welcome-light', keys: [...welcomeKeys, 'themeWelcome.lightTheme'] },
+    { id: 'appearance-controls-dark', title: 'Top-bar controls: dark mode', kind: 'appearance-controls',
+        setup: 'theme-menu', mode: 'dark', keys: [...controlKeys, 'themePicker.switchToLight'] },
+    { id: 'appearance-controls-light', title: 'Top-bar controls: light mode', kind: 'appearance-controls',
+        setup: 'theme-menu', mode: 'light', keys: [...controlKeys, 'themePicker.switchToDark'] },
     { id: 'route-delete', title: 'Route deletion', kind: 'route-confirmation',
         keys: ['routes.deleteConfirm', 'common.delete', 'common.cancel'] },
     { id: 'certificate-delete', title: 'Certificate deletion (interpolation)', kind: 'certificate-confirmation',
         keys: ['tls.deleteConfirm', 'common.delete', 'common.cancel'] },
     { id: 'notification-saved', title: 'Notification settings saved', kind: 'notification-toast', keys: ['notifications.saved'] },
-    ...capture.scenarios.map(profile => ({ id: profile.id, title: titles[profile.id], kind: 'dashboard',
+    ...capture.scenarios.filter(profile => Object.hasOwn(titles, profile.id)).map(profile => ({ id: profile.id, title: titles[profile.id], kind: 'dashboard',
         profile: profile.id, keys: dashboardKeys(profile) })),
     { id: 'dashboard-edit-label', title: 'Dashboard: edit server label', kind: 'dashboard', profile: 'dashboard-online',
         setup: 'edit-label', keys: [...dashboardKeys(capture.scenarios[0]), 'dashboard.labelPlaceholder',

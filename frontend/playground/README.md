@@ -32,7 +32,7 @@ Non-English translations must still be human-authored or human-reviewed under CO
 - `PreviewFrame.jsx`: frame communication, DOM references, and visible replay failures.
 - `capture.mjs` / `capture-source.mjs`: real Caddy capture and source provenance.
 - `capture-format.js`: capture validation and strict request/response replay.
-- `captures/dashboard.json`: generated running, empty-server, and stopped-Caddy responses.
+- `captures/dashboard.json`: generated running, empty-server, stopped-Caddy, and default notification configuration responses.
 - `workbench.css`: contributor layout.
 - `vite.config.js`: separate entry, dev server, and output directory.
 
@@ -44,6 +44,43 @@ One state may cover several keys, and shared keys can occur in several states.
 Current states cover the Dashboard with running/stopped Caddy and no HTTP servers, its loading
 view, label-edit dialog, and successful label save; route/certificate confirmations and a
 notification toast remain available. Unregistered keys explicitly show that no fixture exists.
+Registered states cover 96 distinct keys. The onboarding and appearance states add 27:
+
+| Production component | Prepared states | New keys |
+| --- | --- | ---: |
+| `Login` | Normal form and expired session | 5 |
+| `ThemeWelcome` | Dark and light palette selection | 14 |
+| `ThemePicker` and `LanguagePicker` | Open theme menu in dark and light mode | 8 |
+
+These use the actual components, built-in `THEME_LIST`, and installed locale list. They
+need no server responses or new captures. Theme choices and mode toggles stay in frame-local
+state. The workbench's light/dark button still controls the surrounding preview palette.
+Language selectors and the welcome dialog's Apply action do not persist settings; choose the
+preview language in the workbench. The theme export button can download the real built-in
+theme JSON, using the production exporter. Custom-theme branches and native optgroup labels
+are not counted as visible registered keys in this batch.
+
+The sign-in form has no recorded authentication endpoint. Submitting it deliberately fails
+through the existing strict replay guard and shows an unrecorded-request warning; it cannot
+contact a backend or create a session. Authentication loading/failure states need real
+capture support before they can be registered. Session-expired wording is rebuilt on locale
+and draft changes, including translations that the production component caches at mount.
+
+Six notification settings states add another 30 keys: disabled ntfy, Discord, Slack, Pushover,
+custom webhook, and locally enabled ntfy. Each mounts production `Notifications` using the
+same captured `GET /notifications/config` response from a fresh backend's private state.
+The provider selector and enable button prepare their states through the real form handlers;
+these changes stay inside the frame. Triggers, cooldown hints, provider instructions, and
+Pushover placeholders are registered alongside their actual controls. Native option-only
+labels and transient saving/sending messages are not counted as visible coverage.
+
+All captured provider destinations and credentials are empty. The capture neither enables
+notifications nor contacts a notification service. No notification PUT/POST responses are
+recorded, so Save and Test notification fail visibly through the replay guard; they cannot
+persist configuration or send notifications. Returning to another prepared state resets
+local form values from the captured defaults. Translation edits within a state preserve form
+values. The standalone preview still needs no running backend or Docker.
+
 The label dialog is opened through the production edit action, and the saved-label state runs
 the actual Save handler against its recorded response. Navigation stays inside the selected
 component preview; this tool is not a replacement for testing the complete application.
@@ -58,6 +95,9 @@ its own Caddy instance to obtain failure responses. Cleanup runs on success, fai
 SIGINT/SIGTERM. A failed capture keeps the previous JSON file. No existing development instances
 or production configurations are modified. Use Linux CI, a Dev Container, or WSL for capture;
 the ordinary playground preview requires neither Docker nor a backend.
+It also reads untouched notification defaults without writing provider settings or sending
+test messages. The artifact retains its existing `dashboard.json` name and includes a
+`notifications-default` profile alongside the three Dashboard profiles.
 
 From `frontend/`:
 
@@ -80,7 +120,8 @@ or manual dispatch once the workflow is on the default branch. It runs real capt
 not the playground or its browser check. Download the artifact, review the diff, and replace
 `captures/dashboard.json` in a normal commit. It does not push commits or open PRs.
 
-The preview warns if the capture fingerprint differs from its current backend/Dashboard/API
+The preview warns if the capture fingerprint differs from its current backend, Dashboard,
+Notifications, or API
 sources or backend dependencies. Source changes restart the dev server to recompute the
 fingerprint; this reload discards drafts. The production application build is unchanged.
 Unrecorded requests, query variants, write bodies, and unsupported transports fail visibly;
@@ -118,6 +159,11 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run i18n:preview:check
 The browser check starts and stops its own Vite server on an OS-assigned port. It needs no
 backend or Docker and is not invoked by CI. An API connection-error log during its deliberately
 unrecorded-write probe is expected. Existing frontend unit/lint checks still cover the tool.
+It walks all 27 new keys in their actual component DOM, edits and resets each one, checks
+session-message refresh across locales, verifies theme-export interpolation and download,
+and checks that the login card and open theme menu fit their frames without resize feedback.
+It also edits and resets every one of the 30 notification settings keys, checks all five
+provider states, and proves that attempted notification saves/sends do not reach a server.
 
 Confirmation actions remain inert. Their normal keyboard listeners are confined to their frame.
 The light toggle applies an actual production palette to the preview. Prepared action-generated

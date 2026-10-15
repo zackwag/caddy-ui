@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "source": {
-    "commit": "3f566d52b5bd2ed804ec3c0cc34183d11a8bdb9b",
-    "sourceHash": "05f8ffcd5f542c752e44273b36568ed8df7c82283fd889335c2b23362ba464d5",
+    "commit": "aa7801df723374ea92ff173c16f6326c36233bbc",
+    "sourceHash": "4dcfd173b601924b99b29befa8d3a34e6ab8df4447779b87be1c5d37777f02a9",
     "caddyImage": "caddy:2.10.2-alpine"
   },
   "normalization": [
@@ -64,7 +64,7 @@
               "version": "v2.10.2",
               "uptime": "1s",
               "uptimeSeconds": 1,
-              "memAlloc": 4.5,
+              "memAlloc": 4.4,
               "memSys": 17.6,
               "lastReload": "2025-01-01T12:00:00.000Z",
               "lastReloadSuccess": true
@@ -171,9 +171,9 @@
               "version": "v2.10.2",
               "uptime": "1s",
               "uptimeSeconds": 1,
-              "memAlloc": 5.5,
+              "memAlloc": 5.4,
               "memSys": 17.6,
-              "lastReload": "2025-01-01T12:00:00.166Z",
+              "lastReload": "2025-01-01T12:00:00.169Z",
               "lastReloadSuccess": true
             }
           }
@@ -288,6 +288,55 @@
               "error": "fetch failed",
               "code": "REQUEST_FAILED",
               "requestId": "00000000-0000-4000-8000-000000000013"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "notifications-default",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/notifications/config",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000014"
+            },
+            "body": {
+              "enabled": false,
+              "provider": "ntfy",
+              "ntfy": {
+                "url": ""
+              },
+              "discord": {
+                "webhookUrl": ""
+              },
+              "slack": {
+                "webhookUrl": ""
+              },
+              "pushover": {
+                "userKey": "",
+                "apiToken": ""
+              },
+              "custom": {
+                "url": "",
+                "method": "POST"
+              },
+              "triggers": {
+                "upstreamOffline": true,
+                "upstreamOnline": true,
+                "certExpiring": true,
+                "updateAvailable": true,
+                "routeOffline": false,
+                "routeOnline": false
+              },
+              "debounceMinutes": 30
             }
           }
         }

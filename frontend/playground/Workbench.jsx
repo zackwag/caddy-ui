@@ -95,7 +95,7 @@ export default function Workbench({ catalogs, preview }) {
                 </button>
             </header>
             <p className="capture-source">Captured from commit <code>{capture.source.commit.slice(0, 7)}</code> · {capture.source.caddyImage}</p>
-            {capture.source.sourceHash !== __PREVIEW_SOURCE_HASH__ && <p role="alert">Captured data differs from the current backend or Dashboard sources. Refresh it with <code>npm run i18n:preview:capture</code>.</p>}
+            {capture.source.sourceHash !== __PREVIEW_SOURCE_HASH__ && <p role="alert">Captured data differs from the current backend or component sources. Refresh it with <code>npm run i18n:preview:capture</code>.</p>}
             <div className="workspace">
                 <aside>
                     <label htmlFor="key-search">Search keys and translations</label>
