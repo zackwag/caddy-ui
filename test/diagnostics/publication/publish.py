@@ -19,6 +19,13 @@ SOURCE_BRANCH = 'dev/etoe-diagnostics'
 MAX_FILE = 90 * 1024 * 1024  # Below GitHub's 100 MiB Git blob limit.
 MAX_TOTAL = 1024 * 1024 * 1024
 MAX_ENTRIES = 20000
+MAX_RENDERED = 64 * 1024 * 1024
+MAX_PAGE = 256 * 1024
+MAX_INLINE = 48000
+
+
+def mib(size):
+    return f'{size / (1024 * 1024):.2f} MiB'
 
 
 def command(*args, cwd=None):
@@ -94,17 +101,24 @@ def markdown_text(value):
     return str(value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('|', '&#124;').replace('\n', ' ')
 
 
-def browse(directory):
+def browse(directory, budget=None):
     """GitHub-rendered directory pages, bounded previews and inline screenshots."""
+    if budget is None:
+        budget = {'bytes': 0, 'pages': 0}
     for child in sorted(directory.iterdir()):
         if child.is_dir():
-            browse(child)
+            browse(child, budget)
     if (directory / 'README.md').exists():
         return  # Preserve any original README bytes.
     lines = [f'# {markdown_text(directory.name)}', '']
     for name in ('SUMMARY.md', 'evidence.md'):
         if (directory / name).is_file():
-            lines.extend([(directory / name).read_text(), ''])
+            with (directory / name).open('r', errors='replace') as source:
+                excerpt = source.read(MAX_INLINE)
+                truncated = bool(source.read(1))
+            lines.extend([excerpt, ''])
+            if truncated:
+                lines.extend([f'[Read the complete original report]({name}) (inline excerpt truncated).', ''])
     if (directory / 'EVIDENCE.md').is_file():
         lines.extend(['[Scenario evidence index](EVIDENCE.md)', ''])
     lines.extend(['## Files', ''])
@@ -121,7 +135,23 @@ def browse(directory):
             code = '\n'.join('    ' + line for line in excerpt.splitlines())
             lines.extend(['', f'<details><summary>{markdown_text(child.name)} — preview (up to 12,000 characters)</summary>',
                           '', code, '', '</details>', ''])
-    (directory / 'README.md').write_text('\n'.join(lines) + '\n')
+    page = '\n'.join(lines) + '\n'
+    # Huge directory listings or reports must not create Git-incompatible READMEs.
+    # Raw evidence remains complete and browsable through GitHub's directory view.
+    encoded = page.encode('utf-8')
+    if len(encoded) > MAX_PAGE:
+        page = (f'# {markdown_text(directory.name)}\n\n'
+                'This directory has too much content for an inline preview. '
+                'Use the GitHub file list above this README to browse all original files.\n')
+        for name in ('SUMMARY.md', 'evidence.md', 'EVIDENCE.md', 'final.png'):
+            if (directory / name).is_file():
+                page += f'\n[{name}]({name})\n'
+        encoded = page.encode('utf-8')
+    budget['bytes'] += len(encoded)
+    budget['pages'] += 1
+    if budget['bytes'] > MAX_RENDERED:
+        raise ValueError(f'Generated pages exceed {mib(MAX_RENDERED)}; original evidence is unaffected')
+    (directory / 'README.md').write_bytes(encoded)
 
 
 def prepare(archive, destination, provenance):
@@ -138,7 +168,8 @@ def prepare(archive, destination, provenance):
              for path in sorted(artifact.rglob('*')) if path.is_file()}
     (destination / 'files.sha256.json').write_text(json.dumps(files, indent=2) + '\n')
     (destination / 'provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
-    browse(artifact)
+    budget = {'bytes': 0, 'pages': 0}
+    browse(artifact, budget)
     (destination / 'README.md').write_text(
         f'# E2E diagnostics — run {provenance["run"]}, attempt {provenance["attempt"]}\n\n'
         f'[Read the report and browse evidence](artifact/) · [Source workflow run]({provenance["runUrl"]})\n\n'
@@ -150,9 +181,19 @@ def prepare(archive, destination, provenance):
         'Original files remain available, including trace ZIPs for Playwright. '
         'These are GitHub pages for reading evidence, not an interactive trace viewer.\n\n'
         '[Provenance](provenance.json) · [SHA-256 file manifest](files.sha256.json)\n')
-    sizes = [path.stat().st_size for path in destination.rglob('*') if path.is_file()]
-    if max(sizes) > MAX_FILE or sum(sizes) > MAX_TOTAL:
-        raise ValueError('Rendered publication exceeds size limits; use smaller experiments')
+    evidence_bytes = sum((artifact / name).stat().st_size for name in files)
+    original_paths = {artifact / name for name in files}
+    generated_bytes = sum(path.stat().st_size for path in destination.rglob('*')
+                          if path.is_file() and path not in original_paths)
+    if generated_bytes > MAX_RENDERED:
+        raise ValueError(f'Generated pages and manifests use {mib(generated_bytes)}, exceeding {mib(MAX_RENDERED)}')
+    print(f'Publication size: original/extracted evidence {mib(evidence_bytes)} / {mib(MAX_TOTAL)}; '
+          f'generated pages/manifests {mib(generated_bytes)} / {mib(MAX_RENDERED)}; '
+          f'{budget["pages"]} directory pages')
+    for path in destination.rglob('*'):
+        if path.is_file() and path.stat().st_size > MAX_FILE:
+            raise ValueError(f'Publication file {path.relative_to(destination)} uses {mib(path.stat().st_size)}, '
+                             f'exceeding the Git file limit {mib(MAX_FILE)}')
 
 
 def open_results(repository, directory, branch=RESULTS_BRANCH):

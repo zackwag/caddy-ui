@@ -91,6 +91,39 @@ class PublicationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             publish.extract_archive(archive, self.root / 'depth', depth=4)
 
+    def test_evidence_at_extraction_limit_has_separate_room_for_readable_pages(self):
+        archive = self.archive(self.experiment_entries())
+        with zipfile.ZipFile(archive) as bundle:
+            evidence_size = sum(entry.file_size for entry in bundle.infolist())
+        destination = self.root / 'prepared'
+        # Reproduce the failed run: extraction fits, but any added page exceeds
+        # the old shared ceiling. No large allocation is needed to test it.
+        with patch.object(publish, 'MAX_TOTAL', evidence_size):
+            publish.prepare(archive, destination, self.provenance)
+        self.assertGreater(sum(path.stat().st_size for path in destination.rglob('*') if path.is_file()), evidence_size)
+        self.assertEqual((destination / 'artifact/001-normal/case/backend-log.json').read_text(), '{"message": "unchanged"}\n')
+        with patch.object(publish, 'MAX_RENDERED', 1), self.assertRaisesRegex(ValueError, 'Generated pages exceed'):
+            publish.prepare(archive, self.root / 'too-many-pages', self.provenance)
+
+    def test_generated_readmes_are_bounded_without_truncating_original_reports(self):
+        original = '# Report\n\n' + ('Important observation.\n' * 10000)
+        entries = [(name, original if name.endswith('evidence.md') else value)
+                   for name, value in self.experiment_entries()]
+        destination = self.root / 'prepared'
+        publish.prepare(self.archive(entries), destination, self.provenance)
+        case = destination / 'artifact/001-normal/case'
+        self.assertEqual((case / 'evidence.md').read_text(), original)
+        self.assertLess((case / 'README.md').stat().st_size, publish.MAX_PAGE)
+        self.assertIn('inline excerpt truncated', (case / 'README.md').read_text())
+        oversized = self.root / 'oversized'
+        oversized.mkdir()
+        (oversized / 'file.json').write_text('a' * 1000)
+        with patch.object(publish, 'MAX_PAGE', 400):
+            publish.browse(oversized)
+        self.assertLess((oversized / 'README.md').stat().st_size, 400)
+        self.assertIn('too much content', (oversized / 'README.md').read_text())
+        self.assertEqual((oversized / 'file.json').read_text(), 'a' * 1000)
+
     def test_identity_mismatch_stops_publication(self):
         archive = self.archive(self.experiment_entries())
         for key in ('run', 'attempt', 'sourceCommit'):
