@@ -132,11 +132,15 @@ class PublicationTest(unittest.TestCase):
 
     def test_only_completed_same_repository_manual_diagnostic_runs_are_accepted(self):
         run = {'id': 123, 'run_attempt': 2, 'head_repository': {'full_name': 'owner/caddy-ui'},
-               'head_branch': publish.SOURCE_BRANCH, 'event': 'workflow_dispatch',
+               'head_branch': 'dev/etoe-diagnostics', 'event': 'workflow_dispatch',
                'path': '.github/workflows/test.yml', 'status': 'completed'}
-        publish.verify_run(run, 'owner/caddy-ui', '123', '2')
+        for branch in ('dev/etoe-diagnostics', 'fix/e-to-e'):
+            with self.subTest(accepted_branch=branch):
+                publish.verify_run({**run, 'head_branch': branch}, 'owner/caddy-ui', '123', '2')
         for key, value in [('id', 124), ('run_attempt', 1), ('head_repository', {'full_name': 'other/caddy-ui'}),
-                           ('head_branch', 'main'), ('event', 'pull_request'), ('path', 'other.yml'), ('status', 'in_progress')]:
+                           ('head_branch', 'main'), ('head_branch', 'fix/e-to-e-extra'),
+                           ('head_branch', 'dev/etoe-diagnostics-extra'), ('head_branch', 'refs/heads/fix/e-to-e'),
+                           ('event', 'pull_request'), ('path', 'other.yml'), ('status', 'in_progress')]:
             with self.subTest(key=key), self.assertRaises(ValueError):
                 publish.verify_run({**run, key: value}, 'owner/caddy-ui', '123', '2')
         for value in ('', '0', '-1', '1/../2', '1; echo bad', '123\n'):
@@ -176,7 +180,7 @@ class PublicationTest(unittest.TestCase):
         subprocess.run(['git', 'init', '--bare', str(bare)], check=True, capture_output=True)
         archive = self.archive(self.experiment_entries())
         run = {'id': 123, 'run_attempt': 2, 'head_repository': {'full_name': 'owner/caddy-ui'},
-               'head_branch': publish.SOURCE_BRANCH, 'event': 'workflow_dispatch',
+               'head_branch': 'fix/e-to-e', 'event': 'workflow_dispatch',
                'path': '.github/workflows/test.yml', 'status': 'completed', 'head_sha': 'a' * 40, 'conclusion': 'failure'}
         artifact = {'id': 456, 'name': 'etoe-diagnostics-123-2', 'expired': False,
                     'size_in_bytes': archive.stat().st_size, 'digest': f'sha256:{publish.digest(archive)}'}

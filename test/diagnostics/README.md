@@ -2,17 +2,18 @@
 
 This manual experiment repeats the checked-out revision's application E2E scenarios with opt-in instrumentation. The collector does not apply fixes or change required PR checks. Candidate branches can change the fixtures/scenarios being measured, so compare source commits and hashes before interpreting results as a before/after comparison. The original pre-fix evidence remains pinned to its source revision.
 
-See [the E2E fix candidates](FIXES.md) for the independent fixes and their local validation. The historical diagnostic workflow dispatcher still targets `dev/etoe-diagnostics`; use the local CLI below when measuring `fix/e-to-e`. No workflow routing or publication permission changes are included in the fix branch.
+See [the E2E fix candidates](FIXES.md) for the independent fixes and their local validation. The dispatcher on this branch supports both `dev/etoe-diagnostics` (baseline) and `fix/e-to-e` (candidate). The historical baseline branch is unchanged.
 
 ## Run on a fork
 
-The existing **Test** workflow on the default branch is the dispatch entry point. Open **Actions → Test → Run workflow**, select **dev/etoe-diagnostics**, and run it. On this branch, manual dispatch calls the diagnostic collector; the ordinary test jobs are skipped for this event only. PR checks and dispatches on other branches retain their usual behavior.
+The existing **Test** workflow on the default branch is the dispatch entry point. Open **Actions → Test → Run workflow**, select **fix/e-to-e** for the candidate (or **dev/etoe-diagnostics** for the baseline), and run it with operation **collect**. Manual dispatch on either allowed branch calls the diagnostic collector; the ordinary test jobs are skipped for this event only. PR checks and dispatches on other branches retain their usual behavior. Repeated experiments have independent concurrency groups and do not cancel each other.
 
 The default experiment uses three trials per profile, seed `12345`, and the complete suite for the normal profile. GitHub may show the default branch's older input form; use the CLI to set the new inputs explicitly:
 
 ```bash
 gh workflow run test.yml --repo YOUR_FORK/caddy-ui \
-  --ref dev/etoe-diagnostics \
+  --ref fix/e-to-e \
+  -f diagnostic_operation=collect \
   -f diagnostic_trials=5 \
   -f diagnostic_seed=12345 \
   -f diagnostic_profiles=all \
@@ -20,6 +21,8 @@ gh workflow run test.yml --repo YOUR_FORK/caddy-ui \
 ```
 
 Choose `recovery` instead of `suite` for a smaller experiment focused on the state-notification scenario. Trial counts are limited to 1–20 per profile per dispatch. Start small, then accumulate several independent workflow runs for statistical comparisons.
+
+Use `--ref dev/etoe-diagnostics` instead for a baseline collection. Preserve the exact source commit and runtime versions from each artifact before combining results.
 
 Diagnostic dispatches use per-run concurrency groups, so starting another experiment does not cancel the previous one.
 
@@ -31,7 +34,7 @@ After a diagnostic run completes, publish its artifact through a **separate manu
 
 ```bash
 gh workflow run test.yml --repo YOUR_FORK/caddy-ui \
-  --ref dev/etoe-diagnostics \
+  --ref fix/e-to-e \
   -f diagnostic_operation=publish \
   -f diagnostic_run=RUN_ID \
   -f diagnostic_attempt=1
@@ -39,7 +42,7 @@ gh workflow run test.yml --repo YOUR_FORK/caddy-ui \
 
 Use the numeric run ID from the **collection** URL (`/actions/runs/RUN_ID`), not the publisher's run. If you reran that collection, select its source attempt explicitly. The Actions form can also expose these inputs once the dispatcher version is registered on the default branch; the CLI works with this branch's inputs now.
 
-The dispatcher calls `publish-etoe-diagnostics.yml`. Only that publication job receives `actions: read` and `contents: write`; the collector retains read-only repository access. It accepts only completed, manually dispatched **Test** runs from this repository's `dev/etoe-diagnostics` branch, selects the exact `etoe-diagnostics-RUN_ID-ATTEMPT` artifact, checks the download digest when GitHub provides one, and matches the experiment's run/attempt/commit to its source run.
+The dispatcher calls `publish-etoe-diagnostics.yml`. Only that publication job receives `actions: read` and `contents: write`; the collector retains read-only repository access. The publisher on `fix/e-to-e` accepts only completed, manually dispatched **Test** runs from this repository's exact `dev/etoe-diagnostics` or `fix/e-to-e` branch. It selects the exact `etoe-diagnostics-RUN_ID-ATTEMPT` artifact, checks the download digest when GitHub provides one, and matches the experiment's run/attempt/commit to its source run. Select `fix/e-to-e` for publication of either baseline or candidate runs; the unchanged publisher on the historical baseline branch only accepts baseline runs.
 
 The first publication creates the independent, results-only branch **`dev/etoe-diagnostic-results`**. It does not need merging into `main`. Results accumulate under:
 

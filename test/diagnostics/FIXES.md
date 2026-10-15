@@ -115,6 +115,14 @@ with matching versions and balanced baseline/candidate order. Zero failures in
 these small local samples is not proof of a zero failure probability. Keep clean
 passes, recovered bootstrap interruptions and failed assertions distinguishable.
 
-The historical dispatcher/publication workflow remains restricted to
-`dev/etoe-diagnostics`. These changes do not alter CI gating or allow additional
-branches to publish artifacts automatically.
+The dispatcher on `fix/e-to-e` accepts manual collection/publication from the
+exact baseline and candidate branches: `dev/etoe-diagnostics` and `fix/e-to-e`.
+Select **Actions → Test → Run workflow → fix/e-to-e**, choose **collect**, then
+choose **publish** in a separate dispatch with the completed collection's run ID
+and attempt. Publication from this updated branch accepts either source branch;
+the historical baseline branch and its publisher remain unchanged.
+
+This routing change does not alter required PR checks or trigger publication
+automatically. Collector access stays read-only; only the separate publisher
+receives write access. See the [diagnostic workflow instructions](README.md) for
+copy/paste CLI commands and provenance checks.

@@ -1,4 +1,4 @@
-name: E2E pre-fix diagnostics
+name: E2E diagnostic experiments
 
 on:
   workflow_call:
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   collect:
-    name: Collect pre-fix evidence
+    name: Collect diagnostic evidence
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -58,7 +58,7 @@ jobs:
           npm run lint:etoe-diagnostics
           npm run test:etoe-diagnostics:integration
 
-      - name: Collect randomized pre-fix trials
+      - name: Collect randomized diagnostic trials
         run: >-
           npm run diagnostics:etoe --
           --trials "$DIAGNOSTIC_TRIALS"

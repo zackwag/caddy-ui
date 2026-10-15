@@ -15,7 +15,7 @@ import zipfile
 
 
 RESULTS_BRANCH = 'dev/etoe-diagnostic-results'
-SOURCE_BRANCH = 'dev/etoe-diagnostics'
+SOURCE_BRANCHES = frozenset(('dev/etoe-diagnostics', 'fix/e-to-e'))
 MAX_FILE = 90 * 1024 * 1024  # Below GitHub's 100 MiB Git blob limit.
 MAX_TOTAL = 1024 * 1024 * 1024
 MAX_ENTRIES = 20000
@@ -46,7 +46,7 @@ def numeric(value):
 def verify_run(run, repository, run_id, attempt):
     if (str(run['id']) != run_id or str(run['run_attempt']) != attempt
             or run['head_repository']['full_name'] != repository
-            or run['head_branch'] != SOURCE_BRANCH
+            or run['head_branch'] not in SOURCE_BRANCHES
             or run['event'] != 'workflow_dispatch'
             or run['path'] != '.github/workflows/test.yml'
             or run['status'] != 'completed'):

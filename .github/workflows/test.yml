@@ -19,7 +19,7 @@ on:
         type: string
         default: '1'
       diagnostic_trials:
-        description: Trials per profile on dev/etoe-diagnostics (1–20)
+        description: Trials per profile on a diagnostic branch (1–20)
         type: choice
         options: ['1', '3', '5', '10', '20']
         default: '3'
@@ -39,14 +39,14 @@ on:
         default: suite
 
 concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/etoe-diagnostics' && format('etoe-diagnostics-{0}-{1}', github.run_id, github.run_attempt) || format('test-{0}', github.ref) }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/dev/etoe-diagnostics' }}
+  group: ${{ github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/dev/etoe-diagnostics","refs/heads/fix/e-to-e"]'), github.ref) && format('etoe-diagnostics-{0}-{1}', github.run_id, github.run_attempt) || format('test-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || !contains(fromJSON('["refs/heads/dev/etoe-diagnostics","refs/heads/fix/e-to-e"]'), github.ref) }}
 
 permissions: {}
 
 jobs:
   test:
-    if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/dev/etoe-diagnostics'
+    if: github.event_name != 'workflow_dispatch' || !contains(fromJSON('["refs/heads/dev/etoe-diagnostics","refs/heads/fix/e-to-e"]'), github.ref)
     runs-on: ubuntu-latest
     name: Test (${{ matrix.project }})
     strategy:
@@ -84,7 +84,7 @@ jobs:
         run: npm test
 
   integration:
-    if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/dev/etoe-diagnostics'
+    if: github.event_name != 'workflow_dispatch' || !contains(fromJSON('["refs/heads/dev/etoe-diagnostics","refs/heads/fix/e-to-e"]'), github.ref)
     runs-on: ubuntu-latest
     name: Real Caddy integration
     timeout-minutes: 15
@@ -124,7 +124,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs: [test, integration]
-    if: always() && (github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/dev/etoe-diagnostics')
+    if: always() && (github.event_name != 'workflow_dispatch' || !contains(fromJSON('["refs/heads/dev/etoe-diagnostics","refs/heads/fix/e-to-e"]'), github.ref))
     steps:
       - name: Verify test matrix
         run: |
@@ -138,7 +138,7 @@ jobs:
           fi
 
   lint:
-    if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/dev/etoe-diagnostics'
+    if: github.event_name != 'workflow_dispatch' || !contains(fromJSON('["refs/heads/dev/etoe-diagnostics","refs/heads/fix/e-to-e"]'), github.ref)
     runs-on: ubuntu-latest
     name: Lint (${{ matrix.project }})
     strategy:
@@ -168,7 +168,7 @@ jobs:
         run: ${{ matrix.project == 'frontend' && 'npm run lint -- --max-warnings=0' || 'npm run lint' }}
 
   etoe-diagnostics:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/etoe-diagnostics' && inputs.diagnostic_operation != 'publish'
+    if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/dev/etoe-diagnostics","refs/heads/fix/e-to-e"]'), github.ref) && inputs.diagnostic_operation != 'publish'
     permissions:
       contents: read
     uses: ./.github/workflows/etoe-diagnostics.yml
@@ -179,7 +179,7 @@ jobs:
       scope: ${{ inputs.diagnostic_scope || 'suite' }}
 
   publish-diagnostics:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/etoe-diagnostics' && inputs.diagnostic_operation == 'publish'
+    if: github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/dev/etoe-diagnostics","refs/heads/fix/e-to-e"]'), github.ref) && inputs.diagnostic_operation == 'publish'
     permissions:
       actions: read
       contents: write
