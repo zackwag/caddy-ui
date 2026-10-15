@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { PixelIcon, UtilityIcon } from "./Icons.jsx";
+import { SymbolIcon, UtilityIcon } from "./Icons.jsx";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
@@ -117,7 +117,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         className={`nav-item ${currentPath === n.path ? "active" : ""}`}
                         onClick={() => go(n.path)}
                     >
-                        <span className="nav-icon"><PixelIcon name={n.icon} /></span>
+                        <span className="nav-icon"><SymbolIcon name={n.icon} /></span>
                         {t(n.labelKey)}
                     </div>
                 ))}
@@ -125,7 +125,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
             <div className="nav-footer">
                 {authEnabled && (
                     <button type="button" className="nav-item sidebar-signout" onClick={onUnauth}>
-                        <span className="nav-icon"><PixelIcon name="logout" /></span>
+                        <span className="nav-icon"><SymbolIcon name="logout" /></span>
                         {t("sidebar.signOut")}
                     </button>
                 )}
