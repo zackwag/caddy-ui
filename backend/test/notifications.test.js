@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { promises as dns } from 'dns';
+import { sendNtfy } from '../src/ntfyTransport.js';
+
+vi.mock('../src/ntfyTransport.js', () => ({ sendNtfy: vi.fn() }));
 
 vi.mock('dns', () => ({
     promises: {
@@ -54,43 +58,43 @@ describe('sendNotification', () => {
         ).rejects.toThrow('Custom webhook URL not configured');
     });
 
-    it('sends ntfy notification on success', async () => {
+    it('delegates ntfy delivery to the address-pinned sender', async () => {
         const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
+        sendNtfy.mockResolvedValueOnce(undefined);
         await sendNotification(
             { provider: 'ntfy', ntfy: { url: 'https://ntfy.example.com/topic' } },
             { title: 'Alert', message: 'Something happened', priority: 'high' }
         );
-
-        expect(mockFetch).toHaveBeenCalledWith('https://ntfy.example.com/topic', expect.objectContaining({
-            method: 'POST',
-            body: 'Something happened',
-        }));
-        const headers = mockFetch.mock.calls[0][1].headers;
-        expect(headers.Title).toBe('Alert');
-        expect(headers.Priority).toBe('high');
-
-        vi.unstubAllGlobals();
+        expect(sendNtfy).toHaveBeenLastCalledWith('https://ntfy.example.com/topic', {
+            title: 'Alert', message: 'Something happened', priority: 'high',
+        });
     });
 
-    it('throws on ntfy failure response', async () => {
+    it('propagates ntfy delivery failures', async () => {
         const { sendNotification } = await loadNotifications();
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            ok: false,
-            status: 500,
-            text: () => Promise.resolve('Internal error'),
-        }));
+        sendNtfy.mockRejectedValueOnce(new Error('ntfy responded 500'));
+        await expect(sendNotification(
+            { provider: 'ntfy', ntfy: { url: 'https://ntfy.example.com/topic' } },
+            { title: 'Test', message: 'msg', priority: 'default' }
+        )).rejects.toThrow('ntfy responded 500');
+    });
 
-        await expect(
-            sendNotification(
-                { provider: 'ntfy', ntfy: { url: 'https://ntfy.example.com/topic' } },
-                { title: 'Test', message: 'msg', priority: 'default' }
-            )
-        ).rejects.toThrow('ntfy responded 500');
-
-        vi.unstubAllGlobals();
+    it.each([
+        ['discord', { discord: { webhookUrl: 'http://ntfy.internal/topic' } }],
+        ['slack', { slack: { webhookUrl: 'http://ntfy.internal/topic' } }],
+        ['custom', { custom: { url: 'http://ntfy.internal/topic' } }],
+    ])('does not grant the ntfy exception to %s', async (provider, settings) => {
+        vi.stubEnv('CADDY_UI_NTFY_ALLOWED_INTERNAL_URLS', '["http://ntfy.internal/topic"]');
+        vi.stubEnv('CADDY_UI_NTFY_ALLOWED_INTERNAL_NETWORKS', '["10.0.0.0/8"]');
+        dns.lookup.mockResolvedValueOnce([{ address: '10.0.0.1', family: 4 }]);
+        try {
+            const { sendNotification } = await loadNotifications();
+            await expect(sendNotification({ provider, ...settings }, { title: 'Alert', message: 'message' }))
+                .rejects.toThrow('internal/private');
+        } finally {
+            vi.unstubAllEnvs();
+            dns.lookup.mockReset().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+        }
     });
 
     it('sends discord notification with correct embed structure', async () => {

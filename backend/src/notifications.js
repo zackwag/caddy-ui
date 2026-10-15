@@ -1,4 +1,5 @@
 import { isIP } from 'net';
+import { sendNtfy } from './ntfyTransport.js';
 import { X509Certificate } from 'crypto';
 import { join } from 'path';
 import { listContainerDir, readContainerFile } from './containerFs.js';
@@ -311,19 +312,7 @@ export async function sendNotification(cfg, { title, message, priority }) {
 
     if (provider === 'ntfy') {
         if (!cfg.ntfy?.url) throw new Error('ntfy URL not configured');
-        const ntfyUrl = await sanitizeWebhookUrl(cfg.ntfy.url);
-        const res = await fetch(ntfyUrl, {
-            method: 'POST',
-            headers: {
-                'Title': title,
-                'Priority': priority || 'default',
-            },
-            body: message,
-        });
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`ntfy responded ${res.status}: ${text}`);
-        }
+        await sendNtfy(cfg.ntfy.url, { title, message, priority });
         logger.info('Notification sent via ntfy', { title });
 
     } else if (provider === 'discord') {

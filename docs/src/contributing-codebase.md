@@ -41,6 +41,15 @@ cd backend
 npm test
 ```
 
+The backend's ntfy HTTPS test requires **OpenSSL 1.1.1 or newer** on `PATH`
+(`openssl version`), available on the Ubuntu CI runners. It generates a fresh,
+one-day self-signed certificate and key in a private OS temporary directory for
+each run and removes them after the test, including failed assertions. The key
+is restricted to its owner; neither PEM is written to the checkout or printed to
+logs. Certificate trust is scoped to a child process through
+`NODE_EXTRA_CA_CERTS`; the system trust store is unchanged. Do not commit TLS
+keys or certificates as test fixtures or add scanner exceptions for them.
+
 CI runs this, plus `npm run lint` in both `backend/` and `frontend/`, on every PR against `main` (`.github/workflows/test.yml`). This branch predates the localization foundation's frontend tests. After that foundation is merged, run `npm test` in `frontend/` as well; it also validates the locale catalog contract. Verify UI changes by running the app (see below).
 
 ## Verifying UI changes
