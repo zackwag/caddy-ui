@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.0](https://github.com/zackwag/caddy-ui/compare/v2.24.0...v2.25.0) (2026-10-15)
+
+
+### Features
+
+* **docs:** generate screenshots with Playwright during docs build ([#251](https://github.com/zackwag/caddy-ui/issues/251)) ([4b64049](https://github.com/zackwag/caddy-ui/commit/4b64049cae873a6d208335631121123c13a9ac72))
+
 ## [2.24.0](https://github.com/zackwag/caddy-ui/compare/v2.23.0...v2.24.0) (2026-10-15)
 
 
