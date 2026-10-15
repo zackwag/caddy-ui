@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.23.0](https://github.com/zackwag/caddy-ui/compare/v2.22.0...v2.23.0) (2026-10-15)
+
+
+### Features
+
+* **i18n:** add reviewed Arabic catalog and RTL interface ([#247](https://github.com/zackwag/caddy-ui/issues/247)) ([8ce3300](https://github.com/zackwag/caddy-ui/commit/8ce3300e0e1e4b5c220641897d2280a272ced8f8))
+
 ## [2.22.0](https://github.com/zackwag/caddy-ui/compare/v2.21.6...v2.22.0) (2026-10-15)
 
 
