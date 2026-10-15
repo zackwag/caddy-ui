@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { THEME_LIST } from '../src/styles.js';
 import en from '../src/i18n/locales/en.js';
-import { flattenCatalog } from './model.js';
+import { flattenCatalog, readValue } from './model.js';
 
 // Optional development check: no backend, Docker, or CI browser job is needed.
 const vite = await createServer({ configFile: fileURLToPath(new URL('vite.config.js', import.meta.url)),
@@ -103,6 +103,109 @@ try {
     await page.getByRole('button', { name: 'Dark previews' }).click();
     await page.getByRole('alert').filter({ hasText: /Captured data differs/ }).waitFor();
     await go('common.loading', 'dashboard-loading');
+    // Walk every added registration in the real production DOM. No replacement
+    // API contract is needed for prop-driven onboarding and appearance controls.
+    const additions = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        return scenarios.filter(scenario => ['login', 'theme-welcome', 'appearance-controls'].includes(scenario.kind));
+    });
+    assert.equal(new Set(additions.flatMap(scenario => scenario.keys)).size, 27);
+    for (const scenario of additions) {
+        await go(scenario.keys[0], scenario.id);
+        for (const key of scenario.keys) {
+            await page.getByRole('navigation', { name: 'Translation keys' }).getByRole('button', { name: key, exact: true }).click();
+            const reference = frame().locator(`[data-preview-key="${key}"]`).first();
+            await reference.waitFor();
+            await editor.fill(`${readValue(en, key)} [preview]`);
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return [...elements].some(element => [element.textContent, ...['title', 'aria-label', 'placeholder'].map(name => element.getAttribute(name))]
+                    .some(value => value?.includes('[preview]')));
+            }, key);
+            await page.getByRole('button', { name: 'Reset this key' }).click();
+            await reference.waitFor();
+        }
+    }
+    await go('login.sessionExpired', 'login-session-expired');
+    await editor.fill('Session expired preview');
+    await frame().locator('.login-error').filter({ hasText: 'Session expired preview' }).waitFor();
+    await page.getByRole('combobox').first().selectOption('de');
+    await frame().locator('.login-error').filter({ hasText: en.login.sessionExpired }).waitFor();
+    await page.getByRole('combobox').first().selectOption('en');
+    await frame().locator('.login-error').filter({ hasText: 'Session expired preview' }).waitFor();
+    const before = await page.locator('iframe').boundingBox();
+    // Let multiple rendering/resize cycles pass: the viewport-height login shell
+    // must not create a feedback loop that keeps enlarging its own iframe.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const after = await page.locator('iframe').boundingBox();
+    assert.equal(after.height, before.height);
+    const card = await frame().locator('.login-card').boundingBox();
+    assert.ok(card.y >= after.y && card.y + card.height <= after.y + after.height + 1);
+
+    await go('themePicker.exportTitle', 'appearance-controls-dark');
+    await page.locator('.preview-context summary').click();
+    assert.match(await page.locator('.preview-context pre').innerText(), /"label": "VT2026"/);
+    assert.match(await page.locator('.preview-context pre').innerText(), /"mode": "dark"/);
+    await frame().locator('.theme-picker-menu select').first().selectOption('dracula');
+    await page.waitForFunction(() => document.querySelector('iframe').contentDocument.querySelector('.theme-picker-export button').title.includes('Dracula'));
+    const menu = await frame().locator('.theme-picker-menu').boundingBox();
+    const preview = await page.locator('iframe').boundingBox();
+    assert.ok(menu.y >= preview.y && menu.y + menu.height <= preview.y + preview.height + 1);
+    const download = page.waitForEvent('download');
+    await frame().locator('.theme-picker-export button').click();
+    assert.equal((await download).suggestedFilename(), 'dracula.json');
+
+    await go('login.signIn', 'login');
+    await frame().locator('.field input').first().fill('preview-user');
+    await frame().locator('.field input').last().fill('preview-password');
+    await frame().getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: POST /api/auth/sessions' }).waitFor();
+    await frame().locator('.login-error').filter({ hasText: en.login.serverUnreachable }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
+
+    const notificationStates = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        return scenarios.filter(scenario => scenario.kind === 'notification-settings');
+    });
+    const notificationKeys = new Set();
+    for (const scenario of notificationStates) {
+        await go(scenario.keys[0], scenario.id);
+        await page.waitForFunction(({ provider, enabled }) => {
+            const doc = document.querySelector('iframe').contentDocument;
+            return doc.querySelector('select.config-select')?.value === provider &&
+                doc.querySelector('.notifications-enabled-btn')?.classList.contains('btn-danger') === Boolean(enabled);
+        }, scenario);
+        for (const key of scenario.keys.filter(key => !notificationKeys.has(key))) {
+            await page.getByRole('navigation', { name: 'Translation keys' }).getByRole('button', { name: key, exact: true }).click();
+            await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
+            await editor.fill(`${readValue(en, key)} [preview]`);
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return [...elements].some(element => [element.textContent, element.getAttribute('placeholder')]
+                    .some(value => value?.includes('[preview]')));
+            }, key);
+            await page.getByRole('button', { name: 'Reset this key' }).click();
+            notificationKeys.add(key);
+        }
+    }
+    assert.equal(notificationKeys.size, 30);
+    await go('notifications.jsonSchemaHint', 'notifications-custom');
+    await frame().locator('input[type="url"]').fill('https://preview.invalid/notify');
+    await page.getByRole('navigation', { name: 'Translation keys' }).getByRole('button', { name: 'notifications.httpMethod', exact: true }).click();
+    assert.equal(await frame().locator('input[type="url"]').inputValue(), 'https://preview.invalid/notify');
+    await frame().locator('select.config-select').last().selectOption('PUT');
+    const lastField = await frame().locator('input[type="number"]').boundingBox();
+    const notificationFrame = await page.locator('iframe').boundingBox();
+    assert.ok(lastField.y + lastField.height <= notificationFrame.y + notificationFrame.height + 1);
+    await frame().getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: PUT /api/notifications/config' }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
+    await go('notifications.disable', 'notifications-enabled');
+    await frame().getByRole('button', { name: 'Test notification', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: POST /api/notifications/test' }).waitFor();
+    await go('notifications.enable', 'notifications-ntfy');
+    assert.equal(await frame().getByRole('button', { name: 'Test notification', exact: true }).isDisabled(), true);
+
     for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 600 }]) {
         await page.setViewportSize(viewport);
         await go('tls.deleteConfirm', 'certificate-delete');
@@ -138,7 +241,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, clipboard, reload, keyboard/wheel pane scrolling and mobile reachability.');
+    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

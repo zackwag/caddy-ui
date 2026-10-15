@@ -3,6 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '../src/components/Confirm.jsx';
 import { Toasts, useToast } from '../src/components/Toasts.jsx';
 import Dashboard from '../src/components/Dashboard.jsx';
+import Login from '../src/components/Login.jsx';
+import ThemeWelcome from '../src/components/ThemeWelcome.jsx';
+import ThemePicker from '../src/components/ThemePicker.jsx';
+import LanguagePicker from '../src/components/LanguagePicker.jsx';
+import Notifications from '../src/components/Notifications.jsx';
+import { availableLocales } from '../src/i18n/index.js';
+import { THEME_LIST } from '../src/styles.js';
 import { apiFetch } from '../src/utils/api.js';
 import { localizeError } from '../src/utils/errorMessages.js';
 
@@ -58,8 +65,35 @@ function DashboardFixture({ loading }) {
     return <><Dashboard status={loading ? null : status} toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
 }
 
+function ThemeWelcomeFixture() {
+    const { i18n } = useTranslation();
+    return <ThemeWelcome themes={THEME_LIST} languages={availableLocales} language={i18n.language}
+        onLanguageChange={noop} onComplete={noop} />;
+}
+
+function AppearanceControlsFixture({ initialMode }) {
+    const { i18n } = useTranslation();
+    const [mode, setMode] = useState(initialMode);
+    const [dark, setDark] = useState('vt2026');
+    const [light, setLight] = useState('coarse-everywhere');
+    return <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
+        <LanguagePicker languages={availableLocales} language={i18n.language} onLanguageChange={noop} />
+        <ThemePicker themes={THEME_LIST} mode={mode} onToggleMode={() => setMode(value => value === 'dark' ? 'light' : 'dark')}
+            darkPalette={dark} lightPalette={light} onDarkPaletteChange={setDark} onLightPaletteChange={setLight} />
+    </div>;
+}
+
+function NotificationSettingsFixture() {
+    const toast = useToast();
+    return <><Notifications toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
+}
+
 export default function FixtureView({ scenario }) {
     switch (scenario.kind) {
+        case 'login': return <Login onLogin={noop} sessionExpired={scenario.sessionExpired} />;
+        case 'theme-welcome': return <ThemeWelcomeFixture />;
+        case 'appearance-controls': return <AppearanceControlsFixture initialMode={scenario.mode} />;
+        case 'notification-settings': return <NotificationSettingsFixture />;
         case 'route-confirmation': return <RouteConfirmation />;
         case 'certificate-confirmation': return <CertificateConfirmation />;
         case 'notification-toast': return <NotificationToast />;
