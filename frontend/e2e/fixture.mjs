@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { FixtureScope } from '../../test/integration/lifecycle.mjs';
-import { createTestStack } from '../../test/integration/stack.mjs';
+import { createTestStack, waitForContainerNetwork } from '../../test/integration/stack.mjs';
 
 const frontend = resolve(import.meta.dirname, '..');
 
@@ -31,6 +31,8 @@ export async function useBrowserFixture(t) {
     }
     const stack = await createTestStack(scope, { project: diagnostics?.project });
     await diagnostics?.stackReady(stack);
+    const network = await scope.run(() => waitForContainerNetwork(stack.instances.get('alpha').instance.containerName, { signal: scope.signal }));
+    diagnostics?.record('browser-network-readiness', network);
     const vite = await scope.acquire(() => createServer({
         root: frontend,
         cacheDir: resolve(stack.directory, 'vite-cache'),
