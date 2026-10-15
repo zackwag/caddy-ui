@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.22.0](https://github.com/zackwag/caddy-ui/compare/v2.21.6...v2.22.0) (2026-10-15)
+
+
+### Features
+
+* **dev:** add a localization playground with real component previews ([#229](https://github.com/zackwag/caddy-ui/issues/229)) ([03bc106](https://github.com/zackwag/caddy-ui/commit/03bc1063f57ae5e432811e787228e3abf4fac8e5))
+
 ## [2.21.6](https://github.com/zackwag/caddy-ui/compare/v2.21.5...v2.21.6) (2026-10-14)
 
 
