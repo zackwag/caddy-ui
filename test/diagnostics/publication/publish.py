@@ -53,16 +53,25 @@ def verify_run(run, repository, run_id, attempt):
         raise ValueError('Select a completed Test diagnostic run from this repository/branch')
 
 
-def extract_archive(archive, destination, budget=None, depth=0):
-    """Keep ZIPs and expand them alongside; reject traversal, links and bombs."""
+def extract_archive(archive, destination, budget=None, depth=0, *, expansions=None, root=None):
+    """Keep originals; expand nested ZIPs only when their whole directory fits."""
     if budget is None:
         budget = {'bytes': 0, 'entries': 0}
+    if expansions is None:
+        expansions = []
+    if root is None:
+        root = destination
     if depth > 3:
         raise ValueError('Nested archive depth exceeds 3')
-    destination.mkdir(parents=True, exist_ok=False)
+    if destination.exists():
+        raise FileExistsError(f'Archive expansion destination already exists: {destination}')
     nested = []
     with zipfile.ZipFile(archive) as bundle:
-        for entry in bundle.infolist():
+        entries = bundle.infolist()
+        # Validate all names/types before deciding whether optional expansion
+        # fits. An unsafe nested ZIP must not become acceptable by being large.
+        seen = {}
+        for entry in entries:
             path = PurePosixPath(entry.filename)
             mode = entry.external_attr >> 16
             if (not entry.filename or path.is_absolute() or '\\' in entry.filename
@@ -71,11 +80,43 @@ def extract_archive(archive, destination, budget=None, depth=0):
                            for part in entry.filename.rstrip('/').split('/'))
                     or stat.S_IFMT(mode) not in (0, stat.S_IFREG, stat.S_IFDIR)):
                 raise ValueError(f'Unsafe ZIP entry: {entry.filename!r}')
-            budget['entries'] += 1
-            budget['bytes'] += entry.file_size
-            if (budget['entries'] > MAX_ENTRIES or budget['bytes'] > MAX_TOTAL
-                    or entry.file_size > MAX_FILE):
-                raise ValueError('Publication size limit exceeded; retain the Actions artifact and use smaller experiments')
+            name = path.as_posix()
+            if name in seen and not (entry.is_dir() and seen[name]):
+                raise FileExistsError(f'Duplicate ZIP entry: {entry.filename!r}')
+            seen[name] = entry.is_dir()
+        for name in seen:
+            if any(parent.as_posix() in seen and not seen[parent.as_posix()]
+                   for parent in PurePosixPath(name).parents):
+                raise FileExistsError(f'ZIP file/directory collision: {name!r}')
+        size = sum(entry.file_size for entry in entries)
+        oversized = next((entry for entry in entries if entry.file_size > MAX_FILE), None)
+        reason = None
+        if oversized:
+            reason = (f'File {oversized.filename!r} uses {mib(oversized.file_size)}, '
+                      f'exceeding the per-file limit {mib(MAX_FILE)}')
+        elif budget['entries'] + len(entries) > MAX_ENTRIES:
+            reason = (f'{len(entries)} entries need more than the remaining '
+                      f'{MAX_ENTRIES - budget["entries"]} entry allowance')
+        elif budget['bytes'] + size > MAX_TOTAL:
+            reason = (f'Expansion needs {mib(size)}, exceeding the remaining '
+                      f'{mib(MAX_TOTAL - budget["bytes"])} evidence allowance')
+        if depth:
+            expansions.append({'archive': archive.relative_to(root).as_posix(),
+                               'status': 'retained' if reason else 'expanded',
+                               'entries': len(entries), 'uncompressedBytes': size,
+                               **({'reason': reason} if reason else {})})
+        if reason:
+            if not depth:
+                raise ValueError(f'Original artifact cannot be published: {reason}. '
+                                 'Retain the Actions artifact and use smaller experiments')
+            print(f'Retained nested ZIP without expansion: {archive.relative_to(root)}: {reason}')
+            return  # The original ZIP was already extracted and remains complete.
+        # Reserve before writing; never leave half an optional expansion behind.
+        destination.mkdir(parents=True, exist_ok=False)
+        budget['entries'] += len(entries)
+        budget['bytes'] += size
+        for entry in entries:
+            path = PurePosixPath(entry.filename)
             target = destination.joinpath(*path.parts)
             if entry.is_dir():
                 target.mkdir(parents=True, exist_ok=True)
@@ -94,23 +135,28 @@ def extract_archive(archive, destination, budget=None, depth=0):
             if target.suffix.lower() == '.zip':
                 nested.append(target)
     for archive in nested:
-        extract_archive(archive, archive.with_name(archive.name + '.contents'), budget, depth + 1)
+        extract_archive(archive, archive.with_name(archive.name + '.contents'), budget, depth + 1,
+                        expansions=expansions, root=root)
 
 
 def markdown_text(value):
     return str(value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('|', '&#124;').replace('\n', ' ')
 
 
-def browse(directory, budget=None):
+def browse(directory, budget=None, retained=None):
     """GitHub-rendered directory pages, bounded previews and inline screenshots."""
     if budget is None:
         budget = {'bytes': 0, 'pages': 0}
     for child in sorted(directory.iterdir()):
         if child.is_dir():
-            browse(child, budget)
+            browse(child, budget, retained)
     if (directory / 'README.md').exists():
         return  # Preserve any original README bytes.
     lines = [f'# {markdown_text(directory.name)}', '']
+    for child in sorted(directory.iterdir()):
+        if retained and child in retained:
+            lines.extend([f'**ZIP retained without expansion:** [{markdown_text(child.name)}]({quote(child.name, safe="")}). '
+                          f'{markdown_text(retained[child])}. The original archive is complete and unchanged.', ''])
     for name in ('SUMMARY.md', 'evidence.md'):
         if (directory / name).is_file():
             with (directory / name).open('r', errors='replace') as source:
@@ -158,7 +204,8 @@ def prepare(archive, destination, provenance):
     """Build a new immutable run folder; originals are hashed before adding pages."""
     destination.mkdir(parents=True, exist_ok=False)
     artifact = destination / 'artifact'
-    extract_archive(archive, artifact)
+    expansions = []
+    extract_archive(archive, artifact, expansions=expansions)
     experiment = json.loads((artifact / 'experiment.json').read_text())
     if (str(experiment['runId']) != provenance['run']
             or str(experiment['attempt']) != provenance['attempt']
@@ -168,18 +215,24 @@ def prepare(archive, destination, provenance):
              for path in sorted(artifact.rglob('*')) if path.is_file()}
     (destination / 'files.sha256.json').write_text(json.dumps(files, indent=2) + '\n')
     (destination / 'provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
+    (destination / 'archive-expansion.json').write_text(json.dumps(expansions, indent=2) + '\n')
+    retained = {artifact / entry['archive']: entry['reason'] for entry in expansions if entry['status'] == 'retained'}
     budget = {'bytes': 0, 'pages': 0}
-    browse(artifact, budget)
+    browse(artifact, budget, retained)
     (destination / 'README.md').write_text(
         f'# E2E diagnostics — run {provenance["run"]}, attempt {provenance["attempt"]}\n\n'
         f'[Read the report and browse evidence](artifact/) · [Source workflow run]({provenance["runUrl"]})\n\n'
         f'Source commit: `{provenance["sourceCommit"]}`. Collection conclusion: **{provenance["conclusion"]}**.\n\n'
         'Publication does not rerun tests or alter their outcomes. A successful collection may contain failed trials; '
         'check the report. Partial evidence remains marked by its original collection metadata.\n\n'
-        'ZIPs are retained and expanded into adjacent `*.zip.contents/` folders. '
+        'ZIP originals are retained unchanged. Nested ZIPs that fit the extraction limits are expanded '
+        'into adjacent `*.zip.contents/` folders; larger expansions remain available in their original ZIPs. '
         'Directory pages render summaries, screenshots and bounded log previews on GitHub. '
         'Original files remain available, including trace ZIPs for Playwright. '
         'These are GitHub pages for reading evidence, not an interactive trace viewer.\n\n'
+        f'Nested ZIPs: **{len(expansions) - len(retained)} expanded**, **{len(retained)} retained without expansion**. '
+        'Each affected directory explains its limit; '
+        '[the expansion manifest](archive-expansion.json) records every decision.\n\n'
         '[Provenance](provenance.json) · [SHA-256 file manifest](files.sha256.json)\n')
     evidence_bytes = sum((artifact / name).stat().st_size for name in files)
     original_paths = {artifact / name for name in files}
@@ -189,7 +242,7 @@ def prepare(archive, destination, provenance):
         raise ValueError(f'Generated pages and manifests use {mib(generated_bytes)}, exceeding {mib(MAX_RENDERED)}')
     print(f'Publication size: original/extracted evidence {mib(evidence_bytes)} / {mib(MAX_TOTAL)}; '
           f'generated pages/manifests {mib(generated_bytes)} / {mib(MAX_RENDERED)}; '
-          f'{budget["pages"]} directory pages')
+          f'{budget["pages"]} directory pages; {len(retained)} nested ZIPs retained without expansion')
     for path in destination.rglob('*'):
         if path.is_file() and path.stat().st_size > MAX_FILE:
             raise ValueError(f'Publication file {path.relative_to(destination)} uses {mib(path.stat().st_size)}, '

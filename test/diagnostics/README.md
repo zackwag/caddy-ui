@@ -51,6 +51,7 @@ README.md                         # Rendered index of all published runs
 runs/RUN_ID/attempt-ATTEMPT/
     README.md                     # Source run, commit, outcome and report link
     provenance.json               # Artifact identity and archive hash
+    archive-expansion.json        # Expanded/retained nested ZIPs and limit reasons
     files.sha256.json             # Original/extracted file hashes before adding pages
     artifact/
         README.md                 # Rendered summary and evidence links
@@ -66,7 +67,27 @@ Open `https://github.com/YOUR_FORK/caddy-ui/tree/dev/etoe-diagnostic-results`. T
 
 Re-publishing the same artifact is a no-op. A run/attempt folder with different provenance is never overwritten. Publication uses ordinary fast-forward pushes and a separate concurrency group; an outside conflicting update fails safely. GitHub may replace an older pending dispatch when multiple publishers are queued, so check that each requested publisher ran before discarding its Actions artifact.
 
-Archives are treated as data and never executed. ZIPs stay available and are also recursively expanded into adjacent `*.zip.contents` directories. Extraction rejects traversal, Git metadata paths, symlinks, duplicate file entries and output collisions. Limits are 90 MiB per file, 1 GiB of original/extracted evidence, 20,000 archive entries and three nested ZIP levels. Generated pages and manifests have a separate 64 MiB allowance, so a source artifact that fits the extraction budget still has room for its readable pages. Directory READMEs are capped at 256 KiB; long reports use bounded inline excerpts with links to the unchanged originals, and oversized directory previews fall back to the GitHub file list. The publisher logs evidence and generated-output sizes separately. Over-limit publication fails explicitly and leaves the Actions artifact untouched; collect smaller batches or download that artifact directly. This tool uses Python 3.11+ standard-library ZIP support (preinstalled on the workflow's Ubuntu runner), without adding application dependencies.
+Archives are treated as data and never executed. Every original file and nested ZIP is retained
+unchanged. ZIPs are recursively expanded into adjacent `*.zip.contents` directories when
+the complete expansion fits the remaining budget. Limits remain 90 MiB per file, 1 GiB of
+original/extracted evidence, 20,000 extracted archive entries and three nested ZIP levels.
+The initial artifact must fit: required originals that exceed these limits still fail with
+the specific file, size or entry allowance in the error. A nested expansion that would
+exceed the file, byte or entry budget is skipped as a whole, keeping its ZIP available for
+download/Playwright. Smaller later archives may still expand. A directory notice and
+`archive-expansion.json` explain each retained ZIP; the run README reports expanded/retained
+counts. The original ZIP's SHA-256 remains in `files.sha256.json`, so optional expansion
+does not discard source evidence or change collection outcomes.
+
+Extraction still rejects traversal, Git metadata paths, symlinks, duplicate file entries,
+output collisions and excessive nesting. Names/types/duplicates are validated even before
+an over-budget nested expansion is skipped. Generated pages and manifests have a separate
+64 MiB allowance. Directory READMEs are capped at 256 KiB; long reports use bounded inline
+excerpts with links to unchanged originals, and oversized previews fall back to GitHub's
+file list. Evidence, generated-output sizes and retained ZIP counts are logged separately.
+An over-limit initial artifact still requires a smaller collection or direct artifact
+download; the Actions artifact is never modified. This tool uses Python 3.11+ standard-library
+ZIP support (preinstalled on the Ubuntu runner), without adding application dependencies.
 
 After updating publisher code, start a **new** `publish` dispatch with the same source run ID and attempt. GitHub's **Re-run jobs** uses the old dispatch commit and therefore the old publisher. Neither action requires repeating the original diagnostic collection.
 

@@ -91,6 +91,67 @@ class PublicationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             publish.extract_archive(archive, self.root / 'depth', depth=4)
 
+    def test_nested_limits_retain_original_zips_and_leave_room_for_smaller_expansions(self):
+        large = io.BytesIO()
+        with zipfile.ZipFile(large, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr('resources/large.json', 'x' * 100000)
+            archive.writestr('resources/extra.json', '{}')
+        small = io.BytesIO()
+        with zipfile.ZipFile(small, 'w') as archive:
+            archive.writestr('value.json', '{}')
+        archive = self.archive(self.experiment_entries() + [
+            ('001-normal/case/large.zip', large.getvalue()),
+            ('001-normal/case/small.zip', small.getvalue()),
+        ])
+        with zipfile.ZipFile(archive) as bundle:
+            entries = bundle.infolist()
+            original_bytes = sum(entry.file_size for entry in entries)
+        limits = {'MAX_TOTAL': original_bytes + 2, 'MAX_ENTRIES': len(entries) + 1,
+                  'MAX_FILE': 8192}
+        for limit, value in limits.items():
+            with self.subTest(limit=limit), patch.object(publish, limit, value):
+                destination = self.root / limit
+                publish.prepare(archive, destination, self.provenance)
+                artifact = destination / 'artifact'
+                case = artifact / '001-normal/case'
+                self.assertEqual((case / 'large.zip').read_bytes(), large.getvalue())
+                self.assertFalse((case / 'large.zip.contents').exists())
+                self.assertEqual((case / 'small.zip.contents/value.json').read_text(), '{}')
+                hashes = json.loads((destination / 'files.sha256.json').read_text())
+                self.assertEqual(hashes['001-normal/case/large.zip'], publish.digest(case / 'large.zip'))
+                decisions = json.loads((destination / 'archive-expansion.json').read_text())
+                self.assertEqual([entry['status'] for entry in decisions], ['retained', 'expanded'])
+                self.assertIn('reason', decisions[0])
+                self.assertIn('ZIP retained without expansion', (case / 'README.md').read_text())
+                self.assertIn('1 retained without expansion', (destination / 'README.md').read_text())
+                self.assertIn('**failure**', (destination / 'README.md').read_text())
+
+    def test_nested_unsafe_entries_are_not_downgraded_to_budget_notices(self):
+        unsafe = [('..' + '/escape', 'unsafe'), ('entry', 'first'), ('entry', 'duplicate')]
+        for index, entries in enumerate(([unsafe[0]], unsafe[1:], [('a', 'file'), ('a/b', 'collision')])):
+            nested = io.BytesIO()
+            with zipfile.ZipFile(nested, 'w') as bundle:
+                for name, value in entries:
+                    bundle.writestr(name, value)
+            archive = self.archive([('trace.zip', nested.getvalue())], f'unsafe-nested-{index}.zip')
+            with patch.object(publish, 'MAX_TOTAL', len(nested.getvalue())), \
+                    self.assertRaises((ValueError, FileExistsError)):
+                publish.extract_archive(archive, self.root / f'unsafe-nested-{index}')
+        self.assertFalse((self.root / 'escape').exists())
+
+    def test_nested_expansion_fits_exactly_and_counts_both_zip_and_contents(self):
+        nested = io.BytesIO()
+        with zipfile.ZipFile(nested, 'w') as bundle:
+            bundle.writestr('data', '12345')
+        archive = self.archive([('trace.zip', nested.getvalue())])
+        budget = {'bytes': 0, 'entries': 0}
+        decisions = []
+        with patch.object(publish, 'MAX_TOTAL', len(nested.getvalue()) + 5), \
+                patch.object(publish, 'MAX_ENTRIES', 2):
+            publish.extract_archive(archive, self.root / 'exact', budget, expansions=decisions)
+        self.assertEqual(budget, {'bytes': len(nested.getvalue()) + 5, 'entries': 2})
+        self.assertEqual(decisions[0]['status'], 'expanded')
+
     def test_evidence_at_extraction_limit_has_separate_room_for_readable_pages(self):
         archive = self.archive(self.experiment_entries())
         with zipfile.ZipFile(archive) as bundle:
