@@ -1,34 +1,38 @@
-// Original monochrome artwork on a 16px grid. Sidebar/theme marks use whole
-// pixels; utility marks keep a light stroke. Icons are decorative: their parent
+// Original monochrome terminal pictograms on a 16px grid. Filled silhouettes
+// use block edges and cut-outs; utility marks keep a light stroke. Icons are decorative: their parent
 // control supplies the translated accessible name.
 const PIXEL_PATHS = {
+    // A small dashboard display with four panes and a block stand.
     dashboard: [
-        'M7 1h2v1h1v1h1v1h1v1h1v1h1v1h1v2h-1v1h-1v1h-1v1h-1v1h-1v1H9v1H7v-1H6v-1H5v-1H4v-1H3v-1H2V9H1V7h1V6h1V5h1V4h1V3h1V2h1Z M7 3v1H6v1H5v1H4v1H3v2h1v1h1v1h1v1h1v1h2v-1h1v-1h1v-1h1V9h1V7h-1V6h-1V5h-1V4H9V3Z',
-        'M7 6h2v1h1v2H9v1H7V9H6V7h1Z',
+        'M1 2h14v11H1Zm2 2v7h10V4Z',
+        'M4 5h3v2H4Zm5 0h3v2H9ZM4 8h3v2H4Zm5 0h3v2H9ZM6 13h4v1h3v1H3v-1h3Z',
     ],
+    // Folded configuration document with cut-out text lines.
     caddyfile: [
-        'M5 2h1v3h4V2h1v3h3v1h-3v4h3v1h-3v3h-1v-3H6v3H5v-3H2v-1h3V6H2V5h3Zm1 4v4h4V6Z',
+        'M3 1h6v1h2v2h2v11H3Zm6 2v2h2V4h-1V3ZM5 7h6v2H5Zm0 4h4v2H5Z',
     ],
+    // One terminal-style connection branching into two destinations.
     routes: [
-        'M2 4h9V2h1v1h1v1h1v1h-1v1h-1v1h-1V5H2Z',
-        'M14 11H5v2H4v-1H3v-1H2v-1h1V9h1V8h1v2h9Z',
+        'M1 6h4v4H1ZM11 1h4v4h-4Zm0 10h4v4h-4Z',
+        'M5 7h2V2h4v2H9v8h2v2H7V9H5Z',
     ],
     tls: [
-        'M5 1h6v1h2v1h1v2h1v6h-1v2h-1v1h-2v1H5v-1H3v-1H2v-2H1V5h1V3h1V2h2Zm0 1v1H3v2H2v6h1v2h2v1h6v-1h2v-2h1V5h-1V3h-2V2Z',
-        'M7 4h2v3h3v2H9v3H7V9H4V7h3Z',
+        'M6 1h4v1h2v5h2v8H2V7h2V2h2Zm0 2v4h4V3ZM7 9v3h2V9Z',
     ],
-    logs: ['M3 4h10v1H3Zm0 4h10v1H3Zm0 4h10v1H3Z'],
-    metrics: ['M1 8h2V5h1V3h2v1h1v3h1v3h1v2h1v-1h1V8h2V7h2v1h-1v1h-2v3h-1v1H8v-2H7V8H6V5H5V4H4v2H3v3H1Z'],
+    // Block entries keep the visual rhythm of terminal output.
+    logs: ['M1 2h3v3H1ZM6 2h9v3H6ZM1 7h3v3H1ZM6 7h7v3H6ZM1 12h3v3H1ZM6 12h9v3H6Z'],
+    metrics: ['M2 9h3v5H2ZM7 5h3v9H7ZM12 1h3v13h-3ZM1 14h14v1H1Z'],
     notifications: [
-        'M5 1h6v1h2v1h1v2h1v6h-1v2h-1v1h-2v1H5v-1H3v-1H2v-2H1V5h1V3h1V2h2Zm0 1v1H3v2H2v6h1v2h2v1h6v-1h2v-2h1V5h-1V3h-2V2Z',
-        'M11 3h1v2h-1v2h-1v2H9v2H8v2H7v1H6v-2h1v-2h1V8h1V6h1V4h1Z',
+        'M7 1h2v1h2v1h1v2h1v5h1v2H2v-2h1V5h1V3h1V2h2ZM5 5h2v4H5Z',
+        'M6 13h4v2H6Z',
     ],
     instances: [
-        'M2 2h12v12H2Zm1 1v4h4V3Zm6 0v4h4V3Zm-6 6v4h4V9Zm6 0v4h4V9Z',
+        'M2 1h12v6H2Zm2 2v2h2V3Zm5 0v2h3V3ZM2 9h12v6H2Zm2 2v2h2v-2Zm5 0v2h3v-2Z',
     ],
+    // An exit through a door, with a stepped arrow instead of a power glyph.
     logout: [
-        'M7 1h2v7H7Z',
-        'M4 3h1v2H4v1H3v5h1v1h1v1h6v-1h1v-1h1V6h-1V5h-1V3h1v1h1v1h1v2h1v4h-1v2h-1v1h-2v1H5v-1H3v-1H2v-2H1V7h1V5h1V4h1Z',
+        'M1 1h8v4H7V3H3v10h4v-2h2v4H1Z',
+        'M10 3h2v2h2v2h1v2h-1v2h-2v2h-2v-3H6V6h4Z',
     ],
     sun: [
         'M6 4h4v1h1v1h1v4h-1v1h-1v1H6v-1H5v-1H4V6h1V5h1Zm0 2v4h4V6Z',
