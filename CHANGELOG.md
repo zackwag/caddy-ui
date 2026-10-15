@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.24.0](https://github.com/zackwag/caddy-ui/compare/v2.23.0...v2.24.0) (2026-10-15)
+
+
+### Features
+
+* **dev:** expand localization playground coverage ([#252](https://github.com/zackwag/caddy-ui/issues/252)) ([01e9e9a](https://github.com/zackwag/caddy-ui/commit/01e9e9a5b817d8617b7785b1868a4ef8966cd5b0))
+
 ## [2.23.0](https://github.com/zackwag/caddy-ui/compare/v2.22.0...v2.23.0) (2026-10-15)
 
 
