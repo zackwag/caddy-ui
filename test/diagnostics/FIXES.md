@@ -35,9 +35,11 @@ It does not claim to have observed the daemon host. No host network settings,
 routes, interfaces or unrelated containers are modified. No `ip` executable is
 needed for this check. Linux `/sys` and `/proc` supply its local read-only state.
 
-Seven regression cases cover tentative/ready addresses, interface ownership,
+Eight regression cases cover tentative/ready addresses, interface ownership,
 external namespaces, disabled IPv6/generation, detection/inspection failure,
-timeout and cancellation. The existing bootstrap retry remains unchanged.
+timeout, cancellation and unrelated interface removal. The existing bootstrap
+retry remains unchanged. `429bed17` is the follow-up guard for another container
+removing its interface between enumeration and inspection.
 
 To isolate this intervention, it was cherry-picked directly onto the baseline
 as `342758c7`, without F2 or F3. Three complete suite trials passed: 24 scenario
@@ -60,6 +62,29 @@ Five regression cases exercise those paths. Reports now describe the checked-out
 revision instead of always claiming to be pre-fix. Source hashes additionally
 cover the shared stack and lifecycle modules used by the network fix. The
 evidence-classification rules and original raw results are unchanged.
+
+## Recorded local validation
+
+| Revision / arm | Workload | Outcome |
+|---|---|---|
+| Baseline `43de72dc` | Two delayed-stylesheet trials | Both reproduce the missed toast |
+| Navigation only `4ff7f6d4` | Three delayed-stylesheet trials | All pass |
+| Network only `342758c7` | Three complete suites / 24 scenarios | All pass; zero network interruptions |
+| Combined `d211cc37` | Three trials of each profile / 33 scenarios | All pass; zero interruptions, bootstrap retries or capture warnings |
+| Final code `429bed17` | Ordinary uninstrumented E2E suite | 8 / 8 pass |
+| Final code `429bed17` | Real cancellation with unrelated sentinel fixture | Pass; owned resources removed and sentinel preserved |
+| Final code `429bed17` | Harness/readiness and diagnostic regressions | 34 and 17 tests pass |
+
+Frontend, harness and diagnostic lint also pass. The combined arm's 30 Caddy
+readiness records are all applicable/ready; its three localhost controls create
+no Caddy instance. All 66 observer processes have requested shutdown and recorded
+close, with no forced termination. The follow-up enumeration guard is covered by
+the final ordinary suite and its regression case; it is not retroactively part
+of the earlier combined arm.
+
+The [compact local evidence and recounting code](https://github.com/juscghwe/caddy-ui/tree/dev/etoe-diagnostic-results/analyses/fix-e-to-e-local-2026-10-15)
+preserve the exact source revision for each arm. Full local trace archives are
+not part of that compact publication.
 
 ## Running candidate trials
 
