@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import CaddyFile from "./components/CaddyFile.jsx";
+import { UtilityIcon } from "./components/Icons.jsx";
 import { ConfirmDialog, useConfirm } from "./components/Confirm.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import Login from "./components/Login.jsx";
@@ -280,7 +281,7 @@ export default function App() {
                     <div className="main">
                         <div className="topbar">
                             <div className="topbar-left">
-                                <button className="hamburger" onClick={() => setSidebarOpen(o => !o)}>☰</button>
+                                <button className="hamburger" onClick={() => setSidebarOpen(o => !o)} aria-label={t("sidebar.toggleNavigation")} aria-expanded={sidebarOpen}><UtilityIcon name="menu" size={18} /></button>
                                 <span className="page-title">{title}</span>
                             </div>
                             <div className="btn-row">

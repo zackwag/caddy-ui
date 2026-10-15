@@ -74,6 +74,7 @@ export default {
     },
 
     sidebar: {
+        toggleNavigation: 'Toggle navigation',
         serverManager: 'Server Manager',
         connected: 'connected',
         unreachable: 'unreachable',

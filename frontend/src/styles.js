@@ -886,7 +886,9 @@ export const css = `
     background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
 
-  .nav-icon { width: 16px; text-align: center; font-size: 14px; flex-shrink: 0; }
+  .ui-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; }
+  .nav-icon { width: 16px; height: 1.6em; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .sidebar-signout { width: 100%; border-top: 0; border-right: 0; border-bottom: 0; background: transparent; font-family: inherit; line-height: inherit; text-align: left; }
 
   .nav-footer {
     padding: 12px 0;
@@ -1153,13 +1155,18 @@ export const css = `
   .theme-picker { position: relative; display: flex; flex-shrink: 0; }
 
   .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 28px;
     background: transparent;
     border: 1px solid var(--border2);
     border-right: none;
     border-radius: 4px 0 0 4px;
     color: var(--muted);
     cursor: pointer;
-    padding: 6px 10px;
+    padding: 0;
     font-size: 14px;
     line-height: 1;
     transition: all 0.15s;
@@ -1168,12 +1175,17 @@ export const css = `
   .theme-toggle:hover { color: var(--text); border-color: var(--muted); }
 
   .theme-picker-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 28px;
     background: transparent;
     border: 1px solid var(--border2);
     border-radius: 0 4px 4px 0;
     color: var(--muted);
     cursor: pointer;
-    padding: 6px 6px;
+    padding: 0;
     font-size: 10px;
     line-height: 1;
     transition: all 0.15s;
