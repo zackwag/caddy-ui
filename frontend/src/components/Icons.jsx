@@ -60,7 +60,7 @@ const UTILITY_PATHS = {
     menu: 'M3 4h10M3 8h10M3 12h10',
     pencil: 'm3 2-1 1 9 9 3 1-1-3Zm1 2 7 7m0 1 2-2',
     info: 'M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0ZM8 7v4M7 11h2M8 4.5v.5',
-    wrench: 'M13 2a4 4 0 0 1-5 5l-5 6-1-1 6-5a4 4 0 0 1 5-5l-3 3 1 1Z',
+    wrench: 'M10 1 7.5 3.5l3 3 3-3a4 4 0 0 1-5 5L4 13a1.4 1.4 0 0 1-2-2l4.5-4.5A4 4 0 0 1 10 1Z',
     arrowUp: 'M8 14V2m-3 3 3-3 3 3',
     arrowDown: 'M8 2v12m-3-3 3 3 3-3',
     arrowRight: 'M2 8h12m-3-3 3 3-3 3',
