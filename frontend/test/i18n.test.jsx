@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import i18n, { availableLocales, fetchEnabledLanguages, loadLocale } from '../src/i18n/index.js';
+import { additionalFonts } from '../src/i18n/fonts.js';
 
 describe('i18n integration', () => {
     afterEach(async () => {
         vi.unstubAllGlobals();
         await loadLocale('en');
+        additionalFonts.configure([]);
+        vi.restoreAllMocks();
     });
 
     it('lazy-loads a locale and falls back to English for missing keys', async () => {
@@ -51,5 +54,20 @@ describe('i18n integration', () => {
 
         await loadLocale('unknown-locale');
         expect(documentElement).toMatchObject({ lang: 'en', dir: 'ltr' });
+    });
+
+    it('accepts optional fonts only for available, enabled catalogs', async () => {
+        vi.stubGlobal('localStorage', { getItem: () => null });
+        const configure = vi.spyOn(additionalFonts, 'configure');
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(
+            JSON.stringify({ languages: ['ar'], fonts: ['ar', 'de', 'zz'] }),
+            { headers: { 'Content-Type': 'application/json' } },
+        )));
+        expect(await fetchEnabledLanguages()).toEqual(['en', 'ar']);
+        expect(configure).toHaveBeenCalledWith(['ar']);
+        const load = vi.spyOn(additionalFonts, 'load').mockResolvedValue();
+        await loadLocale('AR');
+        expect(load).toHaveBeenCalledWith('ar');
+        expect(i18n.language).toBe('ar');
     });
 });

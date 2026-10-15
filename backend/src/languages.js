@@ -1,17 +1,29 @@
-export function getAdditionalLanguages() {
-    const raw = process.env.CADDY_UI_ADDITIONAL_LANGUAGES || '';
+// Admission is an explicit review decision, independent of catalog coverage.
+export const REVIEWED_LANGUAGES = Object.freeze(['en', 'ar']);
+const FONT_LANGUAGES = ['ar'];
 
+function parseCodes(raw = '') {
     return [...new Set(
         raw
             .split(',')
             .map(lang => lang.trim().toLowerCase())
             .filter(lang => /^[a-z]{2,3}$/.test(lang))
-            .filter(lang => lang !== 'en')
     )];
 }
 
+export function getAdditionalLanguages() {
+    return parseCodes(process.env.CADDY_UI_ADDITIONAL_LANGUAGES)
+        .filter(lang => !REVIEWED_LANGUAGES.includes(lang));
+}
+
 export function getEnabledLanguages() {
-    return ['en', ...getAdditionalLanguages()];
+    return [...REVIEWED_LANGUAGES, ...getAdditionalLanguages()];
+}
+
+export function getAdditionalFonts() {
+    const enabled = getEnabledLanguages();
+    return parseCodes(process.env.CADDY_UI_ADDITIONAL_FONTS)
+        .filter(lang => FONT_LANGUAGES.includes(lang) && enabled.includes(lang));
 }
 
 // Normalizes a `language` setting from PUT /api/settings. Returns null to clear

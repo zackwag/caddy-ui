@@ -210,8 +210,10 @@ services:
       - 9876:3001
     environment:
       - TZ=America/New_York
-      # Optional -- enable installed additional UI languages (English is always available)
+      # Optional -- opt into installed preview UI languages (reviewed languages are enabled by default)
       - CADDY_UI_ADDITIONAL_LANGUAGES=de
+      # Optional -- use the self-hosted font when Arabic is selected
+      - CADDY_UI_ADDITIONAL_FONTS=ar
       # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
       - CADDY_UI_PASSWORD=yourpassword
@@ -299,7 +301,8 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
-| `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated additional UI language codes to enable (for example `de,fr`). English is always enabled; only languages with an installed frontend locale catalog are shown. |
+| `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `de`). Reviewed languages (currently English and Arabic) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. |
+| `CADDY_UI_ADDITIONAL_FONTS` | — | Comma-separated language codes whose optional self-hosted fonts should be used. Currently supports `ar` (Noto Sans Arabic). Unset uses system fallback. The font is downloaded from this frontend only when that language is selected; the packaged font still occupies space in the image. Restart the backend and reload the UI after changing this setting. |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
