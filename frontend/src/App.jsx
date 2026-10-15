@@ -9,6 +9,7 @@ import Metrics from "./components/Metrics.jsx";
 import Instances from "./components/Instances.jsx";
 import Notifications from "./components/Notifications.jsx";
 import RoutesPage from "./components/Routes.jsx";
+import Hybrid from "./components/Hybrid.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import ThemePicker from "./components/ThemePicker.jsx";
 import LanguagePicker from "./components/LanguagePicker.jsx";
@@ -32,6 +33,7 @@ const DEFAULTS = {
 };
 
 const TITLE_KEYS = {
+    '/hybrid': 'hybrid.title',
     '/dashboard': 'pages.dashboard',
     '/caddyfile': 'pages.caddyfile',
     '/routes': 'pages.routes',
@@ -303,12 +305,14 @@ export default function App() {
                             </div>
                         </div>
                         <div className="content" key={instanceKey}>
+                            {status?.hybrid && <p role="note" style={{ padding: 16 }}>{t('hybrid.modeNotice')}</p>}
                             <Routes>
                                 <Route path="/" element={<Navigate to={noInstances ? "/instances" : "/dashboard"} replace />} />
                                 <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
+                                <Route path="/hybrid" element={<Hybrid onUnauth={onUnauth} />} />
                                 <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} />} />
-                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} routeChecks={routeChecks} routeCheckExcludes={routeCheckExcludes} />} />
-                                <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
+                                <Route path="/routes" element={<RoutesPage readOnly={status?.hybrid} toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} routeChecks={routeChecks} routeCheckExcludes={routeCheckExcludes} />} />
+                                <Route path="/tls" element={<TLS readOnly={status?.hybrid} toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
                                 <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} noInstances={noInstances} />} />
                                 <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} routeChecks={routeChecks} onRouteChecksChange={changeRouteChecks} routeCheckExcludes={routeCheckExcludes} onRouteCheckExcludesChange={changeRouteCheckExcludes} />} />
                                 <Route path="/notifications" element={<Notifications toast={toast} onUnauth={onUnauth} />} />

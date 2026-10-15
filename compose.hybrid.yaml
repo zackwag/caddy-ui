@@ -1,0 +1,86 @@
+services:
+  caddy-gateway:
+    image: lucaslorentz/caddy-docker-proxy:latest
+    container_name: caddy-gateway
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CADDY_INGRESS_NETWORKS: proxy
+      CADDY_DOCKER_CADDYFILE_PATH: /hybrid/Caddyfile
+      CADDY_DOCKER_POLLING_INTERVAL: 5s
+    labels:
+      caddy.admin: "0.0.0.0:2019"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_hybrid:/hybrid:ro
+      - caddy_logs:/logs
+      - /root/i3u.us.pem:/certs/i3u.us.pem:ro
+      - /root/i3u.us.key:/certs/i3u.us.key:ro
+    networks: [proxy, caddy-admin]
+
+  docker-reader:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: unless-stopped
+    environment:
+      CONTAINERS: '1'
+      POST: '0'
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker-read]
+
+  caddy-ui-backend:
+    image: ghcr.io/twuijri/caddy-ui-backend:${CADDY_UI_TAG:-hybrid-latest}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Riyadh
+      CADDY_UI_HYBRID: 'true'
+      CADDY_UI_USER: admin
+      CADDY_UI_PASSWORD: ${CADDY_UI_PASSWORD:?set a strong password}
+      JWT_SECRET: ${JWT_SECRET:?set a random secret}
+      CADDY_ADMIN_URL: http://caddy-gateway:2019
+      CADDY_CONFIG_PATH: /hybrid/Caddyfile
+      CADDY_DATA_PATH: /data/caddy
+      CADDY_LOG_PATH: /logs/caddy.log
+      HYBRID_DOCKER_URL: http://docker-reader:2375
+      CADDY_UI_UPDATE_CHECK: 'false'
+    volumes:
+      - caddy_ui_data:/etc/caddy-ui
+      - caddy_hybrid:/hybrid
+      - caddy_data:/data:ro
+      - caddy_logs:/logs:ro
+      - /root/i3u.us.pem:/certs/i3u.us.pem:ro
+    networks: [caddy-admin, docker-read, caddy-ui, proxy]
+    depends_on: [caddy-gateway, docker-reader]
+
+  caddy-ui-frontend:
+    image: ghcr.io/twuijri/caddy-ui-frontend:${CADDY_UI_TAG:-hybrid-latest}
+    pull_policy: always
+    restart: unless-stopped
+    labels:
+      caddy: ${CADDY_UI_DOMAIN:-caddy-ui.i3u.us}
+      caddy.tls: /certs/i3u.us.pem /certs/i3u.us.key
+      caddy.reverse_proxy: '{{upstreams 80}}'
+    networks: [proxy, caddy-ui]
+    depends_on: [caddy-ui-backend]
+
+networks:
+  proxy:
+    external: true
+  caddy-admin:
+  docker-read:
+    internal: true
+  caddy-ui:
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy_hybrid:
+  caddy_logs:
+  caddy_ui_data:

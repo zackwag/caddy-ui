@@ -14,6 +14,7 @@ const COMMITS_URL = "https://github.com/zackwag/caddy-ui/commits/main";
 const displayVersion = (version) => /^\d/.test(version) ? `v${version}` : version;
 
 const NAV = [
+    { path: "/hybrid", labelKey: "hybrid.title", icon: "⇌" },
     { path: "/dashboard", labelKey: "sidebar.nav.dashboard", icon: "◈" },
     { path: "/caddyfile", labelKey: "sidebar.nav.caddyfile", icon: "⌗" },
     { path: "/routes", labelKey: "sidebar.nav.routes", icon: "⇌" },
@@ -110,7 +111,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                 );
             })()}
             <nav className="nav">
-                {NAV.map(n => (
+                {NAV.filter(n => n.path !== '/hybrid' || status?.hybrid).map(n => (
                     <div
                         key={n.path}
                         className={`nav-item ${currentPath === n.path ? "active" : ""}`}

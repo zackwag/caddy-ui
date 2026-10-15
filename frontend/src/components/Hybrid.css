@@ -1,0 +1,59 @@
+.hybrid-intro { display: flex; gap: 14px; align-items: center; padding: 4px 0 8px; }
+.hybrid-intro-icon { display: grid; place-items: center; flex: 0 0 42px; height: 42px; border: 1px solid var(--border); border-radius: 8px; font-size: 25px; color: var(--accent); background: var(--surface); }
+.hybrid-intro h2, .hybrid-certificate-heading h2 { font-size: 14px; font-weight: 500; margin: 0 0 6px; }
+.hybrid-intro p, .hybrid-certificate-heading p { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 0; max-width: 780px; }
+.hybrid-search { width: min(380px, 100%); }
+.hybrid-search .search-input { width: 100%; }
+.hybrid-table-heading { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); }
+.hybrid-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.hybrid-filter { display: flex; align-items: center; gap: 8px; font: inherit; font-size: 12px; color: var(--muted); padding: 7px 10px; border: 1px solid transparent; background: transparent; border-radius: 4px; cursor: pointer; }
+.hybrid-filter:hover { color: var(--text); background: var(--bg); }
+.hybrid-filter.is-active { color: var(--text); background: var(--bg); border-color: var(--border); }
+.hybrid-filter span { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); }
+.hybrid-page .hybrid-table th { text-align: start; padding-top: 12px; padding-bottom: 12px; }
+.hybrid-table td { height: 67px; }
+.hybrid-domain { font-size: 13px; }
+.hybrid-upstream { color: var(--accent2); font-size: 12px; }
+.hybrid-row-detail { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.hybrid-readonly { color: var(--muted); font-size: 11px; display: block; text-align: end; white-space: nowrap; }
+.hybrid-table-note { margin: 0; border-top: 1px solid var(--border); padding: 12px 16px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.hybrid-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.hybrid-empty strong { color: var(--text); font-weight: 500; }
+.hybrid-empty p { margin: 0; }
+.hybrid-empty-icon { font-size: 30px; color: var(--muted); }
+.hybrid-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 5px; font-size: 12px; line-height: 1.7; }
+.hybrid-notice-error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 30%, transparent); background: color-mix(in srgb, var(--danger) 5%, transparent); }
+.hybrid-notice-success { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.hybrid-certificate-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.hybrid-certificate-heading h2 { display: flex; align-items: center; gap: 8px; }
+.hybrid-certificate-heading .btn { flex-shrink: 0; }
+.hybrid-certificate-empty { font-size: 12px; color: var(--muted); padding: 18px 0 0; margin: 16px 0 0; border-top: 1px solid var(--border); }
+.hybrid-certificate-list { margin-top: 18px; }
+.hybrid-certificate { padding: 14px 0; border-top: 1px solid var(--border); }
+.hybrid-certificate:last-child { padding-bottom: 0; }
+.hybrid-certificate-meta { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 10px; }
+.hybrid-certificate-meta strong { font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.hybrid-certificate-meta .badge { white-space: normal; }
+.hybrid-certificate details { font-size: 11px; margin-top: 12px; color: var(--muted); }
+.hybrid-certificate summary { cursor: pointer; width: fit-content; }
+.hybrid-certificate details p { line-height: 1.7; }
+.hybrid-certificate code { display: block; background: var(--bg); border: 1px solid var(--border); padding: 10px; border-radius: 4px; overflow-wrap: anywhere; color: var(--accent2); line-height: 1.7; text-align: left; user-select: all; }
+.hybrid-modal { width: 500px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.hybrid-form-intro { font-size: 12px; color: var(--muted); line-height: 1.7; margin: -4px 0 20px; }
+.hybrid-field-hint { font-size: 11px; color: var(--muted); line-height: 1.65; margin: 7px 0 0; }
+.hybrid-modal .field select { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; }
+.hybrid-modal .field select:focus { border-color: var(--accent); outline: none; }
+.hybrid-form-actions { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); }
+.hybrid-form-error { color: var(--danger); font-size: 12px; line-height: 1.6; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 4px; }
+.hybrid-file-field input[type=file] { padding: 12px; font-size: 12px; border-style: dashed; }
+.hybrid-file-field input::file-selector-button { background: var(--surface); color: var(--text); padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; margin-inline-end: 12px; cursor: pointer; }
+.hybrid-page button:focus-visible, .hybrid-modal button:focus-visible, .hybrid-certificate summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 640px) {
+    .hybrid-intro { align-items: flex-start; }
+    .hybrid-table-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+    .hybrid-filters { gap: 2px; }
+    .hybrid-filter { padding: 6px 8px; }
+    .hybrid-certificate-heading { align-items: stretch; flex-direction: column; gap: 14px; }
+    .hybrid-table { min-width: 710px; }
+    .hybrid-modal { padding: 20px; }
+}

@@ -8,6 +8,7 @@ import logger from './logger.js';
 import { failureReason } from './routeChecks.js';
 import { getUpdateNotification } from './updateCheck.js';
 import { checkInstanceUpstreams } from './upstreamChecks.js';
+import { loadedCertificates } from './loadedCertificates.js';
 const CHECK_INTERVAL_MS = 30_000;
 
 let config = null;
@@ -200,6 +201,13 @@ async function checkCerts() {
 }
 
 async function checkCertsForInstance(inst) {
+    for (const cert of await loadedCertificates(inst)) {
+        const key = `cert-expiring:${inst.id}:${cert.path}`;
+        if (cert.daysRemaining <= 14 && !isDebouncedKey(key)) {
+            markSent(key);
+            await sendNotification(config, { title: cert.daysRemaining < 0 ? 'Origin certificate expired' : 'Origin certificate expiring', message: `${instanceLabel(inst)}${cert.domain}: ${cert.daysRemaining} days remaining`, priority: 'high' });
+        }
+    }
     const certsPath = join(inst.dataPath, 'certificates');
     const issuers = await listContainerDir(inst.containerName, certsPath);
     if (!issuers.length) return;

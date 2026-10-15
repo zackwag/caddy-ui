@@ -1,0 +1,67 @@
+services:
+  gateway:
+    image: lucaslorentz/caddy-docker-proxy:latest
+    environment:
+      CADDY_INGRESS_NETWORKS: caddy-hybrid-test
+      CADDY_DOCKER_CADDYFILE_PATH: /hybrid/Caddyfile
+      CADDY_DOCKER_POLLING_INTERVAL: 2s
+    labels:
+      caddy.admin: 0.0.0.0:2019
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - hybrid:/hybrid:ro
+      - data:/data
+      - logs:/logs
+      - origin-private:/certs
+    ports:
+      - 127.0.0.1:18980:80
+      - 127.0.0.1:18981:2019
+      - 127.0.0.1:18984:443
+  docker-reader:
+    image: tecnativa/docker-socket-proxy:latest
+    environment:
+      CONTAINERS: '1'
+      POST: '0'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+  caddy-ui-backend:
+    build: ..
+    environment:
+      CADDY_UI_HYBRID: 'true'
+      CADDY_UI_USER: admin
+      CADDY_UI_PASSWORD: integration-test-only
+      JWT_SECRET: integration-test-only-not-for-production
+      CADDY_ADMIN_URL: http://gateway:2019
+      CADDY_CONFIG_PATH: /hybrid/Caddyfile
+      CADDY_DATA_PATH: /data/caddy
+      CADDY_LOG_PATH: /logs/caddy.log
+      CADDY_UI_UPDATE_CHECK: 'false'
+    volumes:
+      - hybrid:/hybrid
+      - data:/data:ro
+      - logs:/logs:ro
+      - ui:/etc/caddy-ui
+      - origin-public:/certs
+    ports:
+      - 127.0.0.1:18982:3001
+  frontend:
+    build: ../../frontend
+    ports:
+      - 127.0.0.1:18983:80
+  upstream:
+    image: caddy:2-alpine
+    command: [caddy, file-server, --root, /usr/share/caddy, --listen, ':8080']
+    labels:
+      caddy: http://label.hybrid.test
+      caddy.reverse_proxy: '{{upstreams 8080}}'
+      caddy.log: ''
+networks:
+  default:
+    name: caddy-hybrid-test
+volumes:
+  hybrid:
+  data:
+  logs:
+  ui:
+  origin-private:
+  origin-public:

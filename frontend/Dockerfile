@@ -5,8 +5,8 @@ ENV VITE_APP_VERSION=$APP_VERSION
 
 WORKDIR /app
 
-COPY package.json .
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY index.html .
 COPY vite.config.js .

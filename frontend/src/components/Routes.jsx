@@ -226,7 +226,7 @@ const STATUS_STYLE = {
     maintenance: { labelKey: "routes.maintenance", color: "var(--accent3)" },
 };
 
-export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes }) {
+export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes, readOnly = false }) {
     const { t } = useTranslation();
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
@@ -549,7 +549,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                             )}
                         </div>
                         <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading}>↺ {t("common.refresh")}</button>
-                        <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ {t("routes.addRoute")}</button>
+                        {!readOnly && <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ {t("routes.addRoute")}</button>}
                     </div>
                 </div>
                 <div className="card card-flush">
@@ -623,7 +623,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                 )}
                                                 {columns.id && <td className="mono cell-muted">{r["@id"] || "—"}</td>}
                                                 <td className="col-actions">
-                                                    <div className="btn-row flex-end">
+                                                    {!readOnly && <div className="btn-row flex-end">
                                                         {!hasId && (
                                                             <button
                                                                 className="btn btn-ghost btn--icon"
@@ -639,7 +639,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                             title={t("routes.editRoute")}
                                                         >✎</button>
                                                         {hasId && <button className="btn btn-danger btn--icon" onClick={() => deleteRoute(r["@id"], domain)}>✕</button>}
-                                                    </div>
+                                                    </div>}
                                                 </td>
                                             </tr>
                                         );

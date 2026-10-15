@@ -6,6 +6,8 @@ import { describeReadError, listContainerDir, readContainerDir, readContainerFil
 import logger from '../logger.js';
 import { AppError, asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
+import { certificateIssuer, loadedCertificates } from '../loadedCertificates.js';
+import { hybridEnabled } from '../hybrid.js';
 
 const router = Router();
 
@@ -117,7 +119,7 @@ async function getCerts(containerName, certsPath, adminUrl) {
             else if (daysRemaining < 14 && !isInternal) status = 'expiring';
             else status = 'valid';
 
-            results.push({ domain, issuer: isInternal ? 'internal' : 'acme', issuerDir: issuer, validFrom: info.validFrom, validTo: info.validTo, daysRemaining, isManaged, isInternal, status });
+            results.push({ domain, issuer: isInternal ? 'internal' : 'acme', issuerName: certificateIssuer(info.issuer), source: 'stored', issuerDir: issuer, validFrom: info.validFrom, validTo: info.validTo, daysRemaining, isManaged, isInternal, status });
         }
     }
 
@@ -127,6 +129,9 @@ async function getCerts(containerName, certsPath, adminUrl) {
         if (cert.isInternal && acmeDomains.has(cert.domain)) {
             cert.status = 'superseded';
         }
+        cert.deletable = !hybridEnabled() && (cert.isInternal
+            ? ['orphaned', 'superseded', 'expired'].includes(cert.status)
+            : cert.status === 'orphaned');
     }
 
     return results.sort((a, b) => {
@@ -138,10 +143,18 @@ async function getCerts(containerName, certsPath, adminUrl) {
 
 // GET /api/tls
 router.get('/', async (req, res) => {
-    const certsPath = join(req.instance.dataPath, 'certificates');
-    const certs = await getCerts(req.instance.containerName, certsPath, req.instance.adminUrl);
-    logger.info(`TLS certs listed`, { count: certs.length });
-    res.json(certs);
+    try {
+        const certsPath = join(req.instance.dataPath, 'certificates');
+        const [stored, configured] = await Promise.all([
+            getCerts(req.instance.containerName, certsPath, req.instance.adminUrl),
+            loadedCertificates(req.instance),
+        ]);
+        const certs = [...configured, ...stored];
+        logger.info(`TLS certs listed`, { count: certs.length });
+        res.json(certs);
+    } catch (err) {
+        sendAppError(res, asAppError(err, 'CERTIFICATE_READ_FAILED'));
+    }
 });
 
 // DELETE /api/tls/:domain

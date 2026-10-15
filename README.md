@@ -19,6 +19,18 @@ explanations and onboarding live in docs/src/. Do not edit generated DOCKERHUB.m
 
 # caddy/ui
 
+## Docker-label hybrid fork
+
+Opt-in integration, deployment and limitations: [Hybrid guide](docs/HYBRID.md).
+Dockhand example: [compose.hybrid.yaml](compose.hybrid.yaml).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CADDY_UI_HYBRID` | `false` | Keep docker-proxy as the sole writer; use Hybrid Sites for manual changes |
+| `HYBRID_DOCKER_URL` | `http://docker-reader:2375` | GET-only Docker inventory endpoint |
+
+Hybrid mode requires authentication and one environment-configured instance.
+
 A modern, self-hosted web interface for managing your [Caddy](https://caddyserver.com) server. Built from scratch in a single conversation with Claude.
 
 ![Status](https://img.shields.io/badge/status-active-00e5a0?style=flat-square)

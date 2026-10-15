@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 
-const ALLOWED_PATH_PREFIXES = ['/etc/', '/var/', '/data/', '/opt/', '/tmp/', '/home/'];
+const ALLOWED_PATH_PREFIXES = ['/etc/', '/var/', '/data/', '/opt/', '/tmp/', '/home/', '/hybrid/', '/logs/'];
 
 export function validateUrl(url) {
     let parsed;

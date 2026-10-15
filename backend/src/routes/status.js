@@ -83,6 +83,7 @@ router.get('/', async (req, res) => {
 
         res.json({
             online: true,
+            hybrid: process.env.CADDY_UI_HYBRID === 'true',
             serverCount: servers.length,
             routeCount,
             upstreamsOnline,
@@ -95,7 +96,7 @@ router.get('/', async (req, res) => {
     } catch (err) {
         const error = asAppError(err, 'CADDY_STATUS_UNAVAILABLE', { instanceId: req.instance.id });
         res.locals.appError = error;
-        res.json({ online: false, error: 'Caddy status unavailable', code: error.code });
+        res.json({ online: false, hybrid: process.env.CADDY_UI_HYBRID === 'true', error: 'Caddy status unavailable', code: error.code });
     }
 });
 
