@@ -23,6 +23,56 @@ Diagnostic dispatches use per-run concurrency groups, so starting another experi
 
 The diagnostic job is reusable through `etoe-diagnostics.yml`; it does not need to be registered separately on the default branch. The existing registered dispatcher makes branch-only execution possible.
 
+## Publish an existing run for browser / phone review
+
+After a diagnostic run completes, publish its artifact through a **separate manual dispatch**. This runs no application tests, creates no containers, and does not affect experiment timing. Both successful and failed collections may be published when their artifact contains a valid `experiment.json`; original outcomes and incomplete-collection metadata remain visible.
+
+```bash
+gh workflow run test.yml --repo YOUR_FORK/caddy-ui \
+  --ref dev/etoe-diagnostics \
+  -f diagnostic_operation=publish \
+  -f diagnostic_run=RUN_ID \
+  -f diagnostic_attempt=1
+```
+
+Use the numeric run ID from the **collection** URL (`/actions/runs/RUN_ID`), not the publisher's run. If you reran that collection, select its source attempt explicitly. The Actions form can also expose these inputs once the dispatcher version is registered on the default branch; the CLI works with this branch's inputs now.
+
+The dispatcher calls `publish-etoe-diagnostics.yml`. Only that publication job receives `actions: read` and `contents: write`; the collector retains read-only repository access. It accepts only completed, manually dispatched **Test** runs from this repository's `dev/etoe-diagnostics` branch, selects the exact `etoe-diagnostics-RUN_ID-ATTEMPT` artifact, checks the download digest when GitHub provides one, and matches the experiment's run/attempt/commit to its source run.
+
+The first publication creates the independent, results-only branch **`dev/etoe-diagnostic-results`**. It does not need merging into `main`. Results accumulate under:
+
+```text
+README.md                         # Rendered index of all published runs
+runs/RUN_ID/attempt-ATTEMPT/
+    README.md                     # Source run, commit, outcome and report link
+    provenance.json               # Artifact identity and archive hash
+    files.sha256.json             # Original/extracted file hashes before adding pages
+    artifact/
+        README.md                 # Rendered summary and evidence links
+        SUMMARY.md                # Unchanged original report
+        ...                       # All original artifact folders and files
+        001-normal/SCENARIO/
+            README.md             # Evidence, screenshot and bounded log previews
+            trace.zip             # Original, usable in Playwright
+            trace.zip.contents/   # Expanded nested archive, with directory pages
+```
+
+Open `https://github.com/YOUR_FORK/caddy-ui/tree/dev/etoe-diagnostic-results`. The publisher's step summary also links the exact run folder at its **publication commit**, so sharing that link pins the output even as more runs are added. GitHub renders the directory READMEs and screenshots on mobile; an interactive Playwright trace still requires its viewer.
+
+Re-publishing the same artifact is a no-op. A run/attempt folder with different provenance is never overwritten. Publication uses ordinary fast-forward pushes and a separate concurrency group; an outside conflicting update fails safely. GitHub may replace an older pending dispatch when multiple publishers are queued, so check that each requested publisher ran before discarding its Actions artifact.
+
+Archives are treated as data and never executed. ZIPs stay available and are also recursively expanded into adjacent `*.zip.contents` directories. Extraction rejects traversal, Git metadata paths, symlinks, duplicate file entries and output collisions. Limits are 90 MiB per file, 1 GiB per publication, 20,000 archive entries and three nested ZIP levels. Over-limit publication fails explicitly and leaves the Actions artifact untouched; collect smaller batches or download that artifact directly. This tool uses Python 3.11+ standard-library ZIP support (preinstalled on the workflow's Ubuntu runner), without adding application dependencies.
+
+```mermaid
+flowchart LR
+    Collect[Read-only diagnostic collection] --> Artifact[Actions artifact]
+    Select[Manual run ID and attempt] --> Publish[Separate publisher]
+    Artifact --> Publish
+    Publish --> Verify[Verify provenance and safely expand ZIPs]
+    Verify --> Branch[Results-only branch: immutable run folder]
+    Branch --> Review[Rendered reports, screenshots and raw evidence]
+```
+
 ## Profiles
 
 | Profile | What runs | Purpose |
@@ -101,6 +151,7 @@ Regression checks:
 
 ```bash
 npm run test:etoe-diagnostics
+npm run test:etoe-diagnostics:publication # no Docker; archive safety and local Git publication
 npm run lint:etoe-diagnostics
 npm run test:etoe-diagnostics:integration # real cancellation and sentinel isolation
 ```

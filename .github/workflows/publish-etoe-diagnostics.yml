@@ -1,0 +1,52 @@
+name: Publish E2E diagnostic evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: Completed diagnostic collection run ID
+        type: string
+        required: true
+      attempt:
+        description: Source collection attempt
+        type: string
+        default: '1'
+  workflow_call:
+    inputs:
+      run:
+        type: string
+        required: true
+      attempt:
+        type: string
+        default: '1'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-etoe-diagnostic-results
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish an existing artifact (no tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify publisher safety
+        run: python3 -m unittest discover -s test/diagnostics/publication -p '*_test.py' -v
+
+      - name: Publish browsable evidence to the dedicated results branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.run }}
+          SOURCE_ATTEMPT: ${{ inputs.attempt }}
+        run: >-
+          python3 test/diagnostics/publication/publish.py
+          --run "$SOURCE_RUN"
+          --attempt "$SOURCE_ATTEMPT"

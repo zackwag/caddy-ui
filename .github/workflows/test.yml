@@ -6,6 +6,18 @@ on:
       - main
   workflow_dispatch:
     inputs:
+      diagnostic_operation:
+        description: Collect trials or publish an existing diagnostic artifact
+        type: choice
+        options: [collect, publish]
+        default: collect
+      diagnostic_run:
+        description: Completed diagnostic run ID to publish (publish only)
+        type: string
+      diagnostic_attempt:
+        description: Source run attempt to publish (publish only)
+        type: string
+        default: '1'
       diagnostic_trials:
         description: Trials per profile on dev/etoe-diagnostics (1–20)
         type: choice
@@ -156,7 +168,7 @@ jobs:
         run: ${{ matrix.project == 'frontend' && 'npm run lint -- --max-warnings=0' || 'npm run lint' }}
 
   etoe-diagnostics:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/etoe-diagnostics'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/etoe-diagnostics' && inputs.diagnostic_operation != 'publish'
     permissions:
       contents: read
     uses: ./.github/workflows/etoe-diagnostics.yml
@@ -165,4 +177,14 @@ jobs:
       seed: ${{ inputs.diagnostic_seed || '12345' }}
       profiles: ${{ inputs.diagnostic_profiles || 'all' }}
       scope: ${{ inputs.diagnostic_scope || 'suite' }}
+
+  publish-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev/etoe-diagnostics' && inputs.diagnostic_operation == 'publish'
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/publish-etoe-diagnostics.yml
+    with:
+      run: ${{ inputs.diagnostic_run }}
+      attempt: ${{ inputs.diagnostic_attempt || '1' }}
 
