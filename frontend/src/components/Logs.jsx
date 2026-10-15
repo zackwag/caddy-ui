@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -180,7 +181,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                     <span className="section-label">{t("logs.configuration")}</span>
                     <div className="flex-center">
                         {logConfig && <span className={`badge ${logConfig.enabled ? "badge-green" : "badge-muted"}`}>{logConfig.enabled ? t("common.enabledUpper") : t("common.disabledUpper")}</span>}
-                        <span className="chevron">{configOpen ? "▲" : "▼"}</span>
+                        <span className="chevron"><UtilityIcon name={configOpen ? "caretUp" : "caretDown"} /></span>
                     </div>
                 </div>
                 {configOpen && !logConfig && (
@@ -206,7 +207,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                                         <option value="json">json</option>
                                         <option value="console">console</option>
                                     </select>
-                                    <span className="select-arrow">▾</span>
+                                    <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                                 </div>
                             </div>
                             <div>
@@ -218,7 +219,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                                         <option value="WARN">WARN</option>
                                         <option value="ERROR">ERROR</option>
                                     </select>
-                                    <span className="select-arrow">▾</span>
+                                    <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                                 </div>
                             </div>
                             <div className="config-grid-full">
@@ -235,7 +236,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                             </div>
                         </div>
                         <div className="flex-end">
-                            <button className="btn btn-primary log-save-btn" onClick={saveConfig} disabled={savingConfig || !configDirty}>{savingConfig ? t("common.saving") : `↑ ${t("common.save")}`}</button>
+                            <button className="btn btn-primary log-save-btn" onClick={saveConfig} disabled={savingConfig || !configDirty}>{savingConfig ? t("common.saving") : <><UtilityIcon name="arrowUp" /> {t("common.save")}</>}</button>
                         </div>
                     </div>
                 )}
@@ -246,7 +247,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                 <div className="btn-row">
                     <div className="search-wrap">
                         <input className="search-input search-input--clearable" placeholder={t("logs.searchPlaceholder")} value={logSearch} onChange={e => setLogSearch(e.target.value)} />
-                        {logSearch && <button className="search-clear" onClick={() => setLogSearch("")} title={t("common.clearSearch")}>✕</button>}
+                        {logSearch && <button className="search-clear" onClick={() => setLogSearch("")} title={t("common.clearSearch")}><UtilityIcon name="close" /></button>}
                     </div>
                     {levelBtn("error", "ERROR")}
                     {levelBtn("warn", "WARN")}
@@ -256,9 +257,9 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                 <div className="btn-row">
                     <span className="log-line-count log-line-count--desktop">{lineCountText}</span>
                     {live && <div className="live-dot" />}
-                    <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}>{live ? `■ ${t("logs.stop")}` : `▶ ${t("logs.live")}`}</button>
-                    <button className="btn btn-ghost" onClick={refreshLogs} disabled={refreshing}>↺ {refreshing ? t("common.refreshing") : t("common.refresh")}</button>
-                    <button className="btn btn-ghost" onClick={exportLogs}>↓ {t("common.export")}</button>
+                    <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}><UtilityIcon name={live ? "stop" : "play"} /> {t(live ? "logs.stop" : "logs.live")}</button>
+                    <button className="btn btn-ghost" onClick={refreshLogs} disabled={refreshing}><UtilityIcon name="refresh" /> {refreshing ? t("common.refreshing") : t("common.refresh")}</button>
+                    <button className="btn btn-ghost" onClick={exportLogs}><UtilityIcon name="arrowDown" /> {t("common.export")}</button>
                 </div>
             </div>
             <div className="log-wrap">

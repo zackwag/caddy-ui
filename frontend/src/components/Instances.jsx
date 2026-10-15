@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -339,7 +340,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                                             )}
                                             {serverIds.map(id => <option key={id} value={id}>{serverLabel(editing, id)}</option>)}
                                         </select>
-                                        <span className="select-arrow">▾</span>
+                                        <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                                     </div>
                                 ) : (
                                     <input

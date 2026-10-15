@@ -52,17 +52,38 @@ export function PixelIcon({ name, size = 16 }) {
 }
 
 const UTILITY_PATHS = {
-    refresh: 'M13 6a5.5 5.5 0 1 0 .5 4M13 2v4H9',
+    // The open quadrant is at the top; the arrow points counterclockwise.
+    refresh: 'M10 3a5.5 5.5 0 1 1-4-.5M14 3h-4v4',
     chevronDown: 'm5 6 3 3 3-3',
     external: 'M5 11 12 4M6 4h6v6',
     download: 'M8 2v10m-4-4 4 4 4-4M3 14h10',
     menu: 'M3 4h10M3 8h10M3 12h10',
+    pencil: 'm3 2-1 1 9 9 3 1-1-3Zm1 2 7 7m0 1 2-2',
+    info: 'M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0ZM8 7v4M7 11h2M8 4.5v.5',
+    wrench: 'M13 2a4 4 0 0 1-5 5l-5 6-1-1 6-5a4 4 0 0 1 5-5l-3 3 1 1Z',
+    arrowUp: 'M8 14V2m-3 3 3-3 3 3',
+    arrowDown: 'M8 2v12m-3-3 3 3 3-3',
+    arrowRight: 'M2 8h12m-3-3 3 3-3 3',
+    sort: 'M8 2v12m-3-9 3-3 3 3m-6 6 3 3 3-3',
+    caretDown: 'm4 6 4 4 4-4Z',
+    caretUp: 'm4 10 4-4 4 4Z',
+    close: 'm4 4 8 8m0-8-8 8',
+    play: 'M4 2v12l9-6Z',
+    stop: 'M3 3h10v10H3Z',
+    check: 'm3 8 3 3 7-8',
+    warning: 'M8 2 1 14h14ZM8 6v4m0 2v.5',
+    history: 'M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0ZM9 8A1 1 0 1 1 7 8a1 1 0 0 1 2 0Z',
+    dot: 'M11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+    settings: 'm6 1 4 0 .5 2 1 .5 2-.5 1 3-1.5 1v2l1.5 1-1 3-2-.5-1 .5-.5 2H6l-.5-2-1-.5-2 .5-1-3 1.5-1V7L1.5 6l1-3 2 .5 1-.5ZM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
 };
 
+const FILLED_UTILITY_ICONS = ['caretDown', 'caretUp', 'play', 'stop', 'dot'];
+
 export function UtilityIcon({ name, size = 12 }) {
+    const filled = FILLED_UTILITY_ICONS.includes(name);
     return (
         <svg className="ui-icon" width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true" focusable="false">
-            <path d={UTILITY_PATHS[name]} />
+            <path d={UTILITY_PATHS[name]} fill={filled ? "currentColor" : "none"} stroke={filled ? "none" : "currentColor"} />
         </svg>
     );
 }

@@ -1988,7 +1988,7 @@ export const css = `
   }
   .config-select:disabled, .config-input:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Plain-text chevron instead of a background-image SVG -- some browser
+  /* Inline SVG marker instead of a background-image -- some browser
      dark-mode extensions (e.g. Dark Reader-style forced-dark tooling) treat
      any element with a background-image as "media" to re-invert, which
      was corrupting the select into a garbled dither pattern. */

@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { useTranslation } from "react-i18next";
 import { languageName } from '../i18n/index.js';
 
@@ -15,7 +16,7 @@ export default function LanguagePicker({
             </span>
 
             <span className="theme-picker-trigger language-picker-arrow">
-                ▾
+                <UtilityIcon name="caretDown" size={10} />
             </span>
 
             <select
