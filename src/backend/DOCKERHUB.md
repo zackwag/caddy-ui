@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.27.2. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.28.0. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -199,7 +199,7 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `UPTIME_HISTORY_PATH` | `/etc/caddy-ui/uptime-history.json` | Path to the persisted upstream and route uptime history file |
 | `UPTIME_HISTORY_RETENTION_DAYS` | `7` | How many days of upstream and route health checks to retain |
 | `WWW_PATH` | `/etc/caddy-ui/www` | Directory for the maintenance page HTML file (created on first use) |
-| `NODE_EXTRA_CA_CERTS` | — | Path to a PEM bundle of extra CAs for route checks to trust, for sites with certificates from a private CA other than Caddy's local one (standard Node.js variable) |
+| `NODE_EXTRA_CA_CERTS` | — | Path to a PEM bundle of extra CAs for route checks and notification webhooks to trust, for sites with certificates from a private CA other than Caddy's local one (standard Node.js variable) |
 
 ## Authentication
 
