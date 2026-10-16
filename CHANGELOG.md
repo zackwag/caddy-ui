@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.29.0](https://github.com/zackwag/caddy-ui/compare/v2.28.0...v2.29.0) (2026-10-16)
+
+
+### Features
+
+* add german translation ([#296](https://github.com/zackwag/caddy-ui/issues/296)) ([13b9ddd](https://github.com/zackwag/caddy-ui/commit/13b9ddd0fa93735cc85b6d0c599058c391a567e4))
+* **dev:** expand localization playground coverage to 285 keys ([#293](https://github.com/zackwag/caddy-ui/issues/293)) ([5e6f4a0](https://github.com/zackwag/caddy-ui/commit/5e6f4a0c76b19597c52b5a7562284cdcbe2315c1))
+
 ## [2.28.0](https://github.com/zackwag/caddy-ui/compare/v2.27.2...v2.28.0) (2026-10-16)
 
 
