@@ -229,10 +229,10 @@ SIGINT/SIGTERM. A failed capture keeps the previous JSON file. No existing devel
 or production configurations are modified. Use Linux CI, a Dev Container, or WSL for capture;
 the ordinary playground preview requires neither Docker nor a backend.
 It also reads untouched notification defaults without writing provider settings or sending
-test messages. The artifact retains its existing `dashboard.json` name. Its six profiles cover
-the three Dashboard postures, `notifications-default`, `metrics-enabled`, and `logs-default`. The last two contain
-only GET responses; the capture seeds access logs on its own Caddy instance and never contacts
-a notification destination or remote upstream.
+test messages. The artifact retains its existing `dashboard.json` name. Its 21 profiles cover
+Dashboard, notifications, metrics, logs, TLS, sidebar, routes, route history, Caddyfile history,
+uptime, and instances. The capture seeds access logs and configuration changes only on its own
+Caddy instance and never contacts a notification destination or remote upstream.
 
 From the repository root:
 

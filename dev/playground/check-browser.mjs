@@ -301,10 +301,10 @@ try {
     }
     assert.equal(tlsSidebarKeys.size, 33);
     await go('tls.certificates', 'tls-expired');
-    await frame().getByRole('button', { name: '↺ Refresh', exact: true }).last().click();
+    await frame().getByRole('button', { name: en.common.refresh, exact: true }).last().click();
     await frame().locator('.section-label').filter({ hasText: 'Certificates — expired' }).waitFor();
     await go('tls.downloadRootCa', 'tls-empty');
-    await frame().getByRole('button', { name: '↓ Download Root CA', exact: true }).click();
+    await frame().getByRole('button', { name: en.tls.downloadRootCa, exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Unrecorded window: /api/tls/ca' }).waitFor();
     await go('sidebar.versionDetails', 'sidebar-online');
     await page.locator('.preview-context summary').click();
