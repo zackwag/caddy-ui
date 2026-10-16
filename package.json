@@ -15,6 +15,8 @@
         "i18n:preview:build": "npm run i18n:preview:build --prefix dev --",
         "i18n:preview:capture": "npm run i18n:preview:capture --prefix dev --",
         "i18n:preview:check-capture": "npm run i18n:preview:check-capture --prefix dev --",
-        "i18n:preview:check-browser": "npm run i18n:preview:check-browser --prefix dev --"
+        "i18n:preview:check-browser": "npm run i18n:preview:check-browser --prefix dev --",
+        "dev:cloud-metadata": "npm run dev:cloud-metadata --prefix dev --",
+        "test:cloud-metadata": "npm run test:cloud-metadata --prefix dev --"
     }
 }

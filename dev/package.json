@@ -11,7 +11,9 @@
         "i18n:preview:build": "vite build --config playground/vite.config.js",
         "i18n:preview:capture": "node playground/capture.mjs",
         "i18n:preview:check-capture": "node --test playground/capture.integration.mjs",
-        "i18n:preview:check-browser": "node playground/check-browser.mjs"
+        "i18n:preview:check-browser": "node playground/check-browser.mjs",
+        "dev:cloud-metadata": "python3 cloud-metadata/collect.py",
+        "test:cloud-metadata": "python3 -m unittest discover -s cloud-metadata -p 'test_*.py'"
     },
     "devDependencies": {
         "@vitejs/plugin-react": "^6.1.2",
