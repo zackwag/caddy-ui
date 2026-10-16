@@ -22,7 +22,7 @@ jobs:
         project: [backend, frontend]
     defaults:
       run:
-        working-directory: ${{ matrix.project }}
+        working-directory: src/${{ matrix.project }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -34,18 +34,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+          cache-dependency-path: |
+            src/${{ matrix.project }}/package-lock.json
+            dev/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint development harness
-        if: matrix.project == 'backend'
-        run: npm run lint:dev-caddy --prefix ..
-
-      - name: Test development lifecycle safety
-        if: matrix.project == 'backend'
-        run: npm run test:dev-caddy --prefix ..
+      # Playground tests remain in the frontend until the test-ownership follow-up.
+      - name: Install development dependencies for frontend tests
+        if: matrix.project == 'frontend'
+        working-directory: .
+        run: npm ci --prefix dev
 
       - name: Run tests
         run: npm test
@@ -66,19 +66,27 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
+            src/backend/package-lock.json
+            src/frontend/package-lock.json
+            dev/package-lock.json
 
       - name: Install application and test dependencies
         run: |
-          npm ci --prefix backend
-          npm ci --prefix frontend
+          npm ci --prefix src/backend
+          npm ci --prefix src/frontend
+          npm ci --prefix dev
+
+      - name: Lint development tooling
+        run: npm run lint:dev-caddy
+
+      - name: Test development lifecycle safety
+        run: npm run test:dev-caddy
 
       - name: Prepare real Caddy and Chromium
         run: |
           docker info
-          docker pull "$(node -e "import('./scripts/dev-caddy/harness.mjs').then(m => process.stdout.write(m.IMAGE))")"
-          npm exec --prefix frontend -- playwright install --with-deps chromium
+          docker pull "$(node -e "import('./dev/dev-caddy/harness.mjs').then(m => process.stdout.write(m.IMAGE))")"
+          npm exec --prefix dev -- playwright install --with-deps chromium
 
       - name: Test lifecycle, registration and instance isolation
         run: npm run test:dev-caddy:integration
@@ -112,7 +120,7 @@ jobs:
         project: [backend, frontend]
     defaults:
       run:
-        working-directory: ${{ matrix.project }}
+        working-directory: src/${{ matrix.project }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -124,7 +132,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+          cache-dependency-path: src/${{ matrix.project }}/package-lock.json
 
       - name: Install dependencies
         run: npm ci

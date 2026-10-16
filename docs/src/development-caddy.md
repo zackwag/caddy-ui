@@ -3,7 +3,7 @@
 Use this environment to test frontend changes, backend behavior, error handling,
 and logging against real Caddy instances. It keeps development configuration and
 data separate from production. The root npm package contains development scripts;
-backend and frontend dependencies remain separate.
+`src/backend/`, `src/frontend/` and `dev/` have separate dependency packages.
 
 ## Prerequisites and startup
 
@@ -16,8 +16,9 @@ support remote/TLS Docker contexts. The harness targets local Docker Engines.
 From the repository root:
 
 ```sh
-npm ci --prefix backend
-npm ci --prefix frontend
+npm ci --prefix src/backend
+npm ci --prefix src/frontend
+npm ci --prefix dev
 npm run dev:with-caddy
 ```
 
@@ -42,7 +43,7 @@ when the isolated instances file does not exist, and refreshes that registration
 address on startup while preserving other UI edits. It never rewrites the registry
 while the backend is running.
 
-Ctrl-C stops frontend/backend processes. Caddy containers and persistent data
+Ctrl-C stops frontend and backend processes. Caddy containers and persistent data
 remain for inspection and later startup. Use the explicit lifecycle commands to
 stop or remove them. A startup failure also leaves Caddy available for diagnosis.
 
@@ -113,7 +114,7 @@ Lifecycle functions accept an injected Docker command runner for automated tests
 ## Networking
 
 Run the harness against a local Docker Engine or Docker Desktop. It uses
-loopback-published ports for the frontend/backend to reach Caddy. Remote Docker
+loopback-published ports for the frontend and backend to reach Caddy. Remote Docker
 Engines are unsupported because published loopback ports belong to the remote host.
 Use the printed HTTP URL to test a route and the printed admin URL when registering
 an instance; container IPs suggested by discovery may be unreachable from the host.
@@ -147,7 +148,8 @@ Reinstalling or rerunning startup is otherwise safe and repeatable. Registry
 cleanup is deliberately separate; deleting `.dev-caddy/backend/` while stopped
 resets UI state without touching any Caddy volumes.
 
-Run harness lint with `npm run lint:dev-caddy` (requires backend dependencies)
+Run shared tooling lint with `npm run lint:dev-caddy` (requires backend and frontend
+dependencies for shared rules)
 and lifecycle safety tests with `npm run test:dev-caddy`. They need no Docker
 Engine. `npm run test:dev-caddy:integration` runs real-container checks. They
 use fresh namespaces and purge only their own resources,
@@ -156,12 +158,12 @@ independent simultaneous instances. It requires Docker and may pull the pinned i
 
 ## Automated integration and browser checks
 
-Install the backend and frontend dependencies, then run:
+Install `src/backend`, `src/frontend` and `dev` dependencies as shown above, then run:
 
 ```sh
 npm run test:dev-caddy
 npm run test:dev-caddy:integration
-npm exec --prefix frontend -- playwright install chromium
+npm exec --prefix dev -- playwright install chromium
 npm run test:dev-caddy:e2e
 ```
 
@@ -210,10 +212,10 @@ Read the support code in this order:
 
 | File | Responsibility |
 | --- | --- |
-| `scripts/dev-caddy/harness.mjs` | Existing Docker operations, ownership checks and environment paths; shared by development commands and tests. |
-| `test/integration/lifecycle.mjs` | Resource acquisition, cancellation and reverse-order cleanup. It has no Docker, backend or browser dependencies. |
-| `test/integration/stack.mjs` | Claim namespace, create Caddy, seed temporary state, start backend, discover its bound port, and wait for HTTP readiness. |
-| `frontend/e2e/fixture.mjs` | Add Vite, Chromium, a browser context and bounded diagnostics to the same resource owner. |
+| `dev/dev-caddy/harness.mjs` | Existing Docker operations, ownership checks and environment paths; shared by development commands and tests. |
+| `dev/integration/lifecycle.mjs` | Resource acquisition, cancellation and reverse-order cleanup. It has no Docker, backend or browser dependencies. |
+| `dev/integration/stack.mjs` | Claim namespace, create Caddy, seed temporary state, start backend, discover its bound port, and wait for HTTP readiness. |
+| `dev/e2e/fixture.mjs` | Add Vite, Chromium, a browser context and bounded diagnostics to the same resource owner. |
 
 `FixtureScope.run` tracks a step that must finish before cleanup.
 `acquire` also registers disposal of the returned resource, including a resource
@@ -228,11 +230,12 @@ frontend, backend and Caddy resources follow one cleanup order.
 
 Scenario files contain the actions and expected behavior:
 
-- `test/integration/caddy.mjs`: Caddy lifecycle and persistent data without the UI backend.
-- `test/integration/api.mjs`: registration versus container lifecycle and instance isolation.
-- `test/integration/startup.mjs`: failed startup, cancellation, port ownership and namespace exclusivity.
-- `test/integration/diagnostics.mjs`: public error contracts and correlated backend logs.
-- `frontend/e2e/error-logging.mjs`: browser feedback, live logs, recovery, network loss and locale fallback.
+- `dev/integration/caddy.mjs`: Caddy lifecycle and persistent data without the UI backend.
+- `dev/integration/api.mjs`: registration versus container lifecycle and instance isolation.
+- `dev/integration/startup.mjs`: failed startup, cancellation, port ownership and namespace exclusivity.
+- `dev/integration/diagnostics.mjs`: public error contracts and correlated backend logs.
+- `dev/e2e/error-logging.mjs`: browser feedback, live logs, recovery, network loss and locale fallback.
+- `dev/e2e/languages.mjs`: reviewed-language availability, Arabic font loading and fallback after a failed font download.
 
 `*.test.mjs` files in the integration package exercise lifecycle and readiness
 without Docker. The root npm commands select unit, container and browser suites

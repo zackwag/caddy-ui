@@ -27,6 +27,7 @@ browser bundle is copied into the book, so published diagrams work offline.
 From the repository root:
 
 ```sh
+npm run i18n:coverage --prefix src/frontend
 mdbook build docs
 mdbook serve docs --hostname 127.0.0.1 --port 3000
 ```
@@ -44,7 +45,7 @@ If you edited Docker Hub source blocks, also run
 Screenshots live in `docs/src/screenshots/`; the root README also references them.
 The localization coverage SVG is generated into `docs/src/assets/` by the
 documentation workflow so mdBook copies it into the site; it is not checked in.
-Generate it locally with `npm run i18n:coverage --prefix frontend`.
+Generate it locally with `npm run i18n:coverage --prefix src/frontend`.
 The book's favicon is copied from the frontend logo. `docs/theme/palettes.css`
 contains the frontend's default VT2026 and CoarseEverywhere color tokens copied
 at migration time. Keep those tokens in sync when changing the frontend defaults.
@@ -56,6 +57,28 @@ graph, rendered `docs/book/` output, and installed `node_modules/` are ignored
 by Git. Mermaid code fences render as diagrams and follow the light/dark
 theme. Invalid diagrams fall back to readable source and report the error in
 the browser console.
+
+## Generated screenshots
+
+The documentation workflow renders the production frontend with captured API
+responses. To generate the same screenshots locally, run from the repository root:
+
+```sh
+npm ci --prefix src/frontend
+npm ci --prefix dev
+npm run build --prefix src/frontend
+npm exec --prefix dev -- playwright install chromium
+npm run docs:screenshots
+```
+
+Screenshots are written to `docs/src/screenshots/`. Rendering uses recorded data
+without a running backend. Playwright belongs to the dev package. A system browser
+can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
+
+Refreshing the recorded data uses `npm run docs:screenshots:capture` and requires
+backend dependencies plus a working local Docker Engine. It creates and cleans up
+its own disposable Caddy resources. Review the changed capture separately from
+image generation; do not edit generated responses by hand.
 
 ## Generated project structure
 

@@ -4,13 +4,13 @@ import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
-const require = createRequire(resolve(import.meta.dirname, '../../frontend/package.json'));
+const require = createRequire(resolve(import.meta.dirname, '../../dev/package.json'));
 const { chromium } = require('playwright');
-import { requestKey, validateCapture } from '../../frontend/playground/capture-format.js';
+import { requestKey, validateCapture } from '../../dev/playground/capture-format.js';
 
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
-const dist = resolve(root, 'frontend/dist');
+const dist = resolve(root, 'src/frontend/dist');
 const screenshotsDir = resolve(root, 'docs/src/screenshots');
 
 const VIEWS = [
@@ -30,7 +30,7 @@ async function buildFrontend() {
         console.log('Using existing frontend build.');
     } catch {
         console.log('Building frontend...');
-        await exec('npm', ['run', 'build'], { cwd: resolve(root, 'frontend'), timeout: 120_000 });
+        await exec('npm', ['run', 'build'], { cwd: resolve(root, 'src/frontend'), timeout: 120_000 });
     }
 }
 

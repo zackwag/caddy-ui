@@ -45,19 +45,22 @@ jobs:
         run: npm ci --prefix docs --ignore-scripts
 
       - name: Install frontend dependencies
-        run: npm ci --prefix frontend
+        run: npm ci --prefix src/frontend
+
+      - name: Install development tooling dependencies
+        run: npm ci --prefix dev
 
       - name: Build frontend
-        run: npm run build --prefix frontend
+        run: npm run build --prefix src/frontend
 
       - name: Install Chromium
-        run: npx --prefix frontend playwright install --with-deps chromium
+        run: npm exec --prefix dev -- playwright install --with-deps chromium
 
       - name: Generate screenshots
-        run: node docs/screenshots/screenshot.mjs
+        run: npm run docs:screenshots
 
       - name: Generate localization coverage
-        run: node frontend/scripts/localization.mjs coverage
+        run: node src/frontend/scripts/localization.mjs coverage
 
       - name: Test documentation tooling
         run: npm test --prefix docs

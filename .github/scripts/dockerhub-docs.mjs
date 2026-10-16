@@ -11,11 +11,11 @@ const sourcePath = path.resolve(repoRoot, 'README.md');
 const outputPaths = {
     backend: path.resolve(
         repoRoot,
-        process.env.DOCKERHUB_BACKEND_PATH || 'backend/DOCKERHUB.md',
+        process.env.DOCKERHUB_BACKEND_PATH || 'src/backend/DOCKERHUB.md',
     ),
     frontend: path.resolve(
         repoRoot,
-        process.env.DOCKERHUB_FRONTEND_PATH || 'frontend/DOCKERHUB.md',
+        process.env.DOCKERHUB_FRONTEND_PATH || 'src/frontend/DOCKERHUB.md',
     ),
 };
 

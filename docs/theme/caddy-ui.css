@@ -1,4 +1,4 @@
-/* Palettes are copied from frontend/src/styles.js by prepare-book.mjs. */
+/* Palette mappings use the tokens maintained in palettes.css. */
 html.light, html.rust, html.navy, html.coal, html.ayu {
     --bg: var(--app-bg);
     --fg: var(--app-text);

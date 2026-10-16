@@ -28,8 +28,8 @@ jobs:
     if: needs.release-please.outputs.prs_created == 'true'
     runs-on: ubuntu-latest
     env:
-      DOCKERHUB_BACKEND_PATH: backend/DOCKERHUB.md
-      DOCKERHUB_FRONTEND_PATH: frontend/DOCKERHUB.md
+      DOCKERHUB_BACKEND_PATH: src/backend/DOCKERHUB.md
+      DOCKERHUB_FRONTEND_PATH: src/frontend/DOCKERHUB.md
     steps:
       - uses: actions/checkout@v7
         with:
