@@ -1,0 +1,1 @@
+var e={test:{languageLoaded:`Deutsch geladen`}};export{e as t};
