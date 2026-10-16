@@ -114,8 +114,8 @@ async function loadCatalogs() {
     for (const file of files) {
         const locale = file.slice(0, -3);
 
-        if (!/^[a-z]{2,3}$/.test(locale)) {
-            throw new Error(`locale filename "${file}" must use a lowercase 2-3 letter language code`);
+        if (!/^[a-z]{2,3}(-[a-z]{2})?$/.test(locale)) {
+            throw new Error(`locale filename "${file}" must use a language code like "es" or "es-mx"`);
         }
 
         const module = await import(pathToFileURL(path.join(localesDir, file)).href);
