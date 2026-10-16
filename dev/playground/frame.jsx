@@ -2,15 +2,15 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
-import i18n from '../src/i18n/index.js';
-import { css, THEME_LIST } from '../src/styles.js';
+import i18n from '../../src/frontend/src/i18n/index.js';
+import { css, THEME_LIST } from '../../src/frontend/src/styles.js';
 import FixtureView from './fixtures.jsx';
 import { capture, scenarios } from './registry.jsx';
 import { createReplayFetch } from './capture-format.js';
 import { markReferences } from './dom-context.js';
 import { placeholders, readValue } from './model.js';
 
-const modules = import.meta.glob('../src/i18n/locales/*.js', { eager: true, import: 'default' });
+const modules = import.meta.glob('../../src/frontend/src/i18n/locales/*.js', { eager: true, import: 'default' });
 const catalogs = Object.fromEntries(Object.entries(modules).map(([path, catalog]) => [path.split('/').pop().slice(0, -3), catalog]));
 const element = document.getElementById('root');
 const root = createRoot(element, { onUncaughtError: error => send({ type: 'preview-error', message: error.message }) });

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
-import de from '../src/i18n/locales/de.js';
-import en from '../src/i18n/locales/en.js';
+import de from '../../src/frontend/src/i18n/locales/de.js';
+import en from '../../src/frontend/src/i18n/locales/en.js';
 import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
 
 const invalid = ':80 {\n  integration_browser_bad_directive\n}\n';

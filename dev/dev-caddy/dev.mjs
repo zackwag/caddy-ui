@@ -80,17 +80,17 @@ try {
     instances = instances.map(instance => instance.containerName === info.instance.containerName
         ? { ...instance, adminUrl: info.instance.adminUrl } : instance);
     await writeFile(env.INSTANCES_PATH, JSON.stringify(instances, null, 2));
-    start(process.execPath, ['--watch', 'backend/src/index.js'], env);
+    start(process.execPath, ['--watch', 'src/backend/src/index.js'], env);
     await waitFor('http://127.0.0.1:3001/api/version', async response => (await response.json()).version === 'dev-caddy');
     // Invoke Vite directly after predev so shutdown controls the server process itself.
     await new Promise((resolve, reject) => {
-        const predev = spawn(process.execPath, ['frontend/scripts/fetch-caddyfile-mode.mjs'], { cwd: root, env, stdio: 'inherit' });
+        const predev = spawn(process.execPath, ['src/frontend/scripts/fetch-caddyfile-mode.mjs'], { cwd: root, env, stdio: 'inherit' });
         children.add(predev);
         predev.once('error', reject);
         predev.once('exit', code => { children.delete(predev); code === 0 ? resolve() : reject(new Error('Frontend predev failed.')); });
     });
     if (!stopping) {
-        start(process.execPath, ['frontend/node_modules/vite/bin/vite.js', 'frontend', '--host', '127.0.0.1', '--port', '5173', '--strictPort'], env);
+        start(process.execPath, ['src/frontend/node_modules/vite/bin/vite.js', 'src/frontend', '--host', '127.0.0.1', '--port', '5173', '--strictPort'], env);
         await waitFor('http://127.0.0.1:5173');
         console.log('Caddy UI ready at http://localhost:5173. Ctrl-C stops UI processes; Caddy containers/data remain until explicit cleanup.');
     }

@@ -5,7 +5,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { Harness } from '../../scripts/dev-caddy/harness.mjs';
+import { Harness } from '../dev-caddy/harness.mjs';
 import { captureDashboard } from './capture.mjs';
 import { sourceFingerprint } from './capture-source.mjs';
 

@@ -4,10 +4,10 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
-import { FixtureScope } from '../../test/integration/lifecycle.mjs';
-import { createTestStack, waitForContainerNetwork } from '../../test/integration/stack.mjs';
+import { FixtureScope } from '../integration/lifecycle.mjs';
+import { createTestStack, waitForContainerNetwork } from '../integration/stack.mjs';
 
-const frontend = resolve(import.meta.dirname, '..');
+const frontend = resolve(import.meta.dirname, '../../src/frontend');
 
 export function prepareBrowserTests() {
     return promisify(execFile)(process.execPath, ['scripts/fetch-caddyfile-mode.mjs'], { cwd: frontend, timeout: 30000 });

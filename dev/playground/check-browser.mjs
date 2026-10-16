@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
-import { THEME_LIST } from '../src/styles.js';
-import en from '../src/i18n/locales/en.js';
+import { THEME_LIST } from '../../src/frontend/src/styles.js';
+import en from '../../src/frontend/src/i18n/locales/en.js';
 import { flattenCatalog, readValue } from './model.js';
 
 // Optional development check: no backend, Docker, or CI browser job is needed.

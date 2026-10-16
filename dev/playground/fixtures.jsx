@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmDialog } from '../src/components/Confirm.jsx';
-import { Toasts, useToast } from '../src/components/Toasts.jsx';
-import Dashboard from '../src/components/Dashboard.jsx';
-import Login from '../src/components/Login.jsx';
-import ThemeWelcome from '../src/components/ThemeWelcome.jsx';
-import ThemePicker from '../src/components/ThemePicker.jsx';
-import LanguagePicker from '../src/components/LanguagePicker.jsx';
-import Notifications from '../src/components/Notifications.jsx';
-import { availableLocales } from '../src/i18n/index.js';
-import { THEME_LIST } from '../src/styles.js';
-import { apiFetch } from '../src/utils/api.js';
-import { localizeError } from '../src/utils/errorMessages.js';
+import { ConfirmDialog } from '../../src/frontend/src/components/Confirm.jsx';
+import { Toasts, useToast } from '../../src/frontend/src/components/Toasts.jsx';
+import Dashboard from '../../src/frontend/src/components/Dashboard.jsx';
+import Login from '../../src/frontend/src/components/Login.jsx';
+import ThemeWelcome from '../../src/frontend/src/components/ThemeWelcome.jsx';
+import ThemePicker from '../../src/frontend/src/components/ThemePicker.jsx';
+import LanguagePicker from '../../src/frontend/src/components/LanguagePicker.jsx';
+import Notifications from '../../src/frontend/src/components/Notifications.jsx';
+import { availableLocales } from '../../src/frontend/src/i18n/index.js';
+import { THEME_LIST } from '../../src/frontend/src/styles.js';
+import { apiFetch } from '../../src/frontend/src/utils/api.js';
+import { localizeError } from '../../src/frontend/src/utils/errorMessages.js';
 
 const noop = () => {};
 

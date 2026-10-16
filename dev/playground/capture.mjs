@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { backendEnvironment, checkDocker, Harness, IMAGE } from '../../scripts/dev-caddy/harness.mjs';
+import { backendEnvironment, checkDocker, Harness, IMAGE } from '../dev-caddy/harness.mjs';
 import { CAPTURE_VERSION, normalizeCapture, validateCapture } from './capture-format.js';
 import { sourceFingerprint } from './capture-source.mjs';
 
@@ -15,7 +15,7 @@ const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
 const paths = ['/status', '/status/process', '/server-names', '/health'];
 
-export async function captureDashboard({ output = resolve(import.meta.dirname, 'captures/dashboard.json'), backendEntry = resolve(root, 'backend/src/index.js'), onNamespace = () => {} } = {}) {
+export async function captureDashboard({ output = resolve(import.meta.dirname, 'captures/dashboard.json'), backendEntry = resolve(root, 'src/backend/src/index.js'), onNamespace = () => {} } = {}) {
     if (process.platform === 'win32') throw new Error('Capture requires a Unix socket. Run it in Linux CI, WSL, or a Dev Container; replay works without Docker.');
     await checkDocker();
     const context = process.env.DOCKER_CONTEXT;

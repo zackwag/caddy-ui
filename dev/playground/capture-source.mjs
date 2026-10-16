@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '../..');
 
-export const sourceInputs = ['backend/src', 'backend/package.json', 'backend/package-lock.json',
-    'scripts/dev-caddy/harness.mjs', 'frontend/src/components/Dashboard.jsx', 'frontend/src/components/Notifications.jsx',
-    'frontend/src/utils/api.js', 'frontend/src/utils/format.js'];
+export const sourceInputs = ['src/backend/src', 'src/backend/package.json', 'src/backend/package-lock.json',
+    'dev/dev-caddy/harness.mjs', 'src/frontend/src/components/Dashboard.jsx', 'src/frontend/src/components/Notifications.jsx',
+    'src/frontend/src/utils/api.js', 'src/frontend/src/utils/format.js'];
 
 export async function sourceFingerprint() {
     async function files(directory) {

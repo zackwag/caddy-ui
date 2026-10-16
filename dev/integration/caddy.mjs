@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { checkDocker, docker, Harness } from '../../scripts/dev-caddy/harness.mjs';
+import { checkDocker, docker, Harness } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from './lifecycle.mjs';
 import { claimNamespace, waitForHttp } from './stack.mjs';
 

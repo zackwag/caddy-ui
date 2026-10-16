@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
-import { backendEnvironment, checkDocker, Harness, IMAGE } from '../../scripts/dev-caddy/harness.mjs';
+import { backendEnvironment, checkDocker, Harness, IMAGE } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from './lifecycle.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -145,7 +145,7 @@ export function useTestStack(t, options = {}) {
 }
 
 // Browser fixtures pass their owner here so all services share one cleanup order.
-export async function createTestStack(scope, { project = randomBytes(8).toString('hex'), backendEntry = 'backend/src/index.js' } = {}) {
+export async function createTestStack(scope, { project = randomBytes(8).toString('hex'), backendEntry = 'src/backend/src/index.js' } = {}) {
     const instances = new Map();
     let output = '';
     const close = () => scope.close();

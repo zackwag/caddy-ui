@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { Harness } from '../../scripts/dev-caddy/harness.mjs';
+import { Harness } from '../dev-caddy/harness.mjs';
 import { useTestStack } from './stack.mjs';
 
 test('failed backend startup still removes its Caddy containers and volumes', { timeout: 60000 }, async t => {
@@ -30,7 +30,7 @@ test('real backend bind failure reports EADDRINUSE and cleans up its Caddy resou
 const blocker = createServer();
 await new Promise(resolve => blocker.listen(Number(process.env.PORT), '127.0.0.1', resolve));
 process.env.PORT = String(blocker.address().port);
-await import(${JSON.stringify(new URL('../../backend/src/index.js', import.meta.url).href)});
+await import(${JSON.stringify(new URL('../../src/backend/src/index.js', import.meta.url).href)});
 `);
     await assert.rejects(useTestStack(t, { project, backendEntry: entry }), error => {
         assert.match(error.message, /Backend exited \(1\) before readiness/);

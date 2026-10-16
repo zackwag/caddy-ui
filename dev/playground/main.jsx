@@ -2,10 +2,10 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Workbench from './Workbench.jsx';
 import { createPreviewI18n } from './model.js';
-import { css, THEME_LIST } from '../src/styles.js';
+import { css, THEME_LIST } from '../../src/frontend/src/styles.js';
 import './workbench.css';
 
-const modules = import.meta.glob('../src/i18n/locales/*.js', { eager: true, import: 'default' });
+const modules = import.meta.glob('../../src/frontend/src/i18n/locales/*.js', { eager: true, import: 'default' });
 const catalogs = Object.fromEntries(
     Object.entries(modules).map(([path, catalog]) => [path.split('/').pop().slice(0, -3), catalog]),
 );

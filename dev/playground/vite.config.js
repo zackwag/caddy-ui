@@ -27,7 +27,7 @@ export default defineConfig(async () => ({
     plugins: [react(), captureFreshness],
     define: { __PREVIEW_SOURCE_HASH__: JSON.stringify(await sourceFingerprint()) },
     server: { host: '127.0.0.1', port: 5174, strictPort: true, watch: { ignoreInitial: true } },
-    build: { outDir: '../dist-playground', emptyOutDir: true, rolldownOptions: { input: {
+    build: { outDir: '../../src/frontend/dist-playground', emptyOutDir: true, rolldownOptions: { input: {
         index: fileURLToPath(new URL('index.html', import.meta.url)),
         frame: fileURLToPath(new URL('frame.html', import.meta.url)),
     } } },
