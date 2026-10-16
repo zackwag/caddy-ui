@@ -15,7 +15,7 @@
     },
     "devDependencies": {
         "@vitejs/plugin-react": "^6.1.2",
-        "i18next": "^26.4.3",
+        "i18next": "^26.4.4",
         "playwright": "1.64.0",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
