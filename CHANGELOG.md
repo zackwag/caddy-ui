@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.3](https://github.com/zackwag/caddy-ui/compare/v2.25.2...v2.25.3) (2026-10-16)
+
+
+### Bug Fixes
+
+* keep language picker label from overflowing ([#267](https://github.com/zackwag/caddy-ui/issues/267)) ([2f6a706](https://github.com/zackwag/caddy-ui/commit/2f6a70671167d9b6adbf40ae69445948acb6a8f7))
+
 ## [2.25.2](https://github.com/zackwag/caddy-ui/compare/v2.25.1...v2.25.2) (2026-10-16)
 
 
