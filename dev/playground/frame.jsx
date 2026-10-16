@@ -125,6 +125,23 @@ function scheduleReport() {
                 if (scenario.enabled) toggle.click();
             }
         }
+        if (!setupStep && scenario.setup === 'tls-orphaned') {
+            const orphaned = element.querySelector('.card-header .btn-row > .section-label');
+            if (orphaned) { setupStep = 1; orphaned.click(); }
+        }
+        if (scenario.kind === 'instances') {
+            if (!setupStep && ['instance-add', 'instance-invalid', 'instance-edit', 'instance-remove', 'instance-discover'].includes(scenario.setup)) {
+                const header = element.querySelector('.gap-16 > .card:first-child');
+                const instance = element.querySelector('.instance-details-grid')?.closest('.card');
+                const action = scenario.setup === 'instance-edit' ? instance?.querySelector('.btn-ghost')
+                    : scenario.setup === 'instance-remove' ? instance?.querySelector('.btn-danger')
+                        : scenario.setup === 'instance-discover' ? header?.querySelector('.btn-ghost') : header?.querySelector('.btn-primary');
+                if (action) { setupStep = 1; action.click(); }
+            } else if (setupStep === 1 && scenario.setup === 'instance-invalid') {
+                const save = element.querySelector('.modal .btn-primary');
+                if (save) { setupStep = 2; save.click(); }
+            }
+        }
         if (!setupStep && scenario.setup === 'route-edit') {
             const edit = element.querySelector('.col-actions button[title]:last-of-type');
             if (edit) { setupStep = 1; edit.click(); }

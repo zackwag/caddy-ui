@@ -134,5 +134,24 @@ describe('localization playground', () => {
         expect(keys.has('caddyfile.savedReloaded')).toBe(false);
         expect(keys.has('caddyfile.upToDate')).toBe(false);
     });
+    it('adds 50 instance, certificate and populated uptime keys from real reads', () => {
+        const added = scenarios.filter(scenario => ['instances', 'tls-certificates', 'uptime-populated'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        const keys = new Set(added.flatMap(scenario => scenario.keys));
+        expect(added).toHaveLength(11);
+        expect([...keys].filter(key => !existing.has(key))).toHaveLength(50);
+        for (const kind of ['instances', 'tls-certificates', 'uptime-populated']) {
+            const kindKeys = new Set(added.filter(scenario => scenario.kind === kind).flatMap(scenario => scenario.keys));
+            expect(kindKeys.size).toBe(kind === 'instances' ? 30 : 10);
+        }
+        for (const profileId of new Set(added.map(scenario => scenario.profile))) {
+            const profile = capture.scenarios.find(scenario => scenario.id === profileId);
+            expect(profile.requests.every(record => record.request.method === 'GET')).toBe(true);
+        }
+        expect(keys.has('instances.added')).toBe(false);
+        expect(keys.has('instances.discoveredContainers')).toBe(false);
+        expect(keys.has('tls.daysShort')).toBe(false);
+        expect(keys.has('uptime.online')).toBe(false);
+    });
 
 });

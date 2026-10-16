@@ -15,7 +15,7 @@ const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
 const paths = ['/status', '/status/process', '/server-names', '/health'];
 
-export async function captureDashboard({ output = resolve(import.meta.dirname, 'captures/dashboard.json'), backendEntry = resolve(root, 'src/backend/src/index.js'), onNamespace = () => {} } = {}) {
+export async function captureDashboard({ output = resolve(import.meta.dirname, 'captures/dashboard.json'), backendEntry = resolve(root, 'src/backend/src/index.js'), onNamespace = () => {}, onBackend = () => {} } = {}) {
     if (process.platform === 'win32') throw new Error('Capture requires a Unix socket. Run it in Linux CI, WSL, or a Dev Container; replay works without Docker.');
     await checkDocker();
     const context = process.env.DOCKER_CONTEXT;
@@ -24,18 +24,19 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
     if (!endpoint.startsWith('unix://')) throw new Error('Capture needs a Unix Docker socket accessible to both the CLI and backend. Use Docker-outside-of-Docker in a Dev Container, WSL, or Linux CI.');
     const directory = await mkdtemp(resolve(tmpdir(), 'caddy-ui-preview-'));
     const harness = new Harness(randomBytes(8).toString('hex'));
-    let backend;
+    const backends = [];
     let outputLog = '';
     let result;
     let failure;
     const socketPath = resolve(directory, 'backend.sock');
+    let activeSocket = socketPath;
     const startup = new AbortController();
     const interrupt = () => startup.abort(new Error('Capture interrupted.'));
     process.once('SIGINT', interrupt);
     process.once('SIGTERM', interrupt);
     function api(path, method = 'GET', body = null) {
         return new Promise((resolve, reject) => {
-            const call = request({ socketPath, path: '/api' + path, method, timeout: 5000, signal: startup.signal,
+            const call = request({ socketPath: activeSocket, path: '/api' + path, method, timeout: 5000, signal: startup.signal,
                 headers: { 'Content-Type': typeof body === 'string' ? 'text/plain' : 'application/json', 'X-Instance-Id': 'default' } }, response => {
                 const chunks = [];
                 response.on('data', chunk => chunks.push(chunk));
@@ -67,6 +68,26 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         for (const path of paths) requests.push(await api(path));
         return { id, requests };
     }
+    function startBackend(env) {
+        const backend = spawn(process.execPath, [backendEntry], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+        backends.push(backend);
+        for (const stream of [backend.stdout, backend.stderr]) stream.on('data', data => { outputLog = (outputLog + data).slice(-64000); });
+        backend.on('error', error => startup.abort(error));
+        backend.once('close', (code, signal) => startup.abort(new Error(`Capture backend exited (${code ?? signal}).\n${outputLog}`)));
+        onBackend(backend.pid);
+    }
+    async function waitForBackend() {
+        const deadline = Date.now() + 15000;
+        while (Date.now() < deadline) {
+            startup.signal.throwIfAborted();
+            try {
+                const version = await api('/version');
+                if (version.response.body.version === 'dev-caddy-preview') return;
+            } catch { startup.signal.throwIfAborted(); }
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        throw new Error(`Capture backend did not become ready.\n${outputLog}`);
+    }
     try {
         onNamespace(harness.project);
         assert.deepEqual(await harness.names(), []);
@@ -78,22 +99,8 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
             CADDY_SERVER_NAME: 'srv0', NODE_ENV: 'development' };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
         await mkdir(resolve(directory, 'backend'), { recursive: true });
-        backend = spawn(process.execPath, [backendEntry], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
-        for (const stream of [backend.stdout, backend.stderr]) stream.on('data', data => { outputLog = (outputLog + data).slice(-64000); });
-        backend.on('error', error => startup.abort(error));
-        backend.once('close', (code, signal) => startup.abort(new Error(`Capture backend exited (${code ?? signal}).\n${outputLog}`)));
-        const deadline = Date.now() + 15000;
-        let ready = false;
-        while (Date.now() < deadline) {
-            startup.signal.throwIfAborted();
-            try {
-                const version = await api('/version');
-                if (version.response.body.version === env.APP_VERSION) { ready = true; break; }
-            } catch { startup.signal.throwIfAborted(); }
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        startup.signal.throwIfAborted();
-        if (!ready) throw new Error(`Capture backend did not become ready.\n${outputLog}`);
+        startBackend(env);
+        await waitForBackend();
         const caddyfileEmpty = { id: 'caddyfile-empty', requests: [await successful('/caddyfile'), await successful('/caddyfile/history')] };
         assert.deepEqual(caddyfileEmpty.requests[1].response.body, []);
         await successful('/metrics/config', 'PUT', { enabled: true });
@@ -167,6 +174,69 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         caddyfileHistory.requests.push(await successful('/caddyfile/validations?fmt=true', 'POST', revised));
         const adminHeaders = { 'Content-Type': 'application/json', Origin: 'http://0.0.0.0:2019' };
         const original = await (await fetch(info.instance.adminUrl + '/config/', { headers: adminHeaders, signal: AbortSignal.any([startup.signal, AbortSignal.timeout(5000)]) })).json();
+        async function loadConfig(config) {
+            const response = await fetch(info.instance.adminUrl + '/load', { method: 'POST', headers: adminHeaders,
+                body: JSON.stringify(config), signal: AbortSignal.any([startup.signal, AbortSignal.timeout(5000)]) });
+            assert.equal(response.ok, true, await response.text());
+        }
+        // Issue one real certificate with Caddy's internal CA. Never use ACME
+        // or contact an external hostname; this listener stays inside the fixture.
+        const certified = structuredClone(original);
+        certified.apps.tls = { automation: { policies: [{ subjects: ['preview.internal'], issuers: [{ module: 'internal' }] }] } };
+        certified.apps.http.servers.preview_tls = { listen: [':8443'], automatic_https: { disable_redirects: true },
+            tls_connection_policies: [{}], routes: [{ match: [{ host: ['preview.internal'] }],
+                handle: [{ handler: 'static_response', body: 'Internal certificate preview' }] }] };
+        await loadConfig(certified);
+        let certRecord;
+        const certDeadline = Date.now() + 15000;
+        while (Date.now() < certDeadline) {
+            certRecord = await successful('/tls');
+            if (certRecord.response.body.some(cert => cert.domain === 'preview.internal' && cert.status === 'valid')) break;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        assert.equal(certRecord.response.body.length, 1);
+        assert.equal(certRecord.response.body[0].status, 'valid');
+        const tlsValid = { id: 'tls-internal-valid', requests: [certRecord] };
+        const uptimePending = { id: 'uptime-route-pending', requests: [] };
+        for (const path of ['/routes', '/health/uptime', '/health/uptime?kind=route', '/route-notes']) {
+            uptimePending.requests.push(await successful(path));
+        }
+        const orphaned = structuredClone(original);
+        orphaned.apps.tls = { automation: { policies: [] } };
+        await loadConfig(orphaned);
+        const tlsOrphaned = { id: 'tls-internal-orphaned', requests: [await successful('/tls')] };
+        assert.equal(tlsOrphaned.requests[0].response.body[0].status, 'orphaned');
+
+        // A separate real local-mode backend has no Docker socket. Discovery
+        // returns the production unavailable-Docker fallback without inspecting
+        // unrelated containers on the capture host.
+        const localDirectory = resolve(directory, 'local-instance');
+        await mkdir(resolve(localDirectory, 'backend'), { recursive: true });
+        const localConfig = resolve(localDirectory, 'Caddyfile');
+        await writeFile(localConfig, revised);
+        const localEnv = { ...env, ...backendEnvironment(localDirectory, { ...info.instance, adminUrl: '', containerName: '' }),
+            PORT: resolve(localDirectory, 'backend.sock'), APP_VERSION: env.APP_VERSION,
+            DOCKER_SOCKET: resolve(localDirectory, 'docker-unavailable.sock') };
+        for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete localEnv[key];
+        activeSocket = localEnv.PORT;
+        startBackend(localEnv);
+        await waitForBackend();
+        const added = await successful('/instances', 'POST', { name: 'Local Preview', adminUrl: info.instance.adminUrl,
+            containerName: '', serverName: 'srv0', configPath: localConfig,
+            logPath: resolve(localDirectory, 'access.log'), dataPath: resolve(localDirectory, 'data') });
+        const localId = added.response.body.id;
+        const serversPath = `/instances/servers?adminUrl=${encodeURIComponent(info.instance.adminUrl)}`;
+        async function instanceSnapshot(id, empty = false) {
+            const requests = [];
+            for (const path of ['/instances', '/instances/status', '/instances/discover', '/server-names/all', ...(empty ? [] : [serversPath])]) {
+                requests.push(await api(path));
+            }
+            assert.deepEqual(requests[2].response.body, []);
+            return { id, requests };
+        }
+        const instancesLocal = await instanceSnapshot('instances-local');
+        assert.equal(instancesLocal.requests[0].response.body[0].containerName, '');
+        activeSocket = socketPath;
         const empty = structuredClone(original);
         empty.apps.http.servers = {};
         const reload = await fetch(info.instance.adminUrl + '/load', { method: 'POST', headers: adminHeaders, body: JSON.stringify(empty), signal: AbortSignal.any([startup.signal, AbortSignal.timeout(5000)]) });
@@ -176,6 +246,13 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         assert.equal(noServers.requests[0].response.body.serverCount, 0);
         const routesEmpty = await routeSnapshot('routes-empty');
         assert.deepEqual(routesEmpty.requests[0].response.body, []);
+        activeSocket = localEnv.PORT;
+        const instancesMissing = await instanceSnapshot('instances-missing-server');
+        assert.deepEqual(instancesMissing.requests.at(-1).response.body, []);
+        await successful(`/instances/${localId}`, 'DELETE');
+        const instancesEmpty = await instanceSnapshot('instances-empty', true);
+        assert.deepEqual(instancesEmpty.requests[0].response.body, []);
+        activeSocket = socketPath;
         await harness.stop('preview');
         const stopped = await snapshot('dashboard-stopped');
         assert.equal(stopped.requests[0].response.body.online, false);
@@ -187,7 +264,8 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         result = validateCapture({ formatVersion: CAPTURE_VERSION,
             source: { commit: commit.trim(), sourceHash: await sourceFingerprint(), caddyImage: IMAGE },
             normalization: ['Request IDs', 'ISO timestamps', 'Private capture addresses and paths; measurements remain as observed'],
-            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs, tls, sidebarOnline, sidebarStopped, routesOnline, routesEmpty, history, caddyfileEmpty, caddyfileHistory, routeEdit], [
+            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs, tls, sidebarOnline, sidebarStopped, routesOnline, routesEmpty, history, caddyfileEmpty, caddyfileHistory, routeEdit, tlsValid, tlsOrphaned, uptimePending, instancesLocal, instancesMissing, instancesEmpty], [
+                [encodeURIComponent(info.instance.adminUrl), encodeURIComponent('http://caddy-preview:2019')],
                 [info.instance.adminUrl, 'http://caddy-preview:2019'],
                 [new URL(info.instance.adminUrl).host, 'caddy-preview:2019'],
                 [info.instance.containerName, 'caddy-ui-dev-preview'], [directory, '/capture-state'],
@@ -196,15 +274,17 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         });
     } catch (error) { failure = error; }
     const cleanupErrors = [];
-    if (backend && backend.exitCode === null && backend.signalCode === null) {
-        try {
-            await new Promise((resolve, reject) => {
-                const timer = setTimeout(() => backend.kill('SIGKILL'), 3000);
-                backend.once('close', () => { clearTimeout(timer); resolve(); });
-                backend.once('error', reject);
-                backend.kill('SIGTERM');
-            });
-        } catch (error) { cleanupErrors.push(error); }
+    for (const backend of backends) {
+        if (backend.exitCode === null && backend.signalCode === null) {
+            try {
+                await new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => backend.kill('SIGKILL'), 3000);
+                    backend.once('close', () => { clearTimeout(timer); resolve(); });
+                    backend.once('error', reject);
+                    backend.kill('SIGTERM');
+                });
+            } catch (error) { cleanupErrors.push(error); }
+        }
     }
     try { await harness.removeAll({ confirmed: true, purge: true }); } catch (error) { cleanupErrors.push(error); }
     try { await rm(directory, { recursive: true, force: true }); } catch (error) { cleanupErrors.push(error); }

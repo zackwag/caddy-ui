@@ -59,7 +59,7 @@ One state may cover several keys, and shared keys can occur in several states.
 Current states cover the Dashboard with running/stopped Caddy and no HTTP servers, its loading
 view, label-edit dialog, and successful label save; route/certificate confirmations and a
 notification toast remain available. Unregistered keys explicitly show that no fixture exists.
-Registered states cover 235 distinct keys. The onboarding and appearance states add 27:
+Registered states cover 285 distinct keys. The onboarding and appearance states add 27:
 
 | Production component | Prepared states | New keys |
 | --- | --- | ---: |
@@ -182,6 +182,38 @@ placeholder, clear-title hint and rich-text load failure are registered inside t
 Native option-only strings, transient progress messages, symbol-prefixed status text and
 unrecorded save results are not counted as new coverage in this batch.
 
+Eleven instance, certificate and populated-uptime states add 50 keys: 30 instance-management
+keys, 10 certificate-row labels and 10 uptime summary/table labels. `instances-local`,
+`instances-add`, `instances-edit`, `instances-invalid`, `instances-remove`,
+`instances-discovery-empty`, `instances-empty` and `instances-missing-server` mount production
+`Instances`. Capture starts a second real backend with separate state and a deliberately
+unavailable Docker socket. It creates a local-mode instance through the API, captures its
+reads while Caddy has servers and after those servers are removed, then deletes only that
+private instance to capture the empty registry. Discovery's empty result is the backend's
+real Docker-unavailable fallback; capture never discovers unrelated host containers. The
+recorded empty-registry server-label read retains its actual HTTP 503 response.
+
+Add/edit forms, field validation, removal confirmation and discovery use their real handlers.
+Cached messages are prepared again after translation changes; ordinary form drafts stay local
+and survive translation edits. No instance writes are replayed. Add, Save and confirmed Remove
+report unrecorded requests. Changing the admin URL to an unrecorded destination similarly
+reports a missing server lookup without contacting that destination. Discovery reads and
+background polls replay the same defaults without accessing Docker or a backend.
+
+`tls-internal-valid` and `tls-internal-orphaned` show a real `preview.internal` certificate.
+Capture temporarily configures an internal-CA-only TLS listener in its disposable Caddy,
+waits for issuance, reads the metadata, then removes the named host and reads its orphaned
+status. It never uses ACME, requests an external hostname, or records a private key. The
+orphaned state opens the production filter through its counter. Certificate removal remains
+inert. Expiring, expired, superseded and external-issuer rows are not claimed in this batch.
+
+`uptime-route-pending` mounts production `UpstreamUptime` using the captured named route and
+empty recorded check statistics. Route-check toggles and exclusions change frame-local props;
+they do not enable backend checks or probe the hostname. The summary shows actual missing-data
+values. History for this new target has no captured requests and fails visibly if opened.
+Discovered-container lists, successful instance writes, native option-only labels and visually
+hidden uptime status text are not counted as new coverage.
+
 The label dialog is opened through the production edit action, and the saved-label state runs
 the actual Save handler against its recorded response. Navigation stays inside the selected
 component preview; this tool is not a replacement for testing the complete application.
@@ -226,7 +258,7 @@ not the playground or its browser check. Download the artifact, review the diff,
 `dev/playground/captures/dashboard.json` in a normal commit. It does not push commits or open PRs.
 
 The preview warns if the capture fingerprint differs from its current backend, Dashboard,
-Notifications, Metrics, Logs, TLS, Sidebar, Routes, route history, Caddyfile, divider, diff, instance-status, uptime or
+Notifications, Metrics, Logs, TLS, Sidebar, Routes, route history, Caddyfile, divider, diff, Instances, instance-status, uptime or
 API sources or backend dependencies. Source changes restart the dev server to recompute the
 fingerprint; this reload discards drafts. The production application build is unchanged.
 Unrecorded requests, query variants, write bodies, and unsupported transports fail visibly;
@@ -282,6 +314,10 @@ It also edits and resets all 31 route/history keys, checks retained form/column 
 route creation, search interpolation and clearing, all four history ranges, and clock isolation.
 It edits and resets all 32 Caddyfile/route-edit keys, checks pane keyboard resizing and local
 editor state retention, and exercises blocked force-save, restore, delete, import and export.
+It edits and resets all 50 instance/certificate/uptime keys, checks instance form retention,
+blocked instance writes, discovery replay, certificate plural interpolation and local uptime
+exclusion controls. Capture checks verify cleanup of both backend processes, including a
+deliberate failure immediately after the second backend starts.
 
 The standalone route/certificate confirmation fixtures remain inert. Caddyfile confirmations
 run their production handlers against strict replay; unrecorded writes are blocked. Keyboard

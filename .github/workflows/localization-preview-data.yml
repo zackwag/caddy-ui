@@ -13,6 +13,8 @@ on:
       - 'src/frontend/src/components/Sidebar.jsx'
       - 'src/frontend/src/components/Routes.jsx'
       - 'src/frontend/src/components/CaddyFile.jsx'
+      - 'src/frontend/src/components/Instances.jsx'
+      - 'src/frontend/src/components/UpstreamUptime.jsx'
       - 'src/frontend/src/components/PaneDivider.jsx'
       - 'src/frontend/src/utils/lineDiff.js'
       - 'src/frontend/src/components/RouteHistoryModal.jsx'

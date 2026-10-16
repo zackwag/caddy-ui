@@ -79,8 +79,47 @@ const caddyfileHistory = ['caddyfile.versionHistory', 'caddyfile.showVersionList
 const caddyfileSnapshot = ['caddyfile.diff', 'caddyfile.raw', 'caddyfile.compareAgainst', 'caddyfile.restore',
     'caddyfile.deleteSnapshot', 'caddyfile.versionPreview'];
 
+const instanceOverview = ['instances.title', 'instances.discover', 'instances.addInstance', 'instances.edit',
+    'instances.remove', 'instances.adminUrl', 'instances.container', 'instances.local', 'instances.configPath',
+    'instances.newRoutesGoTo', 'instances.logPath', 'instances.dataPath'];
+const instanceForm = ['instances.addInstance', 'instances.name', 'instances.namePlaceholder', 'instances.adminUrl',
+    'instances.containerName', 'instances.localModePlaceholder', 'instances.localModeHint', 'instances.newRoutesGoTo',
+    'instances.serverHint', 'instances.caddyfilePath', 'instances.logPath', 'instances.dataPath', 'instances.add'];
+const certificateRows = ['tls.domain', 'tls.issuer', 'tls.expires', 'tls.days', 'tls.status',
+    'tls.internal', 'tls.auto'];
+
 // Register actual component states, not alternative implementations of the UI.
 export const scenarios = [
+    { id: 'instances-local', title: 'Instances: recorded local mode', kind: 'instances',
+        profile: 'instances-local', keys: instanceOverview },
+    { id: 'instances-add', title: 'Instances: add form', kind: 'instances',
+        profile: 'instances-local', setup: 'instance-add', keys: instanceForm },
+    { id: 'instances-edit', title: 'Instances: edit local instance', kind: 'instances',
+        profile: 'instances-local', setup: 'instance-edit', keys: [...instanceForm.filter(key =>
+            !['instances.addInstance', 'instances.add'].includes(key)), 'instances.editInstance'] },
+    { id: 'instances-invalid', title: 'Instances: required fields validation', kind: 'instances',
+        profile: 'instances-local', setup: 'instance-invalid', remountOnTranslation: true,
+        keys: ['instances.nameAndAdminRequired'] },
+    { id: 'instances-remove', title: 'Instances: remove confirmation', kind: 'instances',
+        profile: 'instances-local', setup: 'instance-remove', remountOnTranslation: true,
+        keys: ['instances.removeConfirm'] },
+    { id: 'instances-discovery-empty', title: 'Instances: discovery without Docker access', kind: 'instances',
+        profile: 'instances-local', setup: 'instance-discover', remountOnTranslation: true,
+        keys: ['instances.noNewContainers'] },
+    { id: 'instances-empty', title: 'Instances: recorded empty registry without Docker access', kind: 'instances',
+        profile: 'instances-empty', keys: ['instances.welcome', 'instances.emptyHint',
+            'instances.discoverContainers', 'instances.addManually'] },
+    { id: 'instances-missing-server', title: 'Instances: selected HTTP server is missing', kind: 'instances',
+        profile: 'instances-missing-server', keys: ['instances.notInCaddyHint', 'instances.notInCaddy'] },
+    { id: 'tls-internal-valid', title: 'TLS: certificate issued by the fixture internal CA', kind: 'tls-certificates',
+        profile: 'tls-internal-valid', keys: [...certificateRows, 'tls.validUpper'] },
+    { id: 'tls-internal-orphaned', title: 'TLS: internal certificate after its host is removed', kind: 'tls-certificates',
+        profile: 'tls-internal-orphaned', setup: 'tls-orphaned',
+        keys: [...certificateRows, 'tls.orphanedUpper', 'tls.orphanedCount_one'] },
+    { id: 'uptime-route-pending', title: 'Uptime: captured named route awaiting checks', kind: 'uptime-populated',
+        profile: 'uptime-route-pending', keys: ['uptime.routesOnline', 'uptime.avgUptime', 'uptime.acrossHistory',
+            'uptime.lowestUptime', 'uptime.noDataYet', 'uptime.status', 'uptime.route', 'uptime.upstream',
+            'uptime.uptime', 'uptime.currentStateFor'] },
     { id: 'caddyfile-editor', title: 'Caddyfile: saved editor', kind: 'caddyfile',
         profile: 'caddyfile-history', keys: caddyfileControls },
     { id: 'caddyfile-empty', title: 'Caddyfile: empty snapshot history', kind: 'caddyfile',

@@ -9,6 +9,7 @@ export const sourceInputs = ['src/backend/src', 'src/backend/package.json', 'src
     'src/frontend/src/components/Metrics.jsx', 'src/frontend/src/components/UpstreamUptime.jsx', 'src/frontend/src/components/Logs.jsx',
     'src/frontend/src/components/TLS.jsx', 'src/frontend/src/components/Sidebar.jsx', 'src/frontend/src/hooks/useInstanceStatus.js',
     'src/frontend/src/components/Routes.jsx', 'src/frontend/src/components/RouteHistoryModal.jsx',
+    'src/frontend/src/components/Instances.jsx',
     'src/frontend/src/components/CaddyFile.jsx', 'src/frontend/src/components/PaneDivider.jsx',
     'src/frontend/src/utils/lineDiff.js', 'src/frontend/src/utils/routes.js', 'src/frontend/src/utils/logSource.js',
     'src/frontend/src/utils/api.js', 'src/frontend/src/utils/format.js'];

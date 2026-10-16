@@ -445,6 +445,67 @@ try {
     assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
     // End Caddyfile batch.
 
+    // Fifty-key instance, certificate and uptime batch.
+    const managementStates = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        const added = scenarios.filter(scenario => ['instances', 'tls-certificates', 'uptime-populated'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        return added.map(scenario => ({ ...scenario, keys: scenario.keys.filter(key => !existing.has(key)) }));
+    });
+    const managementKeys = new Set();
+    for (const scenario of managementStates) {
+        await go(scenario.keys[0], scenario.id);
+        for (const key of scenario.keys.filter(key => !managementKeys.has(key))) {
+            await keyList.getByRole('button', { name: key, exact: true }).click();
+            await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
+            await editor.fill(`${readValue(en, key)} [preview]`);
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return [...elements].some(element => [element.textContent, ...['title', 'aria-label', 'aria-valuetext', 'placeholder'].map(name => element.getAttribute(name))]
+                    .some(value => value?.includes('[preview]')));
+            }, key);
+            await page.getByRole('button', { name: 'Reset this key' }).click();
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return elements.length && [...elements].every(element => [element.textContent, ...['title', 'aria-label', 'aria-valuetext', 'placeholder'].map(name => element.getAttribute(name))]
+                    .every(value => !value?.includes('[preview]')));
+            }, key);
+            managementKeys.add(key);
+        }
+    }
+    assert.equal(managementKeys.size, 50);
+    await go('instances.name', 'instances-add');
+    await frame().locator('.modal input').first().fill('Local draft');
+    await editor.fill(`${en.instances.name} [preview]`);
+    assert.equal(await frame().locator('.modal input').first().inputValue(), 'Local draft');
+    await frame().locator('.modal input').nth(1).fill('http://caddy-preview:2019');
+    await frame().locator('.modal .btn-primary').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: POST /api/instances' }).waitFor();
+    await go('instances.editInstance', 'instances-edit');
+    await frame().locator('.modal .btn-primary').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: PUT /api/instances/local-preview' }).waitFor();
+    await go('instances.removeConfirm', 'instances-remove');
+    await page.locator('.preview-context summary').click();
+    assert.match(await page.locator('.preview-context pre').innerText(), /"name": "Local Preview"/);
+    await frame().locator('.modal .btn-danger').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: DELETE /api/instances/local-preview' }).waitFor();
+    await go('instances.emptyHint', 'instances-empty');
+    const discoveryToasts = await frame().locator('.toast-success').count();
+    await frame().getByRole('button', { name: 'Discover Containers', exact: true }).click();
+    await page.waitForFunction(count => document.querySelector('iframe').contentDocument.querySelectorAll('.toast-success').length > count, discoveryToasts);
+    assert.equal(await page.getByRole('alert').filter({ hasNotText: 'Captured data differs' }).count(), 0);
+    await go('tls.orphanedCount_one', 'tls-internal-orphaned');
+    await page.locator('.preview-context summary').click();
+    assert.match(await page.locator('.preview-context pre').innerText(), /"count": 1/);
+    await frame().locator('tbody tr').filter({ hasText: 'preview.internal' }).waitFor();
+    await go('uptime.avgUptime', 'uptime-route-pending');
+    await frame().locator('.uptime-row').filter({ hasText: 'preview.internal' }).waitFor();
+    assert.equal(await frame().locator('.stat-val').nth(1).innerText(), '—');
+    await frame().getByTitle(en.uptime.stopChecks.replace('{{host}}', 'preview.internal'), { exact: true }).click();
+    await frame().getByTitle('Resume route checks for preview.internal', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
+    // End fifty-key batch.
+
     for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 600 }]) {
         await page.setViewportSize(viewport);
         await go('tls.deleteConfirm', 'certificate-delete');
@@ -480,7 +541,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, 31 route/history keys, 32 Caddyfile/route-edit keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
+    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, 31 route/history keys, 32 Caddyfile/route-edit keys, 50 instance/certificate/uptime keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

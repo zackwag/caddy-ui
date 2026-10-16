@@ -16,6 +16,8 @@ import Sidebar from '../../src/frontend/src/components/Sidebar.jsx';
 import Routes from '../../src/frontend/src/components/Routes.jsx';
 import RouteHistoryModal from '../../src/frontend/src/components/RouteHistoryModal.jsx';
 import CaddyFile from '../../src/frontend/src/components/CaddyFile.jsx';
+import Instances from '../../src/frontend/src/components/Instances.jsx';
+import UpstreamUptime from '../../src/frontend/src/components/UpstreamUptime.jsx';
 import { availableLocales } from '../../src/frontend/src/i18n/index.js';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
 import { apiFetch } from '../../src/frontend/src/utils/api.js';
@@ -148,8 +150,25 @@ function CaddyfileFixture() {
     </div><ConfirmDialog dialog={confirmation.dialog} resolve={confirmation.resolve} /><Toasts toasts={toast.toasts} /></>;
 }
 
+function InstancesFixture() {
+    const toast = useToast();
+    const confirmation = useConfirm();
+    return <><Instances toast={toast} onUnauth={noop} confirm={confirmation.confirm} />
+        <ConfirmDialog dialog={confirmation.dialog} resolve={confirmation.resolve} /><Toasts toasts={toast.toasts} /></>;
+}
+
+function UptimeFixture() {
+    const [routeChecks, setRouteChecks] = useState(true);
+    const [excludes, setExcludes] = useState([]);
+    return <UpstreamUptime onUnauth={noop} routeChecks={routeChecks} onRouteChecksChange={setRouteChecks}
+        routeCheckExcludes={excludes} onRouteCheckExcludesChange={setExcludes} />;
+}
+
 export default function FixtureView({ scenario }) {
     switch (scenario.kind) {
+        case 'instances': return <InstancesFixture />;
+        case 'tls-certificates': return <TLSFixture />;
+        case 'uptime-populated': return <UptimeFixture />;
         case 'caddyfile': return <CaddyfileFixture />;
         case 'route-edit':
         case 'routes': return <RoutesFixture />;

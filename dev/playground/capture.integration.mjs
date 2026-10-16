@@ -24,9 +24,10 @@ test('capture real Dashboard, notification, observability, TLS, sidebar, route a
     const volume = await unrelated.inspect('volume', unrelated.resource('sentinel'));
     let scope;
     const output = resolve(directory, 'dashboard.json');
-    const capture = await captureDashboard({ output, onNamespace: project => { scope = new Harness(project); } });
+    const backendPids = [];
+    const capture = await captureDashboard({ output, onBackend: pid => backendPids.push(pid), onNamespace: project => { scope = new Harness(project); } });
     assert.equal(capture.source.sourceHash, await sourceFingerprint());
-    assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default', 'tls-default', 'sidebar-online', 'sidebar-stopped', 'routes-online', 'routes-empty', 'route-history-empty', 'caddyfile-empty', 'caddyfile-history', 'routes-edit-unavailable']);
+    assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default', 'tls-default', 'sidebar-online', 'sidebar-stopped', 'routes-online', 'routes-empty', 'route-history-empty', 'caddyfile-empty', 'caddyfile-history', 'routes-edit-unavailable', 'tls-internal-valid', 'tls-internal-orphaned', 'uptime-route-pending', 'instances-local', 'instances-missing-server', 'instances-empty']);
     const notifications = capture.scenarios.find(scenario => scenario.id === 'notifications-default');
     assert.equal(notifications.requests.length, 1);
     const [record] = notifications.requests;
@@ -91,8 +92,38 @@ test('capture real Dashboard, notification, observability, TLS, sidebar, route a
     const edit = capture.scenarios.find(scenario => scenario.id === 'routes-edit-unavailable');
     assert(edit.requests.at(-1).response.status >= 400);
     assert(edit.requests.every(record => record.request.method === 'GET'));
+    for (const [id, status] of [['tls-internal-valid', 'valid'], ['tls-internal-orphaned', 'orphaned']]) {
+        const profile = capture.scenarios.find(scenario => scenario.id === id);
+        assert.equal(profile.requests.length, 1);
+        const [cert] = profile.requests[0].response.body;
+        assert.equal(profile.requests[0].response.body.length, 1);
+        assert.equal(cert.domain, 'preview.internal');
+        assert.equal(cert.isInternal, true);
+        assert.equal(cert.status, status);
+    }
+    const pending = capture.scenarios.find(scenario => scenario.id === 'uptime-route-pending');
+    assert(pending.requests[0].response.body.some(route => route.match?.some(match => match.host?.includes('preview.internal'))));
+    assert.deepEqual(pending.requests.find(record => record.request.path === '/health/uptime?kind=route').response.body, {});
+    for (const id of ['instances-local', 'instances-missing-server', 'instances-empty']) {
+        const profile = capture.scenarios.find(scenario => scenario.id === id);
+        assert(profile.requests.every(record => record.request.method === 'GET'));
+        assert.deepEqual(profile.requests.find(record => record.request.path === '/instances/discover').response.body, []);
+        if (id === 'instances-empty') {
+            assert.deepEqual(profile.requests[0].response.body, []);
+            assert.equal(profile.requests.find(record => record.request.path === '/server-names/all').response.status, 503);
+        } else {
+            const [instance] = profile.requests[0].response.body;
+            assert.equal(instance.containerName, '');
+            assert.equal(instance.adminUrl, 'http://caddy-preview:2019');
+            const lookup = profile.requests.find(record => record.request.path.startsWith('/instances/servers?'));
+            assert.equal(lookup.request.path, '/instances/servers?adminUrl=http%3A%2F%2Fcaddy-preview%3A2019');
+            assert.equal(lookup.response.body.includes('srv0'), id === 'instances-local');
+        }
+    }
     assert.deepEqual(JSON.parse(await readFile(output, 'utf8')), capture);
     await assertClean(scope);
+    assert.equal(backendPids.length, 2);
+    for (const pid of backendPids) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
     const retained = await unrelated.inspect('container', unrelated.resource('sentinel'));
     assert.equal(retained.Id, container.Id);
     assert.equal(retained.State.Running, true);
@@ -138,5 +169,27 @@ test('interrupting capture cleans up its own resources without publishing an art
     child.kill('SIGTERM');
     assert.equal(await closed, 1, log);
     await assert.rejects(readFile(output), { code: 'ENOENT' });
+    await assertClean(scope);
+});
+
+test('failure after starting the local-mode backend removes both backends and retains the previous artifact', { timeout: 60000 }, async t => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'preview-local-backend-failure-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const output = resolve(directory, 'dashboard.json');
+    await writeFile(output, 'previous artifact');
+    const backendPids = [];
+    let scope;
+    await assert.rejects(captureDashboard({ output, onNamespace: project => { scope = new Harness(project); },
+        onBackend: pid => {
+            backendPids.push(pid);
+            if (backendPids.length === 2) throw new Error('Deliberate failure after local backend start');
+        },
+    }), error => {
+        assert.match(error.cause.message, /Deliberate failure after local backend start/);
+        return true;
+    });
+    assert.equal(backendPids.length, 2);
+    for (const pid of backendPids) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    assert.equal(await readFile(output, 'utf8'), 'previous artifact');
     await assertClean(scope);
 });
