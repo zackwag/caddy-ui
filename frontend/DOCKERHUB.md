@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.25.3. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.26.0. Do not edit directly. -->
 
 # caddy/ui — Frontend
 
@@ -101,7 +101,7 @@ services:
       - 9876:3001
     environment:
       - TZ=America/New_York
-      # Optional -- enable installed additional UI languages (English is always available)
+      # Optional -- opt into installed preview UI languages (reviewed languages are enabled by default)
       - CADDY_UI_ADDITIONAL_LANGUAGES=de
       # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
