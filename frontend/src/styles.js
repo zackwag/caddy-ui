@@ -1231,6 +1231,12 @@ export const css = `
       font-weight: 500;
   }
 
+  /* Shares .theme-toggle's frame, but sizes to the language name instead of the fixed icon width. */
+  .language-picker-value {
+      width: auto;
+      padding: 0 10px;
+  }
+
   .language-picker-select {
       position: absolute;
       inset: 0;
