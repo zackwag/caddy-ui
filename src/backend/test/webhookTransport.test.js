@@ -1,4 +1,4 @@
-import { createServer } from 'http';
+import http, { createServer } from 'http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { lookup } = vi.hoisted(() => ({ lookup: vi.fn() }));
@@ -224,6 +224,86 @@ describe('sendWebhook', () => {
         handler = () => {};
         await expect(sendWebhook(`http://ntfy.test:${port}/topic`, { name: 'ntfy', body: 'x' }, { resolveDestination: pinned(), timeoutMs: 50 }))
             .rejects.toThrow('ntfy request timed out');
+    });
+
+    it.each(['resolve', 'reject'])('bounds stalled DNS and ignores a late %s without opening a request', async settlement => {
+        vi.useFakeTimers();
+        const request = vi.spyOn(http, 'request');
+        let settle;
+        const result = vi.fn();
+        const pending = sendWebhook(`http://late.test:${port}/topic`, { name: 'ntfy', body: 'x' }, {
+            resolveDestination: raw => new Promise((resolve, reject) => {
+                settle = () => settlement === 'resolve'
+                    ? resolve({ url: new URL(raw), address: '127.0.0.1', family: 4 })
+                    : reject(new Error('late DNS failure'));
+            }),
+            timeoutMs: 100,
+        });
+        // Handle rejection before advancing the clock, including late DNS failures.
+        void pending.then(result, result);
+        try {
+            await vi.advanceTimersByTimeAsync(100);
+            expect(result).toHaveBeenCalledWith(expect.objectContaining({ message: 'ntfy request timed out' }));
+            expect(request).not.toHaveBeenCalled();
+            settle();
+            await vi.advanceTimersByTimeAsync(0);
+            expect(result).toHaveBeenCalledTimes(1);
+            expect(request).not.toHaveBeenCalled();
+            expect(received).toHaveLength(0);
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            // Settle on failure too, so the test itself never leaves a lookup pending.
+            settle();
+            request.mockRestore();
+            vi.useRealTimers();
+        }
+    });
+
+    it('uses the remaining deadline after DNS rather than starting another timeout', async () => {
+        vi.useFakeTimers();
+        let finishDns;
+        let accepted;
+        const requestReceived = new Promise(resolve => { accepted = resolve; });
+        handler = () => accepted(); // Keep the response open after DNS completes.
+        const result = vi.fn();
+        const pending = sendWebhook(`http://slow.test:${port}/topic`, { name: 'ntfy', body: 'x' }, {
+            resolveDestination: raw => new Promise(resolve => {
+                finishDns = () => resolve({ url: new URL(raw), address: '127.0.0.1', family: 4 });
+            }),
+            timeoutMs: 100,
+        });
+        void pending.then(result, result);
+        try {
+            await vi.advanceTimersByTimeAsync(60);
+            finishDns();
+            await requestReceived;
+            await vi.advanceTimersByTimeAsync(40);
+            expect(result).toHaveBeenCalledWith(expect.objectContaining({ message: 'ntfy request timed out' }));
+            expect(received).toHaveLength(1);
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            finishDns();
+            vi.useRealTimers();
+        }
+    });
+
+    it.each(['success', 'response error', 'resolution error'])('cleans up the deadline after %s', async outcome => {
+        vi.useFakeTimers();
+        handler = (req, res) => {
+            res.writeHead(outcome === 'response error' ? 500 : 200);
+            res.end('done');
+        };
+        const resolveDestination = outcome === 'resolution error'
+            ? () => { throw new Error('resolution failed'); }
+            : pinned();
+        try {
+            const pending = sendWebhook(`http://ntfy.test:${port}/topic`, { name: 'ntfy', body: 'x' }, { resolveDestination });
+            if (outcome === 'success') await pending;
+            else await expect(pending).rejects.toThrow(outcome === 'response error' ? 'ntfy responded 500' : 'resolution failed');
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('does not connect when the destination is blocked', async () => {

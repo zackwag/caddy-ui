@@ -74,6 +74,30 @@ export async function resolveWebhookDestination(rawUrl) {
     return { url, address: records[0].address, family: records[0].family, addresses: records };
 }
 
+// Stop awaiting slow DNS on timeout. The OS lookup may still finish, but it
+// cannot continue delivery; both late resolution and rejection remain handled.
+function withSignal(promise, signal) {
+    return new Promise((resolve, reject) => {
+        const cleanup = () => signal.removeEventListener('abort', onAbort);
+        const onAbort = () => {
+            cleanup();
+            reject(signal.reason);
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+        Promise.resolve(promise).then(
+            value => {
+                cleanup();
+                resolve(value);
+            },
+            error => {
+                cleanup();
+                reject(error);
+            },
+        );
+        if (signal.aborted) onAbort();
+    });
+}
+
 /**
  * Send one webhook request. The host is resolved and checked once, and the connection
  * uses only the checked answers, so a DNS change between the two cannot redirect it.
@@ -83,44 +107,54 @@ export async function sendWebhook(rawUrl, { name, method = 'POST', headers = {},
     resolveDestination = resolveWebhookDestination,
     timeoutMs = TIMEOUT_MS,
 } = {}) {
-    const destination = await resolveDestination(rawUrl);
-    const addresses = destination.addresses ?? [{ address: destination.address, family: destination.family }];
-    const client = destination.url.protocol === 'https:' ? https : http;
-    const payload = Buffer.from(body);
+    // One wall-clock budget covers DNS, connection fallback, TLS and response data.
+    const controller = new AbortController();
+    const { signal } = controller;
+    const timer = setTimeout(() => controller.abort(new Error(`${name} request timed out`)), timeoutMs);
+    try {
+        const destination = await withSignal(resolveDestination(rawUrl), signal);
+        signal.throwIfAborted();
+        const addresses = destination.addresses ?? [{ address: destination.address, family: destination.family }];
+        const client = destination.url.protocol === 'https:' ? https : http;
+        const payload = Buffer.from(body);
 
-    await new Promise((resolve, reject) => {
-        const request = client.request(destination.url, {
-            method,
-            headers: { ...headers, 'Content-Length': payload.length },
-            // A fresh socket and a lookup pinned to the checked answers. The URL still
-            // supplies the Host header, TLS server name and certificate verification.
-            agent: false,
-            family: 0,
-            autoSelectFamily: true,
-            lookup: (_host, options, callback) => {
-                if (options.all) callback(null, addresses);
-                else callback(null, addresses[0].address, addresses[0].family);
-            },
-        }, response => {
-            const chunks = [];
-            let size = 0;
-            response.on('error', reject);
-            response.on('data', chunk => {
-                size += chunk.length;
-                if (size > MAX_RESPONSE_BYTES) request.destroy(new Error(`${name} response exceeds size limit`));
-                else chunks.push(chunk);
+        await withSignal(new Promise((resolve, reject) => {
+            const request = client.request(destination.url, {
+                method,
+                headers: { ...headers, 'Content-Length': payload.length },
+                // A fresh socket and a lookup pinned to the checked answers. The URL still
+                // supplies the Host header, TLS server name and certificate verification.
+                agent: false,
+                signal,
+                family: 0,
+                autoSelectFamily: true,
+                lookup: (_host, options, callback) => {
+                    if (options.all) callback(null, addresses);
+                    else callback(null, addresses[0].address, addresses[0].family);
+                },
+            }, response => {
+                const chunks = [];
+                let size = 0;
+                response.on('error', reject);
+                response.on('data', chunk => {
+                    size += chunk.length;
+                    if (size > MAX_RESPONSE_BYTES) request.destroy(new Error(`${name} response exceeds size limit`));
+                    else chunks.push(chunk);
+                });
+                response.on('end', () => {
+                    const status = response.statusCode;
+                    if (status >= 200 && status < 300) resolve();
+                    else if (status >= 300 && status < 400) reject(new Error(`${name} responded ${status}; redirects are not followed, so configure the final URL`));
+                    else reject(new Error(`${name} responded ${status}: ${Buffer.concat(chunks).toString('utf8').slice(0, ERROR_SNIPPET_CHARS)}`));
+                });
             });
-            response.on('end', () => {
-                const status = response.statusCode;
-                if (status >= 200 && status < 300) resolve();
-                else if (status >= 300 && status < 400) reject(new Error(`${name} responded ${status}; redirects are not followed, so configure the final URL`));
-                else reject(new Error(`${name} responded ${status}: ${Buffer.concat(chunks).toString('utf8').slice(0, ERROR_SNIPPET_CHARS)}`));
-            });
-        });
-        // A wall-clock deadline also bounds a peer that keeps sending tiny chunks.
-        const timer = setTimeout(() => request.destroy(new Error(`${name} request timed out`)), timeoutMs);
-        request.on('close', () => clearTimeout(timer));
-        request.on('error', reject);
-        request.end(payload);
-    });
+            request.on('error', reject);
+            request.end(payload);
+        }), signal);
+    } catch (error) {
+        if (signal.aborted) throw signal.reason;
+        throw error;
+    } finally {
+        clearTimeout(timer);
+    }
 }
