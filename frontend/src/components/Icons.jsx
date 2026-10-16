@@ -58,7 +58,8 @@ const UTILITY_PATHS = {
     external: 'M5 11 12 4M6 4h6v6',
     download: 'M8 2v10m-4-4 4 4 4-4M3 14h10',
     menu: 'M3 4h10M3 8h10M3 12h10',
-    pencil: 'm3 2-1 1 9 9 3 1-1-3Zm1 2 7 7m0 1 2-2',
+    // Tip points lower right like the ✎ glyph it replaces.
+    pencil: 'M14 14l-1.5-4.5-7-7a2.12 2.12 0 0 0-3 3l7 7ZM12.5 9.5l-3 3M7 4l-3 3',
     info: 'M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0ZM8 7v4M7 11h2M8 4.5v.5',
     wrench: 'M10 1 7.5 3.5l3 3 3-3a4 4 0 0 1-5 5L4 13a1.4 1.4 0 0 1-2-2l4.5-4.5A4 4 0 0 1 10 1Z',
     arrowUp: 'M8 14V2m-3 3 3-3 3 3',

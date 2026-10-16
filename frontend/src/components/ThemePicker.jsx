@@ -43,7 +43,7 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
             <button className="theme-toggle" onClick={onToggleMode} title={mode === 'dark' ? t("themePicker.switchToLight") : t("themePicker.switchToDark")} aria-label={mode === 'dark' ? t("themePicker.switchToLight") : t("themePicker.switchToDark")}>
                 <PixelIcon name={mode === 'dark' ? 'sun' : 'moon'} />
             </button>
-            <button className="theme-picker-trigger" onClick={() => setOpen(o => !o)} title={t("themePicker.chooseThemes")} aria-label={t("themePicker.chooseThemes")} aria-expanded={open}><UtilityIcon name="chevronDown" size={10} /></button>
+            <button className="theme-picker-trigger" onClick={() => setOpen(o => !o)} title={t("themePicker.chooseThemes")} aria-label={t("themePicker.chooseThemes")} aria-expanded={open}><UtilityIcon name="caretDown" /></button>
             {open && (
                 <div className="theme-picker-menu">
                     <div className="theme-picker-row">
@@ -59,7 +59,7 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
                                     </optgroup>
                                 )}
                             </select>
-                            <span className="select-arrow"><UtilityIcon name="chevronDown" size={10} /></span>
+                            <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                         </div>
                     </div>
                     <div className="theme-picker-row">
@@ -75,7 +75,7 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
                                     </optgroup>
                                 )}
                             </select>
-                            <span className="select-arrow"><UtilityIcon name="chevronDown" size={10} /></span>
+                            <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                         </div>
                     </div>
                     {active && (
