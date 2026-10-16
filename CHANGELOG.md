@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.26.1](https://github.com/zackwag/caddy-ui/compare/v2.26.0...v2.26.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **docs:** update screenshot fixture for new /languages response shape ([#270](https://github.com/zackwag/caddy-ui/issues/270)) ([2c3d4f9](https://github.com/zackwag/caddy-ui/commit/2c3d4f99888d6c3032cfae90a4c456183733b82c))
+
 ## [2.26.0](https://github.com/zackwag/caddy-ui/compare/v2.25.3...v2.26.0) (2026-10-16)
 
 
