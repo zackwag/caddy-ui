@@ -46,8 +46,34 @@ const notificationProviders = [
         'notifications.jsonSchema', 'notifications.jsonSchemaHint'] },
 ];
 
+const metricsKeys = ['metrics.configuration', 'metrics.caddyMetrics', 'metrics.caddyMetricsHint',
+    'metrics.publicEndpoint', 'metrics.publicMetricsHint', 'metrics.totalRequests', 'metrics.sinceProcessStart',
+    'metrics.requestsPerSecond', 'metrics.avgOverUptime', 'metrics.avgResponse', 'metrics.meanResponseTime',
+    'metrics.statusCodes', 'metrics.responsePercentiles', 'metrics.refreshInterval', 'metrics.lastScraped',
+    'common.enabledUpper', 'common.disable', 'common.disabled', 'common.refresh',
+    'uptime.routeChecks', 'uptime.routeCheckHint'];
+const logKeys = ['logs.caddySource', 'logs.configuration', 'logs.logging', 'logs.format', 'logs.level',
+    'logs.logFilePath', 'logs.rollSize', 'logs.rollKeep', 'logs.searchPlaceholder', 'logs.lineCount_other',
+    'common.enabledUpper', 'common.disable', 'common.refresh', 'common.export'];
+
 // Register actual component states, not alternative implementations of the UI.
 export const scenarios = [
+    { id: 'metrics-overview', title: 'Metrics: enabled with configuration open', kind: 'metrics',
+        profile: 'metrics-enabled', setup: 'observability-config',
+        keys: [...metricsKeys, 'uptime.upstreamUptime', 'uptime.noRoutesWithUpstreams', 'common.off'] },
+    { id: 'metrics-route-checks', title: 'Metrics: local route-check controls', kind: 'metrics',
+        profile: 'metrics-enabled', setup: 'observability-config', routeChecks: true,
+        keys: [...metricsKeys, 'uptime.routeUptime', 'uptime.noRoutesToCheck', 'common.on'] },
+    { id: 'logs-configured', title: 'Access logs: locally enabled configuration and captured lines', kind: 'logs',
+        profile: 'logs-default', path: '/logs', setup: 'logs-enabled', keys: logKeys },
+    { id: 'logs-filtered', title: 'Access logs: search with no matches', kind: 'logs',
+        profile: 'logs-default', path: '/logs?search=playground-no-matching-entries', setup: 'logs-enabled',
+        keys: [...logKeys.filter(key => key !== 'logs.lineCount_other'), 'logs.lineCountFiltered',
+            'logs.noMatchingLines', 'common.clearSearch'] },
+    { id: 'logs-disabled', title: 'Access logs: recorded disabled settings', kind: 'logs',
+        profile: 'logs-default', path: '/logs', setup: 'observability-config',
+        keys: [...logKeys.filter(key => !['common.enabledUpper', 'common.disable'].includes(key)),
+            'common.disabledUpper', 'common.enable'] },
     ...notificationProviders.map(({ provider, title, keys }) => ({ id: `notifications-${provider}`,
         title: `Notification settings: ${title}`, kind: 'notification-settings', profile: 'notifications-default', provider,
         keys: [...notificationKeys, 'notifications.enable', ...keys] })),

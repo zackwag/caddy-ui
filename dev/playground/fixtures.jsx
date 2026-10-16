@@ -8,6 +8,8 @@ import ThemeWelcome from '../../src/frontend/src/components/ThemeWelcome.jsx';
 import ThemePicker from '../../src/frontend/src/components/ThemePicker.jsx';
 import LanguagePicker from '../../src/frontend/src/components/LanguagePicker.jsx';
 import Notifications from '../../src/frontend/src/components/Notifications.jsx';
+import Metrics from '../../src/frontend/src/components/Metrics.jsx';
+import Logs from '../../src/frontend/src/components/Logs.jsx';
 import { availableLocales } from '../../src/frontend/src/i18n/index.js';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
 import { apiFetch } from '../../src/frontend/src/utils/api.js';
@@ -88,12 +90,27 @@ function NotificationSettingsFixture() {
     return <><Notifications toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
 }
 
+function MetricsFixture({ initialRouteChecks }) {
+    const toast = useToast();
+    const [routeChecks, setRouteChecks] = useState(Boolean(initialRouteChecks));
+    const [excludes, setExcludes] = useState([]);
+    return <><Metrics toast={toast} onUnauth={noop} routeChecks={routeChecks} onRouteChecksChange={setRouteChecks}
+        routeCheckExcludes={excludes} onRouteCheckExcludesChange={setExcludes} /><Toasts toasts={toast.toasts} /></>;
+}
+
+function LogsFixture() {
+    const toast = useToast();
+    return <><Logs toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
+}
+
 export default function FixtureView({ scenario }) {
     switch (scenario.kind) {
         case 'login': return <Login onLogin={noop} sessionExpired={scenario.sessionExpired} />;
         case 'theme-welcome': return <ThemeWelcomeFixture />;
         case 'appearance-controls': return <AppearanceControlsFixture initialMode={scenario.mode} />;
         case 'notification-settings': return <NotificationSettingsFixture />;
+        case 'metrics': return <MetricsFixture initialRouteChecks={scenario.routeChecks} />;
+        case 'logs': return <LogsFixture />;
         case 'route-confirmation': return <RouteConfirmation />;
         case 'certificate-confirmation': return <CertificateConfirmation />;
         case 'notification-toast': return <NotificationToast />;

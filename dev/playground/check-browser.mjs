@@ -206,6 +206,56 @@ try {
     await go('notifications.enable', 'notifications-ntfy');
     assert.equal(await frame().getByRole('button', { name: 'Test notification', exact: true }).isDisabled(), true);
 
+    const observabilityStates = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        const additions = scenarios.filter(scenario => ['metrics', 'logs'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !additions.includes(scenario)).flatMap(scenario => scenario.keys));
+        return additions.map(scenario => ({ ...scenario, keys: scenario.keys.filter(key => !existing.has(key)) }));
+    });
+    const observabilityKeys = new Set();
+    for (const scenario of observabilityStates) {
+        await go(scenario.keys[0], scenario.id);
+        for (const key of scenario.keys.filter(key => !observabilityKeys.has(key))) {
+            await page.getByRole('navigation', { name: 'Translation keys' }).getByRole('button', { name: key, exact: true }).click();
+            await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
+            await editor.fill(`${readValue(en, key)} [preview]`);
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return [...elements].some(element => [element.textContent, ...['title', 'aria-label', 'placeholder'].map(name => element.getAttribute(name))]
+                    .some(value => value?.includes('[preview]')));
+            }, key);
+            await page.getByRole('button', { name: 'Reset this key' }).click();
+            await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
+            observabilityKeys.add(key);
+        }
+    }
+    assert.equal(observabilityKeys.size, 43);
+    await go('metrics.lastScraped', 'metrics-overview');
+    await page.locator('.preview-context summary').click();
+    assert.match(await page.locator('.preview-context pre').innerText(), /"time":/);
+    await frame().locator('.metrics-toggle-btn').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: PUT /api/metrics/config' }).waitFor();
+    await go('common.off', 'metrics-overview');
+    await frame().getByRole('button', { name: /Route checks:/ }).click();
+    await frame().getByRole('button', { name: 'Route checks: On', exact: true }).waitFor();
+    await go('logs.format', 'logs-configured');
+    await frame().locator('.log-enabled-btn.btn-danger').waitFor();
+    await frame().locator('.config-grid-full input').fill('/tmp/playground-only.log');
+    await frame().locator('select.config-select').first().selectOption('console');
+    await page.getByRole('navigation', { name: 'Translation keys' }).getByRole('button', { name: 'logs.level', exact: true }).click();
+    assert.equal(await frame().locator('.config-grid-full input').inputValue(), '/tmp/playground-only.log');
+    assert.equal(await frame().locator('select.config-select').first().inputValue(), 'console');
+    await frame().locator('.log-save-btn').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: PUT /api/logs/config' }).waitFor();
+    await go('common.enable', 'logs-disabled');
+    await frame().locator('.log-enabled-btn.btn-primary').waitFor();
+    assert.equal(await frame().locator('.config-grid-full input').isDisabled(), true);
+    assert.notEqual(await frame().locator('.config-grid-full input').inputValue(), '/tmp/playground-only.log');
+    await go('logs.noMatchingLines', 'logs-filtered');
+    await frame().getByTitle('Clear search', { exact: true }).click();
+    await frame().locator('.log-line').first().waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
+
     for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 600 }]) {
         await page.setViewportSize(viewport);
         await go('tls.deleteConfirm', 'certificate-delete');
@@ -241,7 +291,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
+    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

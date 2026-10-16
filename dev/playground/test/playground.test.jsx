@@ -71,4 +71,23 @@ describe('localization playground', () => {
         expect(keys.has('notifications.customWebhook')).toBe(false);
         expect(keys.has('notifications.sending')).toBe(false);
     });
+    it('adds 43 observability keys using read-only real-capture profiles', () => {
+        const added = scenarios.filter(scenario => ['metrics', 'logs'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        const keys = new Set(added.flatMap(scenario => scenario.keys));
+        expect(added).toHaveLength(5);
+        expect([...keys].filter(key => !existing.has(key))).toHaveLength(43);
+        for (const profileId of new Set(added.map(scenario => scenario.profile))) {
+            const profile = capture.scenarios.find(profile => profile.id === profileId);
+            expect(profile).toBeDefined();
+            expect(profile.requests.every(record => record.request.method === 'GET')).toBe(true);
+        }
+        // Transient messages and live transport are not claimed as visible
+        // coverage when no corresponding response/stream is recorded.
+        expect(keys.has('logs.stop')).toBe(false);
+        expect(keys.has('logs.live')).toBe(false);
+        expect(keys.has('common.save')).toBe(false);
+        expect(keys.has('metrics.enabledToast')).toBe(false);
+        expect(keys.has('metrics.refreshing')).toBe(false);
+    });
 });

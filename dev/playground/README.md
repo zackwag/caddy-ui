@@ -42,7 +42,7 @@ Non-English translations must still be human-authored or human-reviewed under CO
 - `PreviewFrame.jsx`: frame communication, DOM references, and visible replay failures.
 - `capture.mjs` / `capture-source.mjs`: real Caddy capture and source provenance.
 - `capture-format.js`: capture validation and strict request/response replay.
-- `captures/dashboard.json`: generated running, empty-server, stopped-Caddy, and default notification configuration responses.
+- `captures/dashboard.json`: generated Dashboard, default notification, Metrics and access-log responses.
 - `workbench.css`: contributor layout.
 - `vite.config.js`: separate entry, dev server, and output directory.
 
@@ -54,7 +54,7 @@ One state may cover several keys, and shared keys can occur in several states.
 Current states cover the Dashboard with running/stopped Caddy and no HTTP servers, its loading
 view, label-edit dialog, and successful label save; route/certificate confirmations and a
 notification toast remain available. Unregistered keys explicitly show that no fixture exists.
-Registered states cover 96 distinct keys. The onboarding and appearance states add 27:
+Registered states cover 139 distinct keys. The onboarding and appearance states add 27:
 
 | Production component | Prepared states | New keys |
 | --- | --- | ---: |
@@ -91,6 +91,31 @@ persist configuration or send notifications. Returning to another prepared state
 local form values from the captured defaults. Translation edits within a state preserve form
 values. The standalone preview still needs no running backend or Docker.
 
+Five observability states add 43 distinct keys: 15 Metrics labels/hints, 12 access-log labels,
+search/plural messages, six uptime controls/empty states, and ten shared controls. They mount
+production `Metrics` (including `UpstreamUptime`) and `Logs`. The existing real-Caddy capture
+now records the Metrics/auth/configuration/route reads and access-log/default configuration
+reads from its isolated instance. It sends one real health request and one deliberate 503
+request to seed access logs and metrics. Client addresses in the saved log lines are normalized
+to documentation-only addresses. No response contract is written by hand.
+
+The Metrics configuration opens through its production header; route checks toggle only local
+fixture props and replay existing reads. They do not persist settings or probe external sites.
+The Logs preview opens its production form and can enable its controls locally. The captured
+log-settings API defaults remain disabled even though the harness Caddyfile writes access logs;
+this distinction is preserved. The filtered state uses the production search URL parameter,
+and the disabled state shows the untouched API defaults. Form edits survive translation edits
+within a state; changing the prepared state restores the captured defaults.
+
+Refresh and log export use the recorded reads/local production exporter. No Metrics or Logs
+configuration writes or live SSE streams are recorded. Save, the Caddy Metrics toggle, switching
+to unrecorded application logs, and live streaming remain behind the existing strict replay
+guard. They cannot contact a backend. Transient saving/refreshing text and the Live button's
+unrecorded Stop state are not counted as registered coverage. The Live and Save labels share
+a single text node with their leading symbols; the exact DOM matcher cannot identify them
+separately, so they are not registered in these states. Use `metrics-overview`,
+`metrics-route-checks`, `logs-configured`, `logs-filtered`, and `logs-disabled` in preview links.
+
 The label dialog is opened through the production edit action, and the saved-label state runs
 the actual Save handler against its recorded response. Navigation stays inside the selected
 component preview; this tool is not a replacement for testing the complete application.
@@ -106,8 +131,10 @@ SIGINT/SIGTERM. A failed capture keeps the previous JSON file. No existing devel
 or production configurations are modified. Use Linux CI, a Dev Container, or WSL for capture;
 the ordinary playground preview requires neither Docker nor a backend.
 It also reads untouched notification defaults without writing provider settings or sending
-test messages. The artifact retains its existing `dashboard.json` name and includes a
-`notifications-default` profile alongside the three Dashboard profiles.
+test messages. The artifact retains its existing `dashboard.json` name. Its six profiles cover
+the three Dashboard postures, `notifications-default`, `metrics-enabled`, and `logs-default`. The last two contain
+only GET responses; the capture seeds access logs on its own Caddy instance and never contacts
+a notification destination or remote upstream.
 
 From the repository root:
 
@@ -131,8 +158,7 @@ not the playground or its browser check. Download the artifact, review the diff,
 `dev/playground/captures/dashboard.json` in a normal commit. It does not push commits or open PRs.
 
 The preview warns if the capture fingerprint differs from its current backend, Dashboard,
-Notifications, or API
-sources or backend dependencies. Source changes restart the dev server to recompute the
+Notifications, Metrics, Logs, uptime or API sources or backend dependencies. Source changes restart the dev server to recompute the
 fingerprint; this reload discards drafts. The production application build is unchanged.
 Unrecorded requests, query variants, write bodies, and unsupported transports fail visibly;
 there is no forwarding to a live backend. Loading is an explicit UI state, not an invented
@@ -177,6 +203,9 @@ session-message refresh across locales, verifies theme-export interpolation and 
 and checks that the login card and open theme menu fit their frames without resize feedback.
 It also edits and resets every one of the 30 notification settings keys, checks all five
 provider states, and proves that attempted notification saves/sends do not reach a server.
+It also edits and resets every one of the 43 observability keys, checks interpolation context,
+local route-check toggles, log-form state retention and reset, search results, and blocked
+Metrics/Logs configuration writes. These browser checks remain optional and are not added to CI.
 
 Confirmation actions remain inert. Their normal keyboard listeners are confined to their frame.
 The light toggle applies an actual production palette to the preview. Prepared action-generated

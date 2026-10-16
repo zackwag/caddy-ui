@@ -92,6 +92,12 @@ function scheduleReport() {
         } else if (!setupStep && scenario.setup === 'theme-menu') {
             const trigger = element.querySelector('button.theme-picker-trigger');
             if (trigger) { setupStep = 1; trigger.click(); }
+        } else if (!setupStep && ['observability-config', 'logs-enabled'].includes(scenario.setup)) {
+            const header = element.querySelector('.card-header--clickable');
+            if (header) { setupStep = 1; header.click(); }
+        } else if (setupStep === 1 && scenario.setup === 'logs-enabled') {
+            const toggle = element.querySelector('.log-enabled-btn');
+            if (toggle) { setupStep = 2; toggle.click(); }
         } else if (!setupStep && scenario.kind === 'notification-settings') {
             const provider = element.querySelector('select.config-select');
             const toggle = element.querySelector('.notifications-enabled-btn');
@@ -159,7 +165,7 @@ async function configurePreview(event) {
     if (disposed || currentRevision !== revision) return;
     document.documentElement.lang = next.locale;
     document.body.dataset.previewKind = scenario.kind;
-    flushSync(() => root.render(<MemoryRouter key={stateKey} initialEntries={['/dashboard']}>
+    flushSync(() => root.render(<MemoryRouter key={stateKey} initialEntries={[scenario.path || '/dashboard']}>
         <I18nextProvider i18n={i18n}><FixtureView scenario={scenario} /></I18nextProvider>
     </MemoryRouter>));
     scheduleReport();
