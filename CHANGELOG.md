@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.2](https://github.com/zackwag/caddy-ui/compare/v2.29.1...v2.29.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* improve Routes discoverability and prevent action-button wrapping ([#297](https://github.com/zackwag/caddy-ui/issues/297)) ([d16b759](https://github.com/zackwag/caddy-ui/commit/d16b759ddf8d6a988653d7a484919a1d0182ed13))
+
 ## [2.29.1](https://github.com/zackwag/caddy-ui/compare/v2.29.0...v2.29.1) (2026-10-16)
 
 
