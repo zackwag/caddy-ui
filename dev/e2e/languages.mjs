@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
 import ar from '../../src/frontend/src/i18n/locales/ar.js';
+import de from '../../src/frontend/src/i18n/locales/de.js';
 import en from '../../src/frontend/src/i18n/locales/en.js';
 import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
 
@@ -18,19 +19,25 @@ async function select(page, locale) {
     });
 }
 
-test('reviewed Arabic and its bundled font work without any opt-in', options, async t => {
+test('reviewed Arabic and German work without opt-in, with a bundled font only for Arabic', options, async t => {
     const { stack, page, origin, waitForView } = await useBrowserFixture(t, { additionalLanguages: '' });
-    assert.deepEqual((await stack.api('/languages')).data, { languages: ['en', 'ar'], fonts: ['ar'] });
+    assert.deepEqual((await stack.api('/languages')).data, { languages: ['en', 'ar', 'de'], fonts: ['ar'] });
     assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'ar' } })).status, 200);
-    assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'de' } })).status, 400);
+    assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'de' } })).status, 200);
+    assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'es-mx' } })).status, 400);
     const fonts = [];
     page.on('request', request => { if (isArabicFont(request.url())) fonts.push(request.url()); });
     await waitForView('.language-picker-select');
     assert.deepEqual(fonts, []);
+    await select(page, 'de');
+    assert.equal(await page.locator('.page-title').innerText(), de.pages.dashboard);
+    assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
+    assert.deepEqual(fonts, []);
     await select(page, 'ar');
     assert.equal(await page.locator('.page-title').innerText(), ar.pages.dashboard);
     assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
-    assert.equal(await page.locator('.language-picker-select option[value="de"]').count(), 0);
+    assert.equal(await page.locator('.language-picker-select option[value="de"]').count(), 1);
+    assert.equal(await page.locator('.language-picker-select option[value="es-mx"]').count(), 0);
     assert.equal(fonts.length, 1);
     assert.equal(new URL(fonts[0]).origin, origin);
     assert.equal(await page.evaluate(() => [...document.fonts].some(font => font.family.includes('Noto Sans Arabic') && font.status === 'loaded')), true);
