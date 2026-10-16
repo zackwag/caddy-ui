@@ -113,6 +113,9 @@ services:
       - TZ=America/New_York
       # Optional -- opt into installed preview UI languages (reviewed languages are enabled by default)
       - CADDY_UI_ADDITIONAL_LANGUAGES=de
+      # Browser-facing URL: replace your-server with the host you open in your browser.
+      # Required for browser writes over plain HTTP; behind HTTPS use the external HTTPS URL.
+      - CADDY_UI_EXTERNAL_URL=http://your-server:9877
       # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
       - CADDY_UI_PASSWORD=yourpassword
@@ -162,7 +165,7 @@ In Docker mode, the backend uses the Docker socket for container discovery and f
 
 ## Environment Variables
 
-All backend variables have sensible defaults. Only set what you need to override.
+Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for browser writes over plain HTTP; otherwise only set what you need to override.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -175,6 +178,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `de`). Reviewed languages (currently English and Arabic) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
+| `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
@@ -201,7 +205,21 @@ All backend variables have sensible defaults. Only set what you need to override
 
 Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. When enabled, protected API endpoints require a valid JWT and the login screen appears automatically.
 
+Without authentication, anyone who can reach caddy/ui can change your Caddy configuration, so enable it unless the UI is only reachable by people you trust. In either mode, browser-origin checks reject cross-site writes as described below; they do not authenticate the caller.
+
 `GET /api/auth/status` and `GET /api/version` remain public. `POST /api/auth/sessions` validates the configured credentials to issue a JWT; it does not require an existing token. With `CADDY_UI_PUBLIC_METRICS=true`, `GET /api/metrics` and `GET /api/metrics/raw` are also accessible without a JWT.
+
+### Browser request origins
+
+Set `CADDY_UI_EXTERNAL_URL` on the backend to the URL you open in the browser, for example `http://caddy-ui.lan:9877` or `https://caddy-ui.example.com`. The scheme, hostname and external port define the expected origin; a path is ignored. Invalid URLs, non-HTTP(S) schemes and credentials fail startup. After changing the public URL, update this setting and restart the backend.
+
+This setting is required for browser writes over ordinary HTTP, where browsers can omit `Sec-Fetch-Site`. Without it, writes carrying Origin or Referer are rejected unless Fetch Metadata identifies them as same-origin. HTTPS and trustworthy localhost requests with same-origin Fetch Metadata work without the setting. Configuring it also validates any Origin/Referer supplied by those requests.
+
+Behind a reverse proxy, configure the external HTTPS URL and port even when nginx reaches the backend over HTTP. The policy never derives its expected origin from `Host`, `Forwarded` or `X-Forwarded-*`; TLS termination, internal service names and nginx's removal of the external port therefore do not change it. Use the configured canonical URL to access the UI; alternate hostnames, schemes or ports are different origins. This variable does not configure your reverse proxy or enable TLS.
+
+For writes, cross-site or same-site Fetch Metadata is always rejected. Otherwise Origin must match exactly, including scheme and port. Origin takes precedence over Referer, and opaque `Origin: null` is rejected. If Origin is absent, the Referer URL's origin must match. Rejections return `FORBIDDEN` (403) before the route runs, with the expected origin recorded in correlated server diagnostics. GET, HEAD and OPTIONS retain their existing behavior; CORS remains disabled.
+
+Requests without Fetch Metadata, Origin or Referer remain allowed for script compatibility. A browser request stripped of all origin evidence is indistinguishable from such a script. These checks are not a complete CSRF-token mechanism, do not prevent DNS rebinding, and do not replace authentication or network access controls.
 
 ## Prometheus Metrics
 

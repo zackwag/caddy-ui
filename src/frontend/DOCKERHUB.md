@@ -103,6 +103,9 @@ services:
       - TZ=America/New_York
       # Optional -- opt into installed preview UI languages (reviewed languages are enabled by default)
       - CADDY_UI_ADDITIONAL_LANGUAGES=de
+      # Browser-facing URL: replace your-server with the host you open in your browser.
+      # Required for browser writes over plain HTTP; behind HTTPS use the external HTTPS URL.
+      - CADDY_UI_EXTERNAL_URL=http://your-server:9877
       # Optional -- leave unset to disable auth
       - CADDY_UI_USER=admin
       - CADDY_UI_PASSWORD=yourpassword

@@ -117,3 +117,22 @@ layout.
 5. Do not edit `CHANGELOG.md` or bump versions by hand. Release-please manages
    both after squash-merging.
 6. Open the PR against `main`; the Test workflow runs automatically.
+
+## Browser-origin security checks
+
+The focused Chromium suite needs backend and dev dependencies plus a Playwright
+browser; it does not need Docker or a Caddy instance:
+
+```bash
+npm exec --prefix dev -- playwright install chromium
+npm run test:cross-site:browser
+```
+
+The same cases run through `npm run test:dev-caddy:e2e` in CI. They use the real
+backend middleware and local HTTP servers, with no request interception or
+injected browser headers. An IPv4-mapped loopback URL reproduces Chromium's
+untrustworthy HTTP destination behavior without an external LAN. Assertions check
+that Fetch Metadata is actually absent, forged fetches/forms never reach the
+write handler, and configured same-origin HTTP writes still work. Each case owns
+its browser and servers and closes them on completion or failure. Backend policy
+and route assertions also run with `npm test --prefix src/backend`.
