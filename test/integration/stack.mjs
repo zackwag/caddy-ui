@@ -1,14 +1,72 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import { promisify } from 'node:util';
 import { backendEnvironment, checkDocker, Harness, IMAGE } from '../../scripts/dev-caddy/harness.mjs';
 import { FixtureScope } from './lifecycle.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const VERSION = 'dev-caddy-integration';
+const exec = promisify(execFile);
+
+// Chromium sees interface changes in its own network namespace. With remote
+// Docker/Docker Desktop/DoOD the owned peer may not be visible here at all.
+export function containerNetworkProbe(container, { platform = process.platform, read = readFile, list = readdir,
+    peer = async signal => Number((await exec('docker', ['exec', container, 'cat', '/sys/class/net/eth0/iflink'], { signal, timeout: 2000 })).stdout.trim()) } = {}) {
+    let index;
+    return async signal => {
+        signal?.throwIfAborted();
+        if (platform !== 'linux') return { status: 'not-applicable', reason: 'Browser is outside the Linux Docker host' };
+        index ??= await peer(signal);
+        if (!Number.isInteger(index) || index < 1) throw new Error('Owned container reported an invalid interface index');
+        let name;
+        for (const candidate of await list('/sys/class/net')) {
+            if (!candidate.startsWith('veth')) continue;
+            try {
+                if (Number(await read(`/sys/class/net/${candidate}/ifindex`, 'utf8')) === index) name = candidate;
+            } catch (error) {
+                // Another container may disappear between listing and reading.
+                if (error.code !== 'ENOENT') throw error;
+            }
+        }
+        if (!name) return { status: 'not-applicable', reason: 'Owned Docker interface is outside the browser network namespace' };
+        const result = { interface: { index, name } };
+        const setting = key => read(`/proc/sys/net/ipv6/conf/${name}/${key}`, 'utf8');
+        if ((await setting('disable_ipv6')).trim() === '1') return { ...result, status: 'ready', reason: 'IPv6 disabled on owned interface' };
+        if ((await setting('addr_gen_mode')).trim() === '1') return { ...result, status: 'ready', reason: 'Link-local address generation disabled' };
+        const addresses = await read('/proc/net/if_inet6', 'utf8');
+        for (const line of addresses.trim().split('\n')) {
+            const [address, ifindex, , scope, flags, device] = line.trim().split(/\s+/);
+            if (Number.parseInt(ifindex, 16) !== index || device !== name || scope !== '20') continue;
+            if (!/^[a-f\d]{32}$/i.test(address) || !/^[a-f\d]+$/i.test(flags)) throw new Error('Invalid IPv6 interface state');
+            const state = Number.parseInt(flags, 16);
+            if (state & 0x08) throw new Error(`IPv6 duplicate-address detection failed on ${name}`);
+            if (!(state & 0x40)) return { ...result, status: 'ready', reason: 'Owned IPv6 link-local address is ready' };
+        }
+        return { ...result, status: 'pending' };
+    };
+}
+
+export async function waitForContainerNetwork(container, { signal, timeoutMs = 5000, probe = containerNetworkProbe(container) } = {}) {
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const bounded = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    try {
+        while (true) {
+            bounded.throwIfAborted();
+            const result = await probe(bounded);
+            bounded.throwIfAborted();
+            if (result.status !== 'pending') return result;
+            await delay(50, undefined, { signal: bounded });
+        }
+    } catch (cause) {
+        signal?.throwIfAborted();
+        throw new Error(`Owned Caddy network was not ready before Chromium startup: ${cause.message}`, { cause });
+    }
+}
 
 export async function claimNamespace(harness) {
     try {

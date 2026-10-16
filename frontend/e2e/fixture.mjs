@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { FixtureScope } from '../../test/integration/lifecycle.mjs';
-import { createTestStack } from '../../test/integration/stack.mjs';
+import { createTestStack, waitForContainerNetwork } from '../../test/integration/stack.mjs';
 
 const frontend = resolve(import.meta.dirname, '..');
 
@@ -24,7 +24,9 @@ export async function useBrowserFixture(t, options) {
         assert.deepEqual(pageErrors, [], 'Uncaught browser JavaScript errors');
     });
 
+
     const stack = await createTestStack(scope, options);
+    await scope.run(() => waitForContainerNetwork(stack.instances.get('alpha').instance.containerName, { signal: scope.signal }));
     const vite = await scope.acquire(() => createServer({
         root: frontend,
         cacheDir: resolve(stack.directory, 'vite-cache'),
@@ -66,7 +68,7 @@ export async function useBrowserFixture(t, options) {
     for (let attempt = 0; attempt < 3; attempt++) {
         networkChanged = false;
         try {
-            await scope.run(() => page.goto(origin + '/dashboard'));
+            await scope.run(() => page.goto(origin + '/dashboard', { waitUntil: 'domcontentloaded' }));
             await waitForView('.shell');
             break;
         } catch (error) {
