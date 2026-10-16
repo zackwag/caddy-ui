@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.28.0](https://github.com/zackwag/caddy-ui/compare/v2.27.2...v2.28.0) (2026-10-16)
+
+
+### Features
+
+* allow private-network notification destinations ([#272](https://github.com/zackwag/caddy-ui/issues/272)) ([d33d894](https://github.com/zackwag/caddy-ui/commit/d33d894a3a058dbf2e9d2eaf8ee0964f2af8859f))
+
+
+### Bug Fixes
+
+* reject cross-site writes and drop permissive CORS ([#275](https://github.com/zackwag/caddy-ui/issues/275)) ([fa1a72a](https://github.com/zackwag/caddy-ui/commit/fa1a72a935fdaee7fe8dc9e0dd03338521978f21))
+
 ## [2.27.2](https://github.com/zackwag/caddy-ui/compare/v2.27.1...v2.27.2) (2026-10-16)
 
 
