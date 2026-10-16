@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { backendEnvironment, checkDocker, Harness, IMAGE } from '../../scripts/dev-caddy/harness.mjs';
-import { CAPTURE_VERSION, normalizeCapture, validateCapture } from '../../frontend/playground/capture-format.js';
+import { backendEnvironment, checkDocker, Harness, IMAGE } from '../../dev/dev-caddy/harness.mjs';
+import { CAPTURE_VERSION, normalizeCapture, validateCapture } from '../../dev/playground/capture-format.js';
 
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
@@ -37,7 +37,7 @@ const CADDYFILE_RICH = `{
 }
 `;
 
-export async function captureScreenshots({ output = resolve(import.meta.dirname, 'captures/screenshots.json'), backendEntry = resolve(root, 'backend/src/index.js'), onNamespace = () => {} } = {}) {
+export async function captureScreenshots({ output = resolve(import.meta.dirname, 'captures/screenshots.json'), backendEntry = resolve(root, 'src/backend/src/index.js'), onNamespace = () => {} } = {}) {
     if (process.platform === 'win32') throw new Error('Capture requires a Unix socket.');
     await checkDocker();
     const context = process.env.DOCKER_CONTEXT;
