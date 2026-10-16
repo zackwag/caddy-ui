@@ -11,6 +11,7 @@
         "lint:dev-caddy": "npm run lint --prefix dev --",
         "docs:screenshots": "node docs/screenshots/screenshot.mjs",
         "docs:screenshots:capture": "node docs/screenshots/capture.mjs",
+        "test:playground": "npm run test:playground --prefix dev --",
         "i18n:preview": "npm run i18n:preview --prefix dev --",
         "i18n:preview:build": "npm run i18n:preview:build --prefix dev --",
         "i18n:preview:capture": "npm run i18n:preview:capture --prefix dev --",

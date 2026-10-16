@@ -41,12 +41,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Playground tests remain in the frontend until the test-ownership follow-up.
-      - name: Install development dependencies for frontend tests
-        if: matrix.project == 'frontend'
-        working-directory: .
-        run: npm ci --prefix dev
-
       - name: Run tests
         run: npm test
 
@@ -78,6 +72,9 @@ jobs:
 
       - name: Lint development tooling
         run: npm run lint:dev-caddy
+
+      - name: Test playground tooling
+        run: npm run test:playground
 
       - name: Test development lifecycle safety
         run: npm run test:dev-caddy

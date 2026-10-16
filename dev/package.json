@@ -4,6 +4,7 @@
     "type": "module",
     "scripts": {
         "test": "node --test dev-caddy/*.test.mjs integration/*.test.mjs",
+        "test:playground": "vitest run playground/test/",
         "test:integration": "node --test integration/caddy.mjs integration/api.mjs integration/startup.mjs integration/diagnostics.mjs",
         "test:e2e": "node --test --test-concurrency=1 e2e/error-logging.mjs e2e/languages.mjs",
         "lint": "node ../src/backend/node_modules/eslint/bin/eslint.js . --max-warnings=0",
@@ -21,6 +22,7 @@
         "react-dom": "^19.2.8",
         "react-i18next": "^17.0.16",
         "react-router-dom": "^7.18.3",
-        "vite": "^8.3.4"
+        "vite": "^8.3.4",
+        "vitest": "^5.0.5"
     }
 }
