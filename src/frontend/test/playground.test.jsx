@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createPreviewI18n, flattenCatalog, placeholders, readValue } from '../playground/model.js';
-import { capture, scenarios } from '../playground/registry.jsx';
+import { createPreviewI18n, flattenCatalog, placeholders, readValue } from '../../../dev/playground/model.js';
+import { capture, scenarios } from '../../../dev/playground/registry.jsx';
 import en from '../src/i18n/locales/en.js';
 import de from '../src/i18n/locales/de.js';
 

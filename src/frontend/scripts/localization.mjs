@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(scriptDir, '..');
-const repoDir = path.resolve(frontendDir, '..');
+const repoDir = path.resolve(frontendDir, '../..');
 const localesDir = path.join(frontendDir, 'src', 'i18n', 'locales');
 const coveragePath = path.join(repoDir, 'docs', 'src', 'assets', 'localization-coverage.svg');
 
@@ -106,7 +106,7 @@ async function loadCatalogs() {
         .sort();
 
     if (!files.includes('en.js')) {
-        throw new Error('frontend/src/i18n/locales/en.js is required');
+        throw new Error('src/frontend/src/i18n/locales/en.js is required');
     }
 
     const catalogs = new Map();
