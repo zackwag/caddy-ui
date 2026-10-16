@@ -97,6 +97,6 @@ language, the screens or key groups you covered, whether a fluent reviewer check
 the wording, and which validation/preview commands you ran. If a string needs
 more context, explain that in the PR rather than guessing.
 
-The coverage graph is generated from the catalogs. If you need to inspect it,
-run `npm run i18n:coverage`; follow the localization workflow's instructions for
-generated-file changes and do not edit the graph manually.
+The coverage graph is generated from the catalogs when the documentation is
+built, so it is not part of your PR. If you need to inspect it, run
+`npm run i18n:coverage --prefix frontend`.

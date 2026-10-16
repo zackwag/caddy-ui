@@ -160,5 +160,6 @@ docs/book/
 # Standalone localization contributor preview
 frontend/dist-playground/
 
-# Generated documentation screenshots
+# Generated documentation screenshots and localization coverage graph
 docs/src/screenshots/*.png
+docs/src/assets/localization-coverage.svg

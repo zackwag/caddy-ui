@@ -55,7 +55,7 @@ Use caddy/ui to inspect server health, edit Caddyfiles, manage routes and TLS ce
 follow logs and metrics, and configure notifications from one place. It supports multiple
 instances, optional authentication, and responsive dark/light themes.
 
-![Dashboard](docs/src/screenshots/dashboard.png)
+![Dashboard](https://zackwag.github.io/caddy-ui/screenshots/dashboard.png)
 
 **[Read the documentation](https://zackwag.github.io/caddy-ui/)** ·
 [Browse the Markdown sources](docs/src/SUMMARY.md) ·
@@ -497,7 +497,7 @@ for versioned image tags and release notes.
 
 ## Localization
 
-![Localization coverage](docs/src/assets/localization-coverage.svg)
+![Localization coverage](https://zackwag.github.io/caddy-ui/assets/localization-coverage.svg)
 
 English (`frontend/src/i18n/locales/en.js`) is the canonical localization schema and fallback language. Additional locale catalogs may translate any subset of the English keys; missing keys fall back to English. Locale catalogs may not introduce keys or key-tree shapes that do not exist in `en.js`.
 

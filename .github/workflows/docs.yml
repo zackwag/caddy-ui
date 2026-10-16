@@ -56,6 +56,9 @@ jobs:
       - name: Generate screenshots
         run: node docs/screenshots/screenshot.mjs
 
+      - name: Generate localization coverage
+        run: node frontend/scripts/localization.mjs coverage
+
       - name: Test documentation tooling
         run: npm test --prefix docs
 
