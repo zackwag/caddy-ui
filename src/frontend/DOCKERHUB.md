@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.27.0. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.27.1. Do not edit directly. -->
 
 # caddy/ui — Frontend
 
