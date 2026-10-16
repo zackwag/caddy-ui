@@ -235,6 +235,7 @@ Scenario files contain the actions and expected behavior:
 - `dev/integration/startup.mjs`: failed startup, cancellation, port ownership and namespace exclusivity.
 - `dev/integration/diagnostics.mjs`: public error contracts and correlated backend logs.
 - `dev/e2e/error-logging.mjs`: browser feedback, live logs, recovery, network loss and locale fallback.
+- `dev/e2e/languages.mjs`: reviewed-language availability, Arabic font loading and fallback after a failed font download.
 
 `*.test.mjs` files in the integration package exercise lifecycle and readiness
 without Docker. The root npm commands select unit, container and browser suites

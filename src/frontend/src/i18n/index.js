@@ -2,6 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { apiFetch } from '../utils/api.js';
 import en from './locales/en.js';
+import { additionalFonts } from './fonts.js';
 
 const localeModules = import.meta.glob([
     './locales/*.js',
@@ -57,6 +58,8 @@ export async function fetchEnabledLanguages() {
     ).filter(lang => available.has(lang));
 
     if (!enabled.includes('en')) enabled.unshift('en');
+    additionalFonts.configure(Array.isArray(languageConfig.fonts)
+        ? languageConfig.fonts.filter(locale => enabled.includes(locale)) : []);
     return enabled;
 }
 
@@ -87,6 +90,7 @@ export async function loadLocale(locale) {
         );
     }
 
+    await additionalFonts.load(normalized);
     await i18n.changeLanguage(normalized);
 }
 

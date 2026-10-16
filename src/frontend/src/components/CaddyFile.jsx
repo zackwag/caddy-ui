@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -370,18 +371,18 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                             <input type="checkbox" className="editor-checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} />
                             {t("caddyfile.sortEntries")}
                         </label>
-                        <span className="editor-hint editor-hint--mobile">{isDirty ? `● ${t("caddyfile.unsavedChanges")}` : `✓ ${t("caddyfile.upToDate")}`}</span>
+                        <span className="editor-hint editor-hint--mobile"><UtilityIcon name={isDirty ? "dot" : "check"} size={10} /> {t(isDirty ? "caddyfile.unsavedChanges" : "caddyfile.upToDate")}</span>
                     </div>
                     <div className="btn-row editor-toolbar-actions">
-                        <span className="editor-hint editor-hint--desktop">{isDirty ? `● ${t("caddyfile.unsavedChanges")}` : `✓ ${t("caddyfile.upToDate")}`}</span>
-                        <button className="btn btn-ghost" onClick={validate} disabled={validating}>{validating ? t("caddyfile.validating") : `✓ ${t("caddyfile.validate")}`}</button>
-                        <button className="btn btn-ghost" onClick={toggleHistory}>⊙ {t("caddyfile.history")}{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}</button>
-                        <button className="btn btn-ghost" onClick={exportFile}>↓ {t("common.export")}</button>
-                        <button className="btn btn-ghost" onClick={() => importInputRef.current?.click()}>↑ {t("caddyfile.import")}</button>
+                        <span className="editor-hint editor-hint--desktop"><UtilityIcon name={isDirty ? "dot" : "check"} size={10} /> {t(isDirty ? "caddyfile.unsavedChanges" : "caddyfile.upToDate")}</span>
+                        <button className="btn btn-ghost" onClick={validate} disabled={validating}>{validating ? t("caddyfile.validating") : <><UtilityIcon name="check" /> {t("caddyfile.validate")}</>}</button>
+                        <button className="btn btn-ghost" onClick={toggleHistory}><UtilityIcon name="history" /> {t("caddyfile.history")}{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}</button>
+                        <button className="btn btn-ghost" onClick={exportFile}><UtilityIcon name="arrowDown" /> {t("common.export")}</button>
+                        <button className="btn btn-ghost" onClick={() => importInputRef.current?.click()}><UtilityIcon name="arrowUp" /> {t("caddyfile.import")}</button>
                         <input ref={importInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={importFile} />
-                        <button className="btn btn-ghost" onClick={reload}>↺ {t("caddyfile.reload")}</button>
-                        <button className="btn btn-ghost" onClick={() => save({ force: true })} disabled={saving || !isDirty} title={t("caddyfile.forceSaveTitle")}>{saving ? "..." : `⚠ ${t("caddyfile.forceSave")}`}</button>
-                        <button className="btn btn-primary" onClick={() => save()} disabled={saving || !isDirty}>{saving ? t("common.saving") : `↑ ${t("common.save")}`}</button>
+                        <button className="btn btn-ghost" onClick={reload}><UtilityIcon name="refresh" /> {t("caddyfile.reload")}</button>
+                        <button className="btn btn-ghost" onClick={() => save({ force: true })} disabled={saving || !isDirty} title={t("caddyfile.forceSaveTitle")}>{saving ? "..." : <><UtilityIcon name="warning" /> {t("caddyfile.forceSave")}</>}</button>
+                        <button className="btn btn-primary" onClick={() => save()} disabled={saving || !isDirty}>{saving ? t("common.saving") : <><UtilityIcon name="arrowUp" /> {t("common.save")}</>}</button>
                     </div>
                 </div>
             </div>
@@ -402,7 +403,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                     <div ref={historyHeaderRef} className="card-header">
                         <span className="section-label">{t("caddyfile.versionHistory")}</span>
                         <div className="btn-row">
-                            <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}>↺ {t("common.refresh")}</button>
+                            <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
                             <button
                                 className={`btn btn--sm ${historyListOpen ? "btn-primary" : "btn-ghost"}`}
                                 onClick={() => setHistoryListOpen(open => !open)}
@@ -436,12 +437,12 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                                         <option key={entry.filename} value={entry.filename}>{t("caddyfile.vsSnapshot", { timestamp: formatTs(entry.timestamp) })}</option>
                                                     ))}
                                                 </select>
-                                                <span className="select-arrow">▾</span>
+                                                <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                                             </div>
                                         )}
                                         <div className="btn-row history-version-actions">
-                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>↺ {t("caddyfile.restore")}</button>
-                                            <button className="btn btn-danger btn--sm" title={t("caddyfile.deleteSnapshot")} aria-label={t("caddyfile.deleteSnapshot")} onClick={() => deleteSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}>✕</button>
+                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}><UtilityIcon name="refresh" /> {t("caddyfile.restore")}</button>
+                                            <button className="btn btn-danger btn--sm" title={t("caddyfile.deleteSnapshot")} aria-label={t("caddyfile.deleteSnapshot")} onClick={() => deleteSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}><UtilityIcon name="close" /></button>
                                         </div>
                                     </div>
                                 )}

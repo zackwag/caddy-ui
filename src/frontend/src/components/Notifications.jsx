@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -103,7 +104,7 @@ export default function Notifications({ toast, onUnauth }) {
                                 <option value="pushover">Pushover</option>
                                 <option value="custom">{t("notifications.customWebhook")}</option>
                             </select>
-                            <span className="select-arrow">▾</span>
+                            <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                         </div>
                     </div>
                 </div>
@@ -211,7 +212,7 @@ export default function Notifications({ toast, onUnauth }) {
                                         <option value="POST">POST</option>
                                         <option value="PUT">PUT</option>
                                     </select>
-                                    <span className="select-arrow">▾</span>
+                                    <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                                 </div>
                             </div>
                         </div>

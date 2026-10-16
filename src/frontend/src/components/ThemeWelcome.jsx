@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { languageName } from '../i18n/index.js';
@@ -59,7 +60,7 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
                                 </optgroup>
                             )}
                         </select>
-                        <span className="select-arrow">▾</span>
+                        <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                     </div>
                 </div>
 
@@ -159,7 +160,7 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
                                     </option>
                                 ))}
                             </select>
-                            <span className="select-arrow">▾</span>
+                            <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
                         </div>
                     </div>
                 )}

@@ -27,6 +27,7 @@ browser bundle is copied into the book, so published diagrams work offline.
 From the repository root:
 
 ```sh
+npm run i18n:coverage --prefix src/frontend
 mdbook build docs
 mdbook serve docs --hostname 127.0.0.1 --port 3000
 ```
@@ -42,18 +43,20 @@ If you edited Docker Hub source blocks, also run
 ## Styling and assets
 
 Screenshots live in `docs/src/screenshots/`; the root README also references them.
-The localization coverage SVG lives in `docs/src/assets/` so mdBook copies it
-into the site. Regenerate it with `npm run i18n:coverage --prefix src/frontend`.
+The localization coverage SVG is generated into `docs/src/assets/` by the
+documentation workflow so mdBook copies it into the site; it is not checked in.
+Generate it locally with `npm run i18n:coverage --prefix src/frontend`.
 The book's favicon is copied from the frontend logo. `docs/theme/palettes.css`
 contains the frontend's default VT2026 and CoarseEverywhere color tokens copied
 at migration time. Keep those tokens in sync when changing the frontend defaults.
 `docs/theme/caddy-ui.css` maps those tokens to mdBook controls and layout rules.
 Fonts use the frontend families with local system fallbacks.
 
-Source pages and authored assets are checked in; rendered `docs/book/` output,
-generated screenshots and installed `node_modules/` are ignored by Git. Mermaid code fences render as diagrams and
-follow the light/dark theme. Invalid diagrams fall back to readable source and
-report the error in the browser console.
+Source pages and assets are checked in; generated screenshots, the coverage
+graph, rendered `docs/book/` output, and installed `node_modules/` are ignored
+by Git. Mermaid code fences render as diagrams and follow the light/dark
+theme. Invalid diagrams fall back to readable source and report the error in
+the browser console.
 
 ## Generated screenshots
 

@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,7 +67,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                     <span className="section-label">{t("metrics.configuration")}</span>
                     <div className="flex-center">
                         {metricsConfig && <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>{metricsConfig.enabled ? t("common.enabledUpper") : t("common.disabledUpper")}</span>}
-                        <span className="chevron">{configOpen ? "▲" : "▼"}</span>
+                        <span className="chevron"><UtilityIcon name={configOpen ? "caretUp" : "caretDown"} /></span>
                     </div>
                 </div>
                 {configOpen && (
@@ -103,7 +104,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                 <div className="card">
                     <div className="flex-between">
                         <span className="loading">{t("metrics.notEnabled")}</span>
-                        <button className="btn btn-ghost btn--sm" onClick={() => setConfigOpen(true)}>{t("metrics.enableInMetrics")} →</button>
+                        <button className="btn btn-ghost btn--sm" onClick={() => setConfigOpen(true)}>{t("metrics.enableInMetrics")} <UtilityIcon name="arrowRight" /></button>
                     </div>
                 </div>
             ) : (
@@ -173,7 +174,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                         <div className="btn-row">
                             {refreshError && <span style={{ color: "var(--warn)" }} title={refreshError}>{t("metrics.refreshFailed")}</span>}
                             <span>{t("metrics.lastScraped", { time: formatScrapedAt(metrics.scrapedAt) })}</span>
-                            <button className="btn btn-ghost btn--sm" onClick={load} disabled={loading}>↺ {loading ? t("common.refreshing") : t("common.refresh")}</button>
+                            <button className="btn btn-ghost btn--sm" onClick={load} disabled={loading}><UtilityIcon name="refresh" /> {loading ? t("common.refreshing") : t("common.refresh")}</button>
                         </div>
                     </div>
                 </>

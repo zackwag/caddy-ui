@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -92,7 +93,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                     ) : !process.ok ? (
                         <div className="flex-between">
                             <span className="loading">{t("dashboard.metricsNotEnabled")}</span>
-                            <button className="btn btn-ghost btn--sm" onClick={() => navigate("/metrics")}>{t("dashboard.enableInMetrics")} →</button>
+                            <button className="btn btn-ghost btn--sm" onClick={() => navigate("/metrics")}>{t("dashboard.enableInMetrics")} <UtilityIcon name="arrowRight" /></button>
                         </div>
                     ) : (
                         <div className="process-grid">
@@ -131,7 +132,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                                 <thead>
                                     <tr>
                                         <th>{t("dashboard.label")}</th>
-                                        <th title={t("dashboard.serverIdHint")}>{t("dashboard.serverId")} <span className="th-hint">ⓘ</span></th>
+                                        <th title={t("dashboard.serverIdHint")}>{t("dashboard.serverId")} <span className="th-hint"><UtilityIcon name="info" /></span></th>
                                         <th>{t("dashboard.listensOn")}</th>
                                         <th>{t("dashboard.routes")}</th>
                                         <th>{t("dashboard.status")}</th>
@@ -151,7 +152,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                                                     className="server-edit-icon"
                                                     title={t("dashboard.editLabel")}
                                                     onClick={e => { e.stopPropagation(); openEdit(s); }}
-                                                >✎</span>
+                                                ><UtilityIcon name="pencil" /></span>
                                             </td>
                                         </tr>
                                     ))}

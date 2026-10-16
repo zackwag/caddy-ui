@@ -13,6 +13,7 @@ COPY vite.config.js .
 COPY caddyui-logo.ico caddyui-logo.svg caddyui-logo.png ./
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY public/ ./public/
 
 RUN npm run build
 

@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -130,7 +131,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
 
                 {inMaintenance && (
                     <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "color-mix(in srgb, var(--accent3) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--accent3) 30%, transparent)", borderRadius: 4, color: "var(--accent3)" }}>
-                        🔧 {t("routes.maintenanceEditHint")}
+                        <UtilityIcon name="wrench" /> {t("routes.maintenanceEditHint")}
                     </div>
                 )}
 
@@ -511,8 +512,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     });
 
     const SortIcon = ({ col }) => {
-        if (sortCol !== col) return <span className="sort-icon">↕</span>;
-        return <span className="sort-icon--active">{sortDir === "asc" ? "↑" : "↓"}</span>;
+        if (sortCol !== col) return <span className="sort-icon"><UtilityIcon name="sort" /></span>;
+        return <span className="sort-icon--active"><UtilityIcon name={sortDir === "asc" ? "arrowUp" : "arrowDown"} /></span>;
     };
 
     if (loading) return <div className="loading">{t("routes.loading")}</div>;
@@ -524,7 +525,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                     <div className="flex-center" style={{ gap: 12 }}>
                         <div className="search-wrap">
                             <input className="search-input search-input--clearable" placeholder={t("routes.filterPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} />
-                            {search && <button className="search-clear" onClick={() => setSearch("")} title={t("routes.clearFilter")}>✕</button>}
+                            {search && <button className="search-clear" onClick={() => setSearch("")} title={t("routes.clearFilter")}><UtilityIcon name="close" /></button>}
                         </div>
                         <span className="section-label">
                             {healthLoading ? t("common.checking") : `${t("routes.onlineSummary", { online: routesOnline, total: routeStatuses.length })}${routesMaint ? ` · ${t("routes.maintenanceCount", { count: routesMaint })}` : ""}`}
@@ -533,7 +534,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                     <div className="btn-row routes-toolbar-actions">
                         <div className="col-picker" ref={colMenuRef}>
                             <button className="btn btn-ghost col-picker-trigger" onClick={() => setColMenuOpen(o => !o)}>
-                                ⚙ {t("routes.columns")}
+                                <UtilityIcon name="settings" /> {t("routes.columns")}
                                 {columnsHidden && <span className="col-picker-badge" title={t("routes.someColumnsHidden")} />}
                             </button>
                             {colMenuOpen && (
@@ -548,7 +549,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                 </div>
                             )}
                         </div>
-                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading}>↺ {t("common.refresh")}</button>
+                        <button className="btn btn-ghost" onClick={loadHealth} disabled={healthLoading}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
                         <button className="btn btn-primary" onClick={() => setNewModal(true)}>+ {t("routes.addRoute")}</button>
                     </div>
                 </div>
@@ -630,15 +631,15 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                                 style={{ color: maintenance[domain] ? "var(--accent3)" : "var(--muted)" }}
                                                                 onClick={() => toggleMaintenance(domain)}
                                                                 title={maintenance[domain] ? t("routes.disableMaintenance") : t("routes.enableMaintenance")}
-                                                            >🔧</button>
+                                                            ><UtilityIcon name="wrench" /></button>
                                                         )}
                                                         <button
                                                             className="btn btn-ghost btn--icon"
                                                             style={{ color: note ? "var(--accent2)" : "var(--muted)" }}
                                                             onClick={() => openEdit(r)}
                                                             title={t("routes.editRoute")}
-                                                        >✎</button>
-                                                        {hasId && <button className="btn btn-danger btn--icon" onClick={() => deleteRoute(r["@id"], domain)}>✕</button>}
+                                                        ><UtilityIcon name="pencil" /></button>
+                                                        {hasId && <button className="btn btn-danger btn--icon" onClick={() => deleteRoute(r["@id"], domain)} aria-label={t("common.delete")}><UtilityIcon name="close" /></button>}
                                                     </div>
                                                 </td>
                                             </tr>

@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.26.1](https://github.com/zackwag/caddy-ui/compare/v2.26.0...v2.26.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **docs:** update screenshot fixture for new /languages response shape ([#270](https://github.com/zackwag/caddy-ui/issues/270)) ([2c3d4f9](https://github.com/zackwag/caddy-ui/commit/2c3d4f99888d6c3032cfae90a4c456183733b82c))
+
+## [2.26.0](https://github.com/zackwag/caddy-ui/compare/v2.25.3...v2.26.0) (2026-10-16)
+
+
+### Features
+
+* **i18n:** Enable reviewed languages and opt-in Arabic fonts ([#250](https://github.com/zackwag/caddy-ui/issues/250)) ([587aa9f](https://github.com/zackwag/caddy-ui/commit/587aa9f812f10562c528b7f3ec7dcb22711eeb58))
+
+## [2.25.3](https://github.com/zackwag/caddy-ui/compare/v2.25.2...v2.25.3) (2026-10-16)
+
+
+### Bug Fixes
+
+* keep language picker label from overflowing ([#267](https://github.com/zackwag/caddy-ui/issues/267)) ([2f6a706](https://github.com/zackwag/caddy-ui/commit/2f6a70671167d9b6adbf40ae69445948acb6a8f7))
+
+## [2.25.2](https://github.com/zackwag/caddy-ui/compare/v2.25.1...v2.25.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* replace font-dependent UI symbols with custom SVG icons ([#259](https://github.com/zackwag/caddy-ui/issues/259)) ([0db2e49](https://github.com/zackwag/caddy-ui/commit/0db2e490c33568b8f0cfd0b4866648f31ae92fc1))
+
 ## [2.25.1](https://github.com/zackwag/caddy-ui/compare/v2.25.0...v2.25.1) (2026-10-16)
 
 

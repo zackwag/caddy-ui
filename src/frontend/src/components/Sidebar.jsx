@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PixelIcon, UtilityIcon } from "./Icons.jsx";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
@@ -14,14 +15,14 @@ const COMMITS_URL = "https://github.com/zackwag/caddy-ui/commits/main";
 const displayVersion = (version) => /^\d/.test(version) ? `v${version}` : version;
 
 const NAV = [
-    { path: "/dashboard", labelKey: "sidebar.nav.dashboard", icon: "◈" },
-    { path: "/caddyfile", labelKey: "sidebar.nav.caddyfile", icon: "⌗" },
-    { path: "/routes", labelKey: "sidebar.nav.routes", icon: "⇌" },
-    { path: "/tls", labelKey: "sidebar.nav.tls", icon: "⊕" },
-    { path: "/logs", labelKey: "sidebar.nav.logs", icon: "≡" },
-    { path: "/metrics", labelKey: "sidebar.nav.metrics", icon: "∿" },
-    { path: "/notifications", labelKey: "sidebar.nav.notifications", icon: "⊘" },
-    { path: "/instances", labelKey: "sidebar.nav.instances", icon: "⊞" },
+    { path: "/dashboard", labelKey: "sidebar.nav.dashboard", icon: "dashboard" },
+    { path: "/caddyfile", labelKey: "sidebar.nav.caddyfile", icon: "caddyfile" },
+    { path: "/routes", labelKey: "sidebar.nav.routes", icon: "routes" },
+    { path: "/tls", labelKey: "sidebar.nav.tls", icon: "tls" },
+    { path: "/logs", labelKey: "sidebar.nav.logs", icon: "logs" },
+    { path: "/metrics", labelKey: "sidebar.nav.metrics", icon: "metrics" },
+    { path: "/notifications", labelKey: "sidebar.nav.notifications", icon: "notifications" },
+    { path: "/instances", labelKey: "sidebar.nav.instances", icon: "instances" },
 ];
 
 export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange, instanceListVersion }) {
@@ -80,7 +81,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                     <span className="status-pill-text">
                         {status ? (status.online ? t("sidebar.connected") : t("sidebar.unreachable")) : t("sidebar.checking")}
                     </span>
-                    <button className="status-refresh" onClick={onRefreshStatus} title={t("sidebar.refreshStatus")}>↺</button>
+                    <button className="status-refresh" onClick={onRefreshStatus} title={t("sidebar.refreshStatus")} aria-label={t("sidebar.refreshStatus")}><UtilityIcon name="refresh" /></button>
                 </div>
             </div>
             {showSwitcher && (() => {
@@ -90,7 +91,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         <button className="instance-dropdown-trigger" onClick={() => setDropdownOpen(o => !o)}>
                             <div className={`status-dot ${instanceStatus[selected?.id] === true ? "online" : instanceStatus[selected?.id] === false ? "offline" : ""}`} />
                             <span className="instance-dropdown-name">{selected?.name || t("sidebar.selectInstance")}</span>
-                            <span className={`instance-dropdown-chevron ${dropdownOpen ? "open" : ""}`}>▾</span>
+                            <span className={`instance-dropdown-chevron ${dropdownOpen ? "open" : ""}`}><UtilityIcon name="chevronDown" /></span>
                         </button>
                         {dropdownOpen && (
                             <div className="instance-dropdown-menu">
@@ -116,17 +117,17 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         className={`nav-item ${currentPath === n.path ? "active" : ""}`}
                         onClick={() => go(n.path)}
                     >
-                        <span className="nav-icon">{n.icon}</span>
+                        <span className="nav-icon"><PixelIcon name={n.icon} /></span>
                         {t(n.labelKey)}
                     </div>
                 ))}
             </nav>
             <div className="nav-footer">
                 {authEnabled && (
-                    <div className="nav-item" onClick={onUnauth}>
-                        <span className="nav-icon">⏻</span>
+                    <button type="button" className="nav-item sidebar-signout" onClick={onUnauth}>
+                        <span className="nav-icon"><PixelIcon name="logout" /></span>
                         {t("sidebar.signOut")}
-                    </div>
+                    </button>
                 )}
                 {updateParts.length > 0 && (
                     <a
@@ -136,7 +137,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         rel="noreferrer"
                         title={t("sidebar.availableUpdates", { parts: updateParts.join(" · ") })}
                     >
-                        {t("sidebar.updateAvailable")} ↗
+                        {t("sidebar.updateAvailable")} <UtilityIcon name="external" />
                     </a>
                 )}
                 <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.versionDetails", { frontend: displayVersion(FRONTEND_VERSION), backend: displayVersion(backendVersion) }) : undefined}>

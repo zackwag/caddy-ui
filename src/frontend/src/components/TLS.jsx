@@ -1,3 +1,4 @@
+import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
@@ -63,8 +64,8 @@ export default function TLS({ toast, onUnauth, confirm }) {
     });
 
     const SortIcon = ({ col }) => {
-        if (sortCol !== col) return <span className="sort-icon">↕</span>;
-        return <span className="sort-icon--active">{sortDir === "asc" ? "↑" : "↓"}</span>;
+        if (sortCol !== col) return <span className="sort-icon"><UtilityIcon name="sort" /></span>;
+        return <span className="sort-icon--active"><UtilityIcon name={sortDir === "asc" ? "arrowUp" : "arrowDown"} /></span>;
     };
 
     const statusBadge = (cert) => {
@@ -122,8 +123,8 @@ export default function TLS({ toast, onUnauth, confirm }) {
                         </div>
                     </div>
                     <div className="btn-row tls-ca-actions">
-                        <button className="btn btn-ghost tls-refresh--mobile" onClick={load}>↺ {t("common.refresh")}</button>
-                        <button className="btn btn-primary" onClick={downloadCA}>↓ {t("tls.downloadRootCa")}</button>
+                        <button className="btn btn-ghost tls-refresh--mobile" onClick={load}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
+                        <button className="btn btn-primary" onClick={downloadCA}><UtilityIcon name="arrowDown" /> {t("tls.downloadRootCa")}</button>
                     </div>
                 </div>
             </div>
@@ -169,7 +170,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
                                 {t("tls.supersededCount", { count: summary.superseded })}
                             </span>
                         )}
-                        <button className="btn btn-ghost btn--sm tls-refresh--desktop" onClick={load}>↺ {t("common.refresh")}</button>
+                        <button className="btn btn-ghost btn--sm tls-refresh--desktop" onClick={load}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
                     </div>
                 </div>
                 {sorted.length === 0 ? (
@@ -203,7 +204,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
                                         </td>
                                         <td>{statusBadge(cert)}</td>
                                         <td className="col-actions-sm">
-                                            {isDeletable(cert) && <button className="btn btn-danger btn--icon" onClick={() => deleteCert(cert)}>✕</button>}
+                                            {isDeletable(cert) && <button className="btn btn-danger btn--icon" onClick={() => deleteCert(cert)} aria-label={t("tls.delete")}><UtilityIcon name="close" /></button>}
                                         </td>
                                     </tr>
                                 ))}

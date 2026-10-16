@@ -56,18 +56,16 @@ language probe. It permits incomplete translations. Tests and lint provide the
 additional checks used by the localization implementation.
 
 For a full UI preview, follow [codebase setup](contributing-codebase.md#getting-set-up).
-Set `CADDY_UI_ADDITIONAL_LANGUAGES` in the backend environment to include your
-language code, restart the backend, and select the language in the UI. A matching
-locale file must exist for that language to be available.
+Reviewed languages are available by default; English remains the fallback.
+For a preview catalog, add its code to `CADDY_UI_ADDITIONAL_LANGUAGES` in the
+backend environment, restart the backend, and select the language in the UI.
+A matching frontend locale file must exist. Preview availability does not
+change the translation authorship and review requirements above.
 
-### Arabic
-
-The Arabic catalog (`ar`) follows the same English key schema and existing
-language picker. Enable it with `CADDY_UI_ADDITIONAL_LANGUAGES=ar` and select
-Arabic in the picker; English remains available and is the fallback.
-The interface follows right-to-left direction while code, logs and technical
-identifiers retain left-to-right direction. No reverse-proxy deployment mode
-or Docker integration is required, and language defaults are unchanged.
+Default availability is an explicit maintainer decision, recorded in
+`REVIEWED_LANGUAGES` in `src/backend/src/languages.js`; it is not inferred from
+translation coverage. Bundled fonts load automatically when their language is
+selected.
 
 ### Visual translation playground
 
@@ -99,6 +97,6 @@ language, the screens or key groups you covered, whether a fluent reviewer check
 the wording, and which validation/preview commands you ran. If a string needs
 more context, explain that in the PR rather than guessing.
 
-The coverage graph is generated from the catalogs. If you need to inspect it,
-run `npm run i18n:coverage --prefix src/frontend`; follow the localization workflow's instructions for
-generated-file changes and do not edit the graph manually.
+The coverage graph is generated from the catalogs when the documentation is
+built, so it is not part of your PR. If you need to inspect it, run
+`npm run i18n:coverage --prefix src/frontend`.
