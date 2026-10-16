@@ -1,5 +1,5 @@
 // Admission is an explicit review decision, independent of catalog coverage.
-export const REVIEWED_LANGUAGES = Object.freeze(['en', 'ar']);
+export const REVIEWED_LANGUAGES = Object.freeze(['en', 'ar', 'de']);
 const FONT_LANGUAGES = ['ar'];
 
 function parseCodes(raw = '') {
