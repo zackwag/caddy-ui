@@ -10,7 +10,7 @@ const ERROR_SNIPPET_CHARS = 200;
 
 // Private networks (LAN, Docker, Tailscale, IPv6 ULA) are allowed: whoever can set a
 // webhook URL can already edit the Caddyfile and proxy to them. Loopback, link-local
-// (including cloud metadata), unspecified, multicast and reserved addresses are not.
+// (including common metadata endpoints), unspecified, multicast and reserved addresses are not.
 // BlockList also matches IPv4-mapped IPv6 addresses against the IPv4 rules.
 const BLOCKED = new BlockList();
 for (const [network, prefix] of [['0.0.0.0', 8], ['127.0.0.0', 8], ['169.254.0.0', 16], ['224.0.0.0', 4], ['240.0.0.0', 4]]) {
@@ -20,6 +20,15 @@ for (const [network, prefix] of [['::', 128], ['::1', 128], ['fe80::', 10], ['ff
     BLOCKED.addSubnet(network, prefix, 'ipv6');
 }
 
+// Known metadata endpoints in otherwise permitted private ranges. These are
+// exact addresses, not a restriction on ordinary LAN, Docker or ULA destinations.
+// AWS: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
+// Google: https://docs.cloud.google.com/compute/docs/metadata/querying-metadata#metadata_server_endpoints
+// Alibaba: https://www.alibabacloud.com/help/en/ecs/user-guide/view-instance-metadata/
+BLOCKED.addAddress('fd00:ec2::254', 'ipv6');
+BLOCKED.addAddress('fd20:ce::254', 'ipv6');
+BLOCKED.addAddress('100.100.100.200', 'ipv4');
+
 export function isBlockedAddress(address) {
     const version = isIP(address);
     if (!version) return true;
@@ -28,7 +37,7 @@ export function isBlockedAddress(address) {
 
 function blockedDestination(host) {
     return new AppError('WEBHOOK_DESTINATION_BLOCKED', {
-        message: `Webhook destination is a loopback, link-local or non-routable address: ${host}`,
+        message: `Webhook destination is a known metadata, loopback, link-local or non-routable address: ${host}`,
         context: { host },
     });
 }

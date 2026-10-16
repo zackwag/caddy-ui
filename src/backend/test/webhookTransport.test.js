@@ -9,6 +9,7 @@ const { isBlockedAddress, resolveWebhookDestination, sendWebhook } = await impor
 describe('isBlockedAddress', () => {
     it.each([
         '10.0.0.5', '172.18.0.5', '192.168.1.50', '100.100.1.1', 'fd00::5', '93.184.216.34', '2606:4700::1111',
+        '100.100.100.199', '100.100.100.201', 'fd00:ec2::253', 'fd20:ce::255',
     ])('allows %s', address => {
         expect(isBlockedAddress(address)).toBe(false);
     });
@@ -16,6 +17,7 @@ describe('isBlockedAddress', () => {
     it.each([
         '127.0.0.1', '127.8.8.8', '0.0.0.0', '169.254.169.254', '224.0.0.1', '255.255.255.255',
         '::', '::1', 'fe80::1', 'febf::1', 'ff02::1', '::ffff:127.0.0.1', '::ffff:a9fe:a9fe', 'not-an-ip',
+        'fd00:ec2::254', 'fd20:ce::254', '100.100.100.200', '::ffff:100.100.100.200', '::ffff:6464:64c8',
     ])('blocks %s', address => {
         expect(isBlockedAddress(address)).toBe(true);
     });
@@ -47,6 +49,24 @@ describe('resolveWebhookDestination', () => {
         await expect(resolveWebhookDestination('http://metadata.google.internal/')).rejects.toMatchObject({ code: 'WEBHOOK_DESTINATION_BLOCKED' });
         await expect(resolveWebhookDestination('http://169.254.169.254/latest/')).rejects.toMatchObject({ code: 'WEBHOOK_DESTINATION_BLOCKED' });
     });
+
+    it.each([
+        'http://[fd00:ec2::254]/latest/meta-data/',
+        'http://[fd20:ce::254]/computeMetadata/v1/',
+        'http://100.100.100.200/latest/meta-data/',
+        'http://[::ffff:100.100.100.200]/latest/meta-data/',
+    ])('rejects private-range metadata literal %s without DNS', async url => {
+        await expect(resolveWebhookDestination(url)).rejects.toMatchObject({ code: 'WEBHOOK_DESTINATION_BLOCKED' });
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it.each(['fd00:ec2::254', 'fd20:ce::254', '100.100.100.200', '::ffff:100.100.100.200'])(
+        'rejects a hostname resolving to metadata address %s', async address => {
+            lookup.mockResolvedValue([{ address, family: address.includes(':') ? 6 : 4 }]);
+            await expect(resolveWebhookDestination('http://metadata-alias.test/'))
+                .rejects.toMatchObject({ code: 'WEBHOOK_DESTINATION_BLOCKED' });
+        },
+    );
 
     it.each(['http://localhost:8080/', 'http://app.localhost/', 'http://[::1]/', 'http://[::ffff:127.0.0.1]/', 'http://2130706433/'])(
         'rejects loopback destination %s', async url => {
