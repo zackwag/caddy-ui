@@ -5,14 +5,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'backend/src/**'
-      - 'backend/package*.json'
-      - 'frontend/src/components/Dashboard.jsx'
-      - 'frontend/src/components/Notifications.jsx'
-      - 'frontend/src/utils/api.js'
-      - 'frontend/src/utils/format.js'
-      - 'frontend/playground/capture*'
-      - 'scripts/dev-caddy/harness.mjs'
+      - 'src/backend/src/**'
+      - 'src/backend/package*.json'
+      - 'src/frontend/src/components/Dashboard.jsx'
+      - 'src/frontend/src/components/Notifications.jsx'
+      - 'src/frontend/src/utils/api.js'
+      - 'src/frontend/src/utils/format.js'
+      - 'dev/playground/capture*'
+      - 'dev/dev-caddy/harness.mjs'
       - '.github/workflows/localization-preview-data.yml'
 
 permissions:
@@ -31,19 +31,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: src/backend/package-lock.json
       - name: Install backend dependencies
-        run: npm ci --prefix backend
+        run: npm ci --prefix src/backend
       - name: Prepare disposable Caddy
         run: |
           docker info
           docker pull caddy:2.10.2-alpine
       - name: Capture real responses and clean up
-        run: node frontend/playground/capture.mjs
+        run: npm run i18n:preview:capture
       - name: Publish reviewable capture
         uses: actions/upload-artifact@v7
         with:
           name: localization-preview-${{ github.sha }}
-          path: frontend/playground/captures/dashboard.json
+          path: dev/playground/captures/dashboard.json
           if-no-files-found: error
           retention-days: 30

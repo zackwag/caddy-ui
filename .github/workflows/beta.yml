@@ -35,6 +35,15 @@ jobs:
         id: sha
         run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      # Older tags and PR branches may still use the pre-migration layout.
+      - name: Resolve build context
+        id: context
+        run: |
+          path=./src/backend
+          if [ ! -f "$path/Dockerfile" ]; then path=./backend; fi
+          test -f "$path/Dockerfile"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v4
 
       - uses: docker/login-action@v4
@@ -52,7 +61,7 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ./backend
+          context: ${{ steps.context.outputs.path }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -74,6 +83,15 @@ jobs:
         id: sha
         run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      # Older tags and PR branches may still use the pre-migration layout.
+      - name: Resolve build context
+        id: context
+        run: |
+          path=./src/frontend
+          if [ ! -f "$path/Dockerfile" ]; then path=./frontend; fi
+          test -f "$path/Dockerfile"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v4
 
       - uses: docker/login-action@v4
@@ -91,7 +109,7 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ./frontend
+          context: ${{ steps.context.outputs.path }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -109,7 +127,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Feeds the backend's update check (backend/src/updateCheck.js); only
+      # Feeds the backend's update check (src/backend/src/updateCheck.js); only
       # images that actually pushed are recorded
       - name: Record pushed images in versions.json
         env:

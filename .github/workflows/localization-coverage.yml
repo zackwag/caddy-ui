@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'frontend/src/i18n/locales/**'
-      - 'frontend/scripts/localization.mjs'
+      - 'src/frontend/src/i18n/locales/**'
+      - 'src/frontend/scripts/localization.mjs'
   workflow_dispatch:
 
 permissions:
@@ -29,10 +29,10 @@ jobs:
           node-version: 22
 
       - name: Validate locale catalogs
-        run: node frontend/scripts/localization.mjs check
+        run: node src/frontend/scripts/localization.mjs check
 
       - name: Generate coverage graph
-        run: node frontend/scripts/localization.mjs coverage
+        run: node src/frontend/scripts/localization.mjs coverage
 
       - name: Commit updated graph
         run: |

@@ -34,12 +34,12 @@ jobs:
           fi
           echo "$CHANGED"
 
-          if echo "$CHANGED" | grep -q '^backend/'; then
+          if echo "$CHANGED" | grep -q '^src/backend/'; then
             echo "backend=true" >> "$GITHUB_OUTPUT"
           else
             echo "backend=false" >> "$GITHUB_OUTPUT"
           fi
-          if echo "$CHANGED" | grep -q '^frontend/'; then
+          if echo "$CHANGED" | grep -q '^src/frontend/'; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "frontend=false" >> "$GITHUB_OUTPUT"
@@ -73,7 +73,7 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ./backend
+          context: ./src/backend
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -110,7 +110,7 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ./frontend
+          context: ./src/frontend
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -128,7 +128,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Feeds the backend's update check (backend/src/updateCheck.js); only
+      # Feeds the backend's update check (src/backend/src/updateCheck.js); only
       # images that actually pushed are recorded
       - name: Record pushed images in versions.json
         env:
