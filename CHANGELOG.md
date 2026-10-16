@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.27.2](https://github.com/zackwag/caddy-ui/compare/v2.27.1...v2.27.2) (2026-10-16)
+
+
+### Performance Improvements
+
+* compress and cache frontend assets in nginx ([#284](https://github.com/zackwag/caddy-ui/issues/284)) ([b10d174](https://github.com/zackwag/caddy-ui/commit/b10d1743069e9551d4c69dd1ead20d9769434b26))
+
 ## [2.27.1](https://github.com/zackwag/caddy-ui/compare/v2.27.0...v2.27.1) (2026-10-16)
 
 
