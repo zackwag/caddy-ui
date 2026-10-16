@@ -1,8 +1,18 @@
 # Localization playground
 
-From `frontend/`, run `npm ci` followed by `npm run i18n:preview`.
+From the repository root:
+
+```sh
+npm ci --prefix src/frontend
+npm ci --prefix dev
+npm run i18n:preview
+```
+
+The frontend owns the real application components and catalogs; `dev/package.json`
+owns the preview's browser/build dependencies. Existing frontend preview commands
+remain forwarding aliases, while the root commands are the shared entry points.
 Open http://127.0.0.1:5174. No backend, Docker container, account, or API mocks are required.
-`npm run i18n:preview:build` produces a separate `dist-playground/` build; the production entry and build are unchanged.
+`npm run i18n:preview:build` produces a separate `src/frontend/dist-playground/` build; the production entry and build are unchanged.
 
 Search canonical English keys or saved values, choose an installed locale, and select a key.
 Registered component states appear above the English reference and saved locale value.
@@ -88,7 +98,7 @@ component preview; this tool is not a replacement for testing the complete appli
 ## Real capture and lightweight replay
 
 Capture requires a working Docker CLI/Engine, a Unix Docker socket accessible to the backend,
-and `npm ci --prefix backend` from the repository root. Capture runs in a fresh Docker namespace
+and `npm ci --prefix src/backend` from the repository root. Capture runs in a fresh Docker namespace
 using the existing disposable harness. It starts the real backend on a private Unix socket,
 enables metrics through the real API, removes HTTP servers through Caddy's admin API, and stops
 its own Caddy instance to obtain failure responses. Cleanup runs on success, failure, and
@@ -99,7 +109,7 @@ It also reads untouched notification defaults without writing provider settings 
 test messages. The artifact retains its existing `dashboard.json` name and includes a
 `notifications-default` profile alongside the three Dashboard profiles.
 
-From `frontend/`:
+From the repository root:
 
 ```sh
 npm run i18n:preview:capture
@@ -118,7 +128,7 @@ expected to be byte-identical across machines. Do not hand-edit generated respon
 The **Localization preview data** workflow publishes an artifact on relevant `main` changes
 or manual dispatch once the workflow is on the default branch. It runs real capture assertions,
 not the playground or its browser check. Download the artifact, review the diff, and replace
-`captures/dashboard.json` in a normal commit. It does not push commits or open PRs.
+`dev/playground/captures/dashboard.json` in a normal commit. It does not push commits or open PRs.
 
 The preview warns if the capture fingerprint differs from its current backend, Dashboard,
 Notifications, or API
@@ -146,11 +156,13 @@ The translation policy in CONTRIBUTING.md still applies; this tool does not auth
 ## Optional checks
 
 ```sh
-npm test
-npm run lint -- --max-warnings=0
+npm ci --prefix src/backend  # supplies ESLint for shared tooling lint
+npm test --prefix src/frontend
+npm run lint --prefix src/frontend -- --max-warnings=0
+npm run lint:dev-caddy
 npm run i18n:preview:build
 # Install a Playwright browser once, or use an already installed Chromium:
-npm exec -- playwright install chromium
+npm exec --prefix dev -- playwright install chromium
 npm run i18n:preview:check-browser
 # Alternative for a system browser:
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run i18n:preview:check-browser
@@ -158,7 +170,8 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run i18n:preview:check
 
 The browser check starts and stops its own Vite server on an OS-assigned port. It needs no
 backend or Docker and is not invoked by CI. An API connection-error log during its deliberately
-unrecorded-write probe is expected. Existing frontend unit/lint checks still cover the tool.
+unrecorded-write probe is expected. Frontend unit tests still cover playground logic; `npm run lint:dev-caddy` covers
+the relocated tool and browser code using the shared application rules.
 It walks all 27 new keys in their actual component DOM, edits and resets each one, checks
 session-message refresh across locales, verifies theme-export interpolation and download,
 and checks that the login card and open theme menu fit their frames without resize feedback.
@@ -169,4 +182,5 @@ Confirmation actions remain inert. Their normal keyboard listeners are confined 
 The light toggle applies an actual production palette to the preview. Prepared action-generated
 messages are rebuilt on draft/locale changes so cached messages update without changing app code.
 
-Tool relocation belongs to a separate maintenance change; the current entry remains in `frontend/playground/`.
+The tool is isolated under `dev/playground/`. Application builds remain under
+`src/frontend/`; shared development dependencies are installed from `dev/`.

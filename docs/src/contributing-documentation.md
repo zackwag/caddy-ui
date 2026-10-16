@@ -41,8 +41,8 @@ include directive in the book page intact.
 
 Keep the README's `dockerhub:...` routing comments and `ANCHOR` / `ANCHOR_END`
 comments paired. Routing selects text for the Docker Hub generator; anchors
-select excerpts for the book. Never edit `backend/DOCKERHUB.md` or
-`frontend/DOCKERHUB.md` by hand.
+select excerpts for the book. Never edit `src/backend/DOCKERHUB.md` or
+`src/frontend/DOCKERHUB.md` by hand.
 
 ## Preview locally
 

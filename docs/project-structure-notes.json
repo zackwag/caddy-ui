@@ -1,9 +1,17 @@
 {
-    "backend/": "Express API and Caddy integration",
-    "backend/src/containerFs.js": "docker exec wrapper for file operations inside Caddy containers",
-    "backend/src/dockerDiscovery.js": "auto-discover Caddy containers via Docker socket",
-    "frontend/": "React application",
-    "frontend/src/components/Instances.jsx": "instance management page with discovery",
+    "src/": "independently buildable application packages",
+    "src/backend/": "Express API and Caddy integration",
+    "src/backend/src/containerFs.js": "docker exec wrapper for file operations inside Caddy containers",
+    "src/backend/src/dockerDiscovery.js": "auto-discover Caddy containers via Docker socket",
+    "src/frontend/": "React application",
+    "src/frontend/src/components/Instances.jsx": "instance management page with discovery",
     "docs/": "mdBook source, theme, and build tooling",
-    "docs/project-structure-notes.json": "persistent annotations keyed by repository path"
+    "docs/project-structure-notes.json": "persistent annotations keyed by repository path",
+    "dev/": "development tooling, integration fixtures and browser scenarios",
+    "dev/package.json": "shared development dependencies and commands",
+    "dev/dev-caddy/": "disposable Caddy lifecycle commands and ownership checks",
+    "dev/integration/": "real-service fixtures and lifecycle/readiness tests",
+    "dev/e2e/": "browser fixtures and scenarios",
+    "dev/playground/": "localization preview and captured-response tooling",
+    "package.json": "stable repository-level command entry points"
 }

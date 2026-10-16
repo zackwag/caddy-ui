@@ -8,9 +8,9 @@ small, reviewed contribution is useful.
 
 ## Find the strings
 
-1. Fork and clone the project, or update your existing checkout after the
-   localization foundation has merged. Create a branch for your contribution.
-2. Open `frontend/src/i18n/locales/en.js`. English defines the key structure and
+1. Fork and clone the project, or update your existing checkout. Create a branch
+   for your contribution.
+2. Open `src/frontend/src/i18n/locales/en.js`. English defines the key structure and
    the fallback text; use it as your reference.
 3. Open the target language's file in the same directory. Choose a small group of
    strings belonging to one screen or interaction, and read their English context.
@@ -41,13 +41,14 @@ translation policy.
 
 ## Validate and preview
 
-From `frontend/`:
+From the repository root:
 
 ```sh
-npm ci
-npm run i18n:check
-npm test
-npm run lint -- --max-warnings=0
+npm ci --prefix src/frontend
+npm ci --prefix dev
+npm run i18n:check --prefix src/frontend
+npm test --prefix src/frontend
+npm run lint --prefix src/frontend -- --max-warnings=0
 ```
 
 The catalog check catches unknown keys, incompatible structure, and a missing
@@ -70,7 +71,8 @@ or Docker integration is required, and language defaults are unchanged.
 
 ### Visual translation playground
 
-The playground is a lightweight contributor tool. From `frontend/`:
+The playground lives under `dev/playground/`. After installing frontend and dev
+dependencies above, run from the repository root:
 
 ```sh
 npm run i18n:preview
@@ -88,7 +90,7 @@ catalog. Reloading discards drafts. Preserve placeholders and review any warning
 The playground replays captured real-backend responses without a running backend
 or Docker. **Copy preview link** shares a key, language, and state without including
 draft text. For capture refresh, optional browser checks, and adding component
-states, see the [playground developer guide](https://github.com/zackwag/caddy-ui/blob/main/frontend/playground/README.md).
+states, see the [playground developer guide](https://github.com/zackwag/caddy-ui/blob/main/dev/playground/README.md).
 
 ## Submit a focused PR
 
@@ -98,5 +100,5 @@ the wording, and which validation/preview commands you ran. If a string needs
 more context, explain that in the PR rather than guessing.
 
 The coverage graph is generated from the catalogs. If you need to inspect it,
-run `npm run i18n:coverage`; follow the localization workflow's instructions for
+run `npm run i18n:coverage --prefix src/frontend`; follow the localization workflow's instructions for
 generated-file changes and do not edit the graph manually.
