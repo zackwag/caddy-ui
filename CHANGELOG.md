@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.27.0](https://github.com/zackwag/caddy-ui/compare/v2.26.1...v2.27.0) (2026-10-16)
+
+
+### Features
+
+* **i18n:** add Spanish (Mexico) locale skeleton and support region subtags ([#273](https://github.com/zackwag/caddy-ui/issues/273)) ([324d14f](https://github.com/zackwag/caddy-ui/commit/324d14fbe2b685185132b7352548d88bdd153629))
+
 ## [2.26.1](https://github.com/zackwag/caddy-ui/compare/v2.26.0...v2.26.1) (2026-10-16)
 
 
