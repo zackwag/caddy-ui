@@ -25,6 +25,8 @@ export default defineConfig(async () => ({
     root: fileURLToPath(new URL('.', import.meta.url)),
     base: './',
     plugins: [react(), captureFreshness],
+    // Preview wrappers and real frontend components must share context providers.
+    resolve: { dedupe: ['react', 'react-dom', 'i18next', 'react-i18next', 'react-router', 'react-router-dom'] },
     define: { __PREVIEW_SOURCE_HASH__: JSON.stringify(await sourceFingerprint()) },
     server: { host: '127.0.0.1', port: 5174, strictPort: true, watch: { ignoreInitial: true } },
     build: { outDir: '../../src/frontend/dist-playground', emptyOutDir: true, rolldownOptions: { input: {
