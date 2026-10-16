@@ -1,5 +1,5 @@
 export function visibleText(value) {
-    return (value || '').replace(/<\/?(?:code|strong|b|em|i|\d+)>/g, '').replace(/\s+/g, ' ').trim();
+    return (value || '').replace(/<\/?(?:code|strong|b|em|i|tld|\d+)>/g, '').replace(/\s+/g, ' ').trim();
 }
 
 // Runtime observations are matched to real text/attributes. Wording shared by

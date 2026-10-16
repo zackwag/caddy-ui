@@ -73,7 +73,7 @@ describe('localization playground', () => {
     });
     it('adds 43 observability keys using read-only real-capture profiles', () => {
         const added = scenarios.filter(scenario => ['metrics', 'logs'].includes(scenario.kind));
-        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario) && !['tls', 'sidebar'].includes(scenario.kind)).flatMap(scenario => scenario.keys));
         const keys = new Set(added.flatMap(scenario => scenario.keys));
         expect(added).toHaveLength(5);
         expect([...keys].filter(key => !existing.has(key))).toHaveLength(43);
@@ -90,4 +90,22 @@ describe('localization playground', () => {
         expect(keys.has('metrics.enabledToast')).toBe(false);
         expect(keys.has('metrics.refreshing')).toBe(false);
     });
+    it('adds 33 TLS and sidebar keys backed by read-only captures', () => {
+        const added = scenarios.filter(scenario => ['tls', 'sidebar'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        const keys = new Set(added.flatMap(scenario => scenario.keys));
+        expect(added).toHaveLength(7);
+        expect([...keys].filter(key => !existing.has(key))).toHaveLength(33);
+        for (const profileId of new Set(added.map(scenario => scenario.profile))) {
+            const profile = capture.scenarios.find(profile => profile.id === profileId);
+            expect(profile).toBeDefined();
+            expect(profile.requests.every(record => record.request.method === 'GET')).toBe(true);
+        }
+        // Filter suffixes share a text node with a leading dash and are not
+        // separate exact DOM matches. Certificate rows need a populated store.
+        expect(keys.has('tls.filter.valid')).toBe(false);
+        expect(keys.has('tls.validUpper')).toBe(false);
+        expect(keys.has('sidebar.updateAvailable')).toBe(false);
+    });
+
 });

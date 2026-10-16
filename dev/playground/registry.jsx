@@ -56,8 +56,27 @@ const logKeys = ['logs.caddySource', 'logs.configuration', 'logs.logging', 'logs
     'logs.logFilePath', 'logs.rollSize', 'logs.rollKeep', 'logs.searchPlaceholder', 'logs.lineCount_other',
     'common.enabledUpper', 'common.disable', 'common.refresh', 'common.export'];
 
+const tlsKeys = ['tls.total', 'tls.managedCerts', 'tls.valid', 'tls.healthy', 'tls.expiring',
+    'tls.within14Days', 'tls.expired', 'tls.needsRenewal', 'tls.rootCaCertificate', 'tls.rootCaHint',
+    'tls.iosInstruction', 'tls.macosInstruction', 'tls.androidInstruction', 'tls.windowsInstruction',
+    'tls.downloadRootCa', 'tls.certificates', 'tls.noCertificates', 'common.refresh'];
+const sidebarKeys = ['sidebar.serverManager', 'sidebar.refreshStatus', 'sidebar.signOut',
+    'sidebar.backendVersion', 'sidebar.versionDetails', 'sidebar.nav.dashboard', 'sidebar.nav.caddyfile',
+    'sidebar.nav.routes', 'sidebar.nav.tls', 'sidebar.nav.logs', 'sidebar.nav.metrics',
+    'sidebar.nav.notifications', 'sidebar.nav.instances'];
+
 // Register actual component states, not alternative implementations of the UI.
 export const scenarios = [
+    { id: 'tls-empty', title: 'TLS: captured empty certificate store', kind: 'tls',
+        profile: 'tls-default', keys: tlsKeys },
+    ...['valid', 'expiring', 'expired'].map((filter, index) => ({ id: `tls-${filter}`,
+        title: `TLS: ${filter} certificate filter`, kind: 'tls', profile: 'tls-default',
+        setup: 'tls-filter', filterIndex: index + 1, keys: tlsKeys })),
+    ...['online', 'stopped', 'checking'].map(status => ({ id: `sidebar-${status}`,
+        title: `Sidebar: ${status === 'checking' ? 'checking connection' : status === 'online' ? 'connected Caddy' : 'unreachable Caddy'}`,
+        kind: 'sidebar', profile: `sidebar-${status === 'stopped' ? 'stopped' : 'online'}`,
+        loading: status === 'checking', keys: [...sidebarKeys,
+            status === 'checking' ? 'sidebar.checking' : status === 'online' ? 'sidebar.connected' : 'sidebar.unreachable'] })),
     { id: 'metrics-overview', title: 'Metrics: enabled with configuration open', kind: 'metrics',
         profile: 'metrics-enabled', setup: 'observability-config',
         keys: [...metricsKeys, 'uptime.upstreamUptime', 'uptime.noRoutesWithUpstreams', 'common.off'] },

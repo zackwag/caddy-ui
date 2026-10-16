@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { ConfirmDialog } from '../../src/frontend/src/components/Confirm.jsx';
 import { Toasts, useToast } from '../../src/frontend/src/components/Toasts.jsx';
 import Dashboard from '../../src/frontend/src/components/Dashboard.jsx';
@@ -10,6 +11,8 @@ import LanguagePicker from '../../src/frontend/src/components/LanguagePicker.jsx
 import Notifications from '../../src/frontend/src/components/Notifications.jsx';
 import Metrics from '../../src/frontend/src/components/Metrics.jsx';
 import Logs from '../../src/frontend/src/components/Logs.jsx';
+import TLS from '../../src/frontend/src/components/TLS.jsx';
+import Sidebar from '../../src/frontend/src/components/Sidebar.jsx';
 import { availableLocales } from '../../src/frontend/src/i18n/index.js';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
 import { apiFetch } from '../../src/frontend/src/utils/api.js';
@@ -103,8 +106,33 @@ function LogsFixture() {
     return <><Logs toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
 }
 
+function TLSFixture() {
+    const toast = useToast();
+    return <><TLS toast={toast} onUnauth={noop} confirm={async () => false} /><Toasts toasts={toast.toasts} /></>;
+}
+
+function SidebarFixture({ loading }) {
+    const [status, setStatus] = useState(null);
+    const [open, setOpen] = useState(true);
+    const { pathname } = useLocation();
+    useEffect(() => {
+        if (loading) return;
+        let cancelled = false;
+        apiFetch('/status').then(value => { if (!cancelled) setStatus(value); });
+        return () => { cancelled = true; };
+    }, [loading]);
+    // A finite shell gives the sidebar its normal flex layout without tying
+    // its height to the iframe viewport that it is itself sizing.
+    return <div className="shell" style={{ height: 640 }}>
+        <Sidebar currentPath={pathname} status={status} onRefreshStatus={noop} authEnabled
+            onUnauth={noop} sidebarOpen={open} setSidebarOpen={setOpen} selectedInstanceId="default" />
+    </div>;
+}
+
 export default function FixtureView({ scenario }) {
     switch (scenario.kind) {
+        case 'tls': return <TLSFixture />;
+        case 'sidebar': return <SidebarFixture loading={scenario.loading} />;
         case 'login': return <Login onLogin={noop} sessionExpired={scenario.sessionExpired} />;
         case 'theme-welcome': return <ThemeWelcomeFixture />;
         case 'appearance-controls': return <AppearanceControlsFixture initialMode={scenario.mode} />;

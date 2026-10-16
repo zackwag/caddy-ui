@@ -14,7 +14,7 @@ async function assertClean(scope) {
     assert.deepEqual(await scope.names('volume'), []);
 }
 
-test('capture real Dashboard, notification and observability reads, retaining no resources and leaving unrelated instances untouched', { timeout: 60000 }, async t => {
+test('capture real Dashboard, notification, observability, TLS and sidebar reads, retaining no resources and leaving unrelated instances untouched', { timeout: 60000 }, async t => {
     const directory = await mkdtemp(resolve(tmpdir(), 'preview-capture-check-'));
     t.after(() => rm(directory, { recursive: true, force: true }));
     const unrelated = new Harness(randomBytes(8).toString('hex'));
@@ -26,7 +26,7 @@ test('capture real Dashboard, notification and observability reads, retaining no
     const output = resolve(directory, 'dashboard.json');
     const capture = await captureDashboard({ output, onNamespace: project => { scope = new Harness(project); } });
     assert.equal(capture.source.sourceHash, await sourceFingerprint());
-    assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default']);
+    assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default', 'tls-default', 'sidebar-online', 'sidebar-stopped']);
     const notifications = capture.scenarios.find(scenario => scenario.id === 'notifications-default');
     assert.equal(notifications.requests.length, 1);
     const [record] = notifications.requests;
@@ -48,6 +48,18 @@ test('capture real Dashboard, notification and observability reads, retaining no
     assert(lines.some(line => line.status === 503));
     assert(lines.every(line => /^192\.0\.2\.\d+$/.test(line.request.remote_ip)));
     assert.equal(logs.requests[1].response.body.enabled, false);
+    const tls = capture.scenarios.find(scenario => scenario.id === 'tls-default');
+    assert.deepEqual(tls.requests.map(record => record.request.path), ['/tls']);
+    assert.deepEqual(tls.requests[0].response.body, []);
+    for (const id of ['sidebar-online', 'sidebar-stopped']) {
+        const sidebar = capture.scenarios.find(scenario => scenario.id === id);
+        assert.deepEqual(sidebar.requests.map(record => record.request.path),
+            ['/version?frontend=dev', '/instances', '/instances/status', '/status']);
+        assert(sidebar.requests.every(record => record.request.method === 'GET' && record.response.status === 200));
+        assert.equal(sidebar.requests[0].response.body.version, 'dev-caddy-preview');
+        assert.equal(sidebar.requests[3].response.body.online, id === 'sidebar-online');
+        assert.equal(sidebar.requests[2].response.body[0].online, id === 'sidebar-online');
+    }
     assert.deepEqual(JSON.parse(await readFile(output, 'utf8')), capture);
     await assertClean(scope);
     const retained = await unrelated.inspect('container', unrelated.resource('sentinel'));

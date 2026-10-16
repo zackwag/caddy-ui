@@ -50,6 +50,7 @@ for (const name of ['localStorage', 'sessionStorage']) {
 
 function miss(message) { misses.add(message); scheduleReport(); }
 window.fetch = createReplayFetch([], miss, location.origin);
+window.open = url => { miss(`Unrecorded window: ${String(url)}`); return null; };
 for (const name of ['XMLHttpRequest', 'EventSource']) {
     window[name] = class { constructor() { miss(`Unrecorded transport: ${name}`); throw new Error(`Unrecorded transport: ${name}`); } };
 }
@@ -86,6 +87,9 @@ function scheduleReport() {
         } else if (setupStep === 1 && scenario.setup === 'label-saved') {
             const save = element.querySelector('.modal .btn-primary');
             if (save) { setupStep = 2; save.click(); }
+        } else if (!setupStep && scenario.setup === 'tls-filter') {
+            const card = element.querySelectorAll('.grid-4 .card-clickable')[scenario.filterIndex];
+            if (card) { setupStep = 1; card.click(); }
         } else if (!setupStep && scenario.setup === 'welcome-light') {
             const light = element.querySelector('.modal .btn-ghost');
             if (light) { setupStep = 1; light.click(); }

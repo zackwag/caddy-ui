@@ -225,7 +225,7 @@ try {
     const observabilityStates = await page.evaluate(async () => {
         const { scenarios } = await import('/registry.jsx');
         const additions = scenarios.filter(scenario => ['metrics', 'logs'].includes(scenario.kind));
-        const existing = new Set(scenarios.filter(scenario => !additions.includes(scenario)).flatMap(scenario => scenario.keys));
+        const existing = new Set(scenarios.filter(scenario => !additions.includes(scenario) && !['tls', 'sidebar'].includes(scenario.kind)).flatMap(scenario => scenario.keys));
         return additions.map(scenario => ({ ...scenario, keys: scenario.keys.filter(key => !existing.has(key)) }));
     });
     const observabilityKeys = new Set();
@@ -272,6 +272,53 @@ try {
     await frame().locator('.log-line').first().waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
 
+    const tlsSidebarStates = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        const added = scenarios.filter(scenario => ['tls', 'sidebar'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        return added.map(scenario => ({ ...scenario, keys: scenario.keys.filter(key => !existing.has(key)) }));
+    });
+    const tlsSidebarKeys = new Set();
+    for (const scenario of tlsSidebarStates) {
+        await go(scenario.keys[0], scenario.id);
+        for (const key of scenario.keys.filter(key => !tlsSidebarKeys.has(key))) {
+            await keyList.getByRole('button', { name: key, exact: true }).click();
+            await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
+            await editor.fill(`${readValue(en, key)} [preview]`);
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return [...elements].some(element => [element.textContent, ...['title', 'aria-label', 'placeholder'].map(name => element.getAttribute(name))]
+                    .some(value => value?.includes('[preview]')));
+            }, key);
+            await page.getByRole('button', { name: 'Reset this key' }).click();
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return elements.length && [...elements].every(element => [element.textContent, ...['title', 'aria-label', 'placeholder'].map(name => element.getAttribute(name))]
+                    .every(value => !value?.includes('[preview]')));
+            }, key);
+            tlsSidebarKeys.add(key);
+        }
+    }
+    assert.equal(tlsSidebarKeys.size, 33);
+    await go('tls.certificates', 'tls-expired');
+    await frame().getByRole('button', { name: '↺ Refresh', exact: true }).last().click();
+    await frame().locator('.section-label').filter({ hasText: 'Certificates — expired' }).waitFor();
+    await go('tls.downloadRootCa', 'tls-empty');
+    await frame().getByRole('button', { name: '↓ Download Root CA', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded window: /api/tls/ca' }).waitFor();
+    await go('sidebar.versionDetails', 'sidebar-online');
+    await page.locator('.preview-context summary').click();
+    assert.match(await page.locator('.preview-context pre').innerText(), /"frontend": "dev"/);
+    for (const state of ['sidebar-online', 'sidebar-stopped', 'sidebar-checking']) {
+        await go('sidebar.nav.dashboard', state);
+        const initialHeight = await page.locator('iframe').evaluate(element => element.getBoundingClientRect().height);
+        await frame().locator('.nav-item').filter({ hasText: 'Routes' }).click();
+        await frame().locator('.nav-item.active').filter({ hasText: 'Routes' }).waitFor();
+        await page.waitForTimeout(150);
+        assert.equal(await page.locator('iframe').evaluate(element => element.getBoundingClientRect().height), initialHeight);
+        assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
+    }
+
     for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 600 }]) {
         await page.setViewportSize(viewport);
         await go('tls.deleteConfirm', 'certificate-delete');
@@ -307,7 +354,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
+    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

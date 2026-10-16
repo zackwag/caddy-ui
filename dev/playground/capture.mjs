@@ -119,8 +119,17 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         assert(logs.requests[0].response.body.lines.length >= 2, 'Seeded access logs were not captured');
         assert.equal(logs.requests[1].response.body.enabled, false);
         const logAddresses = [...new Set(logs.requests[0].response.body.lines.map(line => JSON.parse(line).request?.remote_ip).filter(Boolean))];
-        // Read untouched defaults from this capture's private state directory.
-        // Never configure a real destination or send a notification for preview data.
+        // Capture the actual empty store and sidebar reads from this private instance.
+        const tls = { id: 'tls-default', requests: [await successful('/tls')] };
+        assert.deepEqual(tls.requests[0].response.body, []);
+        const sidebarPaths = ['/version?frontend=dev', '/instances', '/instances/status', '/status'];
+        async function sidebarSnapshot(id) {
+            const requests = [];
+            for (const path of sidebarPaths) requests.push(await successful(path));
+            return { id, requests };
+        }
+        const sidebarOnline = await sidebarSnapshot('sidebar-online');
+        // Read untouched notification defaults without configuring or sending.
         const notifications = { id: 'notifications-default', requests: [await successful('/notifications/config')] };
         assert.equal(notifications.requests[0].response.body.enabled, false);
         assert.equal(notifications.requests[0].response.body.provider, 'ntfy');
@@ -137,11 +146,14 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         const stopped = await snapshot('dashboard-stopped');
         assert.equal(stopped.requests[0].response.body.online, false);
         assert.equal(stopped.requests[0].response.body.code, 'CADDY_STATUS_UNAVAILABLE');
+        const sidebarStopped = await sidebarSnapshot('sidebar-stopped');
+        assert.equal(sidebarOnline.requests[3].response.body.online, true);
+        assert.equal(sidebarStopped.requests[3].response.body.online, false);
         const { stdout: commit } = await exec('git', ['rev-parse', 'HEAD'], { cwd: root });
         result = validateCapture({ formatVersion: CAPTURE_VERSION,
             source: { commit: commit.trim(), sourceHash: await sourceFingerprint(), caddyImage: IMAGE },
             normalization: ['Request IDs', 'ISO timestamps', 'Private capture addresses and paths; measurements remain as observed'],
-            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs], [
+            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs, tls, sidebarOnline, sidebarStopped], [
                 [info.instance.adminUrl, 'http://caddy-preview:2019'],
                 [new URL(info.instance.adminUrl).host, 'caddy-preview:2019'],
                 [info.instance.containerName, 'caddy-ui-dev-preview'], [directory, '/capture-state'],

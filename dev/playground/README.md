@@ -56,7 +56,7 @@ One state may cover several keys, and shared keys can occur in several states.
 Current states cover the Dashboard with running/stopped Caddy and no HTTP servers, its loading
 view, label-edit dialog, and successful label save; route/certificate confirmations and a
 notification toast remain available. Unregistered keys explicitly show that no fixture exists.
-Registered states cover 139 distinct keys. The onboarding and appearance states add 27:
+Registered states cover 172 distinct keys. The onboarding and appearance states add 27:
 
 | Production component | Prepared states | New keys |
 | --- | --- | ---: |
@@ -118,6 +118,24 @@ a single text node with their leading symbols; the exact DOM matcher cannot iden
 separately, so they are not registered in these states. Use `metrics-overview`,
 `metrics-route-checks`, `logs-configured`, `logs-filtered`, and `logs-disabled` in preview links.
 
+Seven TLS and sidebar states add 33 distinct keys: 17 certificate controls, installation
+instructions and empty messages, plus 16 navigation, connection and version labels.
+`tls-empty`, `tls-valid`, `tls-expiring` and `tls-expired` mount production `TLS` against a
+real captured empty certificate store. Filter cards use their real click handlers; Refresh
+replays the same read. The rich-text root CA hint is matched across its production spans.
+Certificate rows, certificate actions, loading/success messages and filter suffixes that
+share a text node with a leading dash are not counted in this batch. No root CA download is
+recorded; clicking Download Root CA reports an unrecorded window request without opening
+a connection.
+
+`sidebar-online`, `sidebar-stopped` and `sidebar-checking` mount production `Sidebar` with
+captured version, instance-list and instance-status reads. Connected/unreachable status comes
+from real running/stopped Caddy responses; checking deliberately leaves the status pending.
+The preview pins the frontend version to `dev` to match the captured version query. Navigation
+stays in the frame's memory router; status-refresh and sign-out callbacks are inert. The
+sidebar uses a finite-height production shell to keep frame sizing stable. Update notices
+and the multiple-instance switcher need their own capture scenarios and are not counted.
+
 The label dialog is opened through the production edit action, and the saved-label state runs
 the actual Save handler against its recorded response. Navigation stays inside the selected
 component preview; this tool is not a replacement for testing the complete application.
@@ -160,8 +178,8 @@ not the playground or its browser check. Download the artifact, review the diff,
 `dev/playground/captures/dashboard.json` in a normal commit. It does not push commits or open PRs.
 
 The preview warns if the capture fingerprint differs from its current backend, Dashboard,
-Notifications, Metrics, Logs, uptime or API sources or backend dependencies. Source changes restart the dev server to recompute the
-fingerprint; this reload discards drafts. The production application build is unchanged.
+Notifications, Metrics, Logs, TLS, Sidebar, instance-status, uptime or API sources or backend
+dependencies. Source changes restart the dev server to recompute the fingerprint; this reload discards drafts. The production application build is unchanged.
 Unrecorded requests, query variants, write bodies, and unsupported transports fail visibly;
 there is no forwarding to a live backend. Loading is an explicit UI state, not an invented
 server response. Backend-provided strings stay as returned and may have no translation key.
@@ -208,6 +226,9 @@ provider states, and proves that attempted notification saves/sends do not reach
 It also edits and resets every one of the 43 observability keys, checks interpolation context,
 local route-check toggles, log-form state retention and reset, search results, and blocked
 Metrics/Logs configuration writes. These browser checks remain optional and are not added to CI.
+
+It also edits and resets all 33 TLS/sidebar keys, checks TLS filter refresh and version
+interpolation, and verifies bounded sidebar frames and blocked root CA downloads.
 
 Confirmation actions remain inert. Their normal keyboard listeners are confined to their frame.
 The light toggle applies an actual production palette to the preview. Prepared action-generated
