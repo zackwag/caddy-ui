@@ -30,7 +30,7 @@ import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCheck.js';
 import { startUpstreamMonitor } from './upstreamMonitor.js';
-import { getAdditionalFonts, getEnabledLanguages } from './languages.js';
+import { getAvailableFonts, getEnabledLanguages } from './languages.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -95,7 +95,7 @@ app.use('/api/custom-themes', authMiddleware, customThemesRouter);
 // GET /api/languages -- always public, non-sensitive
 app.get('/api/languages', (req, res) => res.json({
     languages: getEnabledLanguages(),
-    fonts: getAdditionalFonts(),
+    fonts: getAvailableFonts(),
 }));
 // caddy/ui application logs are global and must remain available even when
 // there is no valid Caddy instance to attach to the request.
@@ -149,7 +149,7 @@ const server = app.listen(PORT, error => {
     logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });
     logger.info(`Public metrics`, { enabled: publicMetrics });
     logger.info(`Enabled languages`, { languages: getEnabledLanguages() });
-    logger.info(`Additional UI fonts`, { languages: getAdditionalFonts() });
+    logger.info(`Available UI fonts`, { languages: getAvailableFonts() });
     // Launchers using IPC can discover an OS-assigned port after it is bound.
     if (process.connected) process.send({ type: 'caddy-ui:listening', port });
     initMonitor();

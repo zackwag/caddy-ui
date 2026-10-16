@@ -63,8 +63,8 @@ change the translation authorship and review requirements above.
 
 Default availability is an explicit maintainer decision, recorded in
 `REVIEWED_LANGUAGES` in `backend/src/languages.js`; it is not inferred from
-translation coverage. Optional font delivery is configured separately through
-`CADDY_UI_ADDITIONAL_FONTS`, documented in the [configuration reference](configuration.md).
+translation coverage. Bundled fonts load automatically when their language is
+selected.
 
 ### Visual translation playground
 

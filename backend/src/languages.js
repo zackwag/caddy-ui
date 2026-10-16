@@ -20,10 +20,9 @@ export function getEnabledLanguages() {
     return [...REVIEWED_LANGUAGES, ...getAdditionalLanguages()];
 }
 
-export function getAdditionalFonts() {
+export function getAvailableFonts() {
     const enabled = getEnabledLanguages();
-    return parseCodes(process.env.CADDY_UI_ADDITIONAL_FONTS)
-        .filter(lang => FONT_LANGUAGES.includes(lang) && enabled.includes(lang));
+    return FONT_LANGUAGES.filter(lang => enabled.includes(lang));
 }
 
 // Normalizes a `language` setting from PUT /api/settings. Returns null to clear

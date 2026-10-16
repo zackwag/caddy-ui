@@ -145,7 +145,7 @@ export function useTestStack(t, options = {}) {
 }
 
 // Browser fixtures pass their owner here so all services share one cleanup order.
-export async function createTestStack(scope, { project = randomBytes(8).toString('hex'), backendEntry = 'backend/src/index.js', additionalLanguages = 'de', additionalFonts = '' } = {}) {
+export async function createTestStack(scope, { project = randomBytes(8).toString('hex'), backendEntry = 'backend/src/index.js', additionalLanguages = 'de' } = {}) {
     const instances = new Map();
     let output = '';
     const close = () => scope.close();
@@ -167,7 +167,7 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
         await waitForHttp(first.instance.adminUrl + '/config/', { signal: scope.signal });
         const version = VERSION + '-' + project;
         const env = { ...backendEnvironment(directory, first.instance), PORT: '0', APP_VERSION: version, LOG_LEVEL: 'info',
-            CADDY_UI_ADDITIONAL_LANGUAGES: additionalLanguages, CADDY_UI_ADDITIONAL_FONTS: additionalFonts };
+            CADDY_UI_ADDITIONAL_LANGUAGES: additionalLanguages };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
         await scope.run(async () => {
             await mkdir(join(directory, 'backend'), { recursive: true });

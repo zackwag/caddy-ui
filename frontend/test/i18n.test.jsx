@@ -56,11 +56,11 @@ describe('i18n integration', () => {
         expect(documentElement).toMatchObject({ lang: 'en', dir: 'ltr' });
     });
 
-    it('accepts optional fonts only for available, enabled catalogs', async () => {
+    it('configures bundled fonts from the language API and loads them on locale change', async () => {
         vi.stubGlobal('localStorage', { getItem: () => null });
         const configure = vi.spyOn(additionalFonts, 'configure');
         vi.stubGlobal('fetch', vi.fn(async () => new Response(
-            JSON.stringify({ languages: ['ar'], fonts: ['ar', 'de', 'zz'] }),
+            JSON.stringify({ languages: ['en', 'ar'], fonts: ['ar'] }),
             { headers: { 'Content-Type': 'application/json' } },
         )));
         expect(await fetchEnabledLanguages()).toEqual(['en', 'ar']);

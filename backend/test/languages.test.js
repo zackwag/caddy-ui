@@ -1,14 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { getAdditionalFonts, getAdditionalLanguages, getEnabledLanguages, normalizeLanguageSetting } from '../src/languages.js';
+import { getAvailableFonts, getAdditionalLanguages, getEnabledLanguages, normalizeLanguageSetting } from '../src/languages.js';
 
 const ORIGINAL_LANGUAGES = process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
-const ORIGINAL_FONTS = process.env.CADDY_UI_ADDITIONAL_FONTS;
 
 afterEach(() => {
     if (ORIGINAL_LANGUAGES === undefined) delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
     else process.env.CADDY_UI_ADDITIONAL_LANGUAGES = ORIGINAL_LANGUAGES;
-    if (ORIGINAL_FONTS === undefined) delete process.env.CADDY_UI_ADDITIONAL_FONTS;
-    else process.env.CADDY_UI_ADDITIONAL_FONTS = ORIGINAL_FONTS;
 });
 
 describe('language configuration', () => {
@@ -34,17 +31,9 @@ describe('language configuration', () => {
         expect(getAdditionalLanguages()).toEqual(['de']);
     });
 
-    it('does not load additional fonts by default or through the language opt-in', () => {
-        delete process.env.CADDY_UI_ADDITIONAL_FONTS;
-        process.env.CADDY_UI_ADDITIONAL_LANGUAGES = 'ar,de';
-        expect(getAdditionalFonts()).toEqual([]);
-        expect(getEnabledLanguages()).toEqual(['en', 'ar', 'de']);
-    });
-
-    it('normalizes font opt-ins and ignores unsupported fonts without enabling previews', () => {
+    it('exposes bundled fonts for enabled languages automatically', () => {
         delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
-        process.env.CADDY_UI_ADDITIONAL_FONTS = ' AR,ar, en, de, ar-SA, invalid ';
-        expect(getAdditionalFonts()).toEqual(['ar']);
+        expect(getAvailableFonts()).toEqual(['ar']);
         expect(getEnabledLanguages()).toEqual(['en', 'ar']);
     });
 
