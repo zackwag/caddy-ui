@@ -10,14 +10,27 @@ describe('i18n integration', () => {
         vi.restoreAllMocks();
     });
 
-    it('lazy-loads a locale and falls back to English for missing keys', async () => {
+    it('lazy-loads the German catalog', async () => {
         expect(i18n.t('test.languageLoaded')).toBe('English loaded');
 
         await loadLocale('de');
 
         expect(i18n.language).toBe('de');
         expect(i18n.t('test.languageLoaded')).toBe('Deutsch geladen');
-        expect(i18n.t('common.save')).toBe('Save');
+        expect(i18n.t('common.save')).toBe('Speichern');
+    });
+
+    it('falls back to English for keys missing from a locale', async () => {
+        await loadLocale('de');
+        i18n.addResourceBundle('en', 'fallback-test', { message: 'English fallback' });
+        i18n.addResourceBundle('de', 'fallback-test', {});
+
+        try {
+            expect(i18n.t('message', { ns: 'fallback-test' })).toBe('English fallback');
+        } finally {
+            i18n.removeResourceBundle('en', 'fallback-test');
+            i18n.removeResourceBundle('de', 'fallback-test');
+        }
     });
 
     it('loads the probe key for every installed locale advertised by the language API', async () => {

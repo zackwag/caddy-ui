@@ -4,7 +4,9 @@ import { capture, scenarios } from '../registry.jsx';
 import en from '../../../src/frontend/src/i18n/locales/en.js';
 import de from '../../../src/frontend/src/i18n/locales/de.js';
 
-const catalogs = { en, de };
+// Keep fallback coverage independent of how complete the real catalog is.
+const sparseGerman = { test: de.test };
+const catalogs = { en, de: sparseGerman };
 
 describe('localization playground', () => {
     it('indexes canonical leaves and recognizes missing saved values', () => {
@@ -16,7 +18,7 @@ describe('localization playground', () => {
         const second = await createPreviewI18n(catalogs, 'de');
         expect(first.t('common.delete')).toBe('preview value');
         expect(second.t('common.delete')).toBe(en.common.delete);
-        expect(readValue(de, 'common.delete')).toBeUndefined();
+        expect(readValue(sparseGerman, 'common.delete')).toBeUndefined();
         expect(first.options.react.bindI18nStore).toContain('added');
     });
     it('falls back and interpolates, then restores missing keys after reset', async () => {
@@ -26,7 +28,7 @@ describe('localization playground', () => {
         ).toContain('example.home.arpa');
         preview.addResource('de', 'translation', 'common.delete', 'temporary');
         preview.removeResourceBundle('de', 'translation');
-        preview.addResourceBundle('de', 'translation', structuredClone(de));
+        preview.addResourceBundle('de', 'translation', structuredClone(sparseGerman));
         expect(preview.t('common.delete')).toBe(en.common.delete);
     });
     it('detects removed or renamed interpolation tokens', () => {

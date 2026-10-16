@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
 import en from '../../src/frontend/src/i18n/locales/en.js';
+import de from '../../src/frontend/src/i18n/locales/de.js';
 import { flattenCatalog, readValue } from './model.js';
 
 // Optional development check: no backend, Docker, or CI browser job is needed.
@@ -130,7 +131,7 @@ try {
     await editor.fill('Session expired preview');
     await frame().locator('.login-error').filter({ hasText: 'Session expired preview' }).waitFor();
     await page.getByRole('combobox').first().selectOption('de');
-    await frame().locator('.login-error').filter({ hasText: en.login.sessionExpired }).waitFor();
+    await frame().locator('.login-error').filter({ hasText: de.login.sessionExpired }).waitFor();
     await page.getByRole('combobox').first().selectOption('en');
     await frame().locator('.login-error').filter({ hasText: 'Session expired preview' }).waitFor();
     const before = await page.locator('iframe').boundingBox();
