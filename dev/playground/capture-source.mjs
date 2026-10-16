@@ -6,6 +6,8 @@ const root = resolve(import.meta.dirname, '../..');
 
 export const sourceInputs = ['src/backend/src', 'src/backend/package.json', 'src/backend/package-lock.json',
     'dev/dev-caddy/harness.mjs', 'src/frontend/src/components/Dashboard.jsx', 'src/frontend/src/components/Notifications.jsx',
+    'src/frontend/src/components/Metrics.jsx', 'src/frontend/src/components/UpstreamUptime.jsx', 'src/frontend/src/components/Logs.jsx',
+    'src/frontend/src/utils/routes.js', 'src/frontend/src/utils/logSource.js',
     'src/frontend/src/utils/api.js', 'src/frontend/src/utils/format.js'];
 
 export async function sourceFingerprint() {

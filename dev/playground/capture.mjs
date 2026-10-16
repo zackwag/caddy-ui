@@ -103,6 +103,22 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         assert(online.requests[0].response.body.servers.length > 0);
         assert.equal(online.requests[1].response.body.ok, true);
         online.requests.push(label);
+        // Use the same private instance for observability previews. Seed real
+        // access logs and metrics without any remote upstream or provider.
+        for (const [path, status] of [['/health', 200], ['/error', 503]]) {
+            const response = await fetch(info.httpUrl + path, { headers: { Host: 'caddy-preview.localhost' },
+                signal: AbortSignal.any([startup.signal, AbortSignal.timeout(5000)]) });
+            assert.equal(response.status, status);
+            await response.text();
+        }
+        const metrics = { id: 'metrics-enabled', requests: [] };
+        for (const path of ['/metrics', '/metrics/config', '/auth/status', '/routes', '/health/uptime',
+            '/health/uptime?kind=route', '/route-notes']) metrics.requests.push(await successful(path));
+        assert.equal(metrics.requests[0].response.body.ok, true);
+        const logs = { id: 'logs-default', requests: [await successful('/logs'), await successful('/logs/config')] };
+        assert(logs.requests[0].response.body.lines.length >= 2, 'Seeded access logs were not captured');
+        assert.equal(logs.requests[1].response.body.enabled, false);
+        const logAddresses = [...new Set(logs.requests[0].response.body.lines.map(line => JSON.parse(line).request?.remote_ip).filter(Boolean))];
         // Read untouched defaults from this capture's private state directory.
         // Never configure a real destination or send a notification for preview data.
         const notifications = { id: 'notifications-default', requests: [await successful('/notifications/config')] };
@@ -125,10 +141,11 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         result = validateCapture({ formatVersion: CAPTURE_VERSION,
             source: { commit: commit.trim(), sourceHash: await sourceFingerprint(), caddyImage: IMAGE },
             normalization: ['Request IDs', 'ISO timestamps', 'Private capture addresses and paths; measurements remain as observed'],
-            scenarios: normalizeCapture([online, noServers, stopped, notifications], [
+            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs], [
                 [info.instance.adminUrl, 'http://caddy-preview:2019'],
                 [new URL(info.instance.adminUrl).host, 'caddy-preview:2019'],
                 [info.instance.containerName, 'caddy-ui-dev-preview'], [directory, '/capture-state'],
+                ...logAddresses.map((address, index) => [address, `192.0.2.${index + 10}`]),
             ]),
         });
     } catch (error) { failure = error; }
@@ -163,6 +180,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     try {
         const capture = await captureDashboard({ ...(output ? { output: resolve(output) } : {}),
             onNamespace: project => console.log(`Capture owns Docker namespace ${project}.`) });
-        console.log(`Captured ${capture.scenarios.length} real Dashboard/configuration profiles from ${capture.source.commit}. Resources cleaned up.`);
+        console.log(`Captured ${capture.scenarios.length} real localization profiles from ${capture.source.commit}. Resources cleaned up.`);
     } catch (error) { console.error(error, error.cause); process.exitCode = 1; }
 }

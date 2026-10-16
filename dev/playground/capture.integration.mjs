@@ -14,7 +14,7 @@ async function assertClean(scope) {
     assert.deepEqual(await scope.names('volume'), []);
 }
 
-test('capture real Dashboard and notification defaults, retain no resources and leave unrelated instances untouched', { timeout: 60000 }, async t => {
+test('capture real Dashboard, notification and observability reads, retaining no resources and leaving unrelated instances untouched', { timeout: 60000 }, async t => {
     const directory = await mkdtemp(resolve(tmpdir(), 'preview-capture-check-'));
     t.after(() => rm(directory, { recursive: true, force: true }));
     const unrelated = new Harness(randomBytes(8).toString('hex'));
@@ -26,7 +26,7 @@ test('capture real Dashboard and notification defaults, retain no resources and 
     const output = resolve(directory, 'dashboard.json');
     const capture = await captureDashboard({ output, onNamespace: project => { scope = new Harness(project); } });
     assert.equal(capture.source.sourceHash, await sourceFingerprint());
-    assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default']);
+    assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default']);
     const notifications = capture.scenarios.find(scenario => scenario.id === 'notifications-default');
     assert.equal(notifications.requests.length, 1);
     const [record] = notifications.requests;
@@ -36,6 +36,18 @@ test('capture real Dashboard and notification defaults, retain no resources and 
     assert.equal(record.response.body.ntfy.url, '');
     assert.equal(record.response.body.pushover.userKey, '');
     assert.equal(record.response.body.pushover.apiToken, '');
+    const metrics = capture.scenarios.find(scenario => scenario.id === 'metrics-enabled');
+    assert(metrics.requests.every(record => record.request.method === 'GET' && record.response.status === 200));
+    assert.equal(metrics.requests.find(record => record.request.path === '/metrics').response.body.ok, true);
+    assert.equal(metrics.requests.find(record => record.request.path === '/auth/status').response.body.publicMetrics, false);
+    const logs = capture.scenarios.find(scenario => scenario.id === 'logs-default');
+    assert.deepEqual(logs.requests.map(record => record.request.path), ['/logs', '/logs/config']);
+    assert(logs.requests.every(record => record.request.method === 'GET' && record.response.status === 200));
+    const lines = logs.requests[0].response.body.lines.map(line => JSON.parse(line));
+    assert(lines.some(line => line.status === 200));
+    assert(lines.some(line => line.status === 503));
+    assert(lines.every(line => /^192\.0\.2\.\d+$/.test(line.request.remote_ip)));
+    assert.equal(logs.requests[1].response.body.enabled, false);
     assert.deepEqual(JSON.parse(await readFile(output, 'utf8')), capture);
     await assertClean(scope);
     const retained = await unrelated.inspect('container', unrelated.resource('sentinel'));
