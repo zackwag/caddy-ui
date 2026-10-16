@@ -25,10 +25,10 @@ describe('language configuration', () => {
         expect(getEnabledLanguages()).toEqual(['en', 'ar', 'de', 'fr']);
     });
 
-    it('ignores invalid language values', () => {
-        process.env.CADDY_UI_ADDITIONAL_LANGUAGES = 'de-DE, 1x, german, , de';
+    it('accepts region subtags and ignores invalid language values', () => {
+        process.env.CADDY_UI_ADDITIONAL_LANGUAGES = 'de-DE, es-MX, 1x, german, , de';
 
-        expect(getAdditionalLanguages()).toEqual(['de']);
+        expect(getAdditionalLanguages()).toEqual(['de-de', 'es-mx', 'de']);
     });
 
     it('exposes bundled fonts for enabled languages automatically', () => {

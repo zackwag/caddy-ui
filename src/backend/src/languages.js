@@ -7,7 +7,7 @@ function parseCodes(raw = '') {
         raw
             .split(',')
             .map(lang => lang.trim().toLowerCase())
-            .filter(lang => /^[a-z]{2,3}$/.test(lang))
+            .filter(lang => /^[a-z]{2,3}(-[a-z]{2})?$/.test(lang))
     )];
 }
 
