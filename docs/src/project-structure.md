@@ -8,5 +8,5 @@ and a trailing slash for directories.
 
 {{#project-structure}}
 
-`frontend/src/lib/caddyfileMode.js` is fetched at frontend build time and ignored
+`src/frontend/src/lib/caddyfileMode.js` is fetched at frontend build time and ignored
 by Git, so it is intentionally absent from this tree.

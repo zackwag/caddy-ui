@@ -3,13 +3,18 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev:with-caddy": "node scripts/dev-caddy/dev.mjs",
-        "dev:instances": "node scripts/dev-caddy/cli.mjs",
-        "test:dev-caddy": "node --test scripts/dev-caddy/*.test.mjs test/integration/*.test.mjs",
-        "test:dev-caddy:integration": "node --test test/integration/caddy.mjs test/integration/api.mjs test/integration/startup.mjs test/integration/diagnostics.mjs",
-        "test:dev-caddy:e2e": "node --test --test-concurrency=1 frontend/e2e/error-logging.mjs frontend/e2e/languages.mjs",
-        "lint:dev-caddy": "node backend/node_modules/eslint/bin/eslint.js --config backend/eslint.config.js scripts/dev-caddy test/integration",
+        "dev:with-caddy": "node dev/dev-caddy/dev.mjs",
+        "dev:instances": "node dev/dev-caddy/cli.mjs",
+        "test:dev-caddy": "npm test --prefix dev --",
+        "test:dev-caddy:integration": "npm run test:integration --prefix dev --",
+        "test:dev-caddy:e2e": "npm run test:e2e --prefix dev --",
+        "lint:dev-caddy": "npm run lint --prefix dev --",
         "docs:screenshots": "node docs/screenshots/screenshot.mjs",
-        "docs:screenshots:capture": "node docs/screenshots/capture.mjs"
+        "docs:screenshots:capture": "node docs/screenshots/capture.mjs",
+        "i18n:preview": "npm run i18n:preview --prefix dev --",
+        "i18n:preview:build": "npm run i18n:preview:build --prefix dev --",
+        "i18n:preview:capture": "npm run i18n:preview:capture --prefix dev --",
+        "i18n:preview:check-capture": "npm run i18n:preview:check-capture --prefix dev --",
+        "i18n:preview:check-browser": "npm run i18n:preview:check-browser --prefix dev --"
     }
 }

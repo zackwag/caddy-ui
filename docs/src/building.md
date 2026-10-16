@@ -3,11 +3,11 @@
 ## Building from Source
 
 ```bash
-cd backend && docker build -t caddy-ui-backend .
-cd frontend && docker build -t caddy-ui-frontend .
+docker build -t caddy-ui-backend ./src/backend
+docker build -t caddy-ui-frontend ./src/frontend
 ```
 
-The backend image copies the Caddy binary from `caddy:latest` at build time for `caddy fmt` formatting and version detection. To pin to a specific Caddy version, edit the first line of the backend Dockerfile before building:
+The backend image copies the Caddy binary from `caddy:latest` at build time for `caddy fmt` formatting and version detection. To pin to a specific Caddy version, change the `COPY --from=caddy:latest` line in `src/backend/Dockerfile` before building:
 
 ```dockerfile
 COPY --from=caddy:v2.11.2 /usr/bin/caddy /usr/bin/caddy

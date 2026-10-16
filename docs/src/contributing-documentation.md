@@ -41,8 +41,8 @@ include directive in the book page intact.
 
 Keep the README's `dockerhub:...` routing comments and `ANCHOR` / `ANCHOR_END`
 comments paired. Routing selects text for the Docker Hub generator; anchors
-select excerpts for the book. Never edit `backend/DOCKERHUB.md` or
-`frontend/DOCKERHUB.md` by hand.
+select excerpts for the book. Never edit `src/backend/DOCKERHUB.md` or
+`src/frontend/DOCKERHUB.md` by hand.
 
 ## Preview locally
 
@@ -55,6 +55,7 @@ and run `npm ci --prefix docs --ignore-scripts` once before building or serving.
 From the repository root:
 
 ```sh
+npm run i18n:coverage --prefix src/frontend
 mdbook serve docs --hostname 127.0.0.1 --port 3000
 ```
 
@@ -62,6 +63,8 @@ Open `http://localhost:3000`. In a devcontainer, use
 `mdbook serve docs --hostname 0.0.0.0 --port 3000` and forward port 3000 in VS Code.
 The server watches authored book files and their included sources, then rebuilds
 when you save a change. Check both the changed page and any pages that include it.
+The coverage command generates an ignored asset from the catalogs; rerun it after
+catalog changes. It does not require installing frontend dependencies.
 
 Before submitting, build the book:
 

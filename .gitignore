@@ -141,8 +141,8 @@ vite.config.ts.timestamp-*
 ### mac ###
 .DS_Store
 
-# Fetched at build time from zackwag/caddyfile-codemirror (see frontend/scripts/fetch-caddyfile-mode.mjs)
-frontend/src/lib/caddyfileMode.js
+# Fetched at build time from zackwag/caddyfile-codemirror (see src/frontend/scripts/fetch-caddyfile-mode.mjs)
+src/frontend/src/lib/caddyfileMode.js
 
 # Personal editor/dev container setups
 .devcontainer/
@@ -158,7 +158,7 @@ docs/book/
 !.devcontainer/devcontainer.example.json
 
 # Standalone localization contributor preview
-frontend/dist-playground/
+src/frontend/dist-playground/
 
 # Generated documentation screenshots and localization coverage graph
 docs/src/screenshots/*.png

@@ -50,12 +50,12 @@ jobs:
             echo "major_minor=$MAJOR_MINOR"
           } >> "$GITHUB_OUTPUT"
 
-          if echo "$CHANGED" | grep -q '^backend/'; then
+          if echo "$CHANGED" | grep -qE '^(src/)?backend/'; then
             echo "backend=true" >> "$GITHUB_OUTPUT"
           else
             echo "backend=false" >> "$GITHUB_OUTPUT"
           fi
-          if echo "$CHANGED" | grep -q '^frontend/'; then
+          if echo "$CHANGED" | grep -qE '^(src/)?frontend/'; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "frontend=false" >> "$GITHUB_OUTPUT"
@@ -71,6 +71,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.changes.outputs.target_ref }}
+
+      # Older tags and PR branches may still use the pre-migration layout.
+      - name: Resolve build context
+        id: context
+        run: |
+          path=./src/backend
+          if [ ! -f "$path/Dockerfile" ]; then path=./backend; fi
+          test -f "$path/Dockerfile"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
@@ -90,7 +99,7 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ./backend
+          context: ${{ steps.context.outputs.path }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -110,6 +119,15 @@ jobs:
         with:
           ref: ${{ needs.changes.outputs.target_ref }}
 
+      # Older tags and PR branches may still use the pre-migration layout.
+      - name: Resolve build context
+        id: context
+        run: |
+          path=./src/frontend
+          if [ ! -f "$path/Dockerfile" ]; then path=./frontend; fi
+          test -f "$path/Dockerfile"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v4
 
       - uses: docker/login-action@v4
@@ -128,7 +146,7 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ./frontend
+          context: ${{ steps.context.outputs.path }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -151,7 +169,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: zackwag/caddy-ui-backend
-          readme-filepath: ./backend/DOCKERHUB.md
+          readme-filepath: ./src/backend/DOCKERHUB.md
           short-description: "API backend for caddy/ui — manages Caddy config, health checks, TLS, logs, and notifications"
 
       - name: Update frontend description
@@ -161,7 +179,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: zackwag/caddy-ui-frontend
-          readme-filepath: ./frontend/DOCKERHUB.md
+          readme-filepath: ./src/frontend/DOCKERHUB.md
           short-description: "Web frontend for caddy/ui — manage your Caddy server from the browser"
 
   versions:
@@ -173,7 +191,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Feeds the backend's update check (backend/src/updateCheck.js); only
+      # Feeds the backend's update check (src/backend/src/updateCheck.js); only
       # images that actually pushed are recorded
       - name: Record pushed images in versions.json
         env:

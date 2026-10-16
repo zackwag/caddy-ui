@@ -6,7 +6,7 @@
         "ghcr.io/devcontainers/features/common-utils:2": { "username": "node" },
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
     },
-    "postCreateCommand": "npm --prefix backend ci && npm --prefix frontend ci && npm exec --prefix frontend -- playwright install --with-deps chromium",
+    "postCreateCommand": "npm --prefix src/backend ci && npm --prefix src/frontend ci && npm --prefix dev ci && npm exec --prefix dev -- playwright install --with-deps chromium",
     "remoteEnv": {
         "REMOTE_CONTAINERS": "true"
     },

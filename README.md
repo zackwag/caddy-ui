@@ -501,7 +501,7 @@ for versioned image tags and release notes.
 
 ![Localization coverage](https://zackwag.github.io/caddy-ui/assets/localization-coverage.svg)
 
-English (`frontend/src/i18n/locales/en.js`) is the canonical localization schema and fallback language. Additional locale catalogs may translate any subset of the English keys; missing keys fall back to English. Locale catalogs may not introduce keys or key-tree shapes that do not exist in `en.js`.
+English (`src/frontend/src/i18n/locales/en.js`) is the canonical localization schema and fallback language. Additional locale catalogs may translate any subset of the English keys; missing keys fall back to English. Locale catalogs may not introduce keys or key-tree shapes that do not exist in `en.js`.
 
 Every locale must define `test.languageLoaded`, which is used by the frontend language API integration test to verify that an advertised locale can actually be loaded.
 
@@ -509,8 +509,7 @@ Translations are human-authored. Machine-generated, agentic, or bulk machine tra
 
 ## Contributing
 
-You can contribute code, improve the documentation, or help with localization once its
-foundation is merged. Start with [CONTRIBUTING.md](CONTRIBUTING.md) to choose a path.
+You can contribute code, improve the documentation, or help with localization. Start with [CONTRIBUTING.md](CONTRIBUTING.md) to choose a path.
 
 ## Releases and license
 

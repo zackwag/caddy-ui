@@ -9,19 +9,19 @@ The imported AGENTS.md covers commands, pre-finish checks, editing constraints, 
 ## Running a single backend test
 
 ```bash
-cd backend && npx vitest run test/routes.test.js      # one file
-cd backend && npx vitest run -t "parses a single site block"   # by test name
+cd src/backend && npx vitest run test/routes.test.js      # one file
+cd src/backend && npx vitest run -t "parses a single site block"   # by test name
 ```
 
-Tests cover pure logic only. Route modules export their helpers next to the default router (e.g. `export { parseSiteBlocks, sortCaddyfile }` in `routes/caddyfile.js`), and tests import those directly. Nothing spins up Express or talks to Caddy/Docker. To make new logic testable, follow the same pattern: write a pure function and add it to the module's named exports.
+Backend package tests cover helpers and HTTP contracts using isolated servers or mocks. Route modules export helpers next to their default router so pure logic can be tested directly. Real-Caddy scenarios live under `dev/integration/`; browser scenarios live under `dev/e2e/`. Keep UI actions and assertions in scenarios rather than shared fixtures.
 
 ## Backend architecture
 
-### Request pipeline (`backend/src/index.js`)
+### Request pipeline (`src/backend/src/index.js`)
 
 Order matters. Rate limit on `/api`, then these stages:
 1. `/api/auth/*` and `GET /api/version`: public.
-2. `/api/instances`, `/api/settings`, `/api/custom-themes`: auth only. **No instance middleware**, because these must work when zero instances exist.
+2. `/api/instances`, `/api/settings`, `/api/custom-themes`, `/api/logs/app`: auth only. **No instance middleware**, because these must work when zero instances exist.
 3. `instanceMiddleware` on everything else. It resolves `X-Instance-Id` (defaulting to `'default'`, then falling back to the first instance) into a validated `req.instance` = `{ id, name, adminUrl, configPath, logPath, dataPath, containerName, serverName }`. It returns `503 { code: 'NO_INSTANCES' }` when none are configured, and the frontend uses that to redirect to the Instances page.
 4. `/api/metrics/raw`: auth is skipped when `CADDY_UI_PUBLIC_METRICS=true`.
 5. `authMiddleware`, then the feature routers.
@@ -71,8 +71,8 @@ State lives in JSON files under `/etc/caddy-ui/`, each with its own env var: ins
 - **API client (`utils/api.js`)**: all calls go through `apiFetch`. It prefixes `/api`, attaches the JWT from `localStorage` and `X-Instance-Id` (the selected instance, also in `localStorage`), clears the token and calls `onUnauth` on 401, and surfaces `NO_INSTANCES` as `err.code`. New backend calls should use it rather than raw `fetch`.
 - **Proxying**: `/api` is proxied to `caddy-ui-backend:3001` by `nginx.conf` in production and to `localhost:3001` by `vite.config.js` in dev, so run the backend alongside `npm run dev`.
 - **App shell (`App.jsx`)**: owns auth state, the instance selection, and server-side settings (theme palettes, route column visibility), and passes them down as props. It uses React Router for URL-based navigation. Views read query params for deep links (e.g. `/routes?filter=srv0`). Switching instances bumps a key that remounts the views so they refetch.
-- **Styling (`styles.js`)**: one CSS-in-JS string plus `THEME_LIST`. Every color is a CSS variable defined per palette. `App.jsx` merges `THEME_LIST` with the custom themes from the backend. Add a built-in theme by adding a `THEME_LIST` entry, and never hardcode colors in components; the CodeMirror editors read the same variables. If you add a new CSS variable, add it to every built-in theme *and* to `REQUIRED_VARS` in `backend/src/customThemes.js`. Check both a dark and a light palette when you change styling.
-- **Caddyfile editor**: CodeMirror 6 with the generated `lib/caddyfileMode.js` (see AGENTS.md: fetched from upstream `main` at dev/build time and gitignored). `frontend/caddyfile-mode.sha` is only a tracked marker of the last upstream blob SHA. `sync-caddyfile-vocab.yml` bumps it so that vocabulary changes trigger a release. It is not a pin.
+- **Styling (`styles.js`)**: one CSS-in-JS string plus `THEME_LIST`. Every color is a CSS variable defined per palette. `App.jsx` merges `THEME_LIST` with the custom themes from the backend. Add a built-in theme by adding a `THEME_LIST` entry, and never hardcode colors in components; the CodeMirror editors read the same variables. If you add a new CSS variable, add it to every built-in theme *and* to `REQUIRED_VARS` in `src/backend/src/customThemes.js`. Check both a dark and a light palette when you change styling.
+- **Caddyfile editor**: CodeMirror 6 with the generated `lib/caddyfileMode.js` (see AGENTS.md: fetched from upstream `main` at dev/build time and gitignored). `src/frontend/caddyfile-mode.sha` is only a tracked marker of the last upstream blob SHA. `sync-caddyfile-vocab.yml` bumps it so that vocabulary changes trigger a release. It is not a pin.
 
 ## Releases
 

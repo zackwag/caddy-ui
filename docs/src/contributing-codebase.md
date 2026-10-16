@@ -1,73 +1,119 @@
 # Contributing to the codebase
 
-Thanks for considering a contribution. This project is a two-service app (Node/Express backend, React/Vite frontend) that manages a Caddy server through its admin API — see the [architecture guide](architecture.md) for the full architecture overview.
+This project has two application services: a Node/Express backend and a React/Vite
+frontend. The backend manages Caddy through its admin API and Docker or local file
+access. See the [architecture guide](architecture.md) for the runtime request flow.
+
+## Repository responsibilities
+
+| Location | Owns |
+| --- | --- |
+| `src/backend/` | Backend source, unit/API tests, package dependencies and Dockerfile |
+| `src/frontend/` | Frontend source, component tests, build scripts and Dockerfile |
+| `dev/dev-caddy/` | Disposable Caddy lifecycle commands and ownership checks |
+| `dev/integration/` | Real-service fixtures, scenarios and lifecycle/readiness tests |
+| `dev/e2e/` | Browser fixtures and scenarios |
+| `dev/playground/` | Localization preview, captured responses and capture tools |
+| `docs/` | Book content, theme and documentation tooling |
+
+The root `package.json` provides stable development commands. Application packages,
+shared development tooling and documentation have separate manifests and lockfiles.
+There are no npm workspaces or additional build orchestrators. The generated
+[project structure](project-structure.md) shows the current files.
 
 ## Getting set up
 
+Use Node.js 22.16+ or 24 and npm. From the repository root:
+
+```sh
+npm ci --prefix src/backend
+npm ci --prefix src/frontend
+npm ci --prefix dev
+```
+
 For a ready-to-run environment with real Caddy containers, follow the
 [Disposable Caddy integration environment](development-caddy.md) guide. It covers
-startup, managing test instances, exercising failures, and cleanup.
+Docker prerequisites, startup, managing test instances, exercising failures and
+cleanup.
 
-You can also develop against an existing Caddy instance without Docker. Its admin
-API must be reachable (`CADDY_ADMIN_URL`, default `http://caddy:2019`) for the
-backend to talk to.
+You can also develop against an existing Caddy instance. Its admin API must be
+reachable through `CADDY_ADMIN_URL` (default `http://caddy:2019`). Run the backend
+and frontend in separate terminals:
 
-### Backend
-
-```bash
-cd backend
-npm install
-npm run dev   # node --watch src/index.js, listens on :3001 by default
+```sh
+npm run dev --prefix src/backend
 ```
 
-Relevant environment variables are documented in the [environment variables reference](configuration.md#environment-variables). Most have safe local defaults.
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev   # vite dev server
+```sh
+npm run dev --prefix src/frontend
 ```
 
-The `predev`/`prebuild` scripts fetch `src/lib/caddyfileMode.js` (the generated CodeMirror Caddyfile grammar) from [zackwag/caddyfile-codemirror](https://github.com/zackwag/caddyfile-codemirror) — that file is gitignored, not vendored. Run `npm run dev` or `npm run build` at least once with network access before working offline; after that the fetch script falls back to the local copy.
+The backend listens on port 3001 by default; the frontend's Vite server proxies
+`/api` there. Relevant environment variables are documented in the
+[configuration reference](configuration.md#environment-variables).
 
-## Tests
+Frontend `predev` and `prebuild` fetch the generated CodeMirror grammar into
+`src/frontend/src/lib/caddyfileMode.js` from
+[zackwag/caddyfile-codemirror](https://github.com/zackwag/caddyfile-codemirror).
+The file is ignored by Git. Run development or a build with network access before
+working offline; later runs can reuse the local copy.
 
-Backend tests use [Vitest](https://vitest.dev/) and cover pure logic (Caddyfile parsing, formatting, validation, etc.):
+## Tests and lint
 
-```bash
-cd backend
-npm test
+From the repository root:
+
+```sh
+npm test --prefix src/backend
+npm run lint --prefix src/backend
+npm test --prefix src/frontend
+npm run lint --prefix src/frontend -- --max-warnings=0
+npm run lint:dev-caddy
+npm run test:dev-caddy
 ```
 
-CI runs this, plus `npm run lint` in both `backend/` and `frontend/`, on every PR against `main` (`.github/workflows/test.yml`). This branch predates the localization foundation's frontend tests. After that foundation is merged, run `npm test` in `frontend/` as well; it also validates the locale catalog contract. Verify UI changes by running the app (see below).
+Backend tests use Vitest for helpers and HTTP contracts. Frontend tests cover
+component contracts, API/error behavior, localization and playground logic. The
+playground tests currently remain under `src/frontend/test/` and require the dev
+package; moving them to their owning module is a separate follow-up.
+
+Shared dev lint borrows backend ESLint and frontend rule configuration, so both
+application packages must be installed. It covers harness, integration, browser
+and playground code. Lifecycle/readiness unit tests need no Docker Engine.
+
+Real-Caddy integration and Chromium checks use the same root commands locally and
+in CI. Follow the [integration testing guide](development-caddy.md#automated-integration-and-browser-checks)
+for browser installation, fixture ownership and cleanup. The required `Test` check
+includes both application tests and the real-service/browser integration job.
 
 ## Verifying UI changes
 
-For anything touching `frontend/`, run the dev server and click through the affected view(s) in a browser before opening a PR — type-checking and the backend test suite don't cover rendering or interaction correctness. Check both the dark and light themes if you touched styling.
+Run the app and exercise affected views in a browser before opening a PR. Unit
+tests do not establish rendering or interaction correctness. Check both dark and
+light themes when changing styling, and include a narrow viewport when changing
+layout.
 
-## Code style
+## Code style and boundaries
 
-- Match the existing style in the file you're editing: ES modules, 4-space indentation, single quotes, semicolons.
-- Both `backend/` and `frontend/` have an ESLint config (`npm run lint` in each) that CI runs on every PR (`.github/workflows/test.yml`). It only checks for correctness issues (unused vars, React hook rules, etc.) — it doesn't enforce formatting, so consistency with surrounding code is still the bar for style.
-- Keep changes scoped — avoid drive-by refactors in unrelated files.
-
-## Commit messages / PR titles
-
-This repo loosely follows [Conventional Commits](https://www.conventionalcommits.org/) prefixes in PR titles (squash-merged), e.g.:
-
-- `feat: ...` — new functionality
-- `fix: ...` — bug fixes
-- `build: ...` — build/CI/dependency changes
-- `test: ...` — test-only changes
-
-Look at `git log` for more examples of the house style.
+- Match the existing file style: ES modules, four-space indentation, single quotes
+  and semicolons.
+- Keep application-specific unit tests and build scripts with their package.
+  Shared development tools belong under `dev/`; documentation tooling stays with
+  the book; GitHub-specific orchestration stays under `.github/`.
+- Before moving files, identify their imports, runtime paths, package commands,
+  workflow filters, cache paths, build contexts and documentation consumers.
+- Preserve root command names and generated-file boundaries. Update generators
+  or their canonical inputs rather than editing generated output.
+- Keep changes focused. Dependency upgrades, behavior changes and additional
+  architecture changes should have their own justification and review scope.
 
 ## Opening a PR
 
-1. Branch off `main`.
-2. Keep the diff focused on one change.
-3. Make sure `npm test` passes in `backend/` if you touched backend code, and `npm run lint` passes in `backend/`/`frontend/` for whichever side you touched.
-4. Don't edit `CHANGELOG.md` or bump versions by hand — [release-please](https://github.com/googleapis/release-please) generates the changelog and version from your PR title's Conventional Commit prefix once it's merged to `main`.
-5. Open the PR against `main` — the `Test` workflow will run automatically.
+1. Branch off `main` and keep the diff focused on one change.
+2. Explain the problem, resulting behavior and affected boundaries.
+3. Run the tests and lint for the packages you changed. For shared fixtures or
+   tooling, also run the affected root suite and `npm run lint:dev-caddy`.
+4. Use a [Conventional Commit](https://www.conventionalcommits.org/) PR title,
+   such as `fix:`, `feat:`, `test:`, `build:` or `docs:`.
+5. Do not edit `CHANGELOG.md` or bump versions by hand. Release-please manages
+   both after squash-merging.
+6. Open the PR against `main`; the Test workflow runs automatically.
