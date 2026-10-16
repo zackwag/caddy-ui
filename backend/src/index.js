@@ -1,4 +1,3 @@
-import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { loadCustomThemes } from './customThemes.js';
@@ -6,6 +5,7 @@ import { getInstances, loadInstances } from './instances.js';
 import logger from './logger.js';
 import { diagnosticMiddleware } from './errorReporting.js';
 import { authMiddleware, publicMetrics } from './middleware/auth.js';
+import { crossSiteMiddleware } from './middleware/crossSite.js';
 import { instanceMiddleware } from './middleware/instance.js';
 import { initMonitor } from './notifications.js';
 import authRouter from './routes/auth.js';
@@ -38,7 +38,6 @@ const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
 const APP_VERSION = process.env.APP_VERSION || 'dev';
 
 app.set('trust proxy', 1);
-app.use(cors());
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
 app.use(diagnosticMiddleware);
@@ -75,6 +74,7 @@ const authLimiter = rateLimit({
 });
 
 app.use('/api', apiLimiter);
+app.use('/api', crossSiteMiddleware);
 
 // Auth routes are always public
 app.use('/api/auth', authLimiter, authRouter);

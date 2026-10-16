@@ -9,7 +9,6 @@
         "lint": "eslint ."
     },
     "dependencies": {
-        "cors": "^2.8.5",
         "express": "^5.3.0",
         "express-rate-limit": "^8.7.1",
         "jsonwebtoken": "^9.0.2"

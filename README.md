@@ -332,6 +332,8 @@ All backend variables have sensible defaults. Only set what you need to override
 
 Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. When enabled, protected API endpoints require a valid JWT and the login screen appears automatically.
 
+Without authentication, anyone who can reach caddy/ui can change your Caddy configuration, so enable it unless the UI is only reachable by people you trust. In either mode, the API rejects writes that a browser marks as coming from another site, so a web page you visit can't make changes through your browser.
+
 `GET /api/auth/status` and `GET /api/version` remain public. `POST /api/auth/sessions` validates the configured credentials to issue a JWT; it does not require an existing token. With `CADDY_UI_PUBLIC_METRICS=true`, `GET /api/metrics` and `GET /api/metrics/raw` are also accessible without a JWT.
 <!-- dockerhub:backend:end -->
 <!-- ANCHOR_END: authentication -->
