@@ -104,6 +104,17 @@
     display: block;
     color: var(--muted);
 }
+.preview-indicator {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-inline-start: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: middle;
+}
+.workbench .preview-legend { color: var(--muted); font-size: 12px; }
+.preview-legend .preview-indicator { margin-inline-start: 0; }
 .gallery {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

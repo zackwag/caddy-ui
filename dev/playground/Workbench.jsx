@@ -4,6 +4,7 @@ import { capture, scenarios } from './registry.jsx';
 import PreviewFrame from './PreviewFrame.jsx';
 
 const EMPTY = Object.freeze({});
+const PREVIEW_KEYS = new Set(scenarios.flatMap(scenario => scenario.keys));
 
 export default function Workbench({ catalogs, preview }) {
     const initial = new URLSearchParams(location.search);
@@ -106,19 +107,23 @@ export default function Workbench({ catalogs, preview }) {
                     />
                     <p>
                         {filtered.length} / {entries.length} keys ·{' '}
-                        {new Set(scenarios.flatMap((s) => s.keys)).size} with previews
+                        {PREVIEW_KEYS.size} with previews
                     </p>
+                    <p id="preview-legend" className="preview-legend"><span className="preview-indicator" aria-hidden="true" /> Live preview available</p>
                     <nav aria-label="Translation keys">
                         {filtered.map(([key]) => (
                             <button
                                 key={key}
                                 aria-pressed={selected === key}
+                                aria-describedby={PREVIEW_KEYS.has(key) ? 'preview-legend' : undefined}
+                                title={PREVIEW_KEYS.has(key) ? 'Live preview available' : undefined}
                                 onClick={() => {
                                     setSelected(key);
                                     setCopyStatus('');
                                 }}
                             >
                                 {key}
+                                {PREVIEW_KEYS.has(key) && <span className="preview-indicator" aria-hidden="true" />}
                                 {readValue(catalogs[locale], key) === undefined && (
                                     <small> English fallback</small>
                                 )}

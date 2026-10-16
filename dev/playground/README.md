@@ -16,6 +16,8 @@ Open http://127.0.0.1:5174. No backend, Docker container, account, or API mocks 
 
 Search canonical English keys or saved values, choose an installed locale, and select a key.
 Registered component states appear above the English reference and saved locale value.
+Keys with a registered live preview have a small accent dot beside their name in the key list;
+the legend and tooltip explain it. The marker is independent of the saved translation's status.
 Choose a state in **Component state**. Each preview mounts actual production components
 and styles in its own frame, with its own translation instance and in-memory storage.
 Typing in **Try translation** updates every matching preview. Drafts are kept separately per

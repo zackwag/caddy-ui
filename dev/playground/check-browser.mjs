@@ -37,6 +37,22 @@ try {
     assert.equal(await frame().locator('[data-preview-key="dashboard.status"]').count(), 2);
     assert.ok((await frame().locator('body').innerText()).includes('Playground HTTP'));
     assert.equal(await page.locator('nav[aria-label="Translation keys"] button').count(), flattenCatalog(en).length);
+    const registeredKeys = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        return [...new Set(scenarios.flatMap(scenario => scenario.keys))];
+    });
+    const keyList = page.getByRole('navigation', { name: 'Translation keys' });
+    assert.equal(await keyList.locator('.preview-indicator').count(), registeredKeys.length);
+    const coveredKey = keyList.getByRole('button', { name: 'dashboard.status', exact: true });
+    assert.equal(await coveredKey.locator('.preview-indicator[aria-hidden="true"]').count(), 1);
+    assert.equal(await coveredKey.getAttribute('title'), 'Live preview available');
+    assert.equal(await coveredKey.getAttribute('aria-describedby'), 'preview-legend');
+    const uncovered = flattenCatalog(en).find(([key]) => !registeredKeys.includes(key))[0];
+    assert.equal(await keyList.getByRole('button', { name: uncovered, exact: true }).locator('.preview-indicator').count(), 0);
+    await page.getByLabel('Search keys and translations').fill('dashboard.status');
+    assert.equal(await keyList.locator('button').count(), 1);
+    assert.equal(await keyList.locator('.preview-indicator').count(), 1);
+    await page.getByLabel('Search keys and translations').fill('');
     await editor.fill('Preview status');
     await page.waitForFunction(() => [...document.querySelector('iframe').contentDocument.querySelectorAll('[data-preview-key="dashboard.status"]')]
         .every(element => element.textContent === 'Preview status'));
