@@ -5,13 +5,14 @@
     "scripts": {
         "test": "node --test dev-caddy/*.test.mjs integration/*.test.mjs",
         "test:integration": "node --test integration/caddy.mjs integration/api.mjs integration/startup.mjs integration/diagnostics.mjs",
-        "test:e2e": "node --test --test-concurrency=1 e2e/error-logging.mjs e2e/languages.mjs",
+        "test:e2e": "node --test --test-concurrency=1 e2e/error-logging.mjs e2e/languages.mjs e2e/cross-site.mjs",
         "lint": "node ../src/backend/node_modules/eslint/bin/eslint.js . --max-warnings=0",
         "i18n:preview": "vite --config playground/vite.config.js",
         "i18n:preview:build": "vite build --config playground/vite.config.js",
         "i18n:preview:capture": "node playground/capture.mjs",
         "i18n:preview:check-capture": "node --test playground/capture.integration.mjs",
-        "i18n:preview:check-browser": "node playground/check-browser.mjs"
+        "i18n:preview:check-browser": "node playground/check-browser.mjs",
+        "test:cross-site:browser": "node --test e2e/cross-site.mjs"
     },
     "devDependencies": {
         "@vitejs/plugin-react": "^6.1.2",
