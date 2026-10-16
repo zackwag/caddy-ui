@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.26.0](https://github.com/zackwag/caddy-ui/compare/v2.25.3...v2.26.0) (2026-10-16)
+
+
+### Features
+
+* **i18n:** Enable reviewed languages and opt-in Arabic fonts ([#250](https://github.com/zackwag/caddy-ui/issues/250)) ([587aa9f](https://github.com/zackwag/caddy-ui/commit/587aa9f812f10562c528b7f3ec7dcb22711eeb58))
+
 ## [2.25.3](https://github.com/zackwag/caddy-ui/compare/v2.25.2...v2.25.3) (2026-10-16)
 
 
