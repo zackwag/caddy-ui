@@ -26,7 +26,7 @@ export default function LanguagePicker({
                 aria-label={t("languagePicker.chooseLanguage")}
                 title={t("languagePicker.chooseLanguage")}
             >
-                {languages.map(lang => (
+                {[...languages].sort((a, b) => a === 'en' ? -1 : b === 'en' ? 1 : languageName(a).localeCompare(languageName(b))).map(lang => (
                     <option key={lang} value={lang}>
                         {languageName(lang)}
                     </option>
