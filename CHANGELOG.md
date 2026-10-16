@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.29.1](https://github.com/zackwag/caddy-ui/compare/v2.29.0...v2.29.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* refuse startup when authentication is partially configured ([#292](https://github.com/zackwag/caddy-ui/issues/292)) ([d8a3d1f](https://github.com/zackwag/caddy-ui/commit/d8a3d1f1ec9d046bfa5d24f524cdc801130b0dca))
+* show instance names beside dashboard server IDs ([#295](https://github.com/zackwag/caddy-ui/issues/295)) ([e324b36](https://github.com/zackwag/caddy-ui/commit/e324b364ba06374f93ab218a7b9e4fbbcfedc68a))
+
 ## [2.29.0](https://github.com/zackwag/caddy-ui/compare/v2.28.0...v2.29.0) (2026-10-16)
 
 
