@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.27.1](https://github.com/zackwag/caddy-ui/compare/v2.27.0...v2.27.1) (2026-10-16)
+
+
+### Miscellaneous Chores
+
+* **deps:** bump i18next from 26.4.3 to 26.4.4 in /src/frontend ([#281](https://github.com/zackwag/caddy-ui/issues/281)) ([b8f6bc4](https://github.com/zackwag/caddy-ui/commit/b8f6bc4f4cf8d507e33198971d2847263b207abe))
+* move playground tests to dev/ ([#283](https://github.com/zackwag/caddy-ui/issues/283)) ([a977e7d](https://github.com/zackwag/caddy-ui/commit/a977e7d2926c5824bb3b49faedd39dc6261535db))
+* reorganize application packages and development tooling ([#264](https://github.com/zackwag/caddy-ui/issues/264)) ([1bee573](https://github.com/zackwag/caddy-ui/commit/1bee573333a166b5de1ac4dcbc05df48b837be15))
+
 ## [2.27.0](https://github.com/zackwag/caddy-ui/compare/v2.26.1...v2.27.0) (2026-10-16)
 
 
