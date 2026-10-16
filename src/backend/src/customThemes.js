@@ -5,7 +5,7 @@ import logger from './logger.js';
 const THEMES_PATH = process.env.THEMES_PATH || '/etc/caddy-ui/themes';
 
 // Must match the variable set every built-in theme defines in
-// frontend/src/styles.js -- a custom theme missing any of these would
+// src/frontend/src/styles.js -- a custom theme missing any of these would
 // leave that color undefined rather than falling back to something sane.
 const REQUIRED_VARS = [
     '--bg', '--surface', '--border', '--border2', '--text', '--muted',

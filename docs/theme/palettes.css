@@ -1,4 +1,4 @@
-/* Default palettes copied from frontend/src/styles.js during the mdBook migration. */
+/* Default palettes copied from src/frontend/src/styles.js during the mdBook migration. */
 .light {
     --app-bg: #f5f0eb;
     --app-surface: #faf7f4;

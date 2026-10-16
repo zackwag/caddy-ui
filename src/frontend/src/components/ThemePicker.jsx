@@ -9,7 +9,7 @@ function themeOptions(themes, mode) {
     return { builtIn, custom };
 }
 
-// Downloads a theme in the custom-theme file format backend/src/customThemes.js
+// Downloads a theme in the custom-theme file format src/backend/src/customThemes.js
 // validates, ready to drop into THEMES_PATH/<mode>/ and edit. Custom ids are
 // `custom-<mode>-<filename slug>`, so stripping the prefix round-trips the
 // original filename.

@@ -1,5 +1,5 @@
 // Records freshly pushed image versions in versions.json, which the backend's
-// update check (backend/src/updateCheck.js) reads from the `versions` branch.
+// update check (src/backend/src/updateCheck.js) reads from the `versions` branch.
 //
 // Usage: node record-versions.mjs <file> <channel> <component>=<version>...
 //   e.g. node record-versions.mjs versions.json edge frontend=edge-abc1234
