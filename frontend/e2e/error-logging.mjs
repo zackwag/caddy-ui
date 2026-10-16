@@ -15,7 +15,9 @@ async function scenario(t) {
     const { page, origin, waitForView } = fixture;
     return {
         ...fixture,
-        go: path => page.goto(origin + path),
+        // A transient toast can expire while an unrelated stylesheet delays load.
+        // Each scenario waits for the component/notification it actually needs.
+        go: path => page.goto(origin + path, { waitUntil: 'domcontentloaded' }),
         waitForEditor: () => waitForView('.cm-editor'),
         async edit(text) {
             await page.locator('.cm-content').click();
@@ -142,6 +144,42 @@ test('state errors deduplicate and recovery rearms them', options, async t => {
     await page.locator('.nav-item').filter({ hasText: 'Caddyfile' }).click();
     await page.locator('.toast-error').waitFor();
     assert.equal(await page.evaluate(() => window.seenNotifications), 2);
+});
+
+test('transient state errors are observable while an unrelated stylesheet is pending', options, async t => {
+    const { page, stack, go } = await scenario(t);
+    let release;
+    let stylesheetPending = false;
+    const stylesheet = new Promise(resolve => { release = resolve; });
+    await page.route('**/__e2e_pending_style.css', async route => {
+        stylesheetPending = true;
+        await stylesheet;
+        await route.fulfill({ status: 200, contentType: 'text/css', body: '' });
+        stylesheetPending = false;
+    });
+    await page.addInitScript(() => {
+        addEventListener('DOMContentLoaded', () => {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = '/__e2e_pending_style.css';
+            document.head.append(link);
+        });
+    });
+    try {
+        assert.equal((await stack.api('/instances/default', { method: 'PUT',
+            body: { configPath: '/data/dev-caddy/missing-stylesheet.Caddyfile' } })).status, 200);
+        await go('/caddyfile');
+        const toast = page.locator('.toast-error');
+        await toast.waitFor();
+        assert((await toast.textContent()).includes(en.errors.caddyfileReadFailed));
+        assert.equal(stylesheetPending, true, 'The stylesheet must still be blocking full document load');
+        assert.notEqual(await page.evaluate(() => document.readyState), 'complete');
+    } finally {
+        // Release the resource even if navigation/assertions fail. The existing
+        // fixture then tears down the real backend, browser and owned container.
+        release();
+        await page.unrouteAll({ behavior: 'wait' });
+    }
 });
 
 test('permission failures show localized feedback while keeping the active view', options, async t => {
