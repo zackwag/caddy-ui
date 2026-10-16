@@ -106,7 +106,7 @@ const healthChecks = [
 const requests = [
     get('/auth/status', { authEnabled: false, publicMetrics: false }),
     get('/auth/check', { authEnabled: false }),
-    get('/languages', { enabled: ['en'], available: ['en', 'de', 'ar'] }),
+    get('/languages', { languages: ['en', 'ar'], fonts: ['ar'] }),
     get('/settings', { darkTheme: 'vt2026', lightTheme: 'coarse-everywhere',
         routeColumns: { status: true, server: true, id: false, upstream: true, title: true }, routeChecks: true,
         metricsConfig: { enabled: true } }),

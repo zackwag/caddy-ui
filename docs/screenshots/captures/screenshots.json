@@ -56,12 +56,11 @@
               "content-type": "application/json; charset=utf-8"
             },
             "body": {
-              "enabled": [
-                "en"
-              ],
-              "available": [
+              "languages": [
                 "en",
-                "de",
+                "ar"
+              ],
+              "fonts": [
                 "ar"
               ]
             }
