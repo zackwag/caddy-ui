@@ -1,16 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('dns', () => ({
-    promises: {
-        lookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]),
-    },
-}));
+const { sendWebhook } = vi.hoisted(() => ({ sendWebhook: vi.fn() }));
+vi.mock('../src/webhookTransport.js', () => ({ sendWebhook }));
 
 describe('sendNotification', () => {
     async function loadNotifications() {
         vi.resetModules();
         return import('../src/notifications.js');
     }
+
+    beforeEach(() => {
+        sendWebhook.mockReset().mockResolvedValue(undefined);
+    });
 
     it('throws for unknown provider', async () => {
         const { sendNotification } = await loadNotifications();
@@ -19,69 +20,37 @@ describe('sendNotification', () => {
         ).rejects.toThrow('Unknown provider: unknown');
     });
 
-    it('throws when ntfy url is not configured', async () => {
+    it.each([
+        ['ntfy', { ntfy: {} }, 'ntfy URL not configured'],
+        ['discord', { discord: {} }, 'Discord webhook URL not configured'],
+        ['slack', { slack: {} }, 'Slack webhook URL not configured'],
+        ['pushover', { pushover: {} }, 'Pushover user key and API token required'],
+        ['custom', { custom: {} }, 'Custom webhook URL not configured'],
+    ])('throws when %s is not configured', async (provider, settings, error) => {
         const { sendNotification } = await loadNotifications();
         await expect(
-            sendNotification({ provider: 'ntfy', ntfy: {} }, { title: 'Test', message: 'msg', priority: 'default' })
-        ).rejects.toThrow('ntfy URL not configured');
+            sendNotification({ provider, ...settings }, { title: 'Test', message: 'msg', priority: 'default' })
+        ).rejects.toThrow(error);
+        expect(sendWebhook).not.toHaveBeenCalled();
     });
 
-    it('throws when discord webhook url is not configured', async () => {
+    it('sends ntfy notification with title and priority headers', async () => {
         const { sendNotification } = await loadNotifications();
-        await expect(
-            sendNotification({ provider: 'discord', discord: {} }, { title: 'Test', message: 'msg', priority: 'default' })
-        ).rejects.toThrow('Discord webhook URL not configured');
-    });
-
-    it('throws when slack webhook url is not configured', async () => {
-        const { sendNotification } = await loadNotifications();
-        await expect(
-            sendNotification({ provider: 'slack', slack: {} }, { title: 'Test', message: 'msg', priority: 'default' })
-        ).rejects.toThrow('Slack webhook URL not configured');
-    });
-
-    it('throws when pushover credentials are missing', async () => {
-        const { sendNotification } = await loadNotifications();
-        await expect(
-            sendNotification({ provider: 'pushover', pushover: {} }, { title: 'Test', message: 'msg', priority: 'default' })
-        ).rejects.toThrow('Pushover user key and API token required');
-    });
-
-    it('throws when custom webhook url is not configured', async () => {
-        const { sendNotification } = await loadNotifications();
-        await expect(
-            sendNotification({ provider: 'custom', custom: {} }, { title: 'Test', message: 'msg', priority: 'default' })
-        ).rejects.toThrow('Custom webhook URL not configured');
-    });
-
-    it('sends ntfy notification on success', async () => {
-        const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
         await sendNotification(
-            { provider: 'ntfy', ntfy: { url: 'https://ntfy.example.com/topic' } },
+            { provider: 'ntfy', ntfy: { url: 'http://ntfy/caddy-alerts' } },
             { title: 'Alert', message: 'Something happened', priority: 'high' }
         );
 
-        expect(mockFetch).toHaveBeenCalledWith('https://ntfy.example.com/topic', expect.objectContaining({
-            method: 'POST',
-            body: 'Something happened',
-        }));
-        const headers = mockFetch.mock.calls[0][1].headers;
-        expect(headers.Title).toBe('Alert');
-        expect(headers.Priority).toBe('high');
-
-        vi.unstubAllGlobals();
+        const [url, request] = sendWebhook.mock.calls[0];
+        expect(url).toBe('http://ntfy/caddy-alerts');
+        expect(request.body).toBe('Something happened');
+        expect(request.headers.Title).toBe('Alert');
+        expect(request.headers.Priority).toBe('high');
     });
 
-    it('throws on ntfy failure response', async () => {
+    it('propagates delivery failures', async () => {
         const { sendNotification } = await loadNotifications();
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            ok: false,
-            status: 500,
-            text: () => Promise.resolve('Internal error'),
-        }));
+        sendWebhook.mockRejectedValue(new Error('ntfy responded 500: Internal error'));
 
         await expect(
             sendNotification(
@@ -89,129 +58,91 @@ describe('sendNotification', () => {
                 { title: 'Test', message: 'msg', priority: 'default' }
             )
         ).rejects.toThrow('ntfy responded 500');
-
-        vi.unstubAllGlobals();
     });
 
     it('sends discord notification with correct embed structure', async () => {
         const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
         await sendNotification(
-            { provider: 'discord', discord: { webhookUrl: 'https://discord.com/api/webhooks/123' } },
-            { title: 'Upstream offline', message: 'app:3000 down', priority: 'high' }
+            { provider: 'discord', discord: { webhookUrl: 'https://discord.com/api/webhooks/1/abc' } },
+            { title: 'Alert', message: 'Down', priority: 'high' }
         );
 
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-        expect(body.embeds[0].title).toBe('Upstream offline');
-        expect(body.embeds[0].description).toBe('app:3000 down');
+        const body = JSON.parse(sendWebhook.mock.calls[0][1].body);
+        expect(body.embeds[0].title).toBe('Alert');
+        expect(body.embeds[0].description).toBe('Down');
         expect(body.embeds[0].color).toBe(0xff4d6a);
         expect(body.embeds[0].footer.text).toBe('caddy/ui');
-
-        vi.unstubAllGlobals();
     });
 
     it('sends discord with green color for non-high priority', async () => {
         const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
         await sendNotification(
-            { provider: 'discord', discord: { webhookUrl: 'https://discord.com/api/webhooks/123' } },
-            { title: 'Recovered', message: 'back online', priority: 'default' }
+            { provider: 'discord', discord: { webhookUrl: 'https://discord.com/api/webhooks/1/abc' } },
+            { title: 'Recovered', message: 'Up', priority: 'default' }
         );
 
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-        expect(body.embeds[0].color).toBe(0x00e5a0);
-
-        vi.unstubAllGlobals();
+        expect(JSON.parse(sendWebhook.mock.calls[0][1].body).embeds[0].color).toBe(0x00e5a0);
     });
 
     it('sends slack notification with emoji prefix', async () => {
         const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
         await sendNotification(
-            { provider: 'slack', slack: { webhookUrl: 'https://hooks.slack.com/services/abc' } },
-            { title: 'Alert', message: 'msg', priority: 'high' }
+            { provider: 'slack', slack: { webhookUrl: 'https://hooks.slack.com/services/x' } },
+            { title: 'Alert', message: 'Down', priority: 'high' }
         );
 
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-        expect(body.text).toContain(':rotating_light:');
-        expect(body.text).toContain('*Alert*');
-
-        vi.unstubAllGlobals();
+        expect(JSON.parse(sendWebhook.mock.calls[0][1].body).text).toBe(':rotating_light: *Alert*\nDown');
     });
 
     it('sends slack with checkmark for non-high priority', async () => {
         const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
         await sendNotification(
-            { provider: 'slack', slack: { webhookUrl: 'https://hooks.slack.com/services/abc' } },
-            { title: 'OK', message: 'fine', priority: 'default' }
+            { provider: 'slack', slack: { webhookUrl: 'https://hooks.slack.com/services/x' } },
+            { title: 'OK', message: 'Up', priority: 'default' }
         );
 
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-        expect(body.text).toContain(':white_check_mark:');
-
-        vi.unstubAllGlobals();
+        expect(JSON.parse(sendWebhook.mock.calls[0][1].body).text).toMatch(/^:white_check_mark:/);
     });
 
     it('sends pushover notification with correct fields', async () => {
         const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
         await sendNotification(
             { provider: 'pushover', pushover: { userKey: 'ukey', apiToken: 'atoken' } },
             { title: 'Alert', message: 'msg', priority: 'high' }
         );
 
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+        const [url, request] = sendWebhook.mock.calls[0];
+        expect(url).toBe('https://api.pushover.net/1/messages.json');
+        const body = JSON.parse(request.body);
         expect(body.token).toBe('atoken');
         expect(body.user).toBe('ukey');
         expect(body.title).toBe('Alert');
         expect(body.priority).toBe(1);
-
-        vi.unstubAllGlobals();
     });
 
     it('sends custom webhook with correct structure', async () => {
         const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
         await sendNotification(
-            { provider: 'custom', custom: { url: 'https://webhook.example.com', method: 'PUT' } },
+            { provider: 'custom', custom: { url: 'http://192.168.1.50/hook', method: 'PUT' } },
             { title: 'Custom', message: 'test', priority: 'default' }
         );
 
-        expect(mockFetch.mock.calls[0][0]).toBe('https://webhook.example.com/');
-        expect(mockFetch.mock.calls[0][1].method).toBe('PUT');
-        const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+        const [url, request] = sendWebhook.mock.calls[0];
+        expect(url).toBe('http://192.168.1.50/hook');
+        expect(request.method).toBe('PUT');
+        const body = JSON.parse(request.body);
         expect(body.title).toBe('Custom');
         expect(body.message).toBe('test');
-
-        vi.unstubAllGlobals();
     });
 
     it('custom webhook defaults to POST method', async () => {
         const { sendNotification } = await loadNotifications();
-        const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-        vi.stubGlobal('fetch', mockFetch);
-
         await sendNotification(
             { provider: 'custom', custom: { url: 'https://webhook.example.com' } },
             { title: 'Custom', message: 'test', priority: 'default' }
         );
 
-        expect(mockFetch.mock.calls[0][1].method).toBe('POST');
-
-        vi.unstubAllGlobals();
+        expect(sendWebhook.mock.calls[0][1].method).toBe('POST');
     });
 });
 

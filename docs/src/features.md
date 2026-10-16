@@ -35,7 +35,7 @@ See the [editor](screenshots.md#caddyfile-editor),
   access logging.
 - **Notifications**
   Receive alerts for health changes and expiring certificates through your
-  chosen notification service.
+  chosen notification service, including self-hosted services on your network.
 
 See [metrics](screenshots.md#metrics), [logs](screenshots.md#access-logs), and
 [integrations](integrations.md).

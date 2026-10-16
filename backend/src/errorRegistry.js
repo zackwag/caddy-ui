@@ -22,6 +22,8 @@ export const ERROR_REGISTRY = Object.freeze({
     LOG_STREAM_ERROR: { status: 500, level: 'error' },
     UNAUTHORIZED: { status: 401, level: 'warn' },
     FORBIDDEN: { status: 403, level: 'warn' },
+    WEBHOOK_DESTINATION_BLOCKED: { status: 403, level: 'warn' },
+    NOTIFICATION_SEND_FAILED: { status: 502, level: 'error' },
     RATE_LIMITED: { status: 429, level: 'warn' },
     NOT_FOUND: { status: 404, level: 'warn' },
     CONFLICT: { status: 409, level: 'warn' },
