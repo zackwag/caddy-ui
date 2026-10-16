@@ -45,6 +45,8 @@ export default {
         network: 'Cannot reach the server. Check your connection.',
         unauthorized: 'Your session has expired. Please sign in again.',
         forbidden: 'You do not have permission to perform this operation.',
+        webhookDestinationBlocked: 'Notifications cannot be sent to loopback or link-local addresses. Use an address the backend reaches over the network, such as a LAN IP or Docker service name.',
+        notificationSendFailed: 'Could not send the notification. See the application logs for details.',
         logFileMissing: 'The log file was not found.',
         logStreamError: 'Could not stream Caddy logs. See the application logs for details.',
         rateLimited: 'Too many requests. Please try again later.',

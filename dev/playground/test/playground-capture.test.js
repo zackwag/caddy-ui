@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createReplayFetch, normalizeCapture, validateCapture } from '../../../dev/playground/capture-format.js';
+import { createReplayFetch, normalizeCapture, validateCapture } from '../capture-format.js';
 
 const record = { request: { method: 'GET', path: '/status', body: null },
     response: { status: 200, headers: { 'content-type': 'application/json' }, body: { online: true, servers: [] } } };

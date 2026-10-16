@@ -11,11 +11,14 @@
         "lint:dev-caddy": "npm run lint --prefix dev --",
         "docs:screenshots": "node docs/screenshots/screenshot.mjs",
         "docs:screenshots:capture": "node docs/screenshots/capture.mjs",
+        "test:playground": "npm run test:playground --prefix dev --",
         "i18n:preview": "npm run i18n:preview --prefix dev --",
         "i18n:preview:build": "npm run i18n:preview:build --prefix dev --",
         "i18n:preview:capture": "npm run i18n:preview:capture --prefix dev --",
         "i18n:preview:check-capture": "npm run i18n:preview:check-capture --prefix dev --",
         "i18n:preview:check-browser": "npm run i18n:preview:check-browser --prefix dev --",
-        "test:cross-site:browser": "npm run test:cross-site:browser --prefix dev --"
+        "test:cross-site:browser": "npm run test:cross-site:browser --prefix dev --",
+        "dev:cloud-metadata": "npm run dev:cloud-metadata --prefix dev --",
+        "test:cloud-metadata": "npm run test:cloud-metadata --prefix dev --"
     }
 }

@@ -1,13 +1,12 @@
-import { isIP } from 'net';
 import { X509Certificate } from 'crypto';
 import { join } from 'path';
 import { listContainerDir, readContainerFile } from './containerFs.js';
-import { promises as dns } from 'dns';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { failureReason } from './routeChecks.js';
 import { getUpdateNotification } from './updateCheck.js';
 import { checkInstanceUpstreams } from './upstreamChecks.js';
+import { sendWebhook } from './webhookTransport.js';
 const CHECK_INTERVAL_MS = 30_000;
 
 let config = null;
@@ -237,101 +236,27 @@ async function checkCertsForInstance(inst) {
     }
 }
 
-function isUnsafeIPv4(ip) {
-    const parts = ip.split('.').map((p) => Number.parseInt(p, 10));
-    if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
-    const [a, b] = parts;
-    return a === 0
-        || a === 10
-        || a === 127
-        || (a === 169 && b === 254)
-        || (a === 172 && b >= 16 && b <= 31)
-        || (a === 192 && b === 168)
-        || a >= 224;
-}
-
-function isUnsafeIPv6(ip) {
-    const normalized = ip.toLowerCase();
-    return normalized === '::'
-        || normalized === '::1'
-        || normalized.startsWith('fe80:')
-        || normalized.startsWith('fc')
-        || normalized.startsWith('fd')
-        || normalized.startsWith('ff');
-}
-
-function isUnsafeIpAddress(ip) {
-    const version = isIP(ip);
-    if (version === 4) return isUnsafeIPv4(ip);
-    if (version === 6) return isUnsafeIPv6(ip);
-    return true;
-}
-
-async function validateWebhookUrl(url) {
-    let parsed;
-    try {
-        parsed = new URL(url);
-    } catch {
-        throw new Error(`Invalid webhook URL: ${url}`);
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error(`Webhook URL must use http or https: ${url}`);
-    }
-
-    const host = parsed.hostname.toLowerCase();
-    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host === 'metadata.google.internal') {
-        throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
-    }
-
-    if (isIP(host) && isUnsafeIpAddress(host)) {
-        throw new Error(`Webhook URL must not target internal/private addresses: ${host}`);
-    }
-
-    const records = await dns.lookup(host, { all: true, verbatim: true });
-    if (!records.length) {
-        throw new Error(`Webhook URL host does not resolve: ${host}`);
-    }
-    if (records.some((r) => isUnsafeIpAddress(r.address))) {
-        throw new Error(`Webhook URL must not resolve to internal/private addresses: ${host}`);
-    }
-
-    const port = parsed.port ? `:${parsed.port}` : '';
-    return `${parsed.protocol}//${host}${port}${parsed.pathname}${parsed.search}`;
-}
-
-async function sanitizeWebhookUrl(url) {
-    const validated = await validateWebhookUrl(url);
-    const m = /^(https?):\/\/([a-zA-Z0-9][a-zA-Z0-9._:-]*)(\/[^\s]*)?$/.exec(validated);
-    if (!m) throw new Error('Invalid webhook URL');
-    return `${m[1]}://${m[2]}${m[3] || '/'}`;
-}
-
 export async function sendNotification(cfg, { title, message, priority }) {
     const provider = cfg.provider;
 
     if (provider === 'ntfy') {
         if (!cfg.ntfy?.url) throw new Error('ntfy URL not configured');
-        const ntfyUrl = await sanitizeWebhookUrl(cfg.ntfy.url);
-        const res = await fetch(ntfyUrl, {
-            method: 'POST',
+        await sendWebhook(cfg.ntfy.url, {
+            name: 'ntfy',
             headers: {
                 'Title': title,
                 'Priority': priority || 'default',
+                'Content-Type': 'text/plain; charset=utf-8',
             },
             body: message,
         });
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`ntfy responded ${res.status}: ${text}`);
-        }
         logger.info('Notification sent via ntfy', { title });
 
     } else if (provider === 'discord') {
         if (!cfg.discord?.webhookUrl) throw new Error('Discord webhook URL not configured');
-        const discordUrl = await sanitizeWebhookUrl(cfg.discord.webhookUrl);
         const color = priority === 'high' ? 0xff4d6a : 0x00e5a0;
-        const res = await fetch(discordUrl, {
-            method: 'POST',
+        await sendWebhook(cfg.discord.webhookUrl, {
+            name: 'Discord',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 embeds: [{
@@ -343,34 +268,25 @@ export async function sendNotification(cfg, { title, message, priority }) {
                 }],
             }),
         });
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Discord responded ${res.status}: ${text}`);
-        }
         logger.info('Notification sent via Discord', { title });
 
     } else if (provider === 'slack') {
         if (!cfg.slack?.webhookUrl) throw new Error('Slack webhook URL not configured');
-        const slackUrl = await sanitizeWebhookUrl(cfg.slack.webhookUrl);
         const emoji = priority === 'high' ? ':rotating_light:' : ':white_check_mark:';
-        const res = await fetch(slackUrl, {
-            method: 'POST',
+        await sendWebhook(cfg.slack.webhookUrl, {
+            name: 'Slack',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 text: `${emoji} *${title}*\n${message}`,
             }),
         });
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Slack responded ${res.status}: ${text}`);
-        }
         logger.info('Notification sent via Slack', { title });
 
     } else if (provider === 'pushover') {
         if (!cfg.pushover?.userKey || !cfg.pushover?.apiToken) throw new Error('Pushover user key and API token required');
         const pushPriority = priority === 'high' ? 1 : 0;
-        const res = await fetch('https://api.pushover.net/1/messages.json', {
-            method: 'POST',
+        await sendWebhook('https://api.pushover.net/1/messages.json', {
+            name: 'Pushover',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 token: cfg.pushover.apiToken,
@@ -380,24 +296,16 @@ export async function sendNotification(cfg, { title, message, priority }) {
                 priority: pushPriority,
             }),
         });
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Pushover responded ${res.status}: ${text}`);
-        }
         logger.info('Notification sent via Pushover', { title });
 
     } else if (provider === 'custom') {
         if (!cfg.custom?.url) throw new Error('Custom webhook URL not configured');
-        const customUrl = await sanitizeWebhookUrl(cfg.custom.url);
-        const res = await fetch(customUrl, {
+        await sendWebhook(cfg.custom.url, {
+            name: 'Custom webhook',
             method: cfg.custom.method || 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, message, priority, timestamp: new Date().toISOString() }),
         });
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Custom webhook responded ${res.status}: ${text}`);
-        }
         logger.info('Notification sent via custom webhook', { title });
 
     } else {

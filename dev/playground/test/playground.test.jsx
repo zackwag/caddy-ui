@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createPreviewI18n, flattenCatalog, placeholders, readValue } from '../../../dev/playground/model.js';
-import { capture, scenarios } from '../../../dev/playground/registry.jsx';
-import en from '../src/i18n/locales/en.js';
-import de from '../src/i18n/locales/de.js';
+import { createPreviewI18n, flattenCatalog, placeholders, readValue } from '../model.js';
+import { capture, scenarios } from '../registry.jsx';
+import en from '../../../src/frontend/src/i18n/locales/en.js';
+import de from '../../../src/frontend/src/i18n/locales/de.js';
 
 const catalogs = { en, de };
 
