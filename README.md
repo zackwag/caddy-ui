@@ -300,6 +300,7 @@ All backend variables have sensible defaults. Only set what you need to override
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `de`). Reviewed languages (currently English and Arabic) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
+| `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
 | `CADDY_UI_PASSWORD` | — | Password for UI authentication |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
