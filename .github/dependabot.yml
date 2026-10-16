@@ -1,22 +1,46 @@
 version: 2
 updates:
+  # Commit prefixes follow release impact: release-please cuts a release for
+  # chore, but not for build or ci. Runtime dependencies ship in the Docker
+  # images, so they release; dev dependencies and workflow actions don't.
   - package-ecosystem: "npm"
     directory: "/src/backend"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "chore"
+      prefix-development: "build"
+      include: "scope"
 
   - package-ecosystem: "npm"
     directory: "/src/frontend"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "chore"
+      prefix-development: "build"
+      include: "scope"
 
   - package-ecosystem: "npm"
     directory: "/dev"
     schedule:
       interval: "weekly"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+      include: "scope"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-
+    commit-message:
+      prefix: "ci"
+      include: "scope"
