@@ -72,8 +72,44 @@ const historyKeys = ['routeHistory.noDataYet', 'routeHistory.autoRefresh', 'rout
     'routeHistory.segmentTitle', 'routeHistory.now', 'routeHistory.uptime', 'routeHistory.checks',
     'routeHistory.activity', 'routeHistory.noChanges', 'common.close'];
 
+const caddyfileControls = ['caddyfile.sortEntries', 'caddyfile.history', 'caddyfile.import',
+    'caddyfile.reload', 'caddyfile.forceSaveTitle'];
+const caddyfileHistory = ['caddyfile.versionHistory', 'caddyfile.showVersionList', 'caddyfile.resizePanes',
+    'caddyfile.resizePanesHint', 'caddyfile.paneSizes'];
+const caddyfileSnapshot = ['caddyfile.diff', 'caddyfile.raw', 'caddyfile.compareAgainst', 'caddyfile.restore',
+    'caddyfile.deleteSnapshot', 'caddyfile.versionPreview'];
+
 // Register actual component states, not alternative implementations of the UI.
 export const scenarios = [
+    { id: 'caddyfile-editor', title: 'Caddyfile: saved editor', kind: 'caddyfile',
+        profile: 'caddyfile-history', keys: caddyfileControls },
+    { id: 'caddyfile-empty', title: 'Caddyfile: empty snapshot history', kind: 'caddyfile',
+        profile: 'caddyfile-empty', setup: 'caddyfile-history', keys: [...caddyfileHistory, 'caddyfile.noSnapshots'] },
+    { id: 'caddyfile-empty-list', title: 'Caddyfile: empty version list', kind: 'caddyfile',
+        profile: 'caddyfile-empty', setup: 'caddyfile-list', keys: ['caddyfile.hideVersionList',
+            'caddyfile.savedVersions', 'caddyfile.noSavedVersions'] },
+    { id: 'caddyfile-diff', title: 'Caddyfile: older snapshot diff', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-diff', keys: [...caddyfileSnapshot, 'caddyfile.unchangedLines_other'] },
+    { id: 'caddyfile-raw', title: 'Caddyfile: raw snapshot', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-raw', keys: ['caddyfile.raw', 'caddyfile.versionPreview'] },
+    { id: 'caddyfile-no-differences', title: 'Caddyfile: latest snapshot matches saved file', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-history', keys: ['caddyfile.noDifferences'] },
+    { id: 'caddyfile-list', title: 'Caddyfile: saved version list', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-list', keys: ['caddyfile.latest', 'caddyfile.savedVersions'] },
+    { id: 'caddyfile-force-confirm', title: 'Caddyfile: force-save confirmation', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-force', remountOnTranslation: true,
+        keys: ['caddyfile.forceSaveConfirm', 'caddyfile.forceSave'] },
+    { id: 'caddyfile-restore-confirm', title: 'Caddyfile: restore snapshot confirmation', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-restore', remountOnTranslation: true, keys: ['caddyfile.restoreConfirm'] },
+    { id: 'caddyfile-delete-confirm', title: 'Caddyfile: delete snapshot confirmation', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-delete', remountOnTranslation: true, keys: ['caddyfile.deleteSnapshotConfirm'] },
+    { id: 'caddyfile-import-confirm', title: 'Caddyfile: import confirmation', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-import', remountOnTranslation: true, keys: ['caddyfile.importConfirm'] },
+    { id: 'caddyfile-valid', title: 'Caddyfile: successful recorded validation', kind: 'caddyfile',
+        profile: 'caddyfile-history', setup: 'caddyfile-valid', remountOnTranslation: true, keys: ['caddyfile.valid'] },
+    { id: 'route-edit-unavailable', title: 'Route edit: Caddyfile block unavailable', kind: 'route-edit',
+        profile: 'routes-edit-unavailable', setup: 'route-edit', keys: ['routes.titlePlaceholder',
+            'routes.titleClearHint', 'routes.caddyfileLoadFailed'] },
     { id: 'routes-overview', title: 'Routes: captured Caddy routes', kind: 'routes',
         profile: 'routes-online', keys: [...routeControls, ...routeTable] },
     { id: 'routes-columns', title: 'Routes: column menu with ID hidden locally', kind: 'routes',

@@ -36,7 +36,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
     function api(path, method = 'GET', body = null) {
         return new Promise((resolve, reject) => {
             const call = request({ socketPath, path: '/api' + path, method, timeout: 5000, signal: startup.signal,
-                headers: { 'Content-Type': 'application/json', 'X-Instance-Id': 'default' } }, response => {
+                headers: { 'Content-Type': typeof body === 'string' ? 'text/plain' : 'application/json', 'X-Instance-Id': 'default' } }, response => {
                 const chunks = [];
                 response.on('data', chunk => chunks.push(chunk));
                 response.on('error', reject);
@@ -53,7 +53,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
             });
             call.on('timeout', () => call.destroy(new Error(`Capture request timed out: ${method} ${path}`)));
             call.on('error', reject);
-            if (body !== null) call.write(JSON.stringify(body));
+            if (body !== null) call.write(typeof body === 'string' ? body : JSON.stringify(body));
             call.end();
         });
     }
@@ -94,6 +94,8 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         }
         startup.signal.throwIfAborted();
         if (!ready) throw new Error(`Capture backend did not become ready.\n${outputLog}`);
+        const caddyfileEmpty = { id: 'caddyfile-empty', requests: [await successful('/caddyfile'), await successful('/caddyfile/history')] };
+        assert.deepEqual(caddyfileEmpty.requests[1].response.body, []);
         await successful('/metrics/config', 'PUT', { enabled: true });
         const label = await successful('/server-names/srv0', 'PUT', { name: 'Playground HTTP' });
         const online = await snapshot('dashboard-online');
@@ -147,6 +149,22 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         const notifications = { id: 'notifications-default', requests: [await successful('/notifications/config')] };
         assert.equal(notifications.requests[0].response.body.enabled, false);
         assert.equal(notifications.requests[0].response.body.provider, 'ntfy');
+        const routeEdit = { id: 'routes-edit-unavailable', requests: [...routesOnline.requests,
+            await api(`/routes/caddyfile/${encodeURIComponent('—')}`)] };
+        assert(routeEdit.requests.at(-1).response.status >= 400);
+        // Seed snapshots through real saves in this capture's disposable instance.
+        // Only harmless comments change; no external sites or upstreams are added.
+        const before = (await successful('/caddyfile')).response.body;
+        const revised = before + '\n# Localization playground snapshot\n';
+        await successful('/caddyfile?fmt=false&sort=false', 'PUT', revised);
+        // Snapshot filenames have second precision. Keep the two saves distinct.
+        await new Promise(resolve => setTimeout(resolve, 1010 - Date.now() % 1000));
+        await successful('/caddyfile?fmt=false&sort=false', 'PUT', revised);
+        const caddyfileHistory = { id: 'caddyfile-history', requests: [await successful('/caddyfile'), await successful('/caddyfile/history')] };
+        const entries = caddyfileHistory.requests[1].response.body;
+        assert(entries.length >= 2);
+        for (const entry of entries) caddyfileHistory.requests.push(await successful(`/caddyfile/history/${entry.filename}`));
+        caddyfileHistory.requests.push(await successful('/caddyfile/validations?fmt=true', 'POST', revised));
         const adminHeaders = { 'Content-Type': 'application/json', Origin: 'http://0.0.0.0:2019' };
         const original = await (await fetch(info.instance.adminUrl + '/config/', { headers: adminHeaders, signal: AbortSignal.any([startup.signal, AbortSignal.timeout(5000)]) })).json();
         const empty = structuredClone(original);
@@ -169,7 +187,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         result = validateCapture({ formatVersion: CAPTURE_VERSION,
             source: { commit: commit.trim(), sourceHash: await sourceFingerprint(), caddyImage: IMAGE },
             normalization: ['Request IDs', 'ISO timestamps', 'Private capture addresses and paths; measurements remain as observed'],
-            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs, tls, sidebarOnline, sidebarStopped, routesOnline, routesEmpty, history], [
+            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs, tls, sidebarOnline, sidebarStopped, routesOnline, routesEmpty, history, caddyfileEmpty, caddyfileHistory, routeEdit], [
                 [info.instance.adminUrl, 'http://caddy-preview:2019'],
                 [new URL(info.instance.adminUrl).host, 'caddy-preview:2019'],
                 [info.instance.containerName, 'caddy-ui-dev-preview'], [directory, '/capture-state'],

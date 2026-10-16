@@ -387,6 +387,64 @@ try {
     assert.ok(await page.evaluate(() => Math.abs(Date.now() - document.querySelector('iframe').contentWindow.Date.now()) < 100));
     // End route management/history batch.
 
+    // Caddyfile editor and unavailable route block batch.
+    const editorStates = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        const added = scenarios.filter(scenario => ['caddyfile', 'route-edit'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        return added.map(scenario => ({ ...scenario, keys: scenario.keys.filter(key => !existing.has(key)) }));
+    });
+    const editorKeys = new Set();
+    for (const scenario of editorStates) {
+        await go(scenario.keys[0], scenario.id);
+        for (const key of scenario.keys.filter(key => !editorKeys.has(key))) {
+            await keyList.getByRole('button', { name: key, exact: true }).click();
+            await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
+            await editor.fill(`${readValue(en, key)} [preview]`);
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return [...elements].some(element => [element.textContent, ...['title', 'aria-label', 'aria-valuetext', 'placeholder'].map(name => element.getAttribute(name))]
+                    .some(value => value?.includes('[preview]')));
+            }, key);
+            await page.getByRole('button', { name: 'Reset this key' }).click();
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return elements.length && [...elements].every(element => [element.textContent, ...['title', 'aria-label', 'aria-valuetext', 'placeholder'].map(name => element.getAttribute(name))]
+                    .every(value => !value?.includes('[preview]')));
+            }, key);
+            editorKeys.add(key);
+        }
+    }
+    assert.equal(editorKeys.size, 32);
+    await go('caddyfile.paneSizes', 'caddyfile-empty');
+    const separator = frame().getByRole('separator');
+    const oldSize = await separator.getAttribute('aria-valuenow');
+    await separator.focus();
+    await page.keyboard.press('ArrowDown');
+    await page.waitForFunction(oldSize => document.querySelector('iframe').contentDocument.querySelector('[role="separator"]').getAttribute('aria-valuenow') !== oldSize, oldSize);
+    await page.locator('.preview-context summary').click();
+    assert.match(await page.locator('.preview-context pre').innerText(), /aria-valuetext/);
+    await go('caddyfile.forceSaveConfirm', 'caddyfile-force-confirm');
+    await frame().locator('.modal .btn-danger').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: PUT /api/caddyfile?fmt=true&sort=true&validate=false' }).waitFor();
+    await go('caddyfile.deleteSnapshotConfirm', 'caddyfile-delete-confirm');
+    await frame().locator('.modal .btn-danger').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: DELETE /api/caddyfile/history/' }).waitFor();
+    await go('caddyfile.importConfirm', 'caddyfile-import-confirm');
+    await frame().locator('.modal .btn-primary').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: PUT /api/caddyfile' }).waitFor();
+    await go('caddyfile.restoreConfirm', 'caddyfile-restore-confirm');
+    await frame().locator('.modal .btn-primary').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: PUT /api/caddyfile' }).waitFor();
+    await go('caddyfile.sortEntries', 'caddyfile-editor');
+    await frame().locator('.cm-content').fill('# Local unsaved draft');
+    await editor.fill(`${en.caddyfile.sortEntries} [preview]`);
+    assert.match(await frame().locator('.cm-content').innerText(), /Local unsaved draft/);
+    await frame().locator('.editor-toolbar-actions > button').nth(2).click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded window: /api/caddyfile?download=true' }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
+    // End Caddyfile batch.
+
     for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 600 }]) {
         await page.setViewportSize(viewport);
         await go('tls.deleteConfirm', 'certificate-delete');
@@ -422,7 +480,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, 31 route/history keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
+    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, 31 route/history keys, 32 Caddyfile/route-edit keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

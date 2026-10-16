@@ -4,6 +4,9 @@ export default function PreviewFrame({ config, title }) {
     const frame = useRef(null);
     const latest = useRef(config);
     const [report, setReport] = useState(null);
+    // Retain the measured height during context refreshes so responsive
+    // production controls keep the same layout while the key changes.
+    const [height, setHeight] = useState(420);
     const [error, setError] = useState('');
     useEffect(() => { latest.current = config; }, [config]);
     function configure() {
@@ -15,7 +18,9 @@ export default function PreviewFrame({ config, title }) {
             if (event.data.type === 'preview-ready') configure();
             if (event.data.type === 'preview-error') setError(event.data.message);
             if (event.data.type === 'preview-report' && event.data.scenario === latest.current.scenario &&
-                event.data.selected === latest.current.selected && event.data.locale === latest.current.locale) setReport(event.data);
+                event.data.selected === latest.current.selected && event.data.locale === latest.current.locale) {
+                setReport(event.data); setHeight(event.data.height);
+            }
         };
         window.addEventListener('message', receive);
         return () => window.removeEventListener('message', receive);
@@ -25,7 +30,7 @@ export default function PreviewFrame({ config, title }) {
     return <article className="preview-state" data-preview-scenario={config.scenario}>
         <h3>{title}</h3>
         <iframe ref={frame} src="./frame.html" title={title} sandbox="allow-scripts allow-same-origin allow-downloads"
-            onLoad={configure} style={{ height: report?.height || 420 }} />
+            onLoad={configure} style={{ height }} />
         <div className="preview-context" aria-live="polite">
             {error && <p role="alert">Preview failed: {error}</p>}
             {report?.misses.map(message => <p role="alert" key={message}>{message}</p>)}

@@ -26,7 +26,7 @@ test('capture real Dashboard, notification, observability, TLS, sidebar, route a
     const output = resolve(directory, 'dashboard.json');
     const capture = await captureDashboard({ output, onNamespace: project => { scope = new Harness(project); } });
     assert.equal(capture.source.sourceHash, await sourceFingerprint());
-    assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default', 'tls-default', 'sidebar-online', 'sidebar-stopped', 'routes-online', 'routes-empty', 'route-history-empty']);
+    assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default', 'tls-default', 'sidebar-online', 'sidebar-stopped', 'routes-online', 'routes-empty', 'route-history-empty', 'caddyfile-empty', 'caddyfile-history', 'routes-edit-unavailable']);
     const notifications = capture.scenarios.find(scenario => scenario.id === 'notifications-default');
     assert.equal(notifications.requests.length, 1);
     const [record] = notifications.requests;
@@ -73,6 +73,24 @@ test('capture real Dashboard, notification, observability, TLS, sidebar, route a
         `/health/history?route=preview.home.arpa&since=${history.clock - hours * 60 * 60 * 1000}`));
     assert(history.requests.every(record => record.request.method === 'GET' && record.response.status === 200 &&
         record.response.body.entries.length === 0 && record.response.body.intervalMs > 0));
+    const emptyEditor = capture.scenarios.find(scenario => scenario.id === 'caddyfile-empty');
+    assert.deepEqual(emptyEditor.requests[1].response.body, []);
+    const editor = capture.scenarios.find(scenario => scenario.id === 'caddyfile-history');
+    const file = editor.requests[0].response.body;
+    const entries = editor.requests[1].response.body;
+    assert(entries.length >= 2);
+    const snapshots = entries.map(entry => editor.requests.find(record => record.request.path === `/caddyfile/history/${entry.filename}`));
+    assert.equal(snapshots[0].response.body, file);
+    assert.notEqual(snapshots.at(-1).response.body, file);
+    assert.deepEqual(editor.requests.filter(record => record.request.method !== 'GET').map(record => record.request.path),
+        ['/caddyfile/validations?fmt=true']);
+    const validation = editor.requests.at(-1);
+    assert.equal(validation.request.body, file);
+    assert.equal(validation.response.body.valid, true);
+    assert.deepEqual(validation.response.body.warnings, []);
+    const edit = capture.scenarios.find(scenario => scenario.id === 'routes-edit-unavailable');
+    assert(edit.requests.at(-1).response.status >= 400);
+    assert(edit.requests.every(record => record.request.method === 'GET'));
     assert.deepEqual(JSON.parse(await readFile(output, 'utf8')), capture);
     await assertClean(scope);
     const retained = await unrelated.inspect('container', unrelated.resource('sentinel'));

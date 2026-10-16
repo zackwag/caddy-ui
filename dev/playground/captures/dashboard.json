@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "source": {
-    "commit": "253fa1a1da4a62edaa6d672295d1f64b76514212",
-    "sourceHash": "740803fe9de8882dce5c8146dfaa7fad40aa3ebe97060e93715ae4f5696ee133",
+    "commit": "0d5150849b95f6a5391d1ef227fe598920a3dc3b",
+    "sourceHash": "0675f7ad0131dc7ffde2acb00b97bc626d1d5c5a0a140b4cd5174d2b8417f122",
     "caddyImage": "caddy:2.10.2-alpine"
   },
   "normalization": [
@@ -64,8 +64,8 @@
               "version": "v2.10.2",
               "uptime": "1s",
               "uptimeSeconds": 1,
-              "memAlloc": 4.9,
-              "memSys": 17.8,
+              "memAlloc": 4.5,
+              "memSys": 17.6,
               "lastReload": "2025-01-01T12:00:00.000Z",
               "lastReloadSuccess": true
             }
@@ -147,7 +147,7 @@
               "routeCount": 0,
               "upstreamsOnline": 0,
               "upstreamsTotal": 0,
-              "uptime": "1s",
+              "uptime": "2s",
               "servers": [],
               "tlsEnabled": true,
               "adminUrl": "http://caddy-preview:2019"
@@ -169,11 +169,11 @@
             "body": {
               "ok": true,
               "version": "v2.10.2",
-              "uptime": "1s",
-              "uptimeSeconds": 1,
-              "memAlloc": 5.7,
-              "memSys": 18.1,
-              "lastReload": "2025-01-01T12:00:00.714Z",
+              "uptime": "2s",
+              "uptimeSeconds": 2,
+              "memAlloc": 6,
+              "memSys": 17.8,
+              "lastReload": "2025-01-01T12:00:01.499Z",
               "lastReloadSuccess": true
             }
           }
@@ -372,7 +372,7 @@
               "p99": 0,
               "rps": 0,
               "uptimeSeconds": 1,
-              "scrapedAt": "2025-01-01T12:00:00.147Z"
+              "scrapedAt": "2025-01-01T12:00:00.192Z"
             }
           }
         },
@@ -538,8 +538,8 @@
             },
             "body": {
               "lines": [
-                "{\"level\":\"info\",\"ts\":1792133751.0916924,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"41486\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32778\",\"uri\":\"/health\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000053591,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"error\",\"ts\":1792133751.0978658,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"41492\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32778\",\"uri\":\"/error\",\"headers\":{\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000049445,\"size\":21,\"status\":503,\"resp_headers\":{\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"]}}"
+                "{\"level\":\"info\",\"ts\":1792140450.049335,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"45016\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32788\",\"uri\":\"/health\",\"headers\":{\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000063586,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
+                "{\"level\":\"error\",\"ts\":1792140450.0577698,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"45018\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32788\",\"uri\":\"/error\",\"headers\":{\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000037466,\"size\":21,\"status\":503,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}"
               ],
               "path": "/data/dev-caddy/logs/access.log"
             }
@@ -674,7 +674,7 @@
               "routeCount": 3,
               "upstreamsOnline": 0,
               "upstreamsTotal": 0,
-              "uptime": "1s",
+              "uptime": "2s",
               "servers": [
                 {
                   "name": "srv0",
@@ -1054,12 +1054,12 @@
     },
     {
       "id": "route-history-empty",
-      "clock": 1792133751651,
+      "clock": 1792140450669,
       "requests": [
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1792130151651",
+            "path": "/health/history?route=preview.home.arpa&since=1792136850669",
             "body": null
           },
           "response": {
@@ -1078,7 +1078,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1792112151651",
+            "path": "/health/history?route=preview.home.arpa&since=1792118850669",
             "body": null
           },
           "response": {
@@ -1097,7 +1097,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1792047351651",
+            "path": "/health/history?route=preview.home.arpa&since=1792054050669",
             "body": null
           },
           "response": {
@@ -1116,7 +1116,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1791528951651",
+            "path": "/health/history?route=preview.home.arpa&since=1791535650669",
             "body": null
           },
           "response": {
@@ -1129,6 +1129,313 @@
               "entries": [],
               "firstSeen": null,
               "intervalMs": 300000
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "caddyfile-empty",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/caddyfile",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "text/plain; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000051"
+            },
+            "body": "{\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n"
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/caddyfile/history",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000052"
+            },
+            "body": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "caddyfile-history",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/caddyfile",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "text/plain; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000053"
+            },
+            "body": "{\n    metrics\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/caddyfile/history",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000054"
+            },
+            "body": [
+              {
+                "filename": "Caddyfile-2026-10-16T08-47-31",
+                "timestamp": "2026-10-16T08:47:31"
+              },
+              {
+                "filename": "Caddyfile-2026-10-16T08-47-30",
+                "timestamp": "2026-10-16T08:47:30"
+              }
+            ]
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/caddyfile/history/Caddyfile-2026-10-16T08-47-31",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "text/plain; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000055"
+            },
+            "body": "{\n    metrics\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/caddyfile/history/Caddyfile-2026-10-16T08-47-30",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "text/plain; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000056"
+            },
+            "body": "{\n    metrics\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n"
+          }
+        },
+        {
+          "request": {
+            "method": "POST",
+            "path": "/caddyfile/validations?fmt=true",
+            "body": "{\n    metrics\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000057"
+            },
+            "body": {
+              "valid": true,
+              "warnings": [],
+              "formatted": "{\n\tmetrics\n\tadmin 0.0.0.0:2019\n\tauto_https off\n}\n\n:80 {\n\tlog {\n\t\toutput file /data/dev-caddy/logs/access.log\n\t\tformat json\n\t}\n\trespond /health \"ok\" 200\n\trespond /error \"deliberate test error\" 503\n\trespond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "routes-edit-unavailable",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/routes",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000033"
+            },
+            "body": [
+              {
+                "handle": [
+                  {
+                    "body": "ok",
+                    "handler": "static_response",
+                    "status_code": 200
+                  }
+                ],
+                "match": [
+                  {
+                    "path": [
+                      "/health"
+                    ]
+                  }
+                ],
+                "_server": "srv0",
+                "_simpleProxy": false
+              },
+              {
+                "handle": [
+                  {
+                    "body": "deliberate test error",
+                    "handler": "static_response",
+                    "status_code": 503
+                  }
+                ],
+                "match": [
+                  {
+                    "path": [
+                      "/error"
+                    ]
+                  }
+                ],
+                "_server": "srv0",
+                "_simpleProxy": false
+              },
+              {
+                "handle": [
+                  {
+                    "body": "Caddy UI test instance: preview",
+                    "handler": "static_response",
+                    "status_code": 200
+                  }
+                ],
+                "_server": "srv0",
+                "_simpleProxy": false
+              }
+            ]
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/tls",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000034"
+            },
+            "body": []
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/route-notes",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000035"
+            },
+            "body": {}
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/server-names",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000036"
+            },
+            "body": {
+              "srv0": "Playground HTTP"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/routes/maintenance",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000037"
+            },
+            "body": {}
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000038"
+            },
+            "body": []
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/uptime",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000039"
+            },
+            "body": {}
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/routes/caddyfile/%E2%80%94",
+            "body": null
+          },
+          "response": {
+            "status": 404,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000058"
+            },
+            "body": {
+              "error": "site block not found",
+              "code": "NOT_FOUND",
+              "requestId": "00000000-0000-4000-8000-000000000058"
             }
           }
         }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
-import { ConfirmDialog } from '../../src/frontend/src/components/Confirm.jsx';
+import { ConfirmDialog, useConfirm } from '../../src/frontend/src/components/Confirm.jsx';
 import { Toasts, useToast } from '../../src/frontend/src/components/Toasts.jsx';
 import Dashboard from '../../src/frontend/src/components/Dashboard.jsx';
 import Login from '../../src/frontend/src/components/Login.jsx';
@@ -15,6 +15,7 @@ import TLS from '../../src/frontend/src/components/TLS.jsx';
 import Sidebar from '../../src/frontend/src/components/Sidebar.jsx';
 import Routes from '../../src/frontend/src/components/Routes.jsx';
 import RouteHistoryModal from '../../src/frontend/src/components/RouteHistoryModal.jsx';
+import CaddyFile from '../../src/frontend/src/components/CaddyFile.jsx';
 import { availableLocales } from '../../src/frontend/src/i18n/index.js';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
 import { apiFetch } from '../../src/frontend/src/utils/api.js';
@@ -139,8 +140,18 @@ function RoutesFixture() {
         <Toasts toasts={toast.toasts} /></>;
 }
 
+function CaddyfileFixture() {
+    const toast = useToast();
+    const confirmation = useConfirm();
+    return <><div style={{ height: 960 }}>
+        <CaddyFile toast={toast} onUnauth={noop} theme="dark" confirm={confirmation.confirm} />
+    </div><ConfirmDialog dialog={confirmation.dialog} resolve={confirmation.resolve} /><Toasts toasts={toast.toasts} /></>;
+}
+
 export default function FixtureView({ scenario }) {
     switch (scenario.kind) {
+        case 'caddyfile': return <CaddyfileFixture />;
+        case 'route-edit':
         case 'routes': return <RoutesFixture />;
         case 'route-history': return <RouteHistoryModal route="preview.home.arpa" onUnauth={noop} onClose={noop} />;
         case 'tls': return <TLSFixture />;

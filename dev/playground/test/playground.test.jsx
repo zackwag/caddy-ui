@@ -121,5 +121,18 @@ describe('localization playground', () => {
         expect(keys.has('routeHistory.online')).toBe(false);
         expect(keys.has('routes.noUpstreamStatus')).toBe(false);
     });
+    it('adds 32 Caddyfile and unavailable route-block keys with real captures', () => {
+        const added = scenarios.filter(scenario => ['caddyfile', 'route-edit'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        const keys = new Set(added.flatMap(scenario => scenario.keys));
+        expect(added).toHaveLength(13);
+        expect([...keys].filter(key => !existing.has(key))).toHaveLength(32);
+        const profile = capture.scenarios.find(scenario => scenario.id === 'caddyfile-history');
+        expect(profile.requests.filter(record => record.request.method !== 'GET').map(record => record.request.path))
+            .toEqual(['/caddyfile/validations?fmt=true']);
+        expect(keys.has('caddyfile.vsCurrent')).toBe(false);
+        expect(keys.has('caddyfile.savedReloaded')).toBe(false);
+        expect(keys.has('caddyfile.upToDate')).toBe(false);
+    });
 
 });

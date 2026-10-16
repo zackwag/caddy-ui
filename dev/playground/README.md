@@ -59,7 +59,7 @@ One state may cover several keys, and shared keys can occur in several states.
 Current states cover the Dashboard with running/stopped Caddy and no HTTP servers, its loading
 view, label-edit dialog, and successful label save; route/certificate confirmations and a
 notification toast remain available. Unregistered keys explicitly show that no fixture exists.
-Registered states cover 203 distinct keys. The onboarding and appearance states add 27:
+Registered states cover 235 distinct keys. The onboarding and appearance states add 27:
 
 | Production component | Prepared states | New keys |
 | --- | --- | ---: |
@@ -157,6 +157,31 @@ auto-refresh checkbox remain usable; other states use the normal clock. The Clos
 inert in this standalone dialog. Populated history, relative-time messages, transient loading
 states and visually hidden status text are not counted as covered by this batch.
 
+Thirteen Caddyfile and route-edit states add 32 distinct keys. The Caddyfile states mount
+production `CaddyFile`, CodeMirror, `PaneDivider`, confirmation dialogs and toasts. Capture
+reads the initial empty history, then saves a comment-only revision twice through the real
+API in its private instance. This creates distinct older/latest snapshots for the actual
+diff, raw, identical-file and version-list views. The only replayed editor action response is
+a successful validation of the exact captured buffer. Saves, reloads, snapshot deletion,
+restore and import writes have no recorded response and fail visibly through strict replay.
+Export also reports an unrecorded window request. No preview can change a backend.
+
+Use `caddyfile-editor`, `caddyfile-empty`, `caddyfile-empty-list`, `caddyfile-diff`,
+`caddyfile-raw`, `caddyfile-no-differences`, `caddyfile-list`, `caddyfile-valid`, and the
+`caddyfile-force-confirm`, `caddyfile-restore-confirm`, `caddyfile-delete-confirm` and
+`caddyfile-import-confirm` states. The force-save state prepares an unsaved comment through
+CodeMirror's transaction listener. Import uses a frame-local file to open the real confirmation.
+Cached confirmations and validation feedback are rebuilt when their translations change.
+The editor shell has a finite height, and context refreshes retain the last iframe height to
+keep responsive controls stable. The pane divider's translated accessible value is inspected
+through `aria-valuetext`; its label and hint are visible on desktop layouts.
+
+`route-edit-unavailable` opens the actual route editor for a captured route whose Caddyfile
+block lookup fails. The failed read is recorded alongside its supporting reads. The title
+placeholder, clear-title hint and rich-text load failure are registered inside the dialog.
+Native option-only strings, transient progress messages, symbol-prefixed status text and
+unrecorded save results are not counted as new coverage in this batch.
+
 The label dialog is opened through the production edit action, and the saved-label state runs
 the actual Save handler against its recorded response. Navigation stays inside the selected
 component preview; this tool is not a replacement for testing the complete application.
@@ -191,7 +216,8 @@ source commit, source fingerprint, and Caddy image. Normalization preserves stru
 request-ID correlations while replacing private addresses and paths and shifting ISO
 timestamps together to preserve their relative spacing.
 Numeric measurements remain as observed and are frozen during replay. History profile clocks
-and numeric epoch query parameters also remain as observed. Regeneration is not
+and numeric epoch query parameters also remain as observed. Snapshot filenames and their
+local-time timestamps retain their observed values so history request paths stay aligned. Regeneration is not
 expected to be byte-identical across machines. Do not hand-edit generated responses.
 
 The **Localization preview data** workflow publishes an artifact on relevant `main` changes
@@ -200,7 +226,7 @@ not the playground or its browser check. Download the artifact, review the diff,
 `dev/playground/captures/dashboard.json` in a normal commit. It does not push commits or open PRs.
 
 The preview warns if the capture fingerprint differs from its current backend, Dashboard,
-Notifications, Metrics, Logs, TLS, Sidebar, Routes, route history, instance-status, uptime or
+Notifications, Metrics, Logs, TLS, Sidebar, Routes, route history, Caddyfile, divider, diff, instance-status, uptime or
 API sources or backend dependencies. Source changes restart the dev server to recompute the
 fingerprint; this reload discards drafts. The production application build is unchanged.
 Unrecorded requests, query variants, write bodies, and unsupported transports fail visibly;
@@ -210,7 +236,7 @@ server response. Backend-provided strings stay as returned and may have no trans
 ## DOM context and browser agents
 
 The frame observes the keys, resolved values, and interpolation parameters used by production
-components. It highlights matching text or `placeholder`, `title`, and `aria-label` attributes.
+components. It highlights matching text or `placeholder`, `title`, `aria-label`, and `aria-valuetext` attributes.
 Selectors and parameters appear under **DOM selectors and interpolation values**. Repeated
 wording belonging to different observed keys is marked ambiguous with dashed highlights;
 these matches provide context, not proof of a unique key-to-node mapping. Empty values and
@@ -254,8 +280,12 @@ It also edits and resets all 33 TLS/sidebar keys, checks TLS filter refresh and 
 interpolation, and verifies bounded sidebar frames and blocked root CA downloads.
 It also edits and resets all 31 route/history keys, checks retained form/column state, blocked
 route creation, search interpolation and clearing, all four history ranges, and clock isolation.
+It edits and resets all 32 Caddyfile/route-edit keys, checks pane keyboard resizing and local
+editor state retention, and exercises blocked force-save, restore, delete, import and export.
 
-Confirmation actions remain inert. Their normal keyboard listeners are confined to their frame.
+The standalone route/certificate confirmation fixtures remain inert. Caddyfile confirmations
+run their production handlers against strict replay; unrecorded writes are blocked. Keyboard
+listeners are confined to their frame.
 The light toggle applies an actual production palette to the preview. Prepared action-generated
 messages are rebuilt on draft/locale changes so cached messages update without changing app code.
 

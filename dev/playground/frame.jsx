@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
+import { EditorView } from '@codemirror/view';
 import { MemoryRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../../src/frontend/src/i18n/index.js';
@@ -124,6 +125,50 @@ function scheduleReport() {
                 if (scenario.enabled) toggle.click();
             }
         }
+        if (!setupStep && scenario.setup === 'route-edit') {
+            const edit = element.querySelector('.col-actions button[title]:last-of-type');
+            if (edit) { setupStep = 1; edit.click(); }
+        }
+        if (scenario.kind === 'caddyfile') {
+            const buttons = [...element.querySelectorAll('.editor-toolbar-actions > button')];
+            const historySetups = ['caddyfile-history', 'caddyfile-list', 'caddyfile-diff', 'caddyfile-raw', 'caddyfile-restore', 'caddyfile-delete'];
+            if (!setupStep && historySetups.includes(scenario.setup) && buttons[1]) { setupStep = 1; buttons[1].click(); }
+            else if (setupStep === 1 && ['caddyfile-list', 'caddyfile-diff'].includes(scenario.setup)) {
+                const list = element.querySelector('[aria-controls="history-version-list"]');
+                if (list) { setupStep = 2; list.click(); }
+            } else if (setupStep === 2 && scenario.setup === 'caddyfile-diff') {
+                const entries = element.querySelectorAll('.history-entry');
+                if (entries.length >= 2) { setupStep = 3; entries[entries.length - 1].click(); }
+            } else if (setupStep === 1 && scenario.setup === 'caddyfile-raw') {
+                const raw = element.querySelector('.history-range-picker button:last-child');
+                if (raw) { setupStep = 2; raw.click(); }
+            } else if (setupStep === 1 && ['caddyfile-restore', 'caddyfile-delete'].includes(scenario.setup)) {
+                const action = element.querySelectorAll('.history-version-actions button')[scenario.setup === 'caddyfile-restore' ? 0 : 1];
+                if (action && !action.disabled) { setupStep = 2; action.click(); }
+            } else if (!setupStep && scenario.setup === 'caddyfile-force') {
+                const editor = element.querySelector('.cm-content');
+                if (editor) {
+                    setupStep = 1;
+                    // Use the production editor's transaction/update listener;
+                    // leave focus in the contributor's translation input.
+                    const view = EditorView.findFromDOM(editor);
+                    view.dispatch({ changes: { from: view.state.doc.length, insert: '\n# Local playground edit\n' } });
+                }
+            } else if (setupStep === 1 && scenario.setup === 'caddyfile-force' && buttons[5] && !buttons[5].disabled) {
+                setupStep = 2; buttons[5].click();
+            } else if (!setupStep && scenario.setup === 'caddyfile-import') {
+                const input = element.querySelector('input[type="file"]');
+                if (input) {
+                    setupStep = 1;
+                    const data = new DataTransfer();
+                    data.items.add(new File(['# Local playground import\n'], 'Caddyfile', { type: 'text/plain' }));
+                    input.files = data.files;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            } else if (!setupStep && scenario.setup === 'caddyfile-valid' && buttons[0]) {
+                setupStep = 1; buttons[0].click();
+            }
+        }
         const records = [...observations.values()];
         const references = markReferences(element, config.selected, records);
         // Login fills the viewport. Measuring its shell and then adding padding
@@ -142,7 +187,7 @@ function scheduleReport() {
 
 const mutations = new MutationObserver(scheduleReport);
 mutations.observe(element, { subtree: true, childList: true, characterData: true,
-    attributes: true, attributeFilter: ['title', 'placeholder', 'aria-label'] });
+    attributes: true, attributeFilter: ['title', 'placeholder', 'aria-label', 'aria-valuetext'] });
 const sizes = new ResizeObserver(scheduleReport);
 sizes.observe(element);
 
