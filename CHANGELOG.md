@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.2](https://github.com/zackwag/caddy-ui/compare/v2.25.1...v2.25.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* replace font-dependent UI symbols with custom SVG icons ([#259](https://github.com/zackwag/caddy-ui/issues/259)) ([0db2e49](https://github.com/zackwag/caddy-ui/commit/0db2e490c33568b8f0cfd0b4866648f31ae92fc1))
+
 ## [2.25.1](https://github.com/zackwag/caddy-ui/compare/v2.25.0...v2.25.1) (2026-10-16)
 
 
