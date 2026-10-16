@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.29.0. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.29.1. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -183,7 +183,7 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
 | `CADDY_UI_UPDATE_CHECK_URL` | `https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json` | Where the update check reads published image versions from |
-| `CADDY_UI_USER` | — | Username for UI authentication (leave unset to disable) |
+| `CADDY_UI_USER` | — | Username for UI authentication (leave all three auth variables unset to disable) |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
 | `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://zackwag.github.io/caddy-ui/instances.html#multi-instance)) |
@@ -203,7 +203,9 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 
 ## Authentication
 
-Authentication is disabled by default. Set `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` to enable it. When enabled, protected API endpoints require a valid JWT and the login screen appears automatically.
+Authentication is disabled only when `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` are all unset. To enable it, provide all three with non-empty, non-whitespace-only values. Valid values are used exactly as supplied; leading/trailing spaces are not removed from credentials. When enabled, protected API endpoints require a valid JWT and the login screen appears automatically.
+
+> **Upgrade note:** Earlier versions could silently disable authentication when one or more values were missing or empty. The backend now exits unsuccessfully before opening its API port if authentication is partially configured or any provided value is blank. Explicitly empty environment variables count as provided, including empty Compose substitutions. The startup error lists variable names only. Supply all three valid values, or remove all three variables to intentionally disable authentication. Inspect the error with `docker compose logs --tail=100 caddy-ui-backend` (using your service name).
 
 Without authentication, anyone who can reach caddy/ui can change your Caddy configuration, so enable it unless the UI is only reachable by people you trust. In either mode, browser-origin checks reject cross-site writes as described below; they do not authenticate the caller.
 
