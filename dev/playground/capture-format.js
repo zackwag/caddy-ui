@@ -31,6 +31,9 @@ export function validateCapture(capture) {
     const ids = new Set();
     for (const scenario of capture.scenarios) {
         if (!scenario.id || ids.has(scenario.id) || !Array.isArray(scenario.requests)) throw new Error('Invalid or duplicate capture scenario.');
+        if (scenario.clock !== undefined && (!Number.isSafeInteger(scenario.clock) || scenario.clock < 0)) {
+            throw new Error('Invalid capture clock. Refresh the capture.');
+        }
         ids.add(scenario.id);
         const requests = new Set();
         for (const record of scenario.requests) {

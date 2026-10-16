@@ -13,6 +13,8 @@ import Metrics from '../../src/frontend/src/components/Metrics.jsx';
 import Logs from '../../src/frontend/src/components/Logs.jsx';
 import TLS from '../../src/frontend/src/components/TLS.jsx';
 import Sidebar from '../../src/frontend/src/components/Sidebar.jsx';
+import Routes from '../../src/frontend/src/components/Routes.jsx';
+import RouteHistoryModal from '../../src/frontend/src/components/RouteHistoryModal.jsx';
 import { availableLocales } from '../../src/frontend/src/i18n/index.js';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
 import { apiFetch } from '../../src/frontend/src/utils/api.js';
@@ -129,8 +131,18 @@ function SidebarFixture({ loading }) {
     </div>;
 }
 
+function RoutesFixture() {
+    const toast = useToast();
+    const [columns, setColumns] = useState({ status: true, title: true, upstream: true, server: true, id: true });
+    return <><Routes toast={toast} onUnauth={noop} confirm={async () => false} theme="dark"
+        routeColumns={columns} onRouteColumnsChange={setColumns} routeChecks={false} routeCheckExcludes={[]} />
+        <Toasts toasts={toast.toasts} /></>;
+}
+
 export default function FixtureView({ scenario }) {
     switch (scenario.kind) {
+        case 'routes': return <RoutesFixture />;
+        case 'route-history': return <RouteHistoryModal route="preview.home.arpa" onUnauth={noop} onClose={noop} />;
         case 'tls': return <TLSFixture />;
         case 'sidebar': return <SidebarFixture loading={scenario.loading} />;
         case 'login': return <Login onLogin={noop} sessionExpired={scenario.sessionExpired} />;

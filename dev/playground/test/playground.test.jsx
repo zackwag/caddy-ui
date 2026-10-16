@@ -73,7 +73,7 @@ describe('localization playground', () => {
     });
     it('adds 43 observability keys using read-only real-capture profiles', () => {
         const added = scenarios.filter(scenario => ['metrics', 'logs'].includes(scenario.kind));
-        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario) && !['tls', 'sidebar'].includes(scenario.kind)).flatMap(scenario => scenario.keys));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario) && !['tls', 'sidebar', 'routes', 'route-history'].includes(scenario.kind)).flatMap(scenario => scenario.keys));
         const keys = new Set(added.flatMap(scenario => scenario.keys));
         expect(added).toHaveLength(5);
         expect([...keys].filter(key => !existing.has(key))).toHaveLength(43);
@@ -106,6 +106,20 @@ describe('localization playground', () => {
         expect(keys.has('tls.filter.valid')).toBe(false);
         expect(keys.has('tls.validUpper')).toBe(false);
         expect(keys.has('sidebar.updateAvailable')).toBe(false);
+    });
+    it('adds 31 route management and history keys from real read-only profiles', () => {
+        const added = scenarios.filter(scenario => ['routes', 'route-history'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        const keys = new Set(added.flatMap(scenario => scenario.keys));
+        expect(added).toHaveLength(6);
+        expect([...keys].filter(key => !existing.has(key))).toHaveLength(31);
+        for (const profileId of new Set(added.map(scenario => scenario.profile))) {
+            const profile = capture.scenarios.find(profile => profile.id === profileId);
+            expect(profile.requests.every(record => record.request.method === 'GET')).toBe(true);
+        }
+        expect(keys.has('routes.added')).toBe(false);
+        expect(keys.has('routeHistory.online')).toBe(false);
+        expect(keys.has('routes.noUpstreamStatus')).toBe(false);
     });
 
 });

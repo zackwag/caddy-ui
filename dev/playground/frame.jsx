@@ -14,6 +14,7 @@ const modules = import.meta.glob('../../src/frontend/src/i18n/locales/*.js', { e
 const catalogs = Object.fromEntries(Object.entries(modules).map(([path, catalog]) => [path.split('/').pop().slice(0, -3), catalog]));
 const element = document.getElementById('root');
 const root = createRoot(element, { onUncaughtError: error => send({ type: 'preview-error', message: error.message }) });
+const realNow = Date.now;
 const observations = new Map();
 const misses = new Set();
 let config;
@@ -87,6 +88,15 @@ function scheduleReport() {
         } else if (setupStep === 1 && scenario.setup === 'label-saved') {
             const save = element.querySelector('.modal .btn-primary');
             if (save) { setupStep = 2; save.click(); }
+        } else if (!setupStep && scenario.setup === 'route-add') {
+            const add = element.querySelector('.routes-toolbar-actions > .btn-primary');
+            if (add) { setupStep = 1; add.click(); }
+        } else if (!setupStep && scenario.setup === 'route-columns') {
+            const trigger = element.querySelector('.col-picker-trigger');
+            if (trigger) { setupStep = 1; trigger.click(); }
+        } else if (setupStep === 1 && scenario.setup === 'route-columns') {
+            const id = element.querySelector('.col-picker-item:last-of-type input');
+            if (id) { setupStep = 2; id.click(); }
         } else if (!setupStep && scenario.setup === 'tls-filter') {
             const card = element.querySelectorAll('.grid-4 .card-clickable')[scenario.filterIndex];
             if (card) { setupStep = 1; card.click(); }
@@ -142,6 +152,10 @@ async function configurePreview(event) {
     const next = event.data.config;
     const scenario = scenarios.find(scenario => scenario.id === next?.scenario);
     if (!scenario || !Object.hasOwn(catalogs, next.locale) || typeof readValue(catalogs.en, next.selected) !== 'string') return;
+    const profile = capture.scenarios.find(profile => profile.id === scenario.profile);
+    // History queries contain an exact since=<epoch>. Replay its observed clock
+    // so production range controls keep using the captured request URLs.
+    Date.now = profile?.clock === undefined ? realNow : () => profile.clock;
     const currentRevision = ++revision;
     config = next;
     const translationKey = JSON.stringify([next.locale, next.overrides]);
@@ -152,7 +166,6 @@ async function configurePreview(event) {
         ? JSON.stringify([scenario.id, next.locale, next.overrides]) : scenario.id;
     if (configuredState !== stateKey) {
         misses.clear(); observations.clear(); setupStep = 0;
-        const profile = capture.scenarios.find(profile => profile.id === scenario.profile);
         window.fetch = createReplayFetch(profile?.requests || [], miss, location.origin);
         configuredState = stateKey;
     }
@@ -180,6 +193,7 @@ import.meta.hot?.dispose(() => {
     mutations.disconnect(); sizes.disconnect();
     window.removeEventListener('message', configurePreview);
     root.unmount(); style.remove();
+    Date.now = realNow;
     if (HTMLElement.prototype.focus === previewFocus) HTMLElement.prototype.focus = focus;
     // Keep virtual storage/replay in place until the next module initializes.
 });

@@ -65,8 +65,29 @@ const sidebarKeys = ['sidebar.serverManager', 'sidebar.refreshStatus', 'sidebar.
     'sidebar.nav.routes', 'sidebar.nav.tls', 'sidebar.nav.logs', 'sidebar.nav.metrics',
     'sidebar.nav.notifications', 'sidebar.nav.instances'];
 
+const routeControls = ['routes.filterPlaceholder', 'routes.onlineSummary', 'routes.columns', 'routes.addRoute', 'common.refresh'];
+const routeTable = ['routes.status', 'routes.domain', 'routes.title', 'routes.upstream', 'routes.server',
+    'routes.id', 'routes.serverFilterTitle', 'routes.noUpstream', 'routes.enableMaintenance', 'routes.editRoute'];
+const historyKeys = ['routeHistory.noDataYet', 'routeHistory.autoRefresh', 'routeHistory.noData',
+    'routeHistory.segmentTitle', 'routeHistory.now', 'routeHistory.uptime', 'routeHistory.checks',
+    'routeHistory.activity', 'routeHistory.noChanges', 'common.close'];
+
 // Register actual component states, not alternative implementations of the UI.
 export const scenarios = [
+    { id: 'routes-overview', title: 'Routes: captured Caddy routes', kind: 'routes',
+        profile: 'routes-online', keys: [...routeControls, ...routeTable] },
+    { id: 'routes-columns', title: 'Routes: column menu with ID hidden locally', kind: 'routes',
+        profile: 'routes-online', setup: 'route-columns', keys: [...routeControls, ...routeTable,
+            'routes.domainActionsAlwaysShown', 'routes.someColumnsHidden'] },
+    { id: 'routes-add', title: 'Routes: new route form', kind: 'routes', profile: 'routes-online',
+        setup: 'route-add', keys: ['routes.newRoute', 'routes.domain', 'routes.upstream',
+            'routes.stripPrefixOptional', 'routes.addRoute', 'common.cancel'] },
+    { id: 'routes-filtered', title: 'Routes: search with no matching routes', kind: 'routes', profile: 'routes-online',
+        path: '/routes?filter=playground-no-matching-routes', keys: [...routeControls, 'routes.clearFilter', 'routes.noMatching'] },
+    { id: 'routes-empty', title: 'Routes: captured empty Caddy configuration', kind: 'routes',
+        profile: 'routes-empty', keys: [...routeControls, 'routes.noneConfigured'] },
+    { id: 'route-history-empty', title: 'Route history: no recorded checks', kind: 'route-history',
+        profile: 'route-history-empty', keys: historyKeys },
     { id: 'tls-empty', title: 'TLS: captured empty certificate store', kind: 'tls',
         profile: 'tls-default', keys: tlsKeys },
     ...['valid', 'expiring', 'expired'].map((filter, index) => ({ id: `tls-${filter}`,

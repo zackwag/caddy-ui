@@ -8,6 +8,7 @@ export const sourceInputs = ['src/backend/src', 'src/backend/package.json', 'src
     'dev/dev-caddy/harness.mjs', 'src/frontend/src/components/Dashboard.jsx', 'src/frontend/src/components/Notifications.jsx',
     'src/frontend/src/components/Metrics.jsx', 'src/frontend/src/components/UpstreamUptime.jsx', 'src/frontend/src/components/Logs.jsx',
     'src/frontend/src/components/TLS.jsx', 'src/frontend/src/components/Sidebar.jsx', 'src/frontend/src/hooks/useInstanceStatus.js',
+    'src/frontend/src/components/Routes.jsx', 'src/frontend/src/components/RouteHistoryModal.jsx',
     'src/frontend/src/utils/routes.js', 'src/frontend/src/utils/logSource.js',
     'src/frontend/src/utils/api.js', 'src/frontend/src/utils/format.js'];
 

@@ -38,6 +38,17 @@ describe('captured localization data', () => {
         expect(await (await empty('/api/status')).text()).toBe('');
         expect(await (await scalar(new Request('http://preview.local/api/status'))).json()).toBe('a JSON string');
     });
+    it('validates optional captured clocks without changing strict query matching', async () => {
+        const capture = { formatVersion: 1, source: { commit: 'a'.repeat(40) },
+            scenarios: [{ id: 'history', clock: 1700000000000, requests: [record] }] };
+        expect(validateCapture(capture)).toBe(capture);
+        for (const clock of [-1, '1700000000000', Infinity, 1.5]) {
+            expect(() => validateCapture({ ...capture, scenarios: [{ ...capture.scenarios[0], clock }] })).toThrow(/clock/);
+        }
+        const replay = createReplayFetch([{ ...record, request: { method: 'GET', path: '/health/history?since=1700000000000', body: null } }]);
+        expect((await replay('/api/health/history?since=1700000000000')).status).toBe(200);
+        await expect(replay('/api/health/history?since=1700000000001')).rejects.toThrow(/Unrecorded/);
+    });
     it('returns fresh real-shaped responses and preserves soft HTTP-200 failure contracts', async () => {
         const replay = createReplayFetch([{ ...record, response: { ...record.response, body: { ok: false, code: 'METRICS_UNAVAILABLE' } } }]);
         expect(await (await replay('/api/status')).json()).toEqual({ ok: false, code: 'METRICS_UNAVAILABLE' });

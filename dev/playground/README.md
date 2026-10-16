@@ -13,6 +13,9 @@ owns the preview's browser/build dependencies. Existing frontend preview command
 remain forwarding aliases, while the root commands are the shared entry points.
 Open http://127.0.0.1:5174. No backend, Docker container, account, or API mocks are required.
 `npm run i18n:preview:build` produces a separate `src/frontend/dist-playground/` build; the production entry and build are unchanged.
+Preview, build and browser-check commands prepare the generated Caddyfile editor mode through
+the existing fetch script. A clean checkout needs network access for that first fetch; later
+fetch failures can use the existing local copy.
 
 Search canonical English keys or saved values, choose an installed locale, and select a key.
 Registered component states appear above the English reference and saved locale value.
@@ -56,7 +59,7 @@ One state may cover several keys, and shared keys can occur in several states.
 Current states cover the Dashboard with running/stopped Caddy and no HTTP servers, its loading
 view, label-edit dialog, and successful label save; route/certificate confirmations and a
 notification toast remain available. Unregistered keys explicitly show that no fixture exists.
-Registered states cover 172 distinct keys. The onboarding and appearance states add 27:
+Registered states cover 203 distinct keys. The onboarding and appearance states add 27:
 
 | Production component | Prepared states | New keys |
 | --- | --- | ---: |
@@ -136,6 +139,24 @@ stays in the frame's memory router; status-refresh and sign-out callbacks are in
 sidebar uses a finite-height production shell to keep frame sizing stable. Update notices
 and the multiple-instance switcher need their own capture scenarios and are not counted.
 
+Six route-management and history states add another 31 distinct keys. `routes-overview`
+mounts production `Routes` with captured Caddy routes, labels, notes, maintenance, TLS and
+health reads. `routes-columns` opens its actual column menu and hides ID through the real
+checkbox handler; these preferences stay inside the frame. `routes-add` opens the production
+new-route form. `routes-filtered` uses the production filter URL parameter, while
+`routes-empty` replays a real Caddy configuration with no HTTP servers. Form fields, filters
+and column choices survive draft edits within a state. No route writes are recorded:
+submitting Add Route fails visibly through strict replay and cannot change a backend.
+
+`route-history-empty` mounts production `RouteHistoryModal` against actual empty history
+reads for an unmonitored documentation hostname. Reading its history does not enable checks
+or probe that hostname. All four range queries are captured. The profile stores its observed
+epoch clock; only this frame's `Date.now()` is frozen to that value so the component's exact
+`since` query parameters replay without loosening request matching. Range buttons and the
+auto-refresh checkbox remain usable; other states use the normal clock. The Close callback is
+inert in this standalone dialog. Populated history, relative-time messages, transient loading
+states and visually hidden status text are not counted as covered by this batch.
+
 The label dialog is opened through the production edit action, and the saved-label state runs
 the actual Save handler against its recorded response. Navigation stays inside the selected
 component preview; this tool is not a replacement for testing the complete application.
@@ -169,7 +190,8 @@ Captures contain request methods, paths, write bodies, response statuses/headers
 source commit, source fingerprint, and Caddy image. Normalization preserves structure and
 request-ID correlations while replacing private addresses and paths and shifting ISO
 timestamps together to preserve their relative spacing.
-Numeric measurements remain as observed and are frozen during replay. Regeneration is not
+Numeric measurements remain as observed and are frozen during replay. History profile clocks
+and numeric epoch query parameters also remain as observed. Regeneration is not
 expected to be byte-identical across machines. Do not hand-edit generated responses.
 
 The **Localization preview data** workflow publishes an artifact on relevant `main` changes
@@ -178,8 +200,9 @@ not the playground or its browser check. Download the artifact, review the diff,
 `dev/playground/captures/dashboard.json` in a normal commit. It does not push commits or open PRs.
 
 The preview warns if the capture fingerprint differs from its current backend, Dashboard,
-Notifications, Metrics, Logs, TLS, Sidebar, instance-status, uptime or API sources or backend
-dependencies. Source changes restart the dev server to recompute the fingerprint; this reload discards drafts. The production application build is unchanged.
+Notifications, Metrics, Logs, TLS, Sidebar, Routes, route history, instance-status, uptime or
+API sources or backend dependencies. Source changes restart the dev server to recompute the
+fingerprint; this reload discards drafts. The production application build is unchanged.
 Unrecorded requests, query variants, write bodies, and unsupported transports fail visibly;
 there is no forwarding to a live backend. Loading is an explicit UI state, not an invented
 server response. Backend-provided strings stay as returned and may have no translation key.
@@ -229,6 +252,8 @@ Metrics/Logs configuration writes. These browser checks remain optional and are 
 
 It also edits and resets all 33 TLS/sidebar keys, checks TLS filter refresh and version
 interpolation, and verifies bounded sidebar frames and blocked root CA downloads.
+It also edits and resets all 31 route/history keys, checks retained form/column state, blocked
+route creation, search interpolation and clearing, all four history ranges, and clock isolation.
 
 Confirmation actions remain inert. Their normal keyboard listeners are confined to their frame.
 The light toggle applies an actual production palette to the preview. Prepared action-generated

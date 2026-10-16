@@ -11,6 +11,8 @@ on:
       - 'src/frontend/src/components/Notifications.jsx'
       - 'src/frontend/src/components/TLS.jsx'
       - 'src/frontend/src/components/Sidebar.jsx'
+      - 'src/frontend/src/components/Routes.jsx'
+      - 'src/frontend/src/components/RouteHistoryModal.jsx'
       - 'src/frontend/src/hooks/useInstanceStatus.js'
       - 'src/frontend/src/utils/api.js'
       - 'src/frontend/src/utils/format.js'

@@ -128,6 +128,20 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
             for (const path of sidebarPaths) requests.push(await successful(path));
             return { id, requests };
         }
+        const routePaths = ['/routes', '/tls', '/route-notes', '/server-names', '/routes/maintenance', '/health', '/health/uptime'];
+        async function routeSnapshot(id) {
+            const requests = [];
+            for (const path of routePaths) requests.push(await successful(path));
+            return { id, requests };
+        }
+        const routesOnline = await routeSnapshot('routes-online');
+        assert(routesOnline.requests[0].response.body.length > 0);
+        const history = { id: 'route-history-empty', clock: Date.now(), requests: [] };
+        for (const hours of [1, 6, 24, 168]) {
+            const record = await successful(`/health/history?route=preview.home.arpa&since=${history.clock - hours * 60 * 60 * 1000}`);
+            assert.deepEqual(record.response.body.entries, []);
+            history.requests.push(record);
+        }
         const sidebarOnline = await sidebarSnapshot('sidebar-online');
         // Read untouched notification defaults without configuring or sending.
         const notifications = { id: 'notifications-default', requests: [await successful('/notifications/config')] };
@@ -142,6 +156,8 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         const noServers = await snapshot('dashboard-empty');
         assert.equal(noServers.requests[0].response.body.online, true);
         assert.equal(noServers.requests[0].response.body.serverCount, 0);
+        const routesEmpty = await routeSnapshot('routes-empty');
+        assert.deepEqual(routesEmpty.requests[0].response.body, []);
         await harness.stop('preview');
         const stopped = await snapshot('dashboard-stopped');
         assert.equal(stopped.requests[0].response.body.online, false);
@@ -153,7 +169,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         result = validateCapture({ formatVersion: CAPTURE_VERSION,
             source: { commit: commit.trim(), sourceHash: await sourceFingerprint(), caddyImage: IMAGE },
             normalization: ['Request IDs', 'ISO timestamps', 'Private capture addresses and paths; measurements remain as observed'],
-            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs, tls, sidebarOnline, sidebarStopped], [
+            scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs, tls, sidebarOnline, sidebarStopped, routesOnline, routesEmpty, history], [
                 [info.instance.adminUrl, 'http://caddy-preview:2019'],
                 [new URL(info.instance.adminUrl).host, 'caddy-preview:2019'],
                 [info.instance.containerName, 'caddy-ui-dev-preview'], [directory, '/capture-state'],

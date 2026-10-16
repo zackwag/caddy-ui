@@ -225,7 +225,7 @@ try {
     const observabilityStates = await page.evaluate(async () => {
         const { scenarios } = await import('/registry.jsx');
         const additions = scenarios.filter(scenario => ['metrics', 'logs'].includes(scenario.kind));
-        const existing = new Set(scenarios.filter(scenario => !additions.includes(scenario) && !['tls', 'sidebar'].includes(scenario.kind)).flatMap(scenario => scenario.keys));
+        const existing = new Set(scenarios.filter(scenario => !additions.includes(scenario) && !['tls', 'sidebar', 'routes', 'route-history'].includes(scenario.kind)).flatMap(scenario => scenario.keys));
         return additions.map(scenario => ({ ...scenario, keys: scenario.keys.filter(key => !existing.has(key)) }));
     });
     const observabilityKeys = new Set();
@@ -319,6 +319,74 @@ try {
         assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
     }
 
+    // Route management/history batch.
+    const routeStates = await page.evaluate(async () => {
+        const { scenarios } = await import('/registry.jsx');
+        const added = scenarios.filter(scenario => ['routes', 'route-history'].includes(scenario.kind));
+        const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
+        return added.map(scenario => ({ ...scenario, keys: scenario.keys.filter(key => !existing.has(key)) }));
+    });
+    const routeKeys = new Set();
+    for (const scenario of routeStates) {
+        await go(scenario.keys[0], scenario.id);
+        for (const key of scenario.keys.filter(key => !routeKeys.has(key))) {
+            await keyList.getByRole('button', { name: key, exact: true }).click();
+            await frame().locator(`[data-preview-key="${key}"]`).first().waitFor();
+            await editor.fill(`${readValue(en, key)} [preview]`);
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return [...elements].some(element => [element.textContent, ...['title', 'aria-label', 'placeholder'].map(name => element.getAttribute(name))]
+                    .some(value => value?.includes('[preview]')));
+            }, key);
+            await page.getByRole('button', { name: 'Reset this key' }).click();
+            await page.waitForFunction(key => {
+                const elements = document.querySelector('iframe').contentDocument.querySelectorAll(`[data-preview-key="${key}"]`);
+                return elements.length && [...elements].every(element => [element.textContent, ...['title', 'aria-label', 'placeholder'].map(name => element.getAttribute(name))]
+                    .every(value => !value?.includes('[preview]')));
+            }, key);
+            routeKeys.add(key);
+        }
+    }
+    assert.equal(routeKeys.size, 31);
+    await go('routes.newRoute', 'routes-add');
+    await frame().locator('.modal input').nth(0).fill('preview.home.arpa');
+    await frame().locator('.modal input').nth(1).fill('127.0.0.1:8080');
+    await editor.fill(`${en.routes.newRoute} [preview]`);
+    await frame().locator('.modal-title').filter({ hasText: '[preview]' }).waitFor();
+    assert.equal(await frame().locator('.modal input').nth(0).inputValue(), 'preview.home.arpa');
+    await frame().locator('.modal .btn-primary').click();
+    await page.getByRole('alert').filter({ hasText: 'Unrecorded request: POST /api/routes' }).waitFor();
+    await go('routes.someColumnsHidden', 'routes-columns');
+    await frame().locator('.col-picker-badge').waitFor();
+    assert.equal(await frame().locator('.col-picker-item input').last().isChecked(), false);
+    await editor.fill(`${en.routes.someColumnsHidden} [preview]`);
+    await frame().getByTitle(`${en.routes.someColumnsHidden} [preview]`, { exact: true }).waitFor();
+    assert.equal(await frame().locator('.col-picker-item input').last().isChecked(), false);
+    await go('routes.noMatching', 'routes-filtered');
+    await page.locator('.preview-context summary').click();
+    assert.match(await page.locator('.preview-context pre').innerText(), /"search": "playground-no-matching-routes"/);
+    await frame().getByTitle('Clear filter', { exact: true }).click();
+    await frame().locator('tbody tr').first().waitFor();
+    await go('routeHistory.segmentTitle', 'route-history-empty');
+    await page.locator('.preview-context summary').click();
+    assert.match(await page.locator('.preview-context pre').innerText(), /"status": "No data"/);
+    const historyClock = await page.evaluate(() => document.querySelector('iframe').contentWindow.Date.now());
+    for (const range of ['1h', '6h', '24h', '7d']) {
+        await frame().getByRole('button', { name: range, exact: true }).click();
+        await frame().locator('.history-range-picker .btn-primary').filter({ hasText: range }).waitFor();
+        await frame().locator('.history-activity-empty').waitFor();
+        assert.equal(await page.evaluate(() => document.querySelector('iframe').contentWindow.Date.now()), historyClock);
+        assert.equal(await page.getByRole('alert').filter({ hasNotText: 'Captured data differs' }).count(), 0);
+    }
+    await frame().locator('.history-auto-refresh input').uncheck();
+    await frame().locator('.history-auto-refresh input').check();
+    await frame().locator('.history-activity-empty').waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
+    await keyList.getByRole('button', { name: 'routes.noneConfigured', exact: true }).click();
+    await frame().locator('[data-preview-key="routes.noneConfigured"]').waitFor();
+    assert.ok(await page.evaluate(() => Math.abs(Date.now() - document.querySelector('iframe').contentWindow.Date.now()) < 100));
+    // End route management/history batch.
+
     for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }, { width: 1280, height: 600 }]) {
         await page.setViewportSize(viewport);
         await go('tls.deleteConfirm', 'certificate-delete');
@@ -354,7 +422,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
+    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, 31 route/history keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

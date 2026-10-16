@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "source": {
-    "commit": "156fc771e9979d392efdfc566a0d2ddaa711f9b1",
-    "sourceHash": "b91bc38796787002f474f9c9f3607f60465c6eb89d760c446a4aa8b22a8302a5",
+    "commit": "253fa1a1da4a62edaa6d672295d1f64b76514212",
+    "sourceHash": "740803fe9de8882dce5c8146dfaa7fad40aa3ebe97060e93715ae4f5696ee133",
     "caddyImage": "caddy:2.10.2-alpine"
   },
   "normalization": [
@@ -171,9 +171,9 @@
               "version": "v2.10.2",
               "uptime": "1s",
               "uptimeSeconds": 1,
-              "memAlloc": 4.8,
-              "memSys": 17.8,
-              "lastReload": "2025-01-01T12:00:00.564Z",
+              "memAlloc": 5.7,
+              "memSys": 18.1,
+              "lastReload": "2025-01-01T12:00:00.714Z",
               "lastReloadSuccess": true
             }
           }
@@ -372,7 +372,7 @@
               "p99": 0,
               "rps": 0,
               "uptimeSeconds": 1,
-              "scrapedAt": "2025-01-01T12:00:00.152Z"
+              "scrapedAt": "2025-01-01T12:00:00.147Z"
             }
           }
         },
@@ -538,8 +538,8 @@
             },
             "body": {
               "lines": [
-                "{\"level\":\"info\",\"ts\":1792133211.2500443,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"58662\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32768\",\"uri\":\"/health\",\"headers\":{\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000040321,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"error\",\"ts\":1792133211.2564197,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"58672\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32768\",\"uri\":\"/error\",\"headers\":{\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000039059,\"size\":21,\"status\":503,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}"
+                "{\"level\":\"info\",\"ts\":1792133751.0916924,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"41486\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32778\",\"uri\":\"/health\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000053591,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
+                "{\"level\":\"error\",\"ts\":1792133751.0978658,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"41492\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32778\",\"uri\":\"/error\",\"headers\":{\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000049445,\"size\":21,\"status\":503,\"resp_headers\":{\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"]}}"
               ],
               "path": "/data/dev-caddy/logs/access.log"
             }
@@ -775,6 +775,360 @@
               "error": "Caddy status unavailable",
               "code": "CADDY_STATUS_UNAVAILABLE",
               "requestId": "00000000-0000-4000-8000-000000000032"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "routes-online",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/routes",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000033"
+            },
+            "body": [
+              {
+                "handle": [
+                  {
+                    "body": "ok",
+                    "handler": "static_response",
+                    "status_code": 200
+                  }
+                ],
+                "match": [
+                  {
+                    "path": [
+                      "/health"
+                    ]
+                  }
+                ],
+                "_server": "srv0",
+                "_simpleProxy": false
+              },
+              {
+                "handle": [
+                  {
+                    "body": "deliberate test error",
+                    "handler": "static_response",
+                    "status_code": 503
+                  }
+                ],
+                "match": [
+                  {
+                    "path": [
+                      "/error"
+                    ]
+                  }
+                ],
+                "_server": "srv0",
+                "_simpleProxy": false
+              },
+              {
+                "handle": [
+                  {
+                    "body": "Caddy UI test instance: preview",
+                    "handler": "static_response",
+                    "status_code": 200
+                  }
+                ],
+                "_server": "srv0",
+                "_simpleProxy": false
+              }
+            ]
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/tls",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000034"
+            },
+            "body": []
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/route-notes",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000035"
+            },
+            "body": {}
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/server-names",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000036"
+            },
+            "body": {
+              "srv0": "Playground HTTP"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/routes/maintenance",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000037"
+            },
+            "body": {}
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000038"
+            },
+            "body": []
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/uptime",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000039"
+            },
+            "body": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "routes-empty",
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/routes",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000040"
+            },
+            "body": []
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/tls",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000041"
+            },
+            "body": []
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/route-notes",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000042"
+            },
+            "body": {}
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/server-names",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000043"
+            },
+            "body": {
+              "srv0": "Playground HTTP"
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/routes/maintenance",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000044"
+            },
+            "body": {}
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000045"
+            },
+            "body": []
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/uptime",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000046"
+            },
+            "body": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-history-empty",
+      "clock": 1792133751651,
+      "requests": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/history?route=preview.home.arpa&since=1792130151651",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000047"
+            },
+            "body": {
+              "entries": [],
+              "firstSeen": null,
+              "intervalMs": 300000
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/history?route=preview.home.arpa&since=1792112151651",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000048"
+            },
+            "body": {
+              "entries": [],
+              "firstSeen": null,
+              "intervalMs": 300000
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/history?route=preview.home.arpa&since=1792047351651",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000049"
+            },
+            "body": {
+              "entries": [],
+              "firstSeen": null,
+              "intervalMs": 300000
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/history?route=preview.home.arpa&since=1791528951651",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000050"
+            },
+            "body": {
+              "entries": [],
+              "firstSeen": null,
+              "intervalMs": 300000
             }
           }
         }
