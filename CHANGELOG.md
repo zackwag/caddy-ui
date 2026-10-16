@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.1](https://github.com/zackwag/caddy-ui/compare/v2.25.0...v2.25.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **e2e:** prevent navigation and Docker network startup races ([#255](https://github.com/zackwag/caddy-ui/issues/255)) ([fcbd909](https://github.com/zackwag/caddy-ui/commit/fcbd90999c884bcf250082800ee266ada860433f))
+
 ## [2.25.0](https://github.com/zackwag/caddy-ui/compare/v2.24.0...v2.25.0) (2026-10-15)
 
 
