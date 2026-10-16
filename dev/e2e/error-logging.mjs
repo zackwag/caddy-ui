@@ -217,6 +217,12 @@ test('browser network loss has localized feedback without a server log link', op
 
 test('phone layout and incomplete locale fallback retain diagnostic links', options, async t => {
     const { page, go, waitForEditor, edit, validate } = await scenario(t);
+    // Deliberately sparse fixture: completing the real German catalog must not
+    // remove this scenario's missing-key fallback coverage.
+    await page.route('**/src/i18n/locales/de.js*', route => route.fulfill({
+        contentType: 'application/javascript',
+        body: `export default ${JSON.stringify({ test: de.test })};`,
+    }));
     await go('/caddyfile');
     await waitForEditor();
     await page.getByRole('combobox', { name: 'Choose language' }).selectOption('de');
