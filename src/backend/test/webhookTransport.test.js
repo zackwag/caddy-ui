@@ -35,6 +35,13 @@ describe('resolveWebhookDestination', () => {
         expect(destination.url.href).toBe('http://ntfy/caddy-alerts');
     });
 
+    it('retains all validated DNS answers in order', async () => {
+        const addresses = [{ address: 'fd00::5', family: 6 }, { address: '172.18.0.5', family: 4 }];
+        lookup.mockResolvedValue(addresses);
+        await expect(resolveWebhookDestination('http://ntfy.test/topic')).resolves.toMatchObject({ addresses });
+        expect(lookup).toHaveBeenCalledTimes(1);
+    });
+
     it('allows .internal names', async () => {
         lookup.mockResolvedValue([{ address: '192.168.1.50', family: 4 }]);
         await expect(resolveWebhookDestination('https://ntfy.home.internal/topic')).resolves.toMatchObject({ address: '192.168.1.50' });
@@ -127,6 +134,59 @@ describe('sendWebhook', () => {
         expect(received[0].headers.host).toBe(`ntfy.test:${port}`);
         expect(received[0].headers.title).toBe('Alert');
         expect(received[0].headers['content-length']).toBe(String(Buffer.byteLength('Something happened')));
+    });
+
+    it('falls back from an unavailable IPv6 address to IPv4 without resolving again', async () => {
+        const resolveDestination = vi.fn(async raw => ({
+            url: new URL(raw), address: '::1', family: 6,
+            addresses: [{ address: '::1', family: 6 }, { address: '127.0.0.1', family: 4 }],
+        }));
+        await sendWebhook(`http://unresolvable.test:${port}/topic`, { name: 'ntfy', body: 'once' }, { resolveDestination });
+        expect(resolveDestination).toHaveBeenCalledTimes(1);
+        expect(received).toHaveLength(1);
+        expect(received[0]).toMatchObject({ body: 'once', headers: { host: `unresolvable.test:${port}` } });
+    });
+
+    it('rejects a mixed safe/blocked DNS answer set before opening a connection', async () => {
+        lookup.mockResolvedValue([{ address: '172.18.0.5', family: 4 }, { address: '::1', family: 6 }]);
+        await expect(sendWebhook(`http://mixed.test:${port}/`, { name: 'ntfy', body: 'x' }))
+            .rejects.toMatchObject({ code: 'WEBHOOK_DESTINATION_BLOCKED' });
+        expect(lookup).toHaveBeenCalledTimes(1);
+        expect(received).toHaveLength(0);
+    });
+
+    it.each(['response', 'reset'])('does not retry a POST after delivery followed by a %s failure', async failure => {
+        handler = (req, res) => {
+            if (failure === 'reset') req.socket.destroy();
+            else {
+                res.writeHead(500);
+                res.end('failed');
+            }
+        };
+        let fallbackRequests = 0;
+        const alternate = createServer((req, res) => {
+            fallbackRequests++;
+            req.resume();
+            res.end('unexpected retry');
+        });
+        await new Promise((resolve, reject) => {
+            alternate.once('error', reject);
+            alternate.listen(port, '127.0.0.2', resolve);
+        });
+        try {
+            const resolveDestination = vi.fn(async raw => ({
+                url: new URL(raw), address: '127.0.0.1', family: 4,
+                addresses: [{ address: '127.0.0.1', family: 4 }, { address: '127.0.0.2', family: 4 }],
+            }));
+            await expect(sendWebhook(`http://ntfy.test:${port}/topic`, { name: 'ntfy', body: 'once' }, { resolveDestination }))
+                .rejects.toThrow(failure === 'reset' ? 'socket hang up' : 'ntfy responded 500');
+            expect(resolveDestination).toHaveBeenCalledTimes(1);
+            expect(received).toHaveLength(1);
+            expect(fallbackRequests).toBe(0);
+        } finally {
+            alternate.closeAllConnections();
+            await new Promise(resolve => alternate.close(resolve));
+        }
     });
 
     it('uses the requested method', async () => {

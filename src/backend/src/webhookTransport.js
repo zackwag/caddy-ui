@@ -71,18 +71,20 @@ export async function resolveWebhookDestination(rawUrl) {
     // Reject the host if any answer is blocked, so it can't fall back to one.
     if (records.some(record => isBlockedAddress(record.address))) throw blockedDestination(host);
 
-    return { url, address: records[0].address, family: records[0].family };
+    return { url, address: records[0].address, family: records[0].family, addresses: records };
 }
 
 /**
  * Send one webhook request. The host is resolved and checked once, and the connection
- * goes only to the checked address, so a DNS change between the two can't redirect it.
+ * uses only the checked answers, so a DNS change between the two cannot redirect it.
+ * Address fallback happens while establishing a socket, never by retrying a POST.
  */
 export async function sendWebhook(rawUrl, { name, method = 'POST', headers = {}, body = '' }, {
     resolveDestination = resolveWebhookDestination,
     timeoutMs = TIMEOUT_MS,
 } = {}) {
     const destination = await resolveDestination(rawUrl);
+    const addresses = destination.addresses ?? [{ address: destination.address, family: destination.family }];
     const client = destination.url.protocol === 'https:' ? https : http;
     const payload = Buffer.from(body);
 
@@ -90,14 +92,14 @@ export async function sendWebhook(rawUrl, { name, method = 'POST', headers = {},
         const request = client.request(destination.url, {
             method,
             headers: { ...headers, 'Content-Length': payload.length },
-            // A fresh socket and a lookup pinned to the checked address. The URL still
+            // A fresh socket and a lookup pinned to the checked answers. The URL still
             // supplies the Host header, TLS server name and certificate verification.
             agent: false,
-            family: destination.family,
-            autoSelectFamily: false,
+            family: 0,
+            autoSelectFamily: true,
             lookup: (_host, options, callback) => {
-                if (options.all) callback(null, [{ address: destination.address, family: destination.family }]);
-                else callback(null, destination.address, destination.family);
+                if (options.all) callback(null, addresses);
+                else callback(null, addresses[0].address, addresses[0].family);
             },
         }, response => {
             const chunks = [];
