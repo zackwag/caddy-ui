@@ -28,6 +28,14 @@ export function validateCapture(capture) {
         throw new Error('Unsupported capture format or missing source commit. Refresh the capture.');
     }
     if (!Array.isArray(capture.scenarios) || !capture.scenarios.length) throw new Error('Capture has no scenarios.');
+    if (capture.csrfContext) {
+        const { source, record } = capture.csrfContext;
+        if (!/^[a-f0-9]{40}$/.test(source?.commit || '') || record?.request?.method !== 'GET'
+            || record.request.path !== '/auth/csrf' || record.response?.status !== 200
+            || record.response.body?.csrfToken !== 'offline-preview-context') {
+            throw new Error('Invalid or unredacted CSRF replay context. Refresh the capture.');
+        }
+    }
     const ids = new Set();
     for (const scenario of capture.scenarios) {
         if (!scenario.id || ids.has(scenario.id) || !Array.isArray(scenario.requests)) throw new Error('Invalid or duplicate capture scenario.');

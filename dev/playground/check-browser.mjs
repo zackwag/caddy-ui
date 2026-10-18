@@ -177,7 +177,7 @@ try {
     await frame().locator('.field input').last().fill('preview-password');
     await frame().getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Unrecorded request: POST /api/auth/sessions' }).waitFor();
-    await frame().locator('.login-error').filter({ hasText: en.login.serverUnreachable }).waitFor();
+    await frame().locator('.login-error').filter({ hasText: en.errors.network }).waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), 'parent-session-sentinel');
 
     const notificationStates = await page.evaluate(async () => {

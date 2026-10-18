@@ -56,10 +56,12 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
     process.once('SIGINT', interrupt);
     process.once('SIGTERM', interrupt);
 
-    function api(path, method = 'GET', body = null) {
+    let requestContext;
+    async function api(path, method = 'GET', body = null) {
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !requestContext) await api('/auth/csrf');
         return new Promise((resolve, reject) => {
             const call = request({ socketPath, path: '/api' + path, method, timeout: 5000, signal: startup.signal,
-                headers: { 'Content-Type': 'application/json', 'X-Instance-Id': 'default' } }, response => {
+                headers: { ...(!['GET', 'HEAD', 'OPTIONS'].includes(method) ? requestContext : {}), 'Content-Type': 'application/json', 'X-Instance-Id': 'default' } }, response => {
                 const chunks = [];
                 response.on('data', chunk => chunks.push(chunk));
                 response.on('error', reject);
@@ -67,6 +69,10 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
                     try {
                         const text = Buffer.concat(chunks).toString();
                         const headers = Object.fromEntries(['content-type', 'x-request-id'].filter(key => response.headers[key]).map(key => [key, response.headers[key]]));
+                        if (path === '/auth/csrf') requestContext = {
+                            Cookie: response.headers['set-cookie'].at(-1).split(';')[0],
+                            'X-CSRF-Token': JSON.parse(text).csrfToken,
+                        };
                         resolve({ request: { method, path, body }, response: {
                             status: response.statusCode, headers,
                             body: headers['content-type']?.includes('application/json') ? JSON.parse(text) : text,
@@ -95,7 +101,7 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
         const env = { ...backendEnvironment(directory, info.instance), PORT: socketPath,
             DOCKER_SOCKET: fileURLToPath(endpoint.replace(/^unix:/, 'file:')),
             APP_VERSION: '1.20.0', CADDY_UI_PUBLIC_METRICS: 'false', CADDY_UI_ADDITIONAL_LANGUAGES: '',
-            CADDY_SERVER_NAME: 'srv0', NODE_ENV: 'development' };
+            CADDY_SERVER_NAME: 'srv0', NODE_ENV: 'development', CADDY_UI_AUTH_DISABLED: 'true' };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
         await mkdir(resolve(directory, 'backend'), { recursive: true });
         backend = spawn(process.execPath, [backendEntry], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -155,7 +161,7 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
         requests.push(await api('/custom-themes'));
         requests.push(await api('/version'));
         requests.push(await api('/instances'));
-        const authCheck = await api('/auth/check');
+        const authCheck = await api('/auth/status');
         requests.push(authCheck);
 
         // Dashboard.

@@ -27,6 +27,8 @@ test('capture real Dashboard, notification, observability, TLS, sidebar, route a
     const backendPids = [];
     const capture = await captureDashboard({ output, onBackend: pid => backendPids.push(pid), onNamespace: project => { scope = new Harness(project); } });
     assert.equal(capture.source.sourceHash, await sourceFingerprint());
+    assert.equal(capture.csrfContext.record.request.path, '/auth/csrf');
+    assert.equal(capture.csrfContext.record.response.body.csrfToken, 'offline-preview-context');
     assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default', 'tls-default', 'sidebar-online', 'sidebar-stopped', 'routes-online', 'routes-empty', 'route-history-empty', 'caddyfile-empty', 'caddyfile-history', 'routes-edit-unavailable', 'tls-internal-valid', 'tls-internal-orphaned', 'uptime-route-pending', 'instances-local', 'instances-missing-server', 'instances-empty']);
     const notifications = capture.scenarios.find(scenario => scenario.id === 'notifications-default');
     assert.equal(notifications.requests.length, 1);

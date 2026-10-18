@@ -228,7 +228,8 @@ async function configurePreview(event) {
         ? JSON.stringify([scenario.id, next.locale, next.overrides]) : scenario.id;
     if (configuredState !== stateKey) {
         misses.clear(); observations.clear(); setupStep = 0;
-        window.fetch = createReplayFetch(profile?.requests || [], miss, location.origin);
+        const records = [...(profile?.requests || []), ...(capture.csrfContext ? [capture.csrfContext.record] : [])];
+        window.fetch = createReplayFetch(records, miss, location.origin);
         configuredState = stateKey;
     }
     const palette = THEME_LIST.find(theme => theme.id === (next.light ? 'coarse-everywhere' : 'vt2026'));

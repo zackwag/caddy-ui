@@ -5,6 +5,17 @@ const record = { request: { method: 'GET', path: '/status', body: null },
     response: { status: 200, headers: { 'content-type': 'application/json' }, body: { online: true, servers: [] } } };
 
 describe('captured localization data', () => {
+    it('rejects an unredacted shared CSRF replay context', () => {
+        const capture = { formatVersion: 1, source: { commit: 'a'.repeat(40) }, scenarios: [{ id: 'online', requests: [record] }],
+            csrfContext: { source: { commit: 'b'.repeat(40) }, record: {
+                request: { method: 'GET', path: '/auth/csrf', body: null },
+                response: { status: 200, headers: {}, body: { csrfToken: 'offline-preview-context' } },
+            } },
+        };
+        expect(validateCapture(capture)).toBe(capture);
+        capture.csrfContext.record.response.body.csrfToken = 'unredacted-value';
+        expect(() => validateCapture(capture)).toThrow(/unredacted/);
+    });
     it('preserves response shape and correlations while normalizing private addresses and timestamps', () => {
         const id = 'e1111111-1111-4111-8111-111111111111';
         const source = { header: id, body: { requestId: id, code: 'METRICS_UNAVAILABLE',

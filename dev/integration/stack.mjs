@@ -167,7 +167,7 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
         await waitForHttp(first.instance.adminUrl + '/config/', { signal: scope.signal });
         const version = VERSION + '-' + project;
         const env = { ...backendEnvironment(directory, first.instance), PORT: '0', APP_VERSION: version, LOG_LEVEL: 'info',
-            CADDY_UI_ADDITIONAL_LANGUAGES: additionalLanguages };
+            CADDY_UI_ADDITIONAL_LANGUAGES: additionalLanguages, CADDY_UI_AUTH_DISABLED: 'true' };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
         await scope.run(async () => {
             await mkdir(join(directory, 'backend'), { recursive: true });
@@ -188,12 +188,22 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
             accept: async response => response.ok && (await response.json()).version === version,
             signal: readySignal,
         });
+        let requestContext;
+        async function csrfContext() {
+            if (!requestContext) {
+                requestContext = fetch(url + '/api/auth/csrf', { signal: scope.signal }).then(async response => ({
+                    Cookie: response.headers.getSetCookie().at(-1).split(';')[0],
+                    'X-CSRF-Token': (await response.json()).csrfToken,
+                }));
+            }
+            return requestContext;
+        }
         return {
             harness, directory, url, instances, close,
             async api(path, { method = 'GET', body, instanceId = 'default', plain = false } = {}) {
                 const response = await fetch(url + '/api' + path, {
                     method,
-                    headers: { 'X-Instance-Id': instanceId, ...(body === undefined ? {} : { 'Content-Type': plain ? 'text/plain' : 'application/json' }) },
+                    headers: { ...(!['GET', 'HEAD', 'OPTIONS'].includes(method) ? await csrfContext() : {}), 'X-Instance-Id': instanceId, ...(body === undefined ? {} : { 'Content-Type': plain ? 'text/plain' : 'application/json' }) },
                     ...(body === undefined ? {} : { body: plain ? body : JSON.stringify(body) }),
                     signal: AbortSignal.any([scope.signal, AbortSignal.timeout(15000)]),
                 });

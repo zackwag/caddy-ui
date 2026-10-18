@@ -29,7 +29,7 @@ export default function PreviewFrame({ config, title }) {
     const matching = report?.observations.filter(record => record.key === config.selected) || [];
     return <article className="preview-state" data-preview-scenario={config.scenario}>
         <h3>{title}</h3>
-        <iframe ref={frame} src="./frame.html" title={title} sandbox="allow-scripts allow-same-origin allow-downloads"
+        <iframe ref={frame} src="./frame.html" title={title} sandbox="allow-scripts allow-same-origin allow-downloads allow-forms"
             onLoad={configure} style={{ height }} />
         <div className="preview-context" aria-live="polite">
             {error && <p role="alert">Preview failed: {error}</p>}

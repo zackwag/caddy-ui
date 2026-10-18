@@ -247,8 +247,15 @@ Captures contain request methods, paths, write bodies, response statuses/headers
 source commit, source fingerprint, and Caddy image. Normalization preserves structure and
 request-ID correlations while replacing private addresses and paths and shifting ISO
 timestamps together to preserve their relative spacing.
-Numeric measurements remain as observed and are frozen during replay. History profile clocks
-and numeric epoch query parameters also remain as observed. Snapshot filenames and their
+Numeric measurements remain as observed and are frozen during replay.
+
+The shared CSRF response is captured from the authentication router and its token is replaced
+with `offline-preview-context`; cookies and live context secrets are not retained. This lets
+recorded successful actions keep working through the production request client. Unrecorded
+actions still fail without network fallback. Native form submit handlers are enabled inside
+the preview, while its `form-action 'none'` CSP blocks native form navigation.
+
+History profile clocks and numeric epoch query parameters also remain as observed. Snapshot filenames and their
 local-time timestamps retain their observed values so history request paths stay aligned. Regeneration is not
 expected to be byte-identical across machines. Do not hand-edit generated responses.
 

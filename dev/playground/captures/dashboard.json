@@ -1910,5 +1910,27 @@
         }
       ]
     }
-  ]
+  ],
+  "csrfContext": {
+    "source": {
+      "commit": "76b7b4176c20924ec6269f57f967767ce5d2c3ea"
+    },
+    "record": {
+      "request": {
+        "method": "GET",
+        "path": "/auth/csrf",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store"
+        },
+        "body": {
+          "csrfToken": "offline-preview-context"
+        }
+      }
+    }
+  }
 }
