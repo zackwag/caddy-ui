@@ -1426,6 +1426,12 @@ export const css = `
   }
 
   .modal--confirm { width: 380px; }
+  .api-tokens-dialog { color: var(--text); width: 620px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; }
+  .api-tokens-dialog::backdrop { background: var(--scrim); }
+  .api-token-options { border: 1px solid var(--border); padding: 8px 12px; margin: 12px 0; min-width: 0; }
+  .api-token-options .auth-ack span { min-width: 0; overflow-wrap: anywhere; }
+  .api-token-list { list-style: none; padding: 0; overflow-wrap: anywhere; }
+  .api-token-list li { border-top: 1px solid var(--border); padding: 16px 0; }
   .modal--confirm .modal-title { font-weight: 400; line-height: 1.5; }
 
   /* ── Utility: Route status history modal ──────────────────────────────────── */

@@ -110,6 +110,28 @@ export default {
         },
     },
 
+    apiTokens: {
+        title: 'API tokens',
+        hint: 'Read-only credentials for integrations. Choose specific Caddy instances and permissions. Tokens cannot change configuration, read logs or manage credentials.',
+        name: 'Token name',
+        scopes: 'Permissions',
+        status: 'Read status (Homepage)',
+        metrics: 'Read metrics (Prometheus)',
+        instances: 'Allowed instances',
+        noInstances: 'Add a Caddy instance before creating an API token.',
+        expiry: 'Expires after',
+        days: '{{days}} days',
+        create: 'Create token',
+        oneTime: 'Save this token now. It will not be shown again. Send it in the Authorization: Bearer header, never in a URL. Use HTTPS where possible; HTTP cannot protect it from network interception.',
+        secret: 'API token',
+        saved: 'I have saved the token',
+        existing: 'Issued tokens',
+        empty: 'No API tokens have been issued.',
+        expiresAt: 'Expires: {{date}}',
+        revoke: 'Revoke',
+        revokeNamed: 'Revoke {{name}}',
+    },
+
     login: {
         serverManager: 'Server Manager',
         sessionExpired: 'Your session has expired. Please sign in again.',

@@ -5,6 +5,7 @@ import { UtilityIcon } from "./components/Icons.jsx";
 import { ConfirmDialog, useConfirm } from "./components/Confirm.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import Login from "./components/Login.jsx";
+import ApiTokens from './components/ApiTokens.jsx';
 import Logs from "./components/Logs.jsx";
 import Metrics from "./components/Metrics.jsx";
 import Instances from "./components/Instances.jsx";
@@ -55,6 +56,7 @@ export default function App() {
     const [instanceListVersion, setInstanceListVersion] = useState(0);
     const [authState, setAuthState] = useState(null);
     const [authError, setAuthError] = useState(false);
+    const [showApiTokens, setShowApiTokens] = useState(false);
     const authEnabled = authState?.authEnabled ?? true;
     const authed = Boolean(authState && (!authEnabled || authState.authenticated));
     const [sessionExpired, setSessionExpired] = useState(false);
@@ -298,6 +300,7 @@ export default function App() {
                         authEnabled={authEnabled}
                         onUnauth={onUnauth}
                         onLogout={logout}
+                        onApiTokens={() => { setSidebarOpen(false); setShowApiTokens(true); }}
                         sidebarOpen={sidebarOpen}
                         setSidebarOpen={setSidebarOpen}
                         selectedInstanceId={instanceKey}
@@ -347,6 +350,7 @@ export default function App() {
                     </div>
                     <Toasts toasts={toast.toasts} />
                     <ConfirmDialog dialog={confirmDialog} resolve={resolveConfirm} />
+                    {showApiTokens && <ApiTokens onClose={() => setShowApiTokens(false)} onUnauth={onUnauth} />}
                     {showThemeWelcome && <ThemeWelcome themes={allThemes} languages={enabledLanguages} language={language} onLanguageChange={changeLanguage} onComplete={handleThemeWelcome} />}
                 </div>
             )}
