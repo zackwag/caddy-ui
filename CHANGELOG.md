@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.6](https://github.com/zackwag/caddy-ui/compare/v2.29.5...v2.29.6) (2026-10-18)
+
+
+### Bug Fixes
+
+* link edge and beta update badges to the commits since the running build ([#322](https://github.com/zackwag/caddy-ui/issues/322)) ([41559a7](https://github.com/zackwag/caddy-ui/commit/41559a755a9abd884402743f4c37696d7f23f3e2))
+
 ## [2.29.5](https://github.com/zackwag/caddy-ui/compare/v2.29.4...v2.29.5) (2026-10-18)
 
 
