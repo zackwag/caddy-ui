@@ -61,6 +61,7 @@ export default {
         caddyfileReadFailed: 'Could not read the Caddyfile.',
         caddyReloadFailed: 'Could not reload Caddy.',
         instanceNotFound: 'The instance was not found.',
+        instanceSelectionInvalid: 'The selected instance no longer exists. Switched to an available instance.',
         instanceConnectionFailed: 'Could not connect to the Caddy instance.',
         instanceDiscoveryFailed: 'Could not discover Caddy containers.',
         instanceSaveFailed: 'Could not save the instance.',

@@ -59,6 +59,16 @@ Then add the instance manually on the Instances page with Container Name left em
 
 When more than one instance is configured, an instance switcher dropdown appears in the sidebar showing each instance with its online/offline status. Switching instances navigates to the Dashboard and reloads all data from the selected instance.
 
+If the selected instance is removed, from this browser or another, caddy/ui drops the selection and reloads the current page from the fallback instance.
+
+### Selecting an instance in API requests
+
+Instance-scoped endpoints read the instance id from the `X-Instance-Id` header:
+
+- **Header omitted, or set to `default`:** uses the instance with id `default`, or the first configured instance if none has that id.
+- **Any other id that doesn't exist:** the request is rejected with `404` and `{ "code": "INSTANCE_SELECTION_INVALID" }` and never reaches another instance.
+- **No instances configured:** `503` with `{ "code": "NO_INSTANCES" }`.
+
 ## Manual configuration
 
 Instances can also be configured via the REST API (`POST /api/instances`) or by placing an `instances.json` file at `/etc/caddy-ui/instances.json`:

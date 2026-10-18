@@ -101,15 +101,13 @@ app.get('/api/languages', (req, res) => res.json({
 // there is no valid Caddy instance to attach to the request.
 app.use('/api/logs/app', authMiddleware, appLogsRouter);
 
-// Instance middleware for all other routes
-app.use('/api', instanceMiddleware);
-
 // GET /api/metrics/raw -- Prometheus scrape endpoint
 // Public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
-app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, rawMetrics);
+app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, instanceMiddleware, rawMetrics);
 
-// All other /api/* routes require auth if enabled
-app.use('/api', authMiddleware);
+// All other /api/* routes require auth if enabled, then a valid instance.
+// Auth runs first so unauthenticated callers can't probe which instance ids exist.
+app.use('/api', authMiddleware, instanceMiddleware);
 
 app.use('/api/caddyfile', caddyfileRouter);
 app.use('/api/routes', routesRouter);

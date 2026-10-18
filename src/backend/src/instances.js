@@ -5,8 +5,8 @@ import logger from './logger.js';
 
 const INSTANCES_PATH = process.env.INSTANCES_PATH || '/etc/caddy-ui/instances.json';
 
-// The bootstrap instance's id when no instances.json exists yet, and the fallback
-// used when a request doesn't specify X-Instance-Id.
+// The bootstrap instance's id when no instances.json exists yet. Requests that
+// omit X-Instance-Id, or send this id, select it or else the first instance.
 export const DEFAULT_INSTANCE_ID = 'default';
 
 let _instances = null;
@@ -59,9 +59,14 @@ export function getInstances() {
     return _instances || [];
 }
 
+// Only an omitted or default selection falls back to the first instance. Any
+// other unknown id returns null, so a stale selection can't reach another instance.
 export function getInstance(id) {
     const instances = getInstances();
-    return instances.find(i => i.id === id) || instances[0];
+    const selected = id || DEFAULT_INSTANCE_ID;
+    const match = instances.find(i => i.id === selected);
+    if (match) return match;
+    return selected === DEFAULT_INSTANCE_ID ? instances[0] || null : null;
 }
 
 export async function addInstance(instance) {

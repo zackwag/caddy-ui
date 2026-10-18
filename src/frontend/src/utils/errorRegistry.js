@@ -13,6 +13,7 @@ export const ERROR_MESSAGES = Object.freeze({
     CADDYFILE_READ_FAILED: 'errors.caddyfileReadFailed',
     CADDY_RELOAD_FAILED: 'errors.caddyReloadFailed',
     INSTANCE_NOT_FOUND: 'errors.instanceNotFound',
+    INSTANCE_SELECTION_INVALID: 'errors.instanceSelectionInvalid',
     INSTANCE_CONNECTION_FAILED: 'errors.instanceConnectionFailed',
     INSTANCE_DISCOVERY_FAILED: 'errors.instanceDiscoveryFailed',
     INSTANCE_SAVE_FAILED: 'errors.instanceSaveFailed',
