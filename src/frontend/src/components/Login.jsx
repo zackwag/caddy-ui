@@ -48,11 +48,11 @@ export default function Login({ authState, onLogin, sessionExpired }) {
                 {error && <div className="login-error" role="alert">{error}</div>}
                 <div className="field">
                     <label htmlFor="login-username">{t("login.username")}</label>
-                    <input id="login-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} autoFocus autoComplete="username" />
+                    <input id="login-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} autoFocus />
                 </div>
                 <div className="field">
                     <label htmlFor="login-password">{t("login.password")}</label>
-                    <input id="login-password" autoComplete="current-password" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" />
+                    <input id="login-password" autoComplete="current-password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
                 </div>
                 <button className="btn btn-primary btn--full" type="submit" disabled={loading || !username || !password}>
                     {loading ? t("login.signingIn") : t("login.signIn")}
