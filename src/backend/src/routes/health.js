@@ -1,18 +1,19 @@
 import { Router } from 'express';
 import { getRouteFailures, ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
-import { getHistory, getStatsForInstance, recordCheck } from '../uptimeHistory.js';
-import { checkInstanceUpstreams, resultsByUpstream } from '../upstreamChecks.js';
+import { getHistory, getStatsForInstance } from '../uptimeHistory.js';
+import { checkInstanceUpstreams } from '../upstreamChecks.js';
 import { CHECK_INTERVAL_MS } from '../upstreamMonitor.js';
 
 const router = Router();
 
-// GET /api/health
+// GET /api/health -- a live check that is not recorded. Uptime history is
+// sampled only by upstreamMonitor at a fixed cadence, so how often browsers
+// poll this can't skew the uptime percentages.
 router.get('/', async (req, res) => {
-    const { adminUrl, id: instanceId } = req.instance;
+    const { adminUrl } = req.instance;
     try {
         const checks = await checkInstanceUpstreams(adminUrl);
         const checkedAt = new Date().toISOString();
-        for (const [upstream, online] of resultsByUpstream(checks)) recordCheck(instanceId, upstream, online);
         res.json(checks.map((check) => ({
             domain: check.domain,
             upstream: check.upstream,
