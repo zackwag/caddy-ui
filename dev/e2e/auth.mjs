@@ -6,12 +6,15 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import test from 'node:test';
+import test, { before } from 'node:test';
 import { chromium } from 'playwright';
 import { createServer as createVite } from 'vite';
 import { backendEnvironment } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from '../integration/lifecycle.mjs';
 import { waitForBackendPort } from '../integration/stack.mjs';
+import { prepareBrowserTests } from './fixture.mjs';
+
+before(prepareBrowserTests, { timeout: 35000 });
 
 const root = resolve(import.meta.dirname, '../..');
 const secret = () => randomBytes(24).toString('base64url');
