@@ -13,29 +13,78 @@ import { CAPTURE_VERSION, normalizeCapture, validateCapture } from '../../dev/pl
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
 
-const CADDYFILE_RICH = `{
-    admin 0.0.0.0:2019
-    auto_https off
-}
+const SITES = [
+    { domain: 'example.com', title: 'Home Assistant' },
+    { domain: 'media.home.arpa', title: 'Jellyfin' },
+    { domain: 'api.internal', title: 'Internal API' },
+];
 
-:80 {
+function screenshotCaddyfile(upstream) {
+    return `{
+    admin 0.0.0.0:2019
+    auto_https disable_redirects
+    skip_install_trust
+    metrics
     log {
         output file /data/dev-caddy/logs/access.log
         format json
     }
-
-    handle /api/* {
-        reverse_proxy 192.168.1.10:8080
-    }
-
-    handle /media/* {
-        reverse_proxy 192.168.1.20:8096
-    }
-
-    respond /health "ok" 200
-    respond "Screenshot capture instance" 200
 }
+
+(screenshot_backend) {
+    reverse_proxy ${upstream} {
+        transport http {
+            network_proxy none
+        }
+    }
+}
+
+:80 {
+    log
+    @sites host ${SITES.map(site => site.domain).join(' ')}
+    handle @sites {
+        import screenshot_backend
+    }
+    handle {
+        respond /health "ok" 200
+        respond "Screenshot capture instance" 200
+    }
+}
+
+${SITES.map(({ domain, title }) => `${domain} {
+    # ${title}
+    tls internal
+    log
+    import screenshot_backend
+}`).join('\n\n')}
 `;
+}
+
+// Seed the normal persisted history format, not an invented API response.
+// These illustrative samples are distinct from the traffic measured below.
+async function seedHistory(path, upstream) {
+    const now = Date.now();
+    const entries = Array.from({ length: 48 }, (_, i) => ({ at: now - (48 - i) * 30 * 60_000, online: i !== 10 }));
+    const entry = { firstSeen: entries[0].at, entries };
+    await writeFile(path, JSON.stringify(Object.fromEntries([
+        ['default:' + upstream, entry],
+        ...SITES.map(site => ['default#' + site.domain, entry]),
+    ])));
+}
+
+// Send Host explicitly while connecting only to the owned HTTP listener.
+function visit(url, host) {
+    return new Promise((resolve, reject) => {
+        const call = request(url, { headers: { Host: host }, timeout: 2000 }, response => {
+            response.resume();
+            response.on('error', reject);
+            response.on('end', () => resolve(response.statusCode));
+        });
+        call.on('timeout', () => call.destroy(new Error('Example request timed out')));
+        call.on('error', reject);
+        call.end();
+    });
+}
 
 export async function captureScreenshots({ output = resolve(import.meta.dirname, 'captures/screenshots.json'), backendEntry = resolve(root, 'src/backend/src/index.js'), onNamespace = () => {} } = {}) {
     if (process.platform === 'win32') throw new Error('Capture requires a Unix socket.');
@@ -56,12 +105,12 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
     process.once('SIGINT', interrupt);
     process.once('SIGTERM', interrupt);
 
-    const requestContexts = new Map();
+    let requestContext = {};
     async function api(path, method = 'GET', body = null) {
-        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !requestContexts.get(socketPath)?.['X-CSRF-Token']) await api('/auth/csrf');
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !requestContext['X-CSRF-Token']) await api('/auth/csrf');
         return new Promise((resolve, reject) => {
             const call = request({ socketPath, path: '/api' + path, method, timeout: 5000, signal: startup.signal,
-                headers: { ...requestContexts.get(socketPath), 'Content-Type': 'application/json', 'X-Instance-Id': 'default' } }, response => {
+                headers: { ...requestContext, 'Content-Type': typeof body === 'string' ? 'text/plain' : 'application/json', 'X-Instance-Id': 'default' } }, response => {
                 const chunks = [];
                 response.on('data', chunk => chunks.push(chunk));
                 response.on('error', reject);
@@ -70,10 +119,8 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
                         const text = Buffer.concat(chunks).toString();
                         const headers = Object.fromEntries(['content-type', 'x-request-id'].filter(key => response.headers[key]).map(key => [key, response.headers[key]]));
                         const cookie = response.headers['set-cookie']?.at(-1);
-                        if (cookie) requestContexts.set(socketPath, { Cookie: cookie.split(';')[0] });
-                        if (path === '/auth/csrf') requestContexts.set(socketPath, {
-                            ...requestContexts.get(socketPath), 'X-CSRF-Token': JSON.parse(text).csrfToken,
-                        });
+                        if (cookie) requestContext = { Cookie: cookie.split(';')[0] };
+                        if (path === '/auth/csrf') requestContext['X-CSRF-Token'] = JSON.parse(text).csrfToken;
                         resolve({ request: { method, path, body }, response: {
                             status: response.statusCode, headers,
                             body: headers['content-type']?.includes('application/json') ? JSON.parse(text) : text,
@@ -83,7 +130,7 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
             });
             call.on('timeout', () => call.destroy(new Error(`Capture request timed out: ${method} ${path}`)));
             call.on('error', reject);
-            if (body !== null) call.write(JSON.stringify(body));
+            if (body !== null) call.write(typeof body === 'string' ? body : JSON.stringify(body));
             call.end();
         });
     }
@@ -99,12 +146,18 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
         assert.deepEqual(await harness.names(), []);
         assert.deepEqual(await harness.names('volume'), []);
         const info = await harness.create('screenshots');
+        const staging = await harness.create('staging');
+        // Caddy reaches its peer on the Docker network, not the host's
+        // published loopback port returned for a local CLI client.
+        const stagingContainer = await harness.inspect('container', staging.instance.containerName);
+        const upstream = stagingContainer.NetworkSettings.Networks[await harness.network() || 'bridge'].IPAddress + ':80';
         const env = { ...backendEnvironment(directory, info.instance), PORT: socketPath,
             DOCKER_SOCKET: fileURLToPath(endpoint.replace(/^unix:/, 'file:')),
             APP_VERSION: '1.20.0', CADDY_UI_PUBLIC_METRICS: 'false', CADDY_UI_ADDITIONAL_LANGUAGES: '',
             CADDY_SERVER_NAME: 'srv0', NODE_ENV: 'development' };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
         await mkdir(resolve(directory, 'backend'), { recursive: true });
+        await seedHistory(env.UPTIME_HISTORY_PATH, upstream);
         backend = spawn(process.execPath, [backendEntry], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
         for (const stream of [backend.stdout, backend.stderr]) stream.on('data', data => { outputLog = (outputLog + data).slice(-64000); });
         backend.on('error', error => startup.abort(error));
@@ -123,89 +176,102 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
         if (!ready) throw new Error(`Capture backend did not become ready.\n${outputLog}`);
 
         await successful('/auth/setup', 'POST', { username: 'capture-administrator', password: randomBytes(24).toString('base64url') });
+        await successful('/settings', 'PUT', { firstTimeRun: false, language: 'en', theme: 'dark' });
 
-        // Enrich state: enable metrics, set server label, add route note.
-        await successful('/metrics/config', 'PUT', { enabled: true });
+        // Restore the populated example sites through real configuration writes.
         await successful('/server-names/srv0', 'PUT', { name: 'Production HTTPS' });
-        await successful('/route-notes', 'PUT', { notes: { ':80/api/*': 'Home Assistant API' } });
+        await successful('/server-names/srv1', 'PUT', { name: 'Local HTTP' });
 
-        // Write the richer Caddyfile and reload so routes are visible.
-        const adminHeaders = { 'Content-Type': 'text/caddyfile', Origin: 'http://0.0.0.0:2019' };
-        const loadResult = await fetch(info.instance.adminUrl + '/load', { method: 'POST', headers: adminHeaders, body: CADDYFILE_RICH, signal: AbortSignal.any([startup.signal, AbortSignal.timeout(5000)]) });
-        assert.equal(loadResult.ok, true, await loadResult.text());
+        // Exercise the real session/CSRF-protected configuration-write path.
+        await successful('/caddyfile?fmt=false&sort=false', 'PUT', screenshotCaddyfile(upstream));
+        for (const site of SITES) await successful('/route-notes/' + encodeURIComponent(site.domain), 'PUT', { note: site.title });
 
-        // Generate some log entries by hitting the Caddy instance.
-        for (let i = 0; i < 5; i++) {
-            await fetch(info.httpUrl + '/health', { signal: AbortSignal.timeout(2000) }).catch(() => {});
-            await fetch(info.httpUrl + '/', { signal: AbortSignal.timeout(2000) }).catch(() => {});
+        // Populate logs and request counters with real traffic to owned services.
+        for (const site of SITES) {
+            for (const path of ['/', '/media', '/error']) {
+                assert.equal(await visit(info.httpUrl + path, site.domain), path === '/error' ? 503 : 200);
+            }
         }
-        await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Save caddyfile to create a history entry.
-        await successful('/caddyfile', 'PUT', { content: CADDYFILE_RICH });
+        // Local certificates are issued asynchronously; wait for actual storage.
+        const certificateDeadline = Date.now() + 15000;
+        while ((await successful('/tls')).response.body.length < SITES.length) {
+            assert(Date.now() < certificateDeadline, 'Caddy did not issue the example site certificates');
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
 
         // Configure notifications (provider config, not sending).
         await successful('/notifications/config', 'PUT', {
-            enabled: true, provider: 'ntfy', ntfyUrl: 'https://ntfy.example.com/caddy-alerts',
-            triggers: { upstreamOffline: true, upstreamOnline: true, certExpiring: true, updateAvailable: true },
-            cooldownMinutes: 30,
+            enabled: true, provider: 'ntfy', ntfy: { url: 'https://ntfy.example.com/caddy-alerts' },
+            triggers: { upstreamOffline: false, upstreamOnline: false, certExpiring: false, updateAvailable: false, routeOffline: false, routeOnline: false },
+            debounceMinutes: 30,
         });
 
-        // Add a second manual instance for the instances view.
+        // Both entries belong to disposable Caddy instances, so capture never
+        // probes an unrelated LAN service to populate the Instances view.
         await successful('/instances', 'POST', {
-            name: 'Staging Server', adminUrl: 'http://192.168.1.50:2019',
-            configPath: '/etc/caddy/Caddyfile', logPath: '/var/log/caddy/access.log',
-            dataPath: '/var/lib/caddy', containerName: '', serverName: 'srv0',
+            ...staging.instance, name: 'Staging Server',
         });
 
         // Capture global endpoints.
         const requests = [];
-        requests.push(await api('/settings'));
-        requests.push(await api('/custom-themes'));
-        requests.push(await api('/version'));
-        requests.push(await api('/instances'));
-        const authCheck = await api('/auth/status');
-        requests.push(authCheck);
+        requests.push(await successful('/languages'));
+        requests.push(await successful('/settings'));
+        requests.push(await successful('/custom-themes'));
+        requests.push(await successful('/version'));
+        requests.push(await successful('/version?frontend=' + encodeURIComponent(process.env.VITE_APP_VERSION || 'dev')));
+        requests.push(await successful('/instances'));
+        requests.push(await successful('/instances/status'));
+        requests.push(await successful('/auth/status'));
 
         // Dashboard.
-        requests.push(await api('/status'));
-        requests.push(await api('/status/process'));
-        requests.push(await api('/server-names'));
-        requests.push(await api('/health'));
+        requests.push(await successful('/status'));
+        requests.push(await successful('/status/process'));
+        requests.push(await successful('/server-names'));
+        requests.push(await successful('/health'));
 
         // Caddyfile.
-        requests.push(await api('/caddyfile'));
-        requests.push(await api('/caddyfile/history'));
+        requests.push(await successful('/caddyfile'));
+        const history = await successful('/caddyfile/history');
+        requests.push(history);
+        for (const entry of history.response.body) requests.push(await successful('/caddyfile/history/' + encodeURIComponent(entry.filename)));
 
         // Routes.
-        requests.push(await api('/routes'));
-        requests.push(await api('/tls'));
-        requests.push(await api('/route-notes'));
-        requests.push(await api('/routes/maintenance'));
-        requests.push(await api('/health/uptime'));
-        requests.push(await api('/health/uptime?kind=route'));
+        requests.push(await successful('/routes'));
+        requests.push(await successful('/tls'));
+        requests.push(await successful('/route-notes'));
+        requests.push(await successful('/routes/maintenance'));
+        requests.push(await successful('/health/uptime'));
+        requests.push(await successful('/health/uptime?kind=route'));
 
         // TLS (shares /tls from routes above).
 
         // Logs.
-        requests.push(await api('/logs'));
-        requests.push(await api('/logs/config'));
+        requests.push(await successful('/logs'));
+        requests.push(await successful('/logs/config'));
 
         // Metrics.
-        requests.push(await api('/metrics'));
-        requests.push(await api('/metrics/config'));
+        requests.push(await successful('/metrics'));
+        requests.push(await successful('/metrics/config'));
 
         // Notifications.
-        requests.push(await api('/notifications/config'));
+        requests.push(await successful('/notifications/config'));
 
         // Instances — server-names/all and per-instance server query.
-        requests.push(await api('/server-names/all'));
+        requests.push(await successful('/server-names/all'));
+        requests.push(await successful('/instances/servers?adminUrl=' + encodeURIComponent(info.instance.adminUrl)));
+        requests.push(await successful('/instances/servers?adminUrl=' + encodeURIComponent(staging.instance.adminUrl)));
 
         const { stdout: commit } = await exec('git', ['rev-parse', 'HEAD'], { cwd: root });
         result = validateCapture({ formatVersion: CAPTURE_VERSION,
-            source: { commit: commit.trim(), caddyImage: IMAGE },
+            source: { commit: commit.trim(), caddyImage: IMAGE, sampleHistory: 'Illustrative 24-hour uptime history seeded into backend storage; request metrics and certificates are generated live.' },
             normalization: ['Request IDs', 'ISO timestamps', 'Private capture addresses and paths; measurements remain as observed'],
             scenarios: normalizeCapture([{ id: 'screenshots', requests }], [
+                [encodeURIComponent(staging.instance.adminUrl), encodeURIComponent('http://caddy-staging:2019')],
+                [staging.instance.adminUrl, 'http://caddy-staging:2019'],
+                [staging.instance.containerName, 'caddy-ui-dev-staging'],
+                [upstream, 'caddy-staging:80'],
+                [encodeURIComponent(info.instance.adminUrl), encodeURIComponent('http://caddy-screenshots:2019')],
                 [info.instance.adminUrl, 'http://caddy-screenshots:2019'],
                 [new URL(info.instance.adminUrl).host, 'caddy-screenshots:2019'],
                 [info.httpUrl, 'http://caddy-screenshots:80'],

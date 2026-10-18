@@ -34,6 +34,12 @@ describe('captured localization data', () => {
         expect(() => validateCapture({ ...capture, formatVersion: 2 })).toThrow();
         expect(() => validateCapture({ ...capture, scenarios: [{ id: 'online', requests: [record, record] }] })).toThrow(/duplicate/);
     });
+    it('keeps address-keyed history aligned with normalized upstream references', () => {
+        const upstream = '172.17.0.4:80';
+        const normalized = normalizeCapture({ upstream, history: { [upstream]: { total: 48 } } }, [[upstream, 'caddy-staging:80']]);
+        expect(Object.keys(normalized.history)).toEqual([normalized.upstream]);
+        expect(normalized.history[normalized.upstream].total).toBe(48);
+    });
     it('retains time differences and case-insensitive request-ID correlations', () => {
         const id = 'e1111111-1111-4111-8111-111111111111';
         const normalized = normalizeCapture([id, id.toUpperCase(), '2026-10-14T12:00:00.000Z', '2026-10-14T12:00:01.500Z']);

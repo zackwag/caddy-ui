@@ -88,6 +88,9 @@ jobs:
       - name: Test lifecycle, registration and instance isolation
         run: npm run test:dev-caddy:integration
 
+      - name: Test authenticated documentation capture and replay
+        run: npm run test:screenshots --prefix docs
+
       - name: Test error handling and live logs in Chromium
         run: npm run test:dev-caddy:e2e
 

@@ -17,7 +17,7 @@ export function normalizeCapture(value, replacements = []) {
             });
         }
         if (Array.isArray(value)) return value.map(visit);
-        if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, visit(child)]));
+        if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [visit(key), visit(child)]));
         return value;
     }
     return visit(value);

@@ -6,7 +6,8 @@
         "node": ">=22.12.0"
     },
     "scripts": {
-        "test": "node --test scripts/*.test.mjs"
+        "test": "node --test scripts/*.test.mjs",
+        "test:screenshots": "node --test screenshots/capture.integration.mjs"
     },
     "dependencies": {
         "mermaid": "12.2.0",
