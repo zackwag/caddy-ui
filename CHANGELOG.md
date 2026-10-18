@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.29.6](https://github.com/zackwag/caddy-ui/compare/v2.29.5...v2.29.6) (2026-10-18)
+
+
+### Bug Fixes
+
+* link edge and beta update badges to the commits since the running build ([#322](https://github.com/zackwag/caddy-ui/issues/322)) ([41559a7](https://github.com/zackwag/caddy-ui/commit/41559a755a9abd884402743f4c37696d7f23f3e2))
+
+## [2.29.5](https://github.com/zackwag/caddy-ui/compare/v2.29.4...v2.29.5) (2026-10-18)
+
+
+### Bug Fixes
+
+* distinguish empty routes and certificates from unavailable data ([#318](https://github.com/zackwag/caddy-ui/issues/318)) ([ac2d4a5](https://github.com/zackwag/caddy-ui/commit/ac2d4a5db18efde82a2eb61c29e97f0e160078c3))
+* stop treating unreadable notes, history and cert storage as empty ([#319](https://github.com/zackwag/caddy-ui/issues/319)) ([f04d1aa](https://github.com/zackwag/caddy-ui/commit/f04d1aaec15b9c93d3a5113d744243ad90cce2a7))
+
+## [2.29.4](https://github.com/zackwag/caddy-ui/compare/v2.29.3...v2.29.4) (2026-10-18)
+
+
+### Bug Fixes
+
+* isolate maintenance state and restoration per Caddy instance ([#315](https://github.com/zackwag/caddy-ui/issues/315)) ([4d30670](https://github.com/zackwag/caddy-ui/commit/4d306709fd687b003f682a3771bcd993808743ea))
+
 ## [2.29.3](https://github.com/zackwag/caddy-ui/compare/v2.29.2...v2.29.3) (2026-10-18)
 
 

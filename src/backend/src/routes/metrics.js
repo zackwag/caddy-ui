@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { readContainerFile, writeContainerFile } from '../containerFs.js';
-import { caddyLoad } from '../caddy.js';
+import { readContainerFile } from '../containerFs.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
 import { asAppError, errorChain } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 import { ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
 import { getStatsForInstance } from '../uptimeHistory.js';
+import { saveCaddyfileChange } from './caddyfile.js';
 
 const router = Router();
 
@@ -230,8 +230,7 @@ router.put('/config', async (req, res) => {
             content = content.replace(/^\s*metrics\s*\n?/m, '');
         }
         logger.info(`Metrics config update requested`, { enabled });
-        await writeContainerFile(containerName, configPath, content);
-        await caddyLoad(content, req.instance.adminUrl);
+        await saveCaddyfileChange(req.instance, content);
         logger.info(`Metrics config saved and reloaded`, { enabled });
         res.json({ ok: true, enabled });
     } catch (err) {

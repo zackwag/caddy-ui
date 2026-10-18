@@ -2,7 +2,7 @@ import { X509Certificate } from 'crypto';
 import { Router } from 'express';
 import { join, resolve, relative } from 'path';
 import { caddyGet } from '../caddy.js';
-import { describeReadError, listContainerDir, readContainerDir, readContainerFile, removeContainerPath } from '../containerFs.js';
+import { containerPathExists, describeReadError, listContainerDir, readContainerDir, readContainerFile, removeContainerPath } from '../containerFs.js';
 import logger from '../logger.js';
 import { AppError, asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
@@ -80,8 +80,13 @@ async function getManagedDomains(adminUrl) {
     }
 }
 
-async function getCerts(containerName, certsPath, adminUrl) {
+// Caddy creates its data directory at startup but the certificates directory
+// only once it stores a certificate, so a missing certificates directory under
+// an existing data directory is an empty list. Any other read failure throws
+// CERTIFICATE_READ_FAILED, so storage problems never look like "no certificates".
+async function getCerts(containerName, dataPath, adminUrl) {
     const results = [];
+    const certsPath = join(dataPath, 'certificates');
     const managedDomains = await getManagedDomains(adminUrl);
 
     let issuers;
@@ -89,9 +94,10 @@ async function getCerts(containerName, certsPath, adminUrl) {
         issuers = await readContainerDir(containerName, certsPath);
     } catch (err) {
         const reason = describeReadError(err);
+        if (reason === 'not found' && await containerPathExists(containerName, dataPath)) return [];
         const hint = containerName ? undefined : LOCAL_MODE_HINTS[reason];
         logger.warn(`Could not read certs path`, { path: certsPath, reason, ...(hint && { hint }) });
-        return [];
+        throw new AppError('CERTIFICATE_READ_FAILED', { cause: err, context: { path: certsPath, reason } });
     }
 
     for (const issuer of issuers) {
@@ -109,10 +115,11 @@ async function getCerts(containerName, certsPath, adminUrl) {
             const validTo = new Date(info.validTo);
             const now = new Date();
             const daysRemaining = Math.floor((validTo - now) / (1000 * 60 * 60 * 24));
-            const isManaged = !managedDomains || isManagedDomain(domain, managedDomains);
+            // null when Caddy's config couldn't be read: unknown, so never orphaned
+            const isManaged = managedDomains ? isManagedDomain(domain, managedDomains) : null;
 
             let status;
-            if (!isManaged) status = 'orphaned';
+            if (isManaged === false) status = 'orphaned';
             else if (daysRemaining < 0) status = isInternal ? 'valid' : 'expired';
             else if (daysRemaining < 14 && !isInternal) status = 'expiring';
             else status = 'valid';
@@ -138,8 +145,12 @@ async function getCerts(containerName, certsPath, adminUrl) {
 
 // GET /api/tls
 router.get('/', async (req, res) => {
-    const certsPath = join(req.instance.dataPath, 'certificates');
-    const certs = await getCerts(req.instance.containerName, certsPath, req.instance.adminUrl);
+    let certs;
+    try {
+        certs = await getCerts(req.instance.containerName, req.instance.dataPath, req.instance.adminUrl);
+    } catch (err) {
+        return sendAppError(res, asAppError(err, 'CERTIFICATE_READ_FAILED', { instanceId: req.instance.id }));
+    }
     logger.info(`TLS certs listed`, { count: certs.length });
     res.json(certs);
 });
@@ -156,7 +167,12 @@ router.delete('/:domain', async (req, res) => {
 
     const { containerName } = req.instance;
     const certsPath = join(req.instance.dataPath, 'certificates');
-    const certs = await getCerts(containerName, certsPath, req.instance.adminUrl);
+    let certs;
+    try {
+        certs = await getCerts(containerName, req.instance.dataPath, req.instance.adminUrl);
+    } catch (err) {
+        return sendAppError(res, asAppError(err, 'CERTIFICATE_READ_FAILED', { instanceId: req.instance.id }));
+    }
     const internalCert = certs.find(c => c.domain === domain && c.isInternal);
     const acmeCert = certs.find(c => c.domain === domain && !c.isInternal);
 

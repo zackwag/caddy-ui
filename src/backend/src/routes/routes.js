@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import { AppError, asAppError } from '../AppError.js';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
 import { getCaddyEnv, resolveEnvVars } from '../docker.js';
+import { sendAppError } from '../errorReporting.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
 import {
@@ -10,7 +12,7 @@ import {
     hasUnassignedMaintenance, isInMaintenance, isMaintenanceBlock, setMaintenance,
 } from '../maintenance.js';
 import { validateContainerName, validatePath } from '../validation.js';
-import { saveRouteEdit } from './caddyfile.js';
+import { saveCaddyfileChange } from './caddyfile.js';
 
 const router = Router();
 
@@ -143,15 +145,6 @@ function isSimpleReverseProxy(route) {
     return handles[0].handler === 'reverse_proxy';
 }
 
-async function getAllServers(adminUrl) {
-    try {
-        const config = await caddyGet('/config/apps/http/servers', adminUrl);
-        return config || {};
-    } catch {
-        return {};
-    }
-}
-
 // Caddy happily accepts routes for a server ID that doesn't exist, creating a
 // server with no listen address -- so the route never serves traffic. Returns
 // an error message for that case, or null when the primary server exists.
@@ -165,27 +158,29 @@ function checkPrimaryServer(servers, primaryServer) {
         + 'Update the instance\'s Primary Server ID on the Instances page.';
 }
 
-// GET /api/routes
+// GET /api/routes -- an empty list means Caddy has no HTTP routes. When the
+// config can't be read the request fails, so an outage never looks empty.
 router.get('/', async (req, res) => {
+    let servers;
     try {
-        const servers = await getAllServers(req.instance.adminUrl);
-        const allRoutes = [];
-
-        for (const [serverName, server] of Object.entries(servers)) {
-            const routes = server.routes || [];
-            for (const route of routes) {
-                allRoutes.push({
-                    ...route,
-                    _server: serverName,
-                    _simpleProxy: isSimpleReverseProxy(route),
-                });
-            }
-        }
-
-        res.json(allRoutes);
-    } catch {
-        res.json([]);
+        servers = (await caddyGet('/config/apps/http/servers', req.instance.adminUrl)) || {};
+    } catch (err) {
+        return sendAppError(res, asAppError(err, 'CADDY_CONFIG_UNAVAILABLE', { instanceId: req.instance.id }));
     }
+    const allRoutes = [];
+
+    for (const [serverName, server] of Object.entries(servers)) {
+        const routes = server.routes || [];
+        for (const route of routes) {
+            allRoutes.push({
+                ...route,
+                _server: serverName,
+                _simpleProxy: isSimpleReverseProxy(route),
+            });
+        }
+    }
+
+    res.json(allRoutes);
 });
 
 // POST /api/routes
@@ -197,8 +192,7 @@ router.post('/', async (req, res) => {
     logger.info(`Adding route`, { domain, upstream, stripPrefix });
 
     const primaryServer = req.instance.serverName;
-    // Unlike getAllServers, let an unreachable Caddy surface as an error
-    // rather than reading as "no servers"
+    // Let an unreachable Caddy surface as an error rather than reading as "no servers"
     const servers = (await caddyGet('/config/apps/http/servers', req.instance.adminUrl)) || {};
     const serverError = checkPrimaryServer(servers, primaryServer);
     if (serverError) {
@@ -211,15 +205,20 @@ router.post('/', async (req, res) => {
     const configPath = req.instance.configPath;
 
     const routesPath = `/config/apps/http/servers/${primaryServer}/routes`;
-    if (!servers[primaryServer].routes) {
-        await caddyPut(routesPath, [route], req.instance.adminUrl);
-    } else {
-        await caddyPost(routesPath, route, req.instance.adminUrl);
-    }
+    const addLive = () => (servers[primaryServer].routes
+        ? caddyPost(routesPath, route, req.instance.adminUrl)
+        : caddyPut(routesPath, [route], req.instance.adminUrl));
 
     const caddyfile = await readContainerFile(req.instance.containerName, configPath);
     const block = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-    await saveRouteEdit(req.instance, `${caddyfile.trimEnd()}\n\n${block}\n`, { reload: false });
+    // Written before the live change, so a rejected route restores the file
+    // instead of leaving a running route the Caddyfile doesn't have
+    try {
+        await saveCaddyfileChange(req.instance, `${caddyfile.trimEnd()}\n\n${block}\n`, { apply: addLive });
+    } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
+        throw e;
+    }
 
     logger.info(`Route added`, { id, domain, upstream });
     res.status(201).json({ ok: true, id, route });
@@ -271,11 +270,12 @@ router.patch('/caddyfile/:domain', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${finalContent}\n`;
-        await saveRouteEdit(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated);
 
         logger.info('Caddyfile site block updated', { domain });
         res.json({ ok: true, domain });
     } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to update site block', { domain, error: e.message });
         res.status(500).json({ error: e.message });
     }
@@ -293,11 +293,12 @@ router.delete('/caddyfile/:domain', async (req, res) => {
         if (!existing) return res.status(404).json({ error: 'site block not found' });
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await saveRouteEdit(req.instance, cleaned);
+        await saveCaddyfileChange(req.instance, cleaned);
 
         logger.info('Caddyfile site block deleted', { domain });
         res.json({ ok: true, domain });
     } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to delete site block', { domain, error: e.message });
         res.status(500).json({ error: e.message });
     }
@@ -321,7 +322,7 @@ router.patch('/:id', async (req, res) => {
     }
 
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
-    await caddyPatch(`/id/${id}`, route, req.instance.adminUrl);
+    const patchLive = () => caddyPatch(`/id/${id}`, route, req.instance.adminUrl);
 
     if (oldDomain) {
         const [caddyfile, env] = await Promise.all([
@@ -330,7 +331,14 @@ router.patch('/:id', async (req, res) => {
         ]);
         const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
         const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock, env);
-        await saveRouteEdit(req.instance, updated, { reload: false });
+        try {
+            await saveCaddyfileChange(req.instance, updated, { apply: patchLive });
+        } catch (e) {
+            if (e instanceof AppError) return sendAppError(res, e);
+            throw e;
+        }
+    } else {
+        await patchLive();
     }
 
     logger.info(`Route updated`, { id, domain, upstream });
@@ -350,7 +358,7 @@ router.delete('/:id', async (req, res) => {
         logger.warn(`Could not fetch route for deletion`, { id });
     }
 
-    await caddyDelete(`/id/${id}`, req.instance.adminUrl);
+    const deleteLive = () => caddyDelete(`/id/${id}`, req.instance.adminUrl);
 
     if (domain) {
         const [caddyfile, env] = await Promise.all([
@@ -358,7 +366,14 @@ router.delete('/:id', async (req, res) => {
             getCaddyEnv(req.instance.containerName),
         ]);
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await saveRouteEdit(req.instance, cleaned, { reload: false });
+        try {
+            await saveCaddyfileChange(req.instance, cleaned, { apply: deleteLive });
+        } catch (e) {
+            if (e instanceof AppError) return sendAppError(res, e);
+            throw e;
+        }
+    } else {
+        await deleteLive();
     }
 
     logger.info(`Route deleted`, { id, domain });
@@ -416,13 +431,14 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
-        await saveRouteEdit(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated);
 
         await setMaintenance(req.instance.id, domain, block);
 
         logger.info('Maintenance mode enabled', { domain });
         res.json({ ok: true, domain });
     } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to enable maintenance mode', { domain, error: e.message });
         res.status(500).json({ error: e.message });
     }
@@ -446,12 +462,13 @@ router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${originalContent}\n`;
-        await saveRouteEdit(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated);
         await clearMaintenance(req.instance.id, domain);
 
         logger.info('Maintenance mode disabled', { domain });
         res.json({ ok: true, domain });
     } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to disable maintenance mode', { domain, error: e.message });
         res.status(500).json({ error: e.message });
     }

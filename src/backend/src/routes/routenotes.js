@@ -5,17 +5,32 @@ import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles
 import { readContainerFile } from '../containerFs.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
+import { AppError, asAppError } from '../AppError.js';
+import { sendAppError } from '../errorReporting.js';
 
 const router = Router();
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
 
+// A missing file means no notes yet. Any other failure throws, so an
+// unreadable or corrupt file is never treated as empty and then overwritten.
 async function readNotes() {
+    let data;
     try {
-        const data = await readFile(ROUTE_NOTES_PATH, 'utf8');
-        return JSON.parse(data);
-    } catch {
-        return {};
+        data = await readFile(ROUTE_NOTES_PATH, 'utf8');
+    } catch (err) {
+        if (err.code === 'ENOENT') return {};
+        throw new AppError('ROUTE_NOTES_READ_FAILED', { cause: err, context: { path: ROUTE_NOTES_PATH } });
     }
+    let notes;
+    try {
+        notes = JSON.parse(data);
+    } catch (err) {
+        throw new AppError('ROUTE_NOTES_READ_FAILED', { cause: err, context: { path: ROUTE_NOTES_PATH } });
+    }
+    if (!notes || typeof notes !== 'object' || Array.isArray(notes)) {
+        throw new AppError('ROUTE_NOTES_READ_FAILED', { context: { path: ROUTE_NOTES_PATH } });
+    }
+    return notes;
 }
 
 async function writeNotes(notes) {
@@ -24,7 +39,12 @@ async function writeNotes(notes) {
 
 // GET /api/route-notes
 router.get('/', async (req, res) => {
-    const notes = await readNotes();
+    let notes;
+    try {
+        notes = await readNotes();
+    } catch (err) {
+        return sendAppError(res, asAppError(err, 'ROUTE_NOTES_READ_FAILED'));
+    }
 
     if (caddyfileTitlesEnabled()) {
         try {
@@ -43,7 +63,12 @@ router.get('/', async (req, res) => {
 router.put('/:domain', async (req, res) => {
     const { domain } = req.params;
     const { note } = req.body;
-    const notes = await readNotes();
+    let notes;
+    try {
+        notes = await readNotes();
+    } catch (err) {
+        return sendAppError(res, asAppError(err, 'ROUTE_NOTES_READ_FAILED'));
+    }
     if (note && note.trim()) {
         notes[domain] = note.trim();
     } else {
@@ -59,9 +84,18 @@ export async function cleanupOrphanedNotes() {
         const domains = Object.keys(notes);
         if (domains.length === 0) return;
 
+        // Only prune against a complete view: an instance whose config can't be
+        // read would otherwise have all of its notes treated as orphaned.
         const activeDomains = new Set();
+        const unreadable = [];
         await Promise.all(getInstances().map(async inst => {
-            const servers = await caddyGet('/config/apps/http/servers', inst.adminUrl).catch(() => null);
+            let servers;
+            try {
+                servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
+            } catch {
+                unreadable.push(inst.id);
+                return;
+            }
             if (!servers) return;
             for (const server of Object.values(servers)) {
                 for (const route of server.routes || []) {
@@ -70,6 +104,11 @@ export async function cleanupOrphanedNotes() {
                 }
             }
         }));
+
+        if (unreadable.length) {
+            logger.warn('Skipped route notes cleanup: Caddy config unavailable', { instances: unreadable });
+            return;
+        }
 
         let removed = 0;
         for (const domain of domains) {
