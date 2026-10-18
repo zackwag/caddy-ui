@@ -5,7 +5,6 @@ import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { failureReason } from './routeChecks.js';
 import { getUpdateNotification } from './updateCheck.js';
-import { checkInstanceUpstreams } from './upstreamChecks.js';
 import { sendWebhook } from './webhookTransport.js';
 const CHECK_INTERVAL_MS = 30_000;
 
@@ -51,9 +50,6 @@ async function runChecks() {
     if (!config?.enabled) return;
 
     try {
-        if (config.triggers.upstreamOffline || config.triggers.upstreamOnline) {
-            await checkUpstreams();
-        }
         if (config.triggers.certExpiring) {
             await checkCerts();
         }
@@ -86,30 +82,25 @@ function instanceLabel(inst) {
     return getInstances().length > 1 ? `[${inst.name}] ` : '';
 }
 
-async function checkUpstreams() {
-    await Promise.all(getInstances().map(checkUpstreamsForInstance));
-}
-
-async function checkUpstreamsForInstance(inst) {
-    let checks;
-    try {
-        checks = await checkInstanceUpstreams(inst.adminUrl);
-    } catch {
-        return;
-    }
-
+// Fed by the upstream monitor after each round rather than by probes of our
+// own, like notifyRouteChecks. State is tracked while notifications are off
+// too, so turning them on compares against the current state, not a stale one.
+export async function notifyUpstreamChecks(inst, checks) {
+    const changes = [];
     for (const check of checks) {
-        const online = check.online;
         const stateKey = `${inst.id}:${check.upstream}`;
         const prev = upstreamState.get(stateKey);
-        upstreamState.set(stateKey, online);
+        upstreamState.set(stateKey, check.online);
+        if (prev !== undefined && prev !== check.online) changes.push(check);
+    }
+    if (!config?.enabled) return;
 
-        if (prev === undefined) continue;
-
-        const instLabel = instanceLabel(inst);
+    const instLabel = instanceLabel(inst);
+    for (const check of changes) {
+        const stateKey = `${inst.id}:${check.upstream}`;
         const label = check.domain ? `${instLabel}${check.domain} (${check.upstream})` : `${instLabel}${check.upstream}`;
 
-        if (prev && !online && config.triggers.upstreamOffline) {
+        if (!check.online && config.triggers.upstreamOffline) {
             const key = `offline:${stateKey}`;
             if (!isDebouncedKey(key)) {
                 markSent(key);
@@ -121,7 +112,7 @@ async function checkUpstreamsForInstance(inst) {
             }
         }
 
-        if (!prev && online && config.triggers.upstreamOnline) {
+        if (check.online && config.triggers.upstreamOnline) {
             const key = `online:${stateKey}`;
             if (!isDebouncedKey(key)) {
                 markSent(key);

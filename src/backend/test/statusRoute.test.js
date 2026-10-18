@@ -3,16 +3,12 @@ import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import statusRouter from '../src/routes/status.js';
 
-const { caddyGet, checkInstanceUpstreams } = vi.hoisted(() => ({
-    caddyGet: vi.fn(),
-    checkInstanceUpstreams: vi.fn(),
+const { getServers, getUpstreamChecks } = vi.hoisted(() => ({
+    getServers: vi.fn(),
+    getUpstreamChecks: vi.fn(),
 }));
 
-vi.mock('../src/caddy.js', () => ({ caddyGet }));
-vi.mock('../src/upstreamChecks.js', async importOriginal => ({
-    ...await importOriginal(),
-    checkInstanceUpstreams,
-}));
+vi.mock('../src/observations.js', () => ({ getServers, getUpstreamChecks }));
 
 const request = globalThis.fetch;
 const adminUrl = 'http://caddy:2019';
@@ -34,8 +30,8 @@ afterAll(() => new Promise(resolve => server.close(resolve)));
 afterEach(() => vi.unstubAllGlobals());
 
 beforeEach(() => {
-    caddyGet.mockReset().mockResolvedValue({ srv0: { listen: [':80'], routes: [{}] } });
-    checkInstanceUpstreams.mockReset().mockResolvedValue([]);
+    getServers.mockReset().mockResolvedValue({ srv0: { listen: [':80'], routes: [{}] } });
+    getUpstreamChecks.mockReset().mockResolvedValue({ checks: [], checkedAt: new Date() });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
 });
 
@@ -47,22 +43,22 @@ async function status() {
 
 describe('GET /api/status', () => {
     it('reports offline when the stopped Caddy instance rejects all checks', async () => {
-        caddyGet.mockRejectedValue(new Error('Caddy connection refused'));
+        getServers.mockRejectedValue(new Error('Caddy connection refused'));
         fetch.mockRejectedValue(new Error('Metrics connection refused'));
-        checkInstanceUpstreams.mockRejectedValue(new Error('Upstream checks unavailable'));
+        getUpstreamChecks.mockRejectedValue(new Error('Upstream checks unavailable'));
 
         expect(await status()).toMatchObject({ online: false, error: expect.any(String) });
     });
 
     it('reports offline when the configuration request fails despite successful optional checks', async () => {
-        caddyGet.mockRejectedValue(new Error('Caddy API timeout'));
+        getServers.mockRejectedValue(new Error('Caddy API timeout'));
         fetch.mockResolvedValue({ ok: true, text: async () => 'process_start_time_seconds 1700000000' });
 
         expect(await status()).toMatchObject({ online: false, error: expect.any(String) });
     });
 
     it('reports online again when a later configuration request succeeds', async () => {
-        caddyGet.mockRejectedValueOnce(new Error('Caddy connection refused'));
+        getServers.mockRejectedValueOnce(new Error('Caddy connection refused'));
 
         expect((await status()).online).toBe(false);
         expect(await status()).toMatchObject({ online: true, serverCount: 1, routeCount: 1 });
@@ -75,13 +71,13 @@ describe('GET /api/status', () => {
     });
 
     it('stays online when upstream checks fail', async () => {
-        checkInstanceUpstreams.mockRejectedValue(new Error('Upstream checks unavailable'));
+        getUpstreamChecks.mockRejectedValue(new Error('Upstream checks unavailable'));
 
         expect(await status()).toMatchObject({ online: true, upstreamsOnline: null, upstreamsTotal: null });
     });
 
     it('stays online when the fetched configuration has no HTTP servers', async () => {
-        caddyGet.mockResolvedValue(null);
+        getServers.mockResolvedValue(null);
 
         expect(await status()).toMatchObject({ online: true, serverCount: 0, routeCount: 0, servers: [] });
     });

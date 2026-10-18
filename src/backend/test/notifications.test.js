@@ -186,3 +186,48 @@ describe('routeTransitions', () => {
         expect(state.get('b#x.example.com')).toBe(false);
     });
 });
+
+describe('notifyUpstreamChecks', () => {
+    const inst = { id: 'a', name: 'Alpha' };
+    const check = (upstream, online) => ({ domain: 'app.example.com', upstream, online });
+    const config = enabled => ({
+        enabled, provider: 'ntfy', ntfy: { url: 'http://ntfy/caddy-alerts' }, debounceMinutes: 30,
+        triggers: { upstreamOffline: true, upstreamOnline: true, certExpiring: false, updateAvailable: false },
+    });
+
+    async function load() {
+        vi.resetModules();
+        return import('../src/notifications.js');
+    }
+
+    beforeEach(() => {
+        sendWebhook.mockReset().mockResolvedValue(undefined);
+    });
+
+    it('alerts on transitions in the monitor rounds it is given, not on the first', async () => {
+        const { notifyUpstreamChecks, updateMonitorConfig } = await load();
+        updateMonitorConfig(config(true));
+        try {
+            await notifyUpstreamChecks(inst, [check('app:3000', true)]);
+            expect(sendWebhook).not.toHaveBeenCalled();
+            await notifyUpstreamChecks(inst, [check('app:3000', false)]);
+            expect(sendWebhook).toHaveBeenCalledTimes(1);
+            expect(sendWebhook.mock.calls[0][1].headers.Title).toBe('Upstream offline');
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+
+    it('tracks state while off, so turning alerts on does not report an old transition', async () => {
+        const { notifyUpstreamChecks, updateMonitorConfig } = await load();
+        await notifyUpstreamChecks(inst, [check('app:3000', true)]);
+        await notifyUpstreamChecks(inst, [check('app:3000', false)]);
+        updateMonitorConfig(config(true));
+        try {
+            await notifyUpstreamChecks(inst, [check('app:3000', false)]);
+            expect(sendWebhook).not.toHaveBeenCalled();
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+});

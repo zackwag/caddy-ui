@@ -2,7 +2,7 @@ import http from 'http';
 import https from 'https';
 import { isIP } from 'net';
 import tls from 'tls';
-import { caddyGet } from './caddy.js';
+import { getServers } from './observations.js';
 import { getHost } from './upstreamChecks.js';
 
 const PROBE_TIMEOUT_MS = 5000;
@@ -123,7 +123,7 @@ function probeRoute(connectHost, ca, { host, scheme, port }) {
 // Probes every named route in an instance's live config. Throws when the
 // admin API is unreachable, like checkInstanceUpstreams.
 export async function checkInstanceRoutes(adminUrl, { exclude = [] } = {}) {
-    const servers = await caddyGet('/config/apps/http/servers', adminUrl);
+    const servers = await getServers(adminUrl);
     const connectHost = new URL(adminUrl).hostname.replace(/^\[|\]$/g, '');
     const targets = collectRouteTargets(servers, exclude);
     const ca = targets.some(t => t.scheme === 'https') ? await getTrustedCAs(adminUrl) : undefined;

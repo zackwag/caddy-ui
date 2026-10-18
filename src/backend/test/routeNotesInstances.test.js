@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import express from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearObservations } from '../src/observations.js';
 
 const { caddyGet, instances } = vi.hoisted(() => ({ caddyGet: vi.fn(), instances: [] }));
 
@@ -44,6 +45,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+    clearObservations();
     await rm(notesPath, { force: true });
     instances.splice(0, instances.length, alpha, beta);
     // Both instances serve the same hostname

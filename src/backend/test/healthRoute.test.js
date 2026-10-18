@@ -4,11 +4,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import healthRouter from '../src/routes/health.js';
 import { getStatsForInstance, recordCheck } from '../src/uptimeHistory.js';
 
-const { checkInstanceUpstreams } = vi.hoisted(() => ({ checkInstanceUpstreams: vi.fn() }));
+const { getUpstreamChecks } = vi.hoisted(() => ({ getUpstreamChecks: vi.fn() }));
 
-vi.mock('../src/upstreamChecks.js', async importOriginal => ({
+vi.mock('../src/observations.js', async importOriginal => ({
     ...await importOriginal(),
-    checkInstanceUpstreams,
+    getUpstreamChecks,
 }));
 
 const instanceId = 'health-route-test';
@@ -29,9 +29,10 @@ beforeAll(async () => {
 afterAll(() => new Promise(resolve => server.close(resolve)));
 
 beforeEach(() => {
-    checkInstanceUpstreams.mockReset().mockResolvedValue([
-        { domain: 'app.example.com', upstream: 'app:3000', server: 'srv0', online: false },
-    ]);
+    getUpstreamChecks.mockReset().mockResolvedValue({
+        checks: [{ domain: 'app.example.com', upstream: 'app:3000', server: 'srv0', online: false }],
+        checkedAt: new Date('2026-10-18T12:00:00Z'),
+    });
 });
 
 describe('GET /api/health', () => {
@@ -40,7 +41,7 @@ describe('GET /api/health', () => {
         expect(res.status).toBe(200);
         const [check] = await res.json();
         expect(check).toMatchObject({ domain: 'app.example.com', upstream: 'app:3000', online: false });
-        expect(Number.isNaN(Date.parse(check.checkedAt))).toBe(false);
+        expect(check.checkedAt).toBe('2026-10-18T12:00:00.000Z');
     });
 
     it('does not add uptime history samples, however often it is read', async () => {
@@ -50,7 +51,7 @@ describe('GET /api/health', () => {
         await fetch(healthUrl);
         await fetch(healthUrl);
 
-        expect(checkInstanceUpstreams).toHaveBeenCalledTimes(2);
+        expect(getUpstreamChecks).toHaveBeenCalledTimes(2);
         expect(getStatsForInstance(instanceId)['app:3000']).toMatchObject({
             total: before.total, online: before.online, pct: before.pct, currentlyOnline: true,
         });

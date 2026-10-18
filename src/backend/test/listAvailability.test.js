@@ -6,6 +6,7 @@ import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import routesRouter from '../src/routes/routes.js';
 import tlsRouter from '../src/routes/tls.js';
+import { clearObservations } from '../src/observations.js';
 
 const { caddyGet } = vi.hoisted(() => ({ caddyGet: vi.fn() }));
 
@@ -37,6 +38,7 @@ beforeAll(async () => {
 afterAll(() => new Promise(resolve => server.close(resolve)));
 
 beforeEach(async () => {
+    clearObservations();
     dir = await mkdtemp(join(tmpdir(), 'caddy-ui-availability-'));
     instance.dataPath = join(dir, 'caddy');
     caddyGet.mockReset();

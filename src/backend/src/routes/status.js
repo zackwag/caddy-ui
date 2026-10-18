@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { caddyGet } from '../caddy.js';
 import { execInInstance } from '../docker.js';
 import logger from '../logger.js';
 import { asAppError } from '../AppError.js';
-import { checkInstanceUpstreams, resultsByUpstream } from '../upstreamChecks.js';
+import { getServers, getUpstreamChecks } from '../observations.js';
+import { resultsByUpstream } from '../upstreamChecks.js';
 
 const router = Router();
 
@@ -47,10 +47,10 @@ router.get('/', async (req, res) => {
     const adminUrl = req.instance.adminUrl;
     try {
         const [config, metricsText, upstreamChecks] = await Promise.allSettled([
-            caddyGet('/config/apps/http/servers', adminUrl),
+            getServers(adminUrl),
             fetch(`${adminUrl}/metrics`, { headers: { 'Origin': 'http://0.0.0.0:2019' } })
                 .then(r => r.ok ? r.text() : null).catch(() => null),
-            checkInstanceUpstreams(adminUrl),
+            getUpstreamChecks(adminUrl),
         ]);
 
         // Configuration establishes availability; metrics and upstream checks are optional.
@@ -76,7 +76,7 @@ router.get('/', async (req, res) => {
         let upstreamsOnline = null;
         let upstreamsTotal = null;
         if (upstreamChecks.status === 'fulfilled') {
-            const results = [...resultsByUpstream(upstreamChecks.value).values()];
+            const results = [...resultsByUpstream(upstreamChecks.value.checks).values()];
             upstreamsTotal = results.length;
             upstreamsOnline = results.filter(Boolean).length;
         }

@@ -1,19 +1,21 @@
 import { Router } from 'express';
+import { getUpstreamChecks } from '../observations.js';
 import { getRouteFailures, ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
 import { getHistory, getStatsForInstance } from '../uptimeHistory.js';
-import { checkInstanceUpstreams } from '../upstreamChecks.js';
 import { CHECK_INTERVAL_MS } from '../upstreamMonitor.js';
 
 const router = Router();
 
-// GET /api/health -- a live check that is not recorded. Uptime history is
-// sampled only by upstreamMonitor at a fixed cadence, so how often browsers
-// poll this can't skew the uptime percentages.
+// GET /api/health -- recent checks (shared with other requests and the
+// monitor for up to OBSERVATION_MAX_AGE_MS) that are not recorded. Uptime
+// history is sampled only by upstreamMonitor at a fixed cadence, so how often
+// browsers poll this can't skew the uptime percentages.
 router.get('/', async (req, res) => {
     const { adminUrl } = req.instance;
     try {
-        const checks = await checkInstanceUpstreams(adminUrl);
-        const checkedAt = new Date().toISOString();
+        const observed = await getUpstreamChecks(adminUrl);
+        const checks = observed.checks;
+        const checkedAt = observed.checkedAt.toISOString();
         res.json(checks.map((check) => ({
             domain: check.domain,
             upstream: check.upstream,

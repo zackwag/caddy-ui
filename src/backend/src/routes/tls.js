@@ -2,6 +2,7 @@ import { X509Certificate } from 'crypto';
 import { Router } from 'express';
 import { join, resolve, relative } from 'path';
 import { caddyGet } from '../caddy.js';
+import { getServers } from '../observations.js';
 import { containerPathExists, describeReadError, listContainerDir, readContainerDir, readContainerFile, removeContainerPath } from '../containerFs.js';
 import logger from '../logger.js';
 import { AppError, asAppError } from '../AppError.js';
@@ -72,7 +73,7 @@ async function getManagedDomains(adminUrl) {
     try {
         const [tlsApp, servers] = await Promise.all([
             caddyGet('/config/apps/tls', adminUrl),
-            caddyGet('/config/apps/http/servers', adminUrl),
+            getServers(adminUrl),
         ]);
         return collectManagedDomains(tlsApp, servers);
     } catch {

@@ -9,6 +9,21 @@ const HEADERS = {
 
 const TIMEOUT_MS = 10000;
 
+// Counts configuration writes per admin API, so observations.js can tell a
+// read that may predate a write from one that can't. Bumped once a write
+// settles, successful or not, since a failed write can still have changed
+// part of the config.
+const configGenerations = new Map();
+
+export function configGeneration(adminUrl) {
+    return configGenerations.get(adminUrl || CADDY_ADMIN_URL) || 0;
+}
+
+export function markConfigChanged(adminUrl) {
+    const base = adminUrl || CADDY_ADMIN_URL;
+    configGenerations.set(base, configGeneration(base) + 1);
+}
+
 export function withTimeout(promise, ms, label) {
     return Promise.race([
         promise,
@@ -53,6 +68,8 @@ async function caddyRequest(method, path, body, adminUrl) {
             logger.error(`Caddy API failed`, { method, path, elapsed, error: err.message });
         }
         throw err;
+    } finally {
+        if (method !== 'GET') markConfigChanged(base);
     }
 }
 
@@ -94,5 +111,7 @@ export async function caddyLoad(caddyfileContent, adminUrl) {
             logger.error(`Caddy reload error`, { elapsed, error: err.message });
         }
         throw err;
+    } finally {
+        markConfigChanged(base);
     }
 }

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
-import { caddyLoad, withTimeout } from '../caddy.js';
+import { caddyLoad, markConfigChanged, withTimeout } from '../caddy.js';
 import { describeReadError, readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
 import { execInInstance } from '../docker.js';
 import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
@@ -164,8 +164,14 @@ async function validateCaddyfile(content, { adminUrl, configPath, containerName 
     }
 }
 
-async function reloadViaCaddyBinary(configPath, containerName) {
-    await execInInstance(containerName, 'caddy', ['reload', '--config', configPath, '--adapter', 'caddyfile']);
+// Reloads through the container rather than caddy.js, so it marks the
+// change itself for observations.js.
+async function reloadViaCaddyBinary(configPath, containerName, adminUrl) {
+    try {
+        await execInInstance(containerName, 'caddy', ['reload', '--config', configPath, '--adapter', 'caddyfile']);
+    } finally {
+        markConfigChanged(adminUrl);
+    }
 }
 
 async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
@@ -178,7 +184,7 @@ async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
         // the same admin API that just failed, so there's nothing to fall back to.
         if (!containerName) throw loadErr;
         try {
-            await reloadViaCaddyBinary(configPath, containerName);
+            await reloadViaCaddyBinary(configPath, containerName, adminUrl);
             logger.info('Caddy reloaded via caddy binary (admin /load failed)');
             return;
         } catch (caddyErr) {

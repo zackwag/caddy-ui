@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { caddyGet } from '../caddy.js';
 import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
+import { getServers } from '../observations.js';
 import { asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 import { claimUnassignedNotes, getInstanceNotes, hasUnassignedNotes, pruneOrphanedNotes, setInstanceNote } from '../routeNotes.js';
@@ -15,7 +15,7 @@ const router = Router();
 export async function servedHosts(inst) {
     let servers;
     try {
-        servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
+        servers = await getServers(inst.adminUrl);
     } catch {
         return null;
     }

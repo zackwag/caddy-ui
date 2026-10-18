@@ -1,5 +1,4 @@
 import { createConnection } from 'net';
-import { caddyGet } from './caddy.js';
 
 const TCP_TIMEOUT_MS = 3000;
 
@@ -61,14 +60,12 @@ function checkTCP(host, port) {
     });
 }
 
-// Determines online/offline for every reverse_proxy upstream in an instance's
-// Caddy config with a TCP dial, also consulting Caddy's upstream pool for
-// handlers with passive health checks (see isUpstreamOnline). Throws on
-// failure to reach the instance's admin API -- callers decide how to handle
-// that (fail a request vs. skip an instance for one monitor tick).
-export async function checkInstanceUpstreams(adminUrl) {
-    const servers = await caddyGet('/config/apps/http/servers', adminUrl);
-
+// Determines online/offline for every reverse_proxy upstream in `servers`, an
+// instance's /config/apps/http/servers, with a TCP dial, also consulting
+// Caddy's upstream pool for handlers with passive health checks (see
+// isUpstreamOnline). Callers go through observations.js, which reads the
+// config once and shares the results.
+export async function checkInstanceUpstreams(adminUrl, servers) {
     const checks = [];
     for (const [serverName, server] of Object.entries(servers || {})) {
         for (const route of server.routes || []) {

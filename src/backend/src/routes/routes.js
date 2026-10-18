@@ -11,6 +11,7 @@ import {
     buildMaintenanceBlock, claimUnassignedMaintenance, clearMaintenance, getMaintenancePage, getMaintenanceState,
     hasUnassignedMaintenance, isInMaintenance, isMaintenanceBlock, setMaintenance,
 } from '../maintenance.js';
+import { getServers } from '../observations.js';
 import { validateContainerName, validatePath } from '../validation.js';
 import { saveCaddyfileChange } from './caddyfile.js';
 
@@ -163,7 +164,7 @@ function checkPrimaryServer(servers, primaryServer) {
 router.get('/', async (req, res) => {
     let servers;
     try {
-        servers = (await caddyGet('/config/apps/http/servers', req.instance.adminUrl)) || {};
+        servers = (await getServers(req.instance.adminUrl)) || {};
     } catch (err) {
         return sendAppError(res, asAppError(err, 'CADDY_CONFIG_UNAVAILABLE', { instanceId: req.instance.id }));
     }
