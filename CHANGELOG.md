@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/zackwag/caddy-ui/compare/v3.0.0...v3.0.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* keep route notes per instance and notification settings instance-free ([#325](https://github.com/zackwag/caddy-ui/issues/325)) ([afb0e49](https://github.com/zackwag/caddy-ui/commit/afb0e492417f8214fbe13d8fcbc56506f737e847))
+
 ## [3.0.0](https://github.com/zackwag/caddy-ui/compare/v2.29.7...v3.0.0) (2026-10-18)
 
 
