@@ -26,7 +26,7 @@ export async function authFixture({ env = {}, now, store } = {}) {
     app.get('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
     app.put('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
     for (const path of ['/status', '/metrics', '/metrics/raw']) {
-        app.get('/api' + path, instanceMiddleware, authMiddleware, (req, res) => res.json({ instanceId: req.instance.id }));
+        app.get('/api' + path, authMiddleware, instanceMiddleware, (req, res) => res.json({ instanceId: req.instance.id }));
     }
     app.get('/api/stream', authMiddleware, (req, res) => {
         res.setHeader('Content-Type', 'text/event-stream');

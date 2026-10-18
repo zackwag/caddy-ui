@@ -32,7 +32,16 @@ test('the real UI issues, scopes and revokes read-only tokens without relaxing C
     const request = (path, options = {}) => fetch(stack.url + '/api' + path, {
         ...options, headers: { Authorization: 'Bearer ' + token, ...options.headers },
     });
-    assert.equal((await request('/status')).status, 200);
+    const status = await request('/status');
+    assert.equal(status.status, 200);
+    const statusData = await status.json();
+    assert.equal(statusData.online, true);
+    assert.equal(typeof statusData.routeCount, 'number');
+    assert.equal('adminUrl' in statusData, false);
+    assert.equal('servers' in statusData, false);
+    const managementStatus = await page.evaluate(async () => (await fetch('/api/status')).json());
+    assert.equal(typeof managementStatus.adminUrl, 'string');
+    assert(Array.isArray(managementStatus.servers));
     assert.equal((await request('/metrics/raw')).status, 403);
     assert.equal((await request('/status', { headers: { 'X-Instance-Id': 'another-instance' } })).status, 403);
     assert.equal((await request('/settings', { method: 'PUT' })).status, 403);

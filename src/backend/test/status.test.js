@@ -1,5 +1,31 @@
-import { describe, expect, it } from 'vitest';
-import { formatUptime, parsePrometheusMetrics } from '../src/routes/status.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import statusRouter, { formatUptime, parsePrometheusMetrics } from '../src/routes/status.js';
+import * as caddy from '../src/caddy.js';
+import * as checks from '../src/upstreamChecks.js';
+
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe('status response permissions', () => {
+    it.each([false, true])('limits management connection details for bearer authentication: %s', async bearer => {
+        const servers = { internal: { listen: ['10.0.0.2:443'], routes: [{}, {}] } };
+        vi.spyOn(caddy, 'caddyGet').mockResolvedValue(servers);
+        vi.spyOn(checks, 'checkInstanceUpstreams').mockResolvedValue([]);
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('')));
+        const res = { json: vi.fn(), locals: {} };
+        const instance = { id: 'allowed', name: 'Allowed', adminUrl: 'http://caddy:2019' };
+        const route = statusRouter.stack.find(layer => layer.route?.path === '/').route;
+        await route.stack[0].handle({ instance, ...(bearer ? { apiToken: {} } : {}) }, res);
+        const response = res.json.mock.calls[0][0];
+        expect(response).toMatchObject({ online: true, instance: { id: 'allowed', name: 'Allowed' }, serverCount: 1, routeCount: 2 });
+        if (bearer) {
+            expect(response).not.toHaveProperty('adminUrl');
+            expect(response).not.toHaveProperty('servers');
+        } else {
+            expect(response.adminUrl).toBe(instance.adminUrl);
+            expect(response.servers).toEqual([{ name: 'internal', listen: ['10.0.0.2:443'], routeCount: 2 }]);
+        }
+    });
+});
 
 describe('parsePrometheusMetrics', () => {
     it('parses simple key-value metrics', () => {

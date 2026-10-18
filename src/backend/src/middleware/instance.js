@@ -14,7 +14,6 @@ export function instanceMiddleware(req, res, next) {
         return res.status(404).json({ error: 'Selected instance not found', code: 'INSTANCE_SELECTION_INVALID' });
     }
 
-
     try {
         req.instance = {
             id: instance.id,

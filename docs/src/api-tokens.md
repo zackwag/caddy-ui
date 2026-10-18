@@ -13,6 +13,8 @@ The UI offers 30, 90 or 365 days; the API accepts 1–365 days. Up to 64 token r
 
 Other routes are denied, including status process details, metrics configuration, Caddyfile, logs, settings, discovery and authentication endpoints. Supplying a valid administrator cookie alongside a bearer token does not broaden that token's access. Unknown, expired or revoked tokens are rejected without falling back to cookie authentication or public metrics.
 
+Status tokens receive availability, instance ID/name, aggregate server/route/upstream counts, uptime and the existing TLS flag. They do not receive the Caddy admin URL or server names/listener addresses (`adminUrl` and `servers`). Administrator sessions retain the full status response. Metrics remain more detailed: Caddy metric labels and permitted instances' historical series can contain hostnames and upstream addresses; grant `metrics:read` only to integrations that need them.
+
 Send the token as an explicit header, never a URL parameter:
 
 ```sh

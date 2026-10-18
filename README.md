@@ -369,7 +369,7 @@ If both password and recovery key are lost, stop the backend and restrict networ
 
 ### API compatibility
 
-Legacy JWTs and `?token=` authentication are removed. Create scoped status/metrics tokens in the sidebar's **API tokens** panel. Select instance IDs and expiry (up to 365 days). Tokens are shown once, stored hashed in `AUTH_PATH`, and survive restarts. Revoke them in the UI; recovery revokes all. See the [token guide](https://zackwag.github.io/caddy-ui/api-tokens.html).
+Legacy JWTs and `?token=` authentication are removed. Create scoped status/metrics tokens in **API tokens** in the sidebar. Secrets are shown once and stored hashed in `AUTH_PATH`; recovery revokes all. See the [token guide](https://zackwag.github.io/caddy-ui/api-tokens.html) for expiry, revocation and response details.
 
 Send `Authorization: Bearer <token>` and `X-Instance-Id: <id>`; omitting the latter selects `default`, which must be allowed. Tokens permit reads only. Token management requires a session and CSRF; bearer reads need no CSRF. CORS remains disabled.
 
@@ -411,7 +411,7 @@ scrape_configs:
         values: ['default']
 ```
 
-Alongside Caddy's own metrics, the endpoint serves caddy-ui's upstream uptime history (labeled `instance_id`, `instance_name`, `upstream`), plus route check history when enabled (labeled `instance_id`, `instance_name`, `route`), even when Caddy's metrics are disabled. API-token requests include only allowed instances; administrator sessions and public scrapes include every instance:
+The endpoint includes upstream uptime history (`instance_id`, `instance_name`, `upstream` labels) and enabled route history (`instance_id`, `instance_name`, `route`), even with Caddy metrics disabled. Tokens include only permitted instances; administrator sessions and public scrapes include all:
 
 | Metric | Description |
 |---|---|

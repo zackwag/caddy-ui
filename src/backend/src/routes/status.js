@@ -89,9 +89,10 @@ router.get('/', async (req, res) => {
             upstreamsOnline,
             upstreamsTotal,
             uptime,
-            servers,
             tlsEnabled: true,
-            adminUrl,
+            // Integration tokens receive monitoring aggregates, not connection
+            // details from the management configuration.
+            ...(!req.apiToken ? { servers, adminUrl } : {}),
         });
     } catch (err) {
         const error = asAppError(err, 'CADDY_STATUS_UNAVAILABLE', { instanceId: req.instance.id });

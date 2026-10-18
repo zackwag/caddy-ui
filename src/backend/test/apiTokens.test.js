@@ -12,7 +12,9 @@ const instance = id => ({ id, name: id, adminUrl: 'http://caddy:2019', configPat
 const input = (updates = {}) => ({ name: 'Homepage', scopes: ['status:read'], instanceIds: ['default'], expiresInDays: 30, ...updates });
 beforeEach(() => {
     vi.spyOn(instances, 'getInstances').mockReturnValue([instance('default'), instance('second')]);
-    vi.spyOn(instances, 'getInstance').mockImplementation(id => instances.getInstances().find(instance => instance.id === id) || instances.getInstances()[0]);
+    vi.spyOn(instances, 'getInstance').mockImplementation(id => !id || id === 'default'
+        ? instances.getInstances().find(instance => instance.id === 'default') || instances.getInstances()[0]
+        : instances.getInstances().find(instance => instance.id === id) || null);
 });
 afterEach(async () => {
     for (const fixture of fixtures.splice(0)) await fixture.close();
@@ -39,6 +41,14 @@ async function bearer(url, token, path, options = {}) {
 }
 
 describe('scoped read-only integration tokens', () => {
+    it('keeps session instance selection strict and authenticates before instance lookup', async () => {
+        const f = await fixture();
+        const headers = { 'X-Instance-Id': 'missing' };
+        expect((await fetch(f.url + '/api/status', { headers })).status).toBe(401);
+        const response = await f.client.request('/status', { headers });
+        expect(response.status).toBe(404);
+        expect(response.data.code).toBe('INSTANCE_SELECTION_INVALID');
+    });
     it('preserves cookie login behind other proxy authentication schemes without accepting them as API credentials', async () => {
         const f = await fixture();
         const headers = { Authorization: 'Basic ' + Buffer.from(secret()).toString('base64') };
