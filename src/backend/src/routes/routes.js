@@ -3,8 +3,13 @@ import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
 import { getCaddyEnv, resolveEnvVars } from '../docker.js';
+import { getInstances } from '../instances.js';
 import logger from '../logger.js';
-import { buildMaintenanceBlock, clearMaintenance, getMaintenancePage, getMaintenanceState, isInMaintenance, setMaintenance } from '../maintenance.js';
+import {
+    buildMaintenanceBlock, claimUnassignedMaintenance, clearMaintenance, getMaintenancePage, getMaintenanceState,
+    hasUnassignedMaintenance, isInMaintenance, isMaintenanceBlock, setMaintenance,
+} from '../maintenance.js';
+import { validateContainerName, validatePath } from '../validation.js';
 import { saveRouteEdit } from './caddyfile.js';
 
 const router = Router();
@@ -360,15 +365,37 @@ router.delete('/:id', async (req, res) => {
     res.json({ ok: true, id });
 });
 
-// GET /api/routes/maintenance -- get maintenance state for all domains
-router.get('/maintenance', (req, res) => {
-    res.json(getMaintenanceState());
+// Whether the instance's Caddyfile currently serves the maintenance page for
+// the domain; null when the file can't be read. This is the only evidence used
+// to assign saved state whose owner isn't recorded.
+async function servesMaintenance(instance, domain) {
+    try {
+        const containerName = validateContainerName(instance.containerName);
+        const [caddyfile, env] = await Promise.all([
+            readContainerFile(containerName, validatePath(instance.configPath)),
+            getCaddyEnv(containerName),
+        ]);
+        return isMaintenanceBlock(extractSiteBlock(caddyfile, domain, env));
+    } catch {
+        return null;
+    }
+}
+
+async function claimSavedMaintenance() {
+    if (hasUnassignedMaintenance()) await claimUnassignedMaintenance(getInstances(), servesMaintenance);
+}
+
+// GET /api/routes/maintenance -- maintenance state for the selected instance's domains
+router.get('/maintenance', async (req, res) => {
+    await claimSavedMaintenance();
+    res.json(getMaintenanceState(req.instance.id));
 });
 
 // POST /api/routes/caddyfile/:domain/maintenance -- enable maintenance mode
 router.post('/caddyfile/:domain/maintenance', async (req, res) => {
     const { domain } = req.params;
-    if (isInMaintenance(domain)) {
+    await claimSavedMaintenance();
+    if (isInMaintenance(req.instance.id, domain)) {
         return res.status(409).json({ error: 'Route is already in maintenance mode' });
     }
 
@@ -379,6 +406,10 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
         ]);
         const block = extractSiteBlock(caddyfile, domain, env);
         if (!block) return res.status(404).json({ error: 'site block not found' });
+        // Saving the maintenance page as the "original" would lose the real block
+        if (isMaintenanceBlock(block)) {
+            return res.status(409).json({ error: 'Route is already serving the maintenance page' });
+        }
 
         const html = await getMaintenancePage();
         const maintBlock = buildMaintenanceBlock(domain, html);
@@ -387,7 +418,7 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
         const updated = `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
         await saveRouteEdit(req.instance, updated);
 
-        await setMaintenance(domain, block);
+        await setMaintenance(req.instance.id, domain, block);
 
         logger.info('Maintenance mode enabled', { domain });
         res.json({ ok: true, domain });
@@ -400,7 +431,8 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
 // DELETE /api/routes/caddyfile/:domain/maintenance -- disable maintenance mode
 router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
     const { domain } = req.params;
-    if (!isInMaintenance(domain)) {
+    await claimSavedMaintenance();
+    if (!isInMaintenance(req.instance.id, domain)) {
         return res.status(404).json({ error: 'Route is not in maintenance mode' });
     }
 
@@ -410,12 +442,12 @@ router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
             getCaddyEnv(req.instance.containerName),
         ]);
 
-        const { originalContent } = getMaintenanceState()[domain];
+        const { originalContent } = getMaintenanceState(req.instance.id)[domain];
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${originalContent}\n`;
         await saveRouteEdit(req.instance, updated);
-        await clearMaintenance(domain);
+        await clearMaintenance(req.instance.id, domain);
 
         logger.info('Maintenance mode disabled', { domain });
         res.json({ ok: true, domain });
