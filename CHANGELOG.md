@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.7](https://github.com/zackwag/caddy-ui/compare/v2.29.6...v2.29.7) (2026-10-18)
+
+
+### Bug Fixes
+
+* give every Caddyfile change the same save, reload and rollback guarantees ([#324](https://github.com/zackwag/caddy-ui/issues/324)) ([8be5c20](https://github.com/zackwag/caddy-ui/commit/8be5c20dfa66ab4984e5bea1eb8adc80a6fdd48c))
+
 ## [2.29.6](https://github.com/zackwag/caddy-ui/compare/v2.29.5...v2.29.6) (2026-10-18)
 
 
