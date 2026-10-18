@@ -94,15 +94,20 @@ describe('scoped read-only integration tokens', () => {
         const status = await f.issue();
         expect((await bearer(f.url, status.token, '/status')).status).toBe(200);
         expect((await bearer(f.url, status.token, '/status', { method: 'HEAD' })).status).toBe(200);
-        for (const path of ['/metrics', '/metrics/raw', '/metrics/config', '/status/process', '/caddyfile', '/logs/app', '/instances', '/auth/tokens', '/auth/csrf', '/auth/status']) {
+        for (const path of ['/metrics', '/metrics/raw', '/metrics/config', '/status/process', '/caddyfile', '/caddyfile/history', '/routes', '/tls', '/route-notes', '/logs/app', '/instances', '/auth/tokens', '/auth/csrf', '/auth/status']) {
             expect((await bearer(f.url, status.token, path)).status, path).toBe(403);
         }
         expect((await bearer(f.url, status.token, '/status', { headers: { 'X-Instance-Id': 'second' } })).status).toBe(403);
+        const unpermitted = await bearer(f.url, status.token, '/status', { headers: { 'X-Instance-Id': 'missing' } });
+        expect(unpermitted.status).toBe(403);
+        expect((await unpermitted.json()).code).toBe('FORBIDDEN');
         const metrics = await f.issue(input({ scopes: ['metrics:read'], instanceIds: ['second'] }));
         expect((await bearer(f.url, metrics.token, '/metrics/raw')).status).toBe(403);
         expect((await bearer(f.url, metrics.token, '/metrics/raw', { headers: { 'X-Instance-Id': 'second' } })).status).toBe(200);
         vi.mocked(instances.getInstances).mockReturnValue([instance('default')]);
-        expect((await bearer(f.url, metrics.token, '/metrics/raw', { headers: { 'X-Instance-Id': 'second' } })).status).toBe(404);
+        const removed = await bearer(f.url, metrics.token, '/metrics/raw', { headers: { 'X-Instance-Id': 'second' } });
+        expect(removed.status).toBe(404);
+        expect((await removed.json()).code).toBe('INSTANCE_SELECTION_INVALID');
     });
 
     it('never authorizes writes, mints sessions or falls back to a more privileged cookie', async () => {

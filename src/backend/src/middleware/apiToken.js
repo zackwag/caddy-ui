@@ -20,7 +20,7 @@ export function createApiTokenMiddleware(service) {
             if (!scope || !token.scopes.includes(scope)) throw new AppError('FORBIDDEN');
             const instanceId = req.headers['x-instance-id'] || DEFAULT_INSTANCE_ID;
             if (!token.instanceIds.includes(instanceId)) throw new AppError('FORBIDDEN');
-            if (!getInstances().some(instance => instance.id === instanceId)) throw new AppError('INSTANCE_NOT_FOUND');
+            if (!getInstances().some(instance => instance.id === instanceId)) throw new AppError('INSTANCE_SELECTION_INVALID');
             req.apiToken = { ...token, instanceId };
             res.set('Cache-Control', 'no-store');
             return next();
