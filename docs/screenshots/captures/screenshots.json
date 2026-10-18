@@ -1,8 +1,9 @@
 {
   "formatVersion": 1,
   "source": {
-    "commit": "1acaa8730f6470f50629e6dbea112ba4555c0a0a",
-    "caddyImage": "caddy:2.10.2-alpine"
+    "commit": "0226a0ee63091d1c2426ba8daeb62244bca119ef",
+    "caddyImage": "caddy:2.10.2-alpine",
+    "sampleHistory": "Illustrative 24-hour uptime history seeded into backend storage; request metrics and certificates are generated live."
   },
   "normalization": [
     "Request IDs",
@@ -218,19 +219,26 @@
                 "id": "default",
                 "name": "Default"
               },
-              "serverCount": 1,
+              "serverCount": 2,
               "routeCount": 4,
-              "upstreamsOnline": 0,
-              "upstreamsTotal": 2,
-              "uptime": "1s",
+              "upstreamsOnline": 1,
+              "upstreamsTotal": 1,
+              "uptime": "2s",
               "tlsEnabled": true,
               "servers": [
                 {
                   "name": "srv0",
                   "listen": [
+                    ":443"
+                  ],
+                  "routeCount": 3
+                },
+                {
+                  "name": "srv1",
+                  "listen": [
                     ":80"
                   ],
-                  "routeCount": 4
+                  "routeCount": 1
                 }
               ],
               "adminUrl": "http://caddy-screenshots:2019"
@@ -254,7 +262,7 @@
               "version": "v2.10.2",
               "uptime": "2s",
               "uptimeSeconds": 2,
-              "memAlloc": 4.8,
+              "memAlloc": 5,
               "memSys": 17.8,
               "lastReload": "2025-01-01T12:00:00.000Z",
               "lastReloadSuccess": true
@@ -274,7 +282,8 @@
               "x-request-id": "00000000-0000-4000-8000-000000000011"
             },
             "body": {
-              "srv0": "Production HTTPS"
+              "srv0": "Production HTTPS",
+              "srv1": "Local HTTP"
             }
           }
         },
@@ -292,18 +301,32 @@
             },
             "body": [
               {
-                "domain": null,
-                "upstream": "192.168.1.20:8096",
+                "domain": "media.home.arpa",
+                "upstream": "caddy-staging:80",
                 "server": "srv0",
-                "online": false,
-                "checkedAt": "2025-01-01T12:00:01.204Z"
+                "online": true,
+                "checkedAt": "2025-01-01T12:00:00.553Z"
+              },
+              {
+                "domain": "api.internal",
+                "upstream": "caddy-staging:80",
+                "server": "srv0",
+                "online": true,
+                "checkedAt": "2025-01-01T12:00:00.553Z"
+              },
+              {
+                "domain": "example.com",
+                "upstream": "caddy-staging:80",
+                "server": "srv0",
+                "online": true,
+                "checkedAt": "2025-01-01T12:00:00.553Z"
               },
               {
                 "domain": null,
-                "upstream": "192.168.1.10:8080",
-                "server": "srv0",
-                "online": false,
-                "checkedAt": "2025-01-01T12:00:01.204Z"
+                "upstream": "caddy-staging:80",
+                "server": "srv1",
+                "online": true,
+                "checkedAt": "2025-01-01T12:00:00.553Z"
               }
             ]
           }
@@ -320,7 +343,7 @@
               "content-type": "text/plain; charset=utf-8",
               "x-request-id": "00000000-0000-4000-8000-000000000013"
             },
-            "body": "{\n    admin 0.0.0.0:2019\n    auto_https off\n    metrics\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n\n    handle /api/* {\n        reverse_proxy 192.168.1.10:8080\n    }\n\n    handle /media/* {\n        reverse_proxy 192.168.1.20:8096\n    }\n\n    respond /health \"ok\" 200\n    respond \"Screenshot capture instance\" 200\n}\n"
+            "body": "{\n    admin 0.0.0.0:2019\n    auto_https disable_redirects\n    skip_install_trust\n    metrics\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n}\n\n(screenshot_backend) {\n    reverse_proxy caddy-staging:80 {\n        transport http {\n            network_proxy none\n        }\n    }\n}\n\n:80 {\n    log\n    @sites host example.com media.home.arpa api.internal\n    handle @sites {\n        import screenshot_backend\n    }\n    handle {\n        respond /health \"ok\" 200\n        respond \"Screenshot capture instance\" 200\n    }\n}\n\nexample.com {\n    # Home Assistant\n    tls internal\n    log\n    import screenshot_backend\n}\n\nmedia.home.arpa {\n    # Jellyfin\n    tls internal\n    log\n    import screenshot_backend\n}\n\napi.internal {\n    # Internal API\n    tls internal\n    log\n    import screenshot_backend\n}\n"
           }
         },
         {
@@ -337,8 +360,8 @@
             },
             "body": [
               {
-                "filename": "Caddyfile-2026-10-18T19-28-54",
-                "timestamp": "2026-10-18T19:28:54"
+                "filename": "Caddyfile-2026-10-18T19-48-57",
+                "timestamp": "2026-10-18T19:48:57"
               }
             ]
           }
@@ -346,7 +369,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/caddyfile/history/Caddyfile-2026-10-18T19-28-54",
+            "path": "/caddyfile/history/Caddyfile-2026-10-18T19-48-57",
             "body": null
           },
           "response": {
@@ -372,7 +395,6 @@
             },
             "body": [
               {
-                "group": "group2",
                 "handle": [
                   {
                     "handler": "subroute",
@@ -381,9 +403,15 @@
                         "handle": [
                           {
                             "handler": "reverse_proxy",
+                            "transport": {
+                              "network_proxy": {
+                                "from": "none"
+                              },
+                              "protocol": "http"
+                            },
                             "upstreams": [
                               {
-                                "dial": "192.168.1.20:8096"
+                                "dial": "caddy-staging:80"
                               }
                             ]
                           }
@@ -394,16 +422,16 @@
                 ],
                 "match": [
                   {
-                    "path": [
-                      "/media/*"
+                    "host": [
+                      "media.home.arpa"
                     ]
                   }
                 ],
+                "terminal": true,
                 "_server": "srv0",
                 "_simpleProxy": true
               },
               {
-                "group": "group2",
                 "handle": [
                   {
                     "handler": "subroute",
@@ -412,9 +440,15 @@
                         "handle": [
                           {
                             "handler": "reverse_proxy",
+                            "transport": {
+                              "network_proxy": {
+                                "from": "none"
+                              },
+                              "protocol": "http"
+                            },
                             "upstreams": [
                               {
-                                "dial": "192.168.1.10:8080"
+                                "dial": "caddy-staging:80"
                               }
                             ]
                           }
@@ -425,41 +459,134 @@
                 ],
                 "match": [
                   {
-                    "path": [
-                      "/api/*"
+                    "host": [
+                      "api.internal"
                     ]
                   }
                 ],
+                "terminal": true,
                 "_server": "srv0",
                 "_simpleProxy": true
               },
               {
                 "handle": [
                   {
-                    "body": "ok",
-                    "handler": "static_response",
-                    "status_code": 200
+                    "handler": "subroute",
+                    "routes": [
+                      {
+                        "handle": [
+                          {
+                            "handler": "reverse_proxy",
+                            "transport": {
+                              "network_proxy": {
+                                "from": "none"
+                              },
+                              "protocol": "http"
+                            },
+                            "upstreams": [
+                              {
+                                "dial": "caddy-staging:80"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ],
                 "match": [
                   {
-                    "path": [
-                      "/health"
+                    "host": [
+                      "example.com"
                     ]
                   }
                 ],
+                "terminal": true,
                 "_server": "srv0",
-                "_simpleProxy": false
+                "_simpleProxy": true
               },
               {
                 "handle": [
                   {
-                    "body": "Screenshot capture instance",
-                    "handler": "static_response",
-                    "status_code": 200
+                    "handler": "subroute",
+                    "routes": [
+                      {
+                        "group": "group5",
+                        "handle": [
+                          {
+                            "handler": "subroute",
+                            "routes": [
+                              {
+                                "handle": [
+                                  {
+                                    "handler": "reverse_proxy",
+                                    "transport": {
+                                      "network_proxy": {
+                                        "from": "none"
+                                      },
+                                      "protocol": "http"
+                                    },
+                                    "upstreams": [
+                                      {
+                                        "dial": "caddy-staging:80"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ],
+                        "match": [
+                          {
+                            "host": [
+                              "example.com",
+                              "media.home.arpa",
+                              "api.internal"
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "group": "group5",
+                        "handle": [
+                          {
+                            "handler": "subroute",
+                            "routes": [
+                              {
+                                "handle": [
+                                  {
+                                    "body": "ok",
+                                    "handler": "static_response",
+                                    "status_code": 200
+                                  }
+                                ],
+                                "match": [
+                                  {
+                                    "path": [
+                                      "/health"
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "handle": [
+                                  {
+                                    "body": "Screenshot capture instance",
+                                    "handler": "static_response",
+                                    "status_code": 200
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
                   }
                 ],
-                "_server": "srv0",
+                "terminal": true,
+                "_server": "srv1",
                 "_simpleProxy": false
               }
             ]
@@ -477,7 +604,41 @@
               "content-type": "application/json; charset=utf-8",
               "x-request-id": "00000000-0000-4000-8000-000000000017"
             },
-            "body": []
+            "body": [
+              {
+                "domain": "api.internal",
+                "issuer": "internal",
+                "issuerDir": "local",
+                "validFrom": "Oct 18 19:48:57 2026 GMT",
+                "validTo": "Oct 19 07:48:57 2026 GMT",
+                "daysRemaining": 0,
+                "isManaged": true,
+                "isInternal": true,
+                "status": "valid"
+              },
+              {
+                "domain": "example.com",
+                "issuer": "internal",
+                "issuerDir": "local",
+                "validFrom": "Oct 18 19:48:57 2026 GMT",
+                "validTo": "Oct 19 07:48:57 2026 GMT",
+                "daysRemaining": 0,
+                "isManaged": true,
+                "isInternal": true,
+                "status": "valid"
+              },
+              {
+                "domain": "media.home.arpa",
+                "issuer": "internal",
+                "issuerDir": "local",
+                "validFrom": "Oct 18 19:48:57 2026 GMT",
+                "validTo": "Oct 19 07:48:57 2026 GMT",
+                "daysRemaining": 0,
+                "isManaged": true,
+                "isInternal": true,
+                "status": "valid"
+              }
+            ]
           }
         },
         {
@@ -493,7 +654,9 @@
               "x-request-id": "00000000-0000-4000-8000-000000000018"
             },
             "body": {
-              ":80": "Home services"
+              "example.com": "Home Assistant",
+              "media.home.arpa": "Jellyfin",
+              "api.internal": "Internal API"
             }
           }
         },
@@ -524,7 +687,19 @@
               "content-type": "application/json; charset=utf-8",
               "x-request-id": "00000000-0000-4000-8000-000000000020"
             },
-            "body": {}
+            "body": {
+              "caddy-staging:80": {
+                "pct": 97.9,
+                "total": 48,
+                "online": 47,
+                "currentlyOnline": true,
+                "streak": 37,
+                "streakSeconds": 66602,
+                "streakLabel": "18h 30m",
+                "firstSeen": "2024-12-31T11:59:59.310Z",
+                "lastCheckAt": "2025-01-01T11:29:59.310Z"
+              }
+            }
           }
         },
         {
@@ -539,7 +714,41 @@
               "content-type": "application/json; charset=utf-8",
               "x-request-id": "00000000-0000-4000-8000-000000000021"
             },
-            "body": {}
+            "body": {
+              "example.com": {
+                "pct": 97.9,
+                "total": 48,
+                "online": 47,
+                "currentlyOnline": true,
+                "streak": 37,
+                "streakSeconds": 66602,
+                "streakLabel": "18h 30m",
+                "firstSeen": "2024-12-31T11:59:59.310Z",
+                "lastCheckAt": "2025-01-01T11:29:59.310Z"
+              },
+              "media.home.arpa": {
+                "pct": 97.9,
+                "total": 48,
+                "online": 47,
+                "currentlyOnline": true,
+                "streak": 37,
+                "streakSeconds": 66602,
+                "streakLabel": "18h 30m",
+                "firstSeen": "2024-12-31T11:59:59.310Z",
+                "lastCheckAt": "2025-01-01T11:29:59.310Z"
+              },
+              "api.internal": {
+                "pct": 97.9,
+                "total": 48,
+                "online": 47,
+                "currentlyOnline": true,
+                "streak": 37,
+                "streakSeconds": 66602,
+                "streakLabel": "18h 30m",
+                "firstSeen": "2024-12-31T11:59:59.310Z",
+                "lastCheckAt": "2025-01-01T11:29:59.310Z"
+              }
+            }
           }
         },
         {
@@ -556,16 +765,57 @@
             },
             "body": {
               "lines": [
-                "{\"level\":\"info\",\"ts\":1792351734.4169648,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42636\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/health\",\"headers\":{\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.00004465,\"size\":2,\"status\":200,\"resp_headers\":{\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.4238381,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42650\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/\",\"headers\":{\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000026841,\"size\":27,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.4267488,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42636\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/health\",\"headers\":{\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000028121,\"size\":2,\"status\":200,\"resp_headers\":{\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.429747,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42650\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/\",\"headers\":{\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000060981,\"size\":27,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.431089,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42636\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/health\",\"headers\":{\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000015616,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.4336512,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42650\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000031363,\"size\":27,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.4361904,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42636\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/health\",\"headers\":{\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000033221,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.4387364,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42650\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/\",\"headers\":{\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.00001687,\"size\":27,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.4400058,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42636\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/health\",\"headers\":{\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000013107,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"info\",\"ts\":1792351734.4436498,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"42650\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-screenshots:80\",\"uri\":\"/\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000011774,\"size\":27,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}"
+                "{\"level\":\"info\",\"ts\":1792352937.7439055,\"logger\":\"admin\",\"msg\":\"admin endpoint started\",\"address\":\"0.0.0.0:2019\",\"enforce_origin\":false,\"origins\":[\"//0.0.0.0:2019\"]}",
+                "{\"level\":\"warn\",\"ts\":1792352937.7439609,\"logger\":\"admin\",\"msg\":\"admin endpoint on open interface; host checking disabled\",\"address\":\"0.0.0.0:2019\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7442498,\"logger\":\"http.auto_https\",\"msg\":\"server is listening only on the HTTPS port but has no TLS connection policies; adding one to enable TLS\",\"server_name\":\"srv0\",\"https_port\":443}",
+                "{\"level\":\"info\",\"ts\":1792352937.74429,\"logger\":\"http.auto_https\",\"msg\":\"automatic HTTP->HTTPS redirects are disabled\",\"server_name\":\"srv0\"}",
+                "{\"level\":\"warn\",\"ts\":1792352937.744297,\"logger\":\"http.auto_https\",\"msg\":\"server is listening only on the HTTP port, so no automatic HTTPS will be applied to this server\",\"server_name\":\"srv1\",\"http_port\":80}",
+                "{\"level\":\"info\",\"ts\":1792352937.7449477,\"logger\":\"pki.ca.local\",\"msg\":\"root certificate trust store installation disabled; unconfigured clients may show warnings\",\"path\":\"storage:pki/authorities/local/root.crt\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7451274,\"logger\":\"http\",\"msg\":\"enabling HTTP/3 listener\",\"addr\":\":443\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.745449,\"logger\":\"http.log\",\"msg\":\"server running\",\"name\":\"srv0\",\"protocols\":[\"h1\",\"h2\",\"h3\"]}",
+                "{\"level\":\"warn\",\"ts\":1792352937.74555,\"logger\":\"http\",\"msg\":\"HTTP/2 skipped because it requires TLS\",\"network\":\"tcp\",\"addr\":\":80\"}",
+                "{\"level\":\"warn\",\"ts\":1792352937.7455544,\"logger\":\"http\",\"msg\":\"HTTP/3 skipped because it requires TLS\",\"network\":\"tcp\",\"addr\":\":80\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.745557,\"logger\":\"http.log\",\"msg\":\"server running\",\"name\":\"srv1\",\"protocols\":[\"h1\",\"h2\",\"h3\"]}",
+                "{\"level\":\"info\",\"ts\":1792352937.7455602,\"logger\":\"http\",\"msg\":\"enabling automatic TLS certificate management\",\"domains\":[\"media.home.arpa\",\"api.internal\",\"example.com\"]}",
+                "{\"level\":\"info\",\"ts\":1792352937.7464678,\"msg\":\"autosaved config (load with --resume flag)\",\"file\":\"/data/dev-caddy/config/caddy/autosave.json\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7464762,\"logger\":\"admin.api\",\"msg\":\"load complete\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7498097,\"logger\":\"tls.obtain\",\"msg\":\"acquiring lock\",\"identifier\":\"media.home.arpa\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7506123,\"logger\":\"tls.obtain\",\"msg\":\"acquiring lock\",\"identifier\":\"example.com\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7509007,\"logger\":\"tls.obtain\",\"msg\":\"acquiring lock\",\"identifier\":\"api.internal\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7526739,\"logger\":\"tls.obtain\",\"msg\":\"lock acquired\",\"identifier\":\"media.home.arpa\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7527244,\"logger\":\"tls.obtain\",\"msg\":\"lock acquired\",\"identifier\":\"api.internal\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7527592,\"logger\":\"tls.obtain\",\"msg\":\"obtaining certificate\",\"identifier\":\"media.home.arpa\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7527854,\"logger\":\"tls.obtain\",\"msg\":\"obtaining certificate\",\"identifier\":\"api.internal\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.754984,\"logger\":\"tls.obtain\",\"msg\":\"lock acquired\",\"identifier\":\"example.com\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7550457,\"logger\":\"tls.obtain\",\"msg\":\"obtaining certificate\",\"identifier\":\"example.com\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7607918,\"logger\":\"admin\",\"msg\":\"stopped previous server\",\"address\":\"0.0.0.0:2019\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7638438,\"logger\":\"tls.obtain\",\"msg\":\"certificate obtained successfully\",\"identifier\":\"example.com\",\"issuer\":\"local\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7639055,\"logger\":\"tls.obtain\",\"msg\":\"releasing lock\",\"identifier\":\"example.com\"}",
+                "{\"level\":\"warn\",\"ts\":1792352937.7642653,\"logger\":\"tls\",\"msg\":\"stapling OCSP\",\"identifiers\":[\"example.com\"]}",
+                "{\"level\":\"info\",\"ts\":1792352937.7643077,\"logger\":\"tls.obtain\",\"msg\":\"certificate obtained successfully\",\"identifier\":\"media.home.arpa\",\"issuer\":\"local\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7643335,\"logger\":\"tls.obtain\",\"msg\":\"certificate obtained successfully\",\"identifier\":\"api.internal\",\"issuer\":\"local\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7643764,\"logger\":\"tls.obtain\",\"msg\":\"releasing lock\",\"identifier\":\"media.home.arpa\"}",
+                "{\"level\":\"info\",\"ts\":1792352937.7643957,\"logger\":\"tls.obtain\",\"msg\":\"releasing lock\",\"identifier\":\"api.internal\"}",
+                "{\"level\":\"warn\",\"ts\":1792352937.7645953,\"logger\":\"tls\",\"msg\":\"stapling OCSP\",\"identifiers\":[\"api.internal\"]}",
+                "{\"level\":\"warn\",\"ts\":1792352937.7646267,\"logger\":\"tls\",\"msg\":\"stapling OCSP\",\"identifiers\":[\"media.home.arpa\"]}",
+                "{\"level\":\"info\",\"ts\":1792352937.7695436,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"example.com\",\"uri\":\"/\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.001058992,\"size\":31,\"status\":200,\"resp_headers\":{\"Content-Length\":[\"31\"],\"Via\":[\"1.1 Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"],\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352937.7712655,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"example.com\",\"uri\":\"/media\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000567866,\"size\":31,\"status\":200,\"resp_headers\":{\"Content-Length\":[\"31\"],\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"],\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"],\"Via\":[\"1.1 Caddy\"]}}",
+                "{\"level\":\"error\",\"ts\":1792352937.7726192,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"example.com\",\"uri\":\"/error\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000471193,\"size\":21,\"status\":503,\"resp_headers\":{\"Content-Length\":[\"21\"],\"Via\":[\"1.1 Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"],\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352937.7740865,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"media.home.arpa\",\"uri\":\"/\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000324955,\"size\":31,\"status\":200,\"resp_headers\":{\"Via\":[\"1.1 Caddy\"],\"Content-Length\":[\"31\"],\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"],\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352937.7749379,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"media.home.arpa\",\"uri\":\"/media\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000291378,\"size\":31,\"status\":200,\"resp_headers\":{\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Via\":[\"1.1 Caddy\"],\"Server\":[\"Caddy\"],\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"],\"Content-Length\":[\"31\"]}}",
+                "{\"level\":\"error\",\"ts\":1792352937.7758782,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"media.home.arpa\",\"uri\":\"/error\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.00044205,\"size\":21,\"status\":503,\"resp_headers\":{\"Via\":[\"1.1 Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"],\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"],\"Content-Length\":[\"21\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352937.7768445,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"api.internal\",\"uri\":\"/\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.00039667,\"size\":31,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Via\":[\"1.1 Caddy\"],\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"],\"Content-Length\":[\"31\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352937.7778554,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"api.internal\",\"uri\":\"/media\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000514383,\"size\":31,\"status\":200,\"resp_headers\":{\"Via\":[\"1.1 Caddy\"],\"Content-Length\":[\"31\"],\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"],\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"]}}",
+                "{\"level\":\"error\",\"ts\":1792352937.7790334,\"logger\":\"http.log.access\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"35098\",\"client_ip\":\"172.17.0.1\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"api.internal\",\"uri\":\"/error\",\"headers\":{\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000435804,\"size\":21,\"status\":503,\"resp_headers\":{\"Date\":[\"Sun, 18 Oct 2026 19:48:57 GMT\"],\"Content-Length\":[\"21\"],\"Via\":[\"1.1 Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"],\"Server\":[\"Caddy\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352937.7832406,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/apps/tls\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47528\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Content-Type\":[\"application/json\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352937.7840157,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/apps/http/servers\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47540\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Content-Type\":[\"application/json\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352938.1593456,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47528\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352938.1655898,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/apps/http/servers\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47528\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Content-Type\":[\"application/json\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352938.1688023,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/apps/http/servers\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47554\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Content-Type\":[\"application/json\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352938.2969096,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/apps/http/servers\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47528\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Content-Type\":[\"application/json\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352938.3853319,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/apps/http/servers\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47528\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Content-Type\":[\"application/json\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352938.3898184,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/apps/tls\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47528\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Content-Type\":[\"application/json\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}",
+                "{\"level\":\"info\",\"ts\":1792352938.3900595,\"logger\":\"admin.api\",\"msg\":\"received request\",\"method\":\"GET\",\"host\":\"caddy-screenshots:2019\",\"uri\":\"/config/apps/http/servers\",\"remote_ip\":\"172.17.0.1\",\"remote_port\":\"47540\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Accept-Language\":[\"*\"],\"Connection\":[\"keep-alive\"],\"Content-Type\":[\"application/json\"],\"Origin\":[\"http://0.0.0.0:2019\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"]}}"
               ],
               "path": "/data/dev-caddy/logs/access.log"
             }
@@ -584,8 +834,8 @@
               "x-request-id": "00000000-0000-4000-8000-000000000023"
             },
             "body": {
-              "enabled": false,
-              "path": "/var/log/caddy/access.log",
+              "enabled": true,
+              "path": "/data/dev-caddy/logs/access.log",
               "rollSize": "50mb",
               "rollKeep": 5,
               "format": "json",
@@ -607,20 +857,20 @@
             },
             "body": {
               "ok": true,
-              "totalRequests": 0,
+              "totalRequests": 9,
               "statusGroups": {
-                "2xx": 0,
+                "2xx": 6,
                 "3xx": 0,
                 "4xx": 0,
-                "5xx": 0
+                "5xx": 3
               },
               "avgResponseMs": 0,
-              "p50": 0,
-              "p95": 0,
-              "p99": 0,
-              "rps": 0,
-              "uptimeSeconds": 2,
-              "scrapedAt": "2025-01-01T12:00:01.655Z"
+              "p50": 5,
+              "p95": 5,
+              "p99": 5,
+              "rps": 3,
+              "uptimeSeconds": 3,
+              "scrapedAt": "2025-01-01T12:00:01.298Z"
             }
           }
         },
@@ -699,7 +949,8 @@
             },
             "body": {
               "default": {
-                "srv0": "Production HTTPS"
+                "srv0": "Production HTTPS",
+                "srv1": "Local HTTP"
               }
             }
           }
@@ -717,7 +968,8 @@
               "x-request-id": "00000000-0000-4000-8000-000000000028"
             },
             "body": [
-              "srv0"
+              "srv0",
+              "srv1"
             ]
           }
         },
