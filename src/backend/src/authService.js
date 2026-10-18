@@ -10,9 +10,13 @@ function sameSecret(actual, expected) {
 }
 
 export async function createAuthService({ store = createAuthStore(), env = process.env, sessions } = {}) {
+    if (env.CADDY_UI_AUTH_DISABLED !== undefined && !['true', 'false'].includes(env.CADDY_UI_AUTH_DISABLED)) {
+        throw new Error('CADDY_UI_AUTH_DISABLED must be true or false. Refusing to start.');
+    }
+    const disabled = env.CADDY_UI_AUTH_DISABLED === 'true';
     await store.loadAuth();
     let legacy = null;
-    if (!store.isInitialized()) {
+    if (!disabled && !store.isInitialized()) {
         const names = ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET'];
         const provided = names.filter(name => env[name] !== undefined);
         const invalid = names.filter(name => !env[name]?.trim());
@@ -42,21 +46,23 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         getAuthState(req) {
             const session = sessions.readSession(req);
             return {
-                authEnabled: true,
+                authEnabled: !disabled,
                 authenticated: session?.permission === 'management',
-                setupRequired: !store.isInitialized(),
-                enrollmentRequired: !store.isInitialized() && legacy !== null,
+                setupRequired: !disabled && !store.isInitialized(),
+                enrollmentRequired: !disabled && !store.isInitialized() && legacy !== null,
                 enrollmentAuthenticated: session?.permission === 'enrollment',
                 publicMetrics: env.CADDY_UI_PUBLIC_METRICS === 'true',
             };
         },
         requireManagement(req, res) {
+            if (disabled) return;
             const session = sessions.readSession(req);
             if (session?.permission !== 'management') throw new AppError('UNAUTHORIZED');
             sessions.watchSession(session, res);
         },
         login(req, res, { username, password } = {}) {
             return serialize(async () => {
+                if (disabled) throw new AppError('FORBIDDEN');
                 let permission;
                 if (store.isInitialized()) {
                     if (!await store.verifyPassword(username, password)) throw new AppError('UNAUTHORIZED');
@@ -72,6 +78,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         },
         completeSetup(req, res, { username, password } = {}) {
             return serialize(async () => {
+                if (disabled) throw new AppError('FORBIDDEN');
                 if (store.isInitialized()) throw new AppError('CONFLICT');
                 if (legacy && sessions.readSession(req)?.permission !== 'enrollment') throw new AppError('UNAUTHORIZED');
                 validate(username, password);
@@ -84,6 +91,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         },
         recoverPassword(req, res, { recoveryKey, password } = {}) {
             return serialize(async () => {
+                if (disabled) throw new AppError('FORBIDDEN');
                 validate(store.getUsername() || 'administrator', password);
                 const replacement = await persist(() => store.replaceCredentials(recoveryKey, password));
                 if (!replacement) throw new AppError('UNAUTHORIZED');

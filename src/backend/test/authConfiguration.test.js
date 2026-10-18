@@ -27,6 +27,9 @@ afterEach(async () => {
 });
 
 describe('auth configuration', () => {
+    it.each(['', '1', 'TRUE', 'yes'])('rejects ambiguous authentication opt-out %j', async value => {
+        await expect(loadAuth({ CADDY_UI_AUTH_DISABLED: value })).rejects.toThrow('must be true or false');
+    });
     it.each([
         ['none', []],
         ['username', [KEYS[0]]],

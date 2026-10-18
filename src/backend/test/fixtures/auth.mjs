@@ -21,6 +21,7 @@ export async function authFixture({ env = {}, now, store } = {}) {
     app.use('/api', createCsrfMiddleware(service.sessions));
     app.use('/api/auth', createAuthRouter(() => service));
     app.get('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
+    app.put('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
     app.get('/api/stream', authMiddleware, (req, res) => {
         res.setHeader('Content-Type', 'text/event-stream');
         res.write('data: connected\n\n');
