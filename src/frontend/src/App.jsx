@@ -18,7 +18,7 @@ import ThemeWelcome from "./components/ThemeWelcome.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
 import { css, THEME_LIST, THEME_VAR_KEYS } from "./styles.js";
-import { apiFetch, authRequest, fetchAuthStatus, fetchCustomThemes, fetchSettings, getInstanceId, resetAuthContext, saveSettings } from "./utils/api.js";
+import { apiFetch, authRequest, fetchAuthStatus, fetchCustomThemes, fetchSettings, getInstanceId, onInstanceSelectionReset, resetAuthContext, saveSettings } from "./utils/api.js";
 import { useTranslation } from 'react-i18next';
 import { localizeError } from './utils/errorMessages.js';
 
@@ -265,6 +265,13 @@ export default function App() {
         setStatus(null);
         fetchStatus();
     }, [fetchStatus, navigate, clearStates]);
+
+    // The stored selection was dropped (instance deleted or unknown); remount
+    // views on the fallback instance without leaving the current page.
+    useEffect(() => onInstanceSelectionReset(() => {
+        setInstanceKey(getInstanceId());
+        handleInstanceChange();
+    }), [handleInstanceChange]);
 
     const basePath = '/' + location.pathname.split('/')[1];
     const title = t(TITLE_KEYS[basePath] || 'pages.dashboard');

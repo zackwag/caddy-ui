@@ -69,12 +69,26 @@ export async function fetchCustomThemes(onUnauth) {
 export function getInstanceId() { return localStorage.getItem('caddy_ui_instance') || 'default'; }
 export function setInstanceId(id) { localStorage.setItem('caddy_ui_instance', id); }
 
+// The app shell subscribes so views remount on the backend's fallback instance
+// once a deleted or unknown selection has been dropped.
+const instanceResetListeners = new Set();
+export function onInstanceSelectionReset(listener) {
+    instanceResetListeners.add(listener);
+    return () => instanceResetListeners.delete(listener);
+}
+export function clearInstanceId() {
+    localStorage.removeItem('caddy_ui_instance');
+    for (const listener of instanceResetListeners) listener();
+}
+
 export async function apiFetch(path, opts = {}, onUnauth) {
     const headers = { ...(opts.headers || {}) };
+    // Capture the intended instance before asynchronous CSRF preparation.
+    const instanceId = getInstanceId();
     if (!['GET', 'HEAD', 'OPTIONS'].includes((opts.method || 'GET').toUpperCase())) {
         headers['X-CSRF-Token'] = await csrfToken();
     }
-    headers['X-Instance-Id'] = getInstanceId();
+    headers['X-Instance-Id'] = instanceId;
     let res;
     try {
         res = await fetch(`${API}${path}`, { ...opts, credentials: 'same-origin', headers });
@@ -97,6 +111,9 @@ export async function apiFetch(path, opts = {}, onUnauth) {
     if (!res.ok) {
         if (body?.code === 'CSRF_INVALID') csrfRequest = undefined;
         const payload = body && typeof body === 'object' ? body : {};
+        // Never retried: the request may be a write meant for the missing instance.
+        // Skip the reset if the user already switched while this was in flight.
+        if (payload.code === 'INSTANCE_SELECTION_INVALID' && getInstanceId() === instanceId) clearInstanceId();
         throw new ApiError(
             payload.errors?.join('\n') || payload.error || res.statusText,
             { code: payload.code || (res.status === 401 ? 'UNAUTHORIZED' : 'REQUEST_FAILED'),

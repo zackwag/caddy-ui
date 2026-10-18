@@ -7,6 +7,7 @@ export const ERROR_REGISTRY = Object.freeze({
     CADDYFILE_READ_FAILED: { status: 500, level: 'error' },
     CADDY_RELOAD_FAILED: { status: 502, level: 'error' },
     INSTANCE_NOT_FOUND: { status: 404, level: 'warn' },
+    INSTANCE_SELECTION_INVALID: { status: 404, level: 'warn' },
     INSTANCE_CONNECTION_FAILED: { status: 502, level: 'error' },
     INSTANCE_DISCOVERY_FAILED: { status: 500, level: 'error' },
     INSTANCE_SAVE_FAILED: { status: 500, level: 'error' },

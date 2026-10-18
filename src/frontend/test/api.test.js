@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiFetch, authRequest, fetchAuthStatus, resetAuthContext } from '../src/utils/api.js';
+import { apiFetch, authRequest, fetchAuthStatus, getInstanceId, onInstanceSelectionReset, resetAuthContext, setInstanceId } from '../src/utils/api.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const storage = new Map();
@@ -7,6 +7,7 @@ beforeEach(() => {
     storage.clear();
     vi.stubGlobal('localStorage', {
         getItem: key => storage.get(key) ?? null,
+        setItem: (key, value) => storage.set(key, value),
         removeItem: key => storage.delete(key),
     });
     resetAuthContext();
@@ -61,5 +62,59 @@ describe('cookie authentication client', () => {
         expect(storage.size).toBe(0);
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ authEnabled: false })));
         await expect(fetchAuthStatus()).rejects.toMatchObject({ code: 'INVALID_LOCAL_STATE' });
+    });
+});
+
+describe('stale instance selection', () => {
+    it('pins a write to its original instance while CSRF preparation is pending', async () => {
+        setInstanceId('alpha');
+        let releaseContext;
+        const context = new Promise(resolve => { releaseContext = resolve; });
+        const fetchMock = vi.fn().mockReturnValueOnce(context).mockResolvedValueOnce(json({ ok: true }));
+        vi.stubGlobal('fetch', fetchMock);
+        const pending = apiFetch('/caddyfile', { method: 'PUT', body: 'intended for alpha' });
+        setInstanceId('beta');
+        releaseContext(json({ csrfToken: 'request-context' }));
+        await pending;
+        expect(fetchMock.mock.calls[1][1].headers['X-Instance-Id']).toBe('alpha');
+        expect(getInstanceId()).toBe('beta');
+    });
+
+    const rejectSelection = () => new Response(JSON.stringify({
+        code: 'INSTANCE_SELECTION_INVALID', error: 'Selected instance not found',
+    }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+
+    it('drops the selection and notifies without retrying the request', async () => {
+        setInstanceId('deleted-instance');
+        const fetchMock = vi.fn().mockResolvedValueOnce(json({ csrfToken: 'request-context' })).mockResolvedValueOnce(rejectSelection());
+        vi.stubGlobal('fetch', fetchMock);
+        const onReset = vi.fn();
+        const unsubscribe = onInstanceSelectionReset(onReset);
+
+        await expect(apiFetch('/caddyfile', { method: 'PUT' })).rejects.toMatchObject({
+            code: 'INSTANCE_SELECTION_INVALID', status: 404,
+        });
+        unsubscribe();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/csrf');
+        expect(fetchMock.mock.calls[1][1].headers['X-Instance-Id']).toBe('deleted-instance');
+        expect(fetchMock.mock.calls[1][1].headers['X-CSRF-Token']).toBe('request-context');
+        expect(getInstanceId()).toBe('default');
+        expect(onReset).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a selection the user made while the request was in flight', async () => {
+        setInstanceId('deleted-instance');
+        vi.stubGlobal('fetch', vi.fn(async () => {
+            setInstanceId('beta');
+            return rejectSelection();
+        }));
+        const onReset = vi.fn();
+        const unsubscribe = onInstanceSelectionReset(onReset);
+
+        await expect(apiFetch('/routes')).rejects.toMatchObject({ code: 'INSTANCE_SELECTION_INVALID' });
+        unsubscribe();
+        expect(getInstanceId()).toBe('beta');
+        expect(onReset).not.toHaveBeenCalled();
     });
 });

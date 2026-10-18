@@ -32,6 +32,10 @@ test('real backend: container lifecycle and UI registration are independent', { 
     await stack.api('/instances/default', { method: 'PUT', body: { adminUrl: alpha.instance.adminUrl } });
     assert.equal((await stack.api('/caddyfile')).data, changed);
     assert.equal((await stack.api('/instances/' + betaId, { method: 'DELETE' })).status, 200);
+    const stale = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: 'stale', plain: true, instanceId: betaId });
+    assert.equal(stale.status, 404);
+    assert.equal(stale.data.code, 'INSTANCE_SELECTION_INVALID');
+    assert.equal((await stack.api('/caddyfile')).data, changed);
     assert.equal((await stack.harness.inspect('container', stack.harness.resource('beta'))).State.Running, true);
     assert.equal((await stack.api('/instances/default', { method: 'DELETE' })).status, 200);
     assert.equal((await stack.api('/caddyfile')).data.code, 'NO_INSTANCES');

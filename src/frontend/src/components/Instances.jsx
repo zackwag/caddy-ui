@@ -3,7 +3,7 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
-import { apiFetch, getInstanceId } from "../utils/api.js";
+import { apiFetch, clearInstanceId, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
 
 // eslint-disable-next-line i18next/no-literal-string -- Example Caddy admin endpoint
@@ -181,7 +181,8 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             await apiFetch(`/instances/${inst.id}`, { method: "DELETE" }, onUnauth);
             toast.success(t("instances.removed"));
             load();
-            if (onInstanceChange) onInstanceChange();
+            if (inst.id === getInstanceId()) clearInstanceId();
+            else if (onInstanceChange) onInstanceChange();
         } catch (e) {
             toast.error(localizeError(e, t), e);
         }

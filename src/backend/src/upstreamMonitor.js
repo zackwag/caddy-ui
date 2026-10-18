@@ -3,10 +3,9 @@ import logger from './logger.js';
 import { recordCheck } from './uptimeHistory.js';
 import { checkInstanceUpstreams, resultsByUpstream } from './upstreamChecks.js';
 
-// Keeps uptime history populated continuously, independent of anyone having
-// the dashboard open -- GET /api/health only records a check when a browser
-// happens to poll it, which means history (and %uptime) previously only
-// reflected periods someone was actively looking at the UI.
+// The only recorder of upstream uptime history: one sample per upstream every
+// CHECK_INTERVAL_MS, whether or not anyone has the UI open. GET /api/health
+// runs live checks without recording them, so percentages weight time evenly.
 export const CHECK_INTERVAL_MS = 30_000;
 
 let timer = null;
