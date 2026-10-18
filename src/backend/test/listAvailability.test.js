@@ -87,11 +87,9 @@ describe('GET /api/tls', () => {
         expect(await get('/tls')).toEqual({ status: 200, body: [] });
     });
 
-    it('reports a missing data directory instead of an empty list', async () => {
+    it('returns an empty list when Caddy has no data directory yet (HTTP-only setups)', async () => {
         caddyGet.mockResolvedValue(servers);
-        const { status, body } = await get('/tls');
-        expect(status).toBe(500);
-        expect(body).toMatchObject({ code: 'CERTIFICATE_READ_FAILED' });
+        expect(await get('/tls')).toEqual({ status: 200, body: [] });
     });
 
     it.skipIf(process.getuid?.() === 0)('reports unreadable certificate storage instead of an empty list', async () => {
@@ -119,8 +117,10 @@ describe('GET /api/tls', () => {
         expect(body).toMatchObject([{ domain: 'app.example.com', isManaged: null, status: 'valid' }]);
     });
 
-    it('refuses deletion with a read error when storage is unavailable', async () => {
+    it.skipIf(process.getuid?.() === 0)('refuses deletion with a read error when storage is unreadable', async () => {
         caddyGet.mockResolvedValue(servers);
+        await storeCert();
+        await chmod(join(instance.dataPath, 'certificates'), 0o000);
         const res = await fetch(`${baseUrl}/tls/app.example.com`, { method: 'DELETE' });
         expect(res.status).toBe(500);
         expect(await res.json()).toMatchObject({ code: 'CERTIFICATE_READ_FAILED' });

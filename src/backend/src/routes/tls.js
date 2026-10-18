@@ -80,10 +80,11 @@ async function getManagedDomains(adminUrl) {
     }
 }
 
-// Caddy creates its data directory at startup but the certificates directory
-// only once it stores a certificate, so a missing certificates directory under
-// an existing data directory is an empty list. Any other read failure throws
-// CERTIFICATE_READ_FAILED, so storage problems never look like "no certificates".
+// Caddy creates its data directory, and the certificates directory in it,
+// only once it stores something, so an HTTP-only setup may never have either:
+// a missing path is an empty list. Storage that exists but can't be read
+// throws CERTIFICATE_READ_FAILED, so a permissions or container problem never
+// looks like "no certificates".
 async function getCerts(containerName, dataPath, adminUrl) {
     const results = [];
     const certsPath = join(dataPath, 'certificates');
@@ -94,8 +95,12 @@ async function getCerts(containerName, dataPath, adminUrl) {
         issuers = await readContainerDir(containerName, certsPath);
     } catch (err) {
         const reason = describeReadError(err);
-        if (reason === 'not found' && await containerPathExists(containerName, dataPath)) return [];
         const hint = containerName ? undefined : LOCAL_MODE_HINTS[reason];
+        if (reason === 'not found') {
+            // In local mode a missing data path can also be a volume that was never mounted
+            if (hint && !await containerPathExists(containerName, dataPath)) logger.warn(`Certs path not found`, { path: certsPath, hint });
+            return [];
+        }
         logger.warn(`Could not read certs path`, { path: certsPath, reason, ...(hint && { hint }) });
         throw new AppError('CERTIFICATE_READ_FAILED', { cause: err, context: { path: certsPath, reason } });
     }

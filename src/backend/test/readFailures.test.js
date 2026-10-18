@@ -128,19 +128,28 @@ describe('Caddyfile history list', () => {
 describe('certificate expiry checks', () => {
     const inst = (dataPath) => ({ id: 'alpha', name: 'Alpha', containerName: '', dataPath });
 
-    it('logs unreadable certificate storage once per outage', async () => {
+    it.skipIf(isRoot)('logs unreadable certificate storage once per outage', async () => {
         const warn = vi.spyOn(logger, 'warn');
         const info = vi.spyOn(logger, 'info');
-        const missing = inst(join(root, 'missing-data'));
+        const certsPath = join(root, 'locked-data', 'certificates');
+        const locked = inst(join(root, 'locked-data'));
+        await mkdir(certsPath, { recursive: true });
+        await chmod(certsPath, 0o000);
 
-        await checkCertsForInstance(missing);
-        await checkCertsForInstance(missing);
+        await checkCertsForInstance(locked);
+        await checkCertsForInstance(locked);
         expect(warn).toHaveBeenCalledTimes(1);
         expect(warn.mock.calls[0][0]).toMatch(/Certificate expiry checks skipped/);
 
-        await mkdir(join(root, 'missing-data', 'certificates'), { recursive: true });
-        await checkCertsForInstance(missing);
+        await chmod(certsPath, 0o755);
+        await checkCertsForInstance(locked);
         expect(info).toHaveBeenCalledWith('Certificate expiry checks resumed', { instance: 'Alpha' });
+    });
+
+    it("stays quiet when Caddy hasn't created its data directory (HTTP-only setups)", async () => {
+        const warn = vi.spyOn(logger, 'warn');
+        await checkCertsForInstance({ ...inst(join(root, 'never-created')), id: 'http-only' });
+        expect(warn).not.toHaveBeenCalled();
     });
 
     it("stays quiet before Caddy has stored a certificate", async () => {

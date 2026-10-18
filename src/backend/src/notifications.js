@@ -1,6 +1,6 @@
 import { X509Certificate } from 'crypto';
 import { join } from 'path';
-import { containerPathExists, describeReadError, listContainerDir, readContainerDir, readContainerFile } from './containerFs.js';
+import { describeReadError, listContainerDir, readContainerDir, readContainerFile } from './containerFs.js';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { failureReason } from './routeChecks.js';
@@ -203,8 +203,8 @@ async function checkCerts() {
 const certReadFailures = new Set();
 
 // Unreadable storage means expiry alerts can't be sent, so it's logged rather
-// than treated as "no certificates". A missing certificates directory under
-// an existing data directory just means Caddy hasn't stored one yet.
+// than treated as "no certificates". A missing path just means Caddy hasn't
+// stored a certificate yet; it only creates its data directory when it does.
 async function readCertIssuers(inst, certsPath) {
     try {
         const issuers = await readContainerDir(inst.containerName, certsPath);
@@ -212,8 +212,8 @@ async function readCertIssuers(inst, certsPath) {
         return issuers;
     } catch (err) {
         const reason = describeReadError(err);
-        if (reason === 'not found' && await containerPathExists(inst.containerName, inst.dataPath)) {
-            certReadFailures.delete(inst.id);
+        if (reason === 'not found') {
+            if (certReadFailures.delete(inst.id)) logger.info('Certificate expiry checks resumed', { instance: inst.name });
             return [];
         }
         if (!certReadFailures.has(inst.id)) {
