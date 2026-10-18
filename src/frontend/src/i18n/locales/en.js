@@ -404,6 +404,7 @@ export default {
         upstreamOffline: 'Upstream goes offline',
         upstreamOnline: 'Upstream comes back online',
         certExpiring: 'TLS certificate expiring within 14 days',
+        apiTokenExpiring: 'API token expiring within 7 days',
         updateAvailable: 'New caddy/ui release available',
         routeOffline: 'Route goes down',
         routeOnline: 'Route comes back up',

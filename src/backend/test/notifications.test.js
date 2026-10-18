@@ -186,3 +186,52 @@ describe('routeTransitions', () => {
         expect(state.get('b#x.example.com')).toBe(false);
     });
 });
+
+describe('notifyExpiringApiTokens', () => {
+    const DAY = 86_400_000;
+    const now = Date.parse('2026-10-18T12:00:00Z');
+    const token = (id, lifetimeDays, remainingDays) => ({
+        id, name: `Token ${id}`,
+        createdAt: new Date(now - (lifetimeDays - remainingDays) * DAY).toISOString(),
+        expiresAt: new Date(now + remainingDays * DAY).toISOString(),
+    });
+    const config = enabled => ({
+        enabled, provider: 'ntfy', ntfy: { url: 'http://ntfy/caddy-alerts' }, debounceMinutes: 30,
+        triggers: { upstreamOffline: false, upstreamOnline: false, certExpiring: false, updateAvailable: false, apiTokenExpiring: true },
+    });
+
+    async function load() {
+        vi.resetModules();
+        const notifications = await import('../src/notifications.js');
+        notifications.updateMonitorConfig(config(true));
+        return notifications;
+    }
+
+    beforeEach(() => {
+        sendWebhook.mockReset().mockResolvedValue(undefined);
+    });
+
+    it('alerts once per token when 7 days or less remain', async () => {
+        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
+        try {
+            await notifyExpiringApiTokens([token('a', 90, 6.5)], now);
+            await notifyExpiringApiTokens([token('a', 90, 6.5)], now);
+            expect(sendWebhook).toHaveBeenCalledTimes(1);
+            const [, request] = sendWebhook.mock.calls[0];
+            expect(request.headers.Title).toBe('API token expiring');
+            expect(request.body).toBe('API token "Token a" expires in 7 days (2026-10-25)');
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+
+    it('skips tokens outside the window, already expired, or short-lived by choice', async () => {
+        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
+        try {
+            await notifyExpiringApiTokens([token('far', 90, 8), token('gone', 90, -1), token('short', 7, 3)], now);
+            expect(sendWebhook).not.toHaveBeenCalled();
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+});
