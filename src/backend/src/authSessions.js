@@ -9,6 +9,12 @@ const digest = value => createHash('sha256').update(value).digest('hex');
 export function createAuthSessions({ secure = false, now = Date.now, limit = 2048 } = {}) {
     const sessions = new Map();
 
+    function remove(id) {
+        const session = sessions.get(id);
+        sessions.delete(id);
+        for (const close of session?.connections || []) close();
+    }
+
     function readSession(req) {
         const cookies = (req.headers.cookie || '').split(';').map(value => value.trim());
         const values = cookies.filter(value => value.startsWith(COOKIE + '=')).map(value => value.slice(COOKIE.length + 1));
@@ -16,7 +22,7 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
         const id = digest(values[0]);
         const session = sessions.get(id);
         if (!session) return null;
-        if (session.expires <= now()) { sessions.delete(id); return null; }
+        if (session.expires <= now()) { remove(id); return null; }
         return session;
     }
 
@@ -26,18 +32,18 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
 
     function revokeSession(req, res) {
         const session = readSession(req);
-        if (session) sessions.delete(session.id);
+        if (session) remove(session.id);
         cookie(res, '', 0);
     }
 
     function createSession(req, res, permission = 'anonymous') {
-        for (const [id, value] of sessions) if (value.expires <= now()) sessions.delete(id);
+        for (const [id, value] of sessions) if (value.expires <= now()) remove(id);
         if (sessions.size >= limit) throw new Error('Session capacity reached. Try again later.');
         revokeSession(req, res);
         const token = randomBytes(32).toString('base64url');
         const id = digest(token);
         const lifetime = permission === 'management' ? SESSION_MS : LIMITED_MS;
-        const session = { id, permission, csrf: randomBytes(32).toString('base64url'), expires: now() + lifetime };
+        const session = { id, permission, csrf: randomBytes(32).toString('base64url'), expires: now() + lifetime, connections: new Set() };
         sessions.set(id, session);
         cookie(res, token, lifetime);
         return session;
@@ -45,7 +51,17 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
 
     return {
         readSession, createSession, revokeSession,
-        revokeAllSessions() { sessions.clear(); },
+        revokeAllSessions() { for (const id of sessions.keys()) remove(id); },
+        watchSession(session, res) {
+            // End long-lived log streams on logout, recovery and expiration too.
+            const close = () => res.end();
+            session.connections.add(close);
+            const timer = setTimeout(close, Math.max(0, session.expires - now()));
+            timer.unref();
+            const cleanup = () => { clearTimeout(timer); session.connections.delete(close); };
+            res.once('close', cleanup);
+            res.once('finish', cleanup);
+        },
         issueCsrfToken(req, res) {
             return (readSession(req) || createSession(req, res)).csrf;
         },

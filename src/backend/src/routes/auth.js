@@ -1,27 +1,38 @@
 import { Router } from 'express';
-import jwt from 'jsonwebtoken';
-import { authEnabled, publicMetrics } from '../middleware/auth.js';
+import { getAuthentication } from '../middleware/auth.js';
+import { sendAppError } from '../errorReporting.js';
+import { AppError } from '../AppError.js';
 
-const router = Router();
+export function createAuthRouter(getService = getAuthentication) {
+    const router = Router();
+    // Session state, CSRF values and one-time recovery keys must never be cached.
+    router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+    router.get('/status', (req, res) => res.json(getService().getAuthState(req)));
+    router.get('/csrf', (req, res) => res.json({ csrfToken: getService().sessions.issueCsrfToken(req, res) }));
 
-const CADDY_UI_USER = process.env.CADDY_UI_USER;
-const CADDY_UI_PASSWORD = process.env.CADDY_UI_PASSWORD;
-const JWT_SECRET = process.env.JWT_SECRET;
-
-router.post('/sessions', (req, res) => {
-    if (!authEnabled) {
-        return res.json({ ok: true, token: null, authEnabled: false });
+    function operation(handler) {
+        return async (req, res) => {
+            try { await handler(req, res, getService()); }
+            catch (error) { sendAppError(res, error instanceof AppError ? error : new AppError('REQUEST_FAILED')); }
+        };
     }
-    const { username, password } = req.body;
-    if (username !== CADDY_UI_USER || password !== CADDY_UI_PASSWORD) {
-        return res.status(401).json({ error: 'Invalid credentials' });
-    }
-    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '24h' });
-    res.json({ ok: true, token, authEnabled: true });
-});
+    router.post('/sessions', operation(async (req, res, service) => {
+        await service.login(req, res, req.body);
+        res.json({ ok: true });
+    }));
+    router.post('/setup', operation(async (req, res, service) => {
+        const recoveryKey = await service.completeSetup(req, res, req.body);
+        res.json({ ok: true, recoveryKey });
+    }));
+    router.post('/recovery', operation(async (req, res, service) => {
+        const recoveryKey = await service.recoverPassword(req, res, req.body);
+        res.json({ ok: true, recoveryKey });
+    }));
+    router.delete('/sessions/current', operation(async (req, res, service) => {
+        service.logout(req, res);
+        res.json({ ok: true });
+    }));
+    return router;
+}
 
-router.get('/status', (req, res) => {
-    res.json({ authEnabled, publicMetrics });
-});
-
-export default router;
+export default createAuthRouter();

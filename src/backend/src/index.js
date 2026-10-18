@@ -4,8 +4,9 @@ import { loadCustomThemes } from './customThemes.js';
 import { getInstances, loadInstances } from './instances.js';
 import logger from './logger.js';
 import { diagnosticMiddleware } from './errorReporting.js';
-import { authMiddleware, publicMetrics } from './middleware/auth.js';
+import { authMiddleware, initializeAuthentication, publicMetrics } from './middleware/auth.js';
 import { createCrossSiteMiddleware } from './middleware/crossSite.js';
+import { createCsrfMiddleware } from './middleware/csrf.js';
 import { instanceMiddleware } from './middleware/instance.js';
 import { initMonitor } from './notifications.js';
 import authRouter from './routes/auth.js';
@@ -32,6 +33,7 @@ import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCh
 import { startUpstreamMonitor } from './upstreamMonitor.js';
 import { getAvailableFonts, getEnabledLanguages } from './languages.js';
 
+const authentication = await initializeAuthentication();
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
@@ -68,6 +70,7 @@ const apiLimiter = rateLimit({
 const authLimiter = rateLimit({
     windowMs: 60_000,
     limit: 15,
+    skip: req => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Too many login attempts, please try again later' },
@@ -75,6 +78,7 @@ const authLimiter = rateLimit({
 
 app.use('/api', apiLimiter);
 app.use('/api', createCrossSiteMiddleware(process.env.CADDY_UI_EXTERNAL_URL));
+app.use('/api', createCsrfMiddleware(authentication.sessions));
 
 // Auth routes are always public
 app.use('/api/auth', authLimiter, authRouter);

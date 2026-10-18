@@ -1,110 +1,98 @@
-import { describe, expect, it, vi } from 'vitest';
+import { randomBytes } from 'node:crypto';
+import { mkdir, rm } from 'node:fs/promises';
+import { afterEach, describe, expect, it } from 'vitest';
+import { authClient, authFixture } from './fixtures/auth.mjs';
 
-describe('authMiddleware', () => {
-    async function loadAuth(env = {}) {
-        vi.resetModules();
-        for (const [k, v] of Object.entries(env)) process.env[k] = v;
-        const mod = await import('../src/middleware/auth.js');
-        for (const k of Object.keys(env)) delete process.env[k];
-        return mod;
-    }
+const fixtures = [];
+const secret = () => randomBytes(24).toString('base64url');
+async function fixture(options) {
+    const f = await authFixture(options);
+    fixtures.push(f);
+    return f;
+}
+afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); });
 
-    function mockReqRes(overrides = {}) {
-        const req = {
-            headers: {},
-            query: {},
-            path: '/api/routes',
-            ...overrides,
-        };
-        const res = {
-            _status: null,
-            _json: null,
-            status(code) { res._status = code; return res; },
-            json(data) { res._json = data; return res; },
-        };
-        return { req, res };
-    }
+async function setup(client, username = 'administrator', password = secret()) {
+    const result = await client.request('/auth/setup', { method: 'POST', body: { username, password } });
+    expect(result.status).toBe(200);
+    return { username, password, recoveryKey: result.data.recoveryKey };
+}
 
-    it('calls next() when auth is not configured', async () => {
-        const { authMiddleware } = await loadAuth({});
-        const { req, res } = mockReqRes();
-        const next = vi.fn();
-        authMiddleware(req, res, next);
-        expect(next).toHaveBeenCalled();
+describe('browser authentication HTTP contracts', () => {
+    it('locks management before setup, protects setup from CSRF and never returns a login token', async () => {
+        const { url } = await fixture();
+        const client = authClient(url);
+        expect((await client.request('/protected')).status).toBe(401);
+        expect((await client.request('/auth/status')).data).toMatchObject({ setupRequired: true, enrollmentRequired: false, authenticated: false });
+        expect((await client.request('/auth/setup', { method: 'POST', csrf: false, body: { username: 'administrator', password: secret() } })).status).toBe(403);
+        const credentials = await setup(client);
+        expect(credentials.recoveryKey).toBeTruthy();
+        expect((await client.request('/protected')).status).toBe(200);
+        expect((await client.request('/auth/status')).data).toMatchObject({ setupRequired: false, authenticated: true });
+        expect((await client.request('/auth/setup', { method: 'POST', body: credentials })).status).toBe(409);
+        expect((await client.request('/auth/sessions', { method: 'POST', body: credentials })).data).not.toHaveProperty('token');
     });
 
-    it('returns 401 when no token is provided and auth is enabled', async () => {
-        const { authMiddleware } = await loadAuth({
-            CADDY_UI_USER: 'admin',
-            CADDY_UI_PASSWORD: 'pass',
-            JWT_SECRET: 'test-secret',
-        });
-        const { req, res } = mockReqRes();
-        const next = vi.fn();
-        authMiddleware(req, res, next);
-        expect(next).not.toHaveBeenCalled();
-        expect(res._status).toBe(401);
-        expect(res._json.error).toBe('Unauthorized');
+    it('requires legacy login before enrollment and retires it only after successful persistence', async () => {
+        const env = { CADDY_UI_USER: 'legacy', CADDY_UI_PASSWORD: secret(), JWT_SECRET: secret() };
+        const f = await fixture({ env });
+        const client = authClient(f.url);
+        expect((await client.request('/auth/status')).data.enrollmentRequired).toBe(true);
+        expect((await client.request('/auth/setup', { method: 'POST', body: { username: 'new', password: secret() } })).status).toBe(401);
+        expect((await client.request('/auth/sessions', { method: 'POST', body: { username: env.CADDY_UI_USER, password: env.CADDY_UI_PASSWORD } })).status).toBe(200);
+        expect((await client.request('/protected')).status).toBe(401);
+        await mkdir(f.path);
+        expect((await client.request('/auth/setup', { method: 'POST', body: { username: 'new', password: secret() } })).status).toBe(503);
+        expect((await client.request('/auth/status')).data).toMatchObject({ enrollmentRequired: true, enrollmentAuthenticated: true });
+        await rm(f.path, { recursive: true });
+        const next = await setup(client, 'new');
+        expect((await client.request('/protected')).status).toBe(200);
+        const other = authClient(f.url);
+        expect((await other.request('/auth/sessions', { method: 'POST', body: { username: env.CADDY_UI_USER, password: env.CADDY_UI_PASSWORD } })).status).toBe(401);
+        expect((await other.request('/auth/sessions', { method: 'POST', body: next })).status).toBe(200);
     });
 
-    it('calls next() with a valid Bearer token', async () => {
-        const jwt = (await import('jsonwebtoken')).default;
-        const secret = 'test-secret-valid';
-        const token = jwt.sign({ username: 'admin' }, secret);
-        const { authMiddleware } = await loadAuth({
-            CADDY_UI_USER: 'admin',
-            CADDY_UI_PASSWORD: 'pass',
-            JWT_SECRET: secret,
-        });
-        const { req, res } = mockReqRes({
-            headers: { authorization: `Bearer ${token}` },
-        });
-        const next = vi.fn();
-        authMiddleware(req, res, next);
-        expect(next).toHaveBeenCalled();
+    it('invalidates old sessions, streams and recovery keys on recovery', async () => {
+        const { url } = await fixture();
+        const first = authClient(url);
+        const credentials = await setup(first);
+        const stream = await fetch(url + '/api/stream', { headers: { cookie: first.cookie } });
+        const reader = stream.body.getReader();
+        await reader.read();
+        const recovery = authClient(url);
+        const result = await recovery.request('/auth/recovery', { method: 'POST', body: { recoveryKey: credentials.recoveryKey, password: secret() } });
+        expect(result.status).toBe(200);
+        expect(result.data.recoveryKey).not.toBe(credentials.recoveryKey);
+        expect((await reader.read()).done).toBe(true);
+        expect((await first.request('/protected')).status).toBe(401);
+        expect((await recovery.request('/protected')).status).toBe(401);
+        expect((await recovery.request('/auth/recovery', { method: 'POST', body: { recoveryKey: credentials.recoveryKey, password: secret() } })).status).toBe(401);
+        expect((await recovery.request('/auth/sessions', { method: 'POST', body: credentials })).status).toBe(401);
     });
 
-    it('calls next() with a valid query token', async () => {
-        const jwt = (await import('jsonwebtoken')).default;
-        const secret = 'test-secret-query';
-        const token = jwt.sign({ username: 'admin' }, secret);
-        const { authMiddleware } = await loadAuth({
-            CADDY_UI_USER: 'admin',
-            CADDY_UI_PASSWORD: 'pass',
-            JWT_SECRET: secret,
-        });
-        const { req, res } = mockReqRes({ query: { token } });
-        const next = vi.fn();
-        authMiddleware(req, res, next);
-        expect(next).toHaveBeenCalled();
+    it('requires CSRF for login and logout and revokes the server-side session on logout', async () => {
+        const { url } = await fixture();
+        const client = authClient(url);
+        const credentials = await setup(client);
+        const oldCookie = client.cookie;
+        expect((await client.request('/auth/sessions/current', { method: 'DELETE', csrf: false })).status).toBe(403);
+        expect((await client.request('/auth/sessions/current', { method: 'DELETE' })).status).toBe(200);
+        expect((await fetch(url + '/api/protected', { headers: { cookie: oldCookie } })).status).toBe(401);
+        expect((await client.request('/auth/sessions', { method: 'POST', body: credentials, csrf: false })).status).toBe(403);
+        const result = await client.request('/auth/sessions', { method: 'POST', body: credentials });
+        expect(result.status).toBe(200);
+        expect(result.headers.get('cache-control')).toBe('no-store');
+        expect((await client.request('/protected')).status).toBe(200);
     });
 
-    it('returns 401 for an invalid token', async () => {
-        const { authMiddleware } = await loadAuth({
-            CADDY_UI_USER: 'admin',
-            CADDY_UI_PASSWORD: 'pass',
-            JWT_SECRET: 'real-secret',
-        });
-        const { req, res } = mockReqRes({
-            headers: { authorization: 'Bearer invalid.token.here' },
-        });
-        const next = vi.fn();
-        authMiddleware(req, res, next);
-        expect(next).not.toHaveBeenCalled();
-        expect(res._status).toBe(401);
-        expect(res._json.error).toBe('Invalid or expired token');
-    });
-
-    it('allows /metrics path through when publicMetrics is enabled', async () => {
-        const { authMiddleware } = await loadAuth({
-            CADDY_UI_USER: 'admin',
-            CADDY_UI_PASSWORD: 'pass',
-            JWT_SECRET: 'test-secret',
-            CADDY_UI_PUBLIC_METRICS: 'true',
-        });
-        const { req, res } = mockReqRes({ path: '/metrics' });
-        const next = vi.fn();
-        authMiddleware(req, res, next);
-        expect(next).toHaveBeenCalled();
+    it('rejects legacy Bearer and URL credentials and blocks cross-origin writes even with valid CSRF', async () => {
+        const { url } = await fixture();
+        const client = authClient(url);
+        await setup(client);
+        const unauthorized = authClient(url);
+        expect((await unauthorized.request('/protected', { headers: { Authorization: 'Bearer ' + secret() } })).status).toBe(401);
+        expect((await unauthorized.request('/protected?token=' + secret())).status).toBe(401);
+        expect((await client.request('/auth/sessions/current', { method: 'DELETE', headers: { Origin: 'https://attacker.example' } })).status).toBe(403);
+        expect((await client.request('/protected')).status).toBe(200);
     });
 });
