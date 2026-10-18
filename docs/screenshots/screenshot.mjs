@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
@@ -12,7 +13,6 @@ import { screenshotRecords } from './replay.mjs';
 
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
-const dist = resolve(root, 'src/frontend/dist');
 const screenshotsDir = resolve(root, 'docs/src/screenshots');
 
 const VIEWS = [
@@ -26,14 +26,13 @@ const VIEWS = [
     { name: 'instances', path: '/instances', ready: '.instance-details-grid' },
 ];
 
-async function buildFrontend() {
-    try {
-        await readFile(resolve(dist, 'index.html'));
-        console.log('Using existing frontend build.');
-    } catch {
-        console.log('Building frontend...');
-        await exec('npm', ['run', 'build'], { cwd: resolve(root, 'src/frontend'), timeout: 120_000 });
-    }
+// Build as the captured backend's version so the sidebar shows one release,
+// not "dev (backend vX)". A separate output leaves src/frontend/dist alone.
+async function buildFrontend(version, outDir) {
+    console.log(`Building frontend v${version}...`);
+    await exec('npm', ['run', 'build', '--', '--outDir', outDir, '--emptyOutDir'], {
+        cwd: resolve(root, 'src/frontend'), timeout: 120_000, env: { ...process.env, VITE_APP_VERSION: version },
+    });
 }
 
 function serveStatic(directory) {
@@ -70,7 +69,14 @@ function serveStatic(directory) {
 export async function renderScreenshots({ capturePath = resolve(import.meta.dirname, 'captures/screenshots.json'), outputDirectory = screenshotsDir } = {}) {
     const capture = JSON.parse(await readFile(capturePath, 'utf8'));
     const records = screenshotRecords(capture);
-    await buildFrontend();
+    const version = records.find(record => record.request.method === 'GET' && record.request.path === '/version').response.body.version;
+    const dist = await mkdtemp(resolve(tmpdir(), 'caddy-ui-screenshots-frontend-'));
+    try {
+        await buildFrontend(version, dist);
+    } catch (error) {
+        await rm(dist, { recursive: true, force: true });
+        throw error;
+    }
     await mkdir(outputDirectory, { recursive: true });
 
     const server = await serveStatic(dist);
@@ -136,6 +142,7 @@ export async function renderScreenshots({ capturePath = resolve(import.meta.dirn
         await browser?.close();
         server.closeAllConnections();
         await new Promise(resolve => server.close(resolve));
+        await rm(dist, { recursive: true, force: true });
     }
 
     console.log(`Generated ${VIEWS.length} screenshots in ${outputDirectory}.`);

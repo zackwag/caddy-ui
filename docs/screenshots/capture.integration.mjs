@@ -28,6 +28,9 @@ test('real authenticated documentation capture renders all views and rejects mis
     assert(body('/metrics').statusGroups['2xx'] > 0);
     assert(body('/metrics').statusGroups['5xx'] > 0);
     assert(body('/logs').lines.length > 0);
+    assert(body('/logs').lines.every(line => line.includes('"logger":"http.log.access')), 'The Logs view shows only site traffic');
+    assert.deepEqual(body('/health').map(check => check.upstream).sort(), ['api:8080', 'homeassistant:8123', 'jellyfin:8096']);
+    assert(Object.values(body('/notifications/config').triggers).some(Boolean));
     assert(body('/health').length > 0);
     assert(body('/health').every(check => check.online && Object.hasOwn(body('/health/uptime'), check.upstream)));
     assert(Object.values(body('/health/uptime')).some(stats => stats.total >= 48));
