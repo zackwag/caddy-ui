@@ -9,51 +9,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { backendEnvironment, checkDocker, docker, Harness, IMAGE } from '../../dev/dev-caddy/harness.mjs';
 import { CAPTURE_VERSION, normalizeCapture, validateCapture } from '../../dev/playground/capture-format.js';
+import { EXAMPLE_SITES as SITES, containerAddress, exampleCaddyfile, exampleUpstreamCaddyfile } from '../../dev/dev-caddy/examples.mjs';
 
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
-
-// Each site proxies to its own port on the second owned Caddy; `service` is
-// the address shown in the capture in place of that Caddy's private IP.
-const SITES = [
-    { domain: 'example.com', title: 'Home Assistant', port: 8123, service: 'homeassistant' },
-    { domain: 'media.home.arpa', title: 'Jellyfin', port: 8096, service: 'jellyfin' },
-    { domain: 'api.internal', title: 'Internal API', port: 8080, service: 'api' },
-];
-
-function screenshotCaddyfile(address) {
-    return `{
-    admin 0.0.0.0:2019
-    auto_https disable_redirects
-    metrics
-    log {
-        output file /data/dev-caddy/logs/access.log
-        format json
-        include http.log.access
-    }
-}
-
-${SITES.map(({ domain, title, port }) => `${domain} {
-    # ${title}
-    tls internal
-    log
-    reverse_proxy ${address}:${port}
-}`).join('\n\n')}
-`;
-}
-
-function upstreamCaddyfile() {
-    return `{
-    admin 0.0.0.0:2019
-    auto_https off
-}
-
-${SITES.map(site => ':' + site.port).join(', ')} {
-    respond /error "deliberate test error" 503
-    respond "OK" 200
-}
-`;
-}
 
 // Seed the normal persisted history format, not an invented API response.
 // These illustrative samples are distinct from the traffic measured below.
@@ -140,13 +99,9 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
         assert.deepEqual(await harness.names(), []);
         assert.deepEqual(await harness.names('volume'), []);
         const info = await harness.create('screenshots');
-        const staging = await harness.create('staging');
-        // Caddy reaches its peer on the Docker network, not the host's
-        // published loopback port returned for a local CLI client.
-        const stagingContainer = await harness.inspect('container', staging.instance.containerName);
-        // Docker names its default network "bridge"; other engines may not.
-        const networks = stagingContainer.NetworkSettings.Networks;
-        const address = (networks[await harness.network() || 'bridge'] ?? Object.values(networks)[0]).IPAddress;
+        // The second owned Caddy serves each example site's upstream port.
+        const staging = await harness.create('staging', { caddyfile: exampleUpstreamCaddyfile() });
+        const address = await containerAddress(harness, staging.instance.containerName);
         const appVersion = JSON.parse(await readFile(resolve(root, '.release-please-manifest.json'), 'utf8'))['.'];
         const env = { ...backendEnvironment(directory, info.instance), PORT: socketPath,
             DOCKER_SOCKET: fileURLToPath(endpoint.replace(/^unix:/, 'file:')),
@@ -175,15 +130,9 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
         await successful('/auth/setup', 'POST', { username: 'capture-administrator', password: randomBytes(24).toString('base64url') });
         await successful('/settings', 'PUT', { firstTimeRun: false, language: 'en', theme: 'dark' });
 
-        // Give each example site its own upstream on the second owned Caddy.
-        const loaded = await fetch(staging.instance.adminUrl + '/load', { method: 'POST', body: upstreamCaddyfile(),
-            headers: { 'Content-Type': 'text/caddyfile', Origin: 'http://0.0.0.0:2019' },
-            signal: AbortSignal.any([startup.signal, AbortSignal.timeout(5000)]) });
-        assert(loaded.ok, await loaded.text());
-
         // Exercise the real session/CSRF-protected configuration-write path.
         await successful('/server-names/srv0', 'PUT', { name: 'Production HTTPS' });
-        await successful('/caddyfile?fmt=false&sort=false', 'PUT', screenshotCaddyfile(address));
+        await successful('/caddyfile?fmt=false&sort=false', 'PUT', exampleCaddyfile(address));
         for (const site of SITES) await successful('/route-notes/' + encodeURIComponent(site.domain), 'PUT', { note: site.title });
 
         // Local certificates are issued asynchronously; wait for actual storage.

@@ -41,7 +41,7 @@ test('shared real examples serve trusted TLS and preserve edited or retained Cad
     for (const site of EXAMPLE_SITES) {
         const response = await requestSite(info.httpsUrl, ca, site.domain);
         assert.equal(response.status, 200);
-        assert.match(response.body, /test instance: example-upstream/);
+        assert.equal(response.body, 'OK');
     }
 
     const edited = (await readConfig(info)).replace('# Home Assistant', '# My edited application');
@@ -59,11 +59,24 @@ test('shared real examples serve trusted TLS and preserve edited or retained Cad
     assert.equal(await readConfig(info), edited.trim());
     assert.equal((await requestSite(info.httpsUrl, ca, 'example.com')).status, 200, 'The original local CA survives recreation');
 
+    // An upstream IP change can't be followed into preserved edits; it warns.
+    const address = edited.match(/reverse_proxy (\S+):8123/)[1];
+    const moved = edited.replaceAll(address + ':', '10.255.255.1:');
+    await harness.run(['exec', info.instance.containerName, 'sh', '-c', 'printf "%s" "$1" > /data/dev-caddy/Caddyfile', 'sh', moved]);
+    const warn = t.mock.method(console, 'warn', () => {});
+    await create('default');
+    assert.equal(warn.mock.callCount(), 1);
+    assert.match(warn.mock.calls[0].arguments[0], new RegExp(`proxies to 10\\.255\\.255\\.1, but example-upstream is now at ${address.replaceAll('.', '\\.')}`));
+    warn.mock.restore();
+
     // A retained basic instance is also user state, not permission to seed over it.
     const old = await scope.run(() => harness.create('old-default'));
     await ready(old);
     await scope.run(() => harness.remove('old-default'));
+    const quiet = t.mock.method(console, 'warn', () => {});
     const retained = await create('old-default');
+    assert.equal(quiet.mock.callCount(), 0, 'A basic Caddyfile has no example addresses to warn about');
+    quiet.mock.restore();
     await ready(retained);
     assert.equal(await readConfig(retained), defaultCaddyfile('old-default').trim());
     await scope.close();

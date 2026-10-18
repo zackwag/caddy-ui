@@ -29,9 +29,10 @@ first use. The default image is pinned to `caddy:2.10.2-alpine`.
 
 Startup creates/restarts `default` and an owned `example-upstream` Caddy service,
 waits for the default instance's admin API and the backend, then starts Vite.
-New default volumes use the same real example Caddyfile as documentation capture:
-`example.com`, `media.home.arpa` and `api.internal`, with titles, reverse proxies,
-metrics, JSON logging and `tls internal`. Caddy generates local certificates and
+New default volumes use the same real example sites as documentation capture:
+`example.com`, `media.home.arpa` and `api.internal`, with titles, metrics, JSON
+access logs, `tls internal` and reverse proxies to their own ports (8123, 8096
+and 8080) on `example-upstream`. Caddy generates local certificates and
 keys in its own volume; it does not contact a public certificate authority or
 install its root CA on your computer. No private keys are checked into Git.
 
@@ -143,8 +144,10 @@ an instance; container IPs suggested by discovery may be unreachable from the ho
 The example reverse proxies connect to their owned peer's Docker-network address.
 For backend upstream checks on Docker Desktop, run inside the Dev Container on
 the same Docker network; a host process may not reach private container IPs.
-If you remove/recreate `example-upstream` and its IP changes, update the example
-upstream address in existing Caddyfiles, just as for another recreated service.
+Docker can give `example-upstream` a new IP whenever it starts. Existing
+Caddyfiles are never rewritten, so startup and `create --examples` warn when a
+retained Caddyfile still proxies to an old address; update those `reverse_proxy`
+lines to the address in the warning.
 
 ## Troubleshooting and cleanup safety
 
