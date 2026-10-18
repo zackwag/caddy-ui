@@ -2,6 +2,9 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { AppError } from './AppError.js';
 import { createAuthStore, validateCredentials } from './authStore.js';
 import { createAuthSessions } from './authSessions.js';
+import { API_TOKEN_SCOPES, MAX_API_TOKENS, validApiTokenInput } from './apiTokenPolicy.js';
+import { getInstances } from './instances.js';
+import logger from './logger.js';
 
 function sameSecret(actual, expected) {
     if (typeof actual !== 'string') return false;
@@ -39,6 +42,30 @@ export async function createAuthService({ store = createAuthStore(), env = proce
 
     return {
         sessions,
+        verifyApiToken(token) { return store.verifyApiToken(token); },
+        listApiTokens(req, res) {
+            this.requireManagement(req, res);
+            return { tokens: store.listApiTokens(), scopes: API_TOKEN_SCOPES };
+        },
+        issueApiToken(req, res, input) {
+            return serialize(async () => {
+                this.requireManagement(req, res);
+                if (!validApiTokenInput(input) || input.instanceIds.some(id => !getInstances().some(instance => instance.id === id))) {
+                    throw new AppError('VALIDATION_FAILED');
+                }
+                if (store.listApiTokens().length >= MAX_API_TOKENS) throw new AppError('CONFLICT');
+                const issued = await persist(() => store.issueApiToken(input));
+                logger.info('API token created', { tokenId: issued.id, scopes: issued.scopes, instanceIds: issued.instanceIds });
+                return issued;
+            });
+        },
+        revokeApiToken(req, res, id) {
+            return serialize(async () => {
+                this.requireManagement(req, res);
+                if (!await persist(() => store.revokeApiToken(id))) throw new AppError('NOT_FOUND');
+                logger.info('API token revoked', { tokenId: id });
+            });
+        },
         getAuthState(req) {
             const session = sessions.readSession(req);
             return {

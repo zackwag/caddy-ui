@@ -91,7 +91,7 @@ export async function rawMetrics(req, res) {
     } catch (err) {
         caddyError = err.message;
     }
-    const uptimeInstances = getInstances().map(inst => ({
+    const uptimeInstances = getInstances().filter(inst => !req.apiToken || req.apiToken.instanceIds.includes(inst.id)).map(inst => ({
         id: inst.id,
         name: inst.name,
         stats: getStatsForInstance(inst.id),

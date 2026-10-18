@@ -1,5 +1,20 @@
-import { describe, expect, it } from 'vitest';
-import { buildRawMetrics, formatUptimeMetrics } from '../src/routes/metrics.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildRawMetrics, formatUptimeMetrics, rawMetrics } from '../src/routes/metrics.js';
+import * as instances from '../src/instances.js';
+import * as uptime from '../src/uptimeHistory.js';
+
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it('does not expose other instances through token-authenticated raw metrics', async () => {
+    vi.spyOn(instances, 'getInstances').mockReturnValue([{ id: 'allowed', name: 'Allowed' }, { id: 'private', name: 'Private' }]);
+    const reads = vi.spyOn(uptime, 'getStatsForInstance').mockReturnValue({});
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('caddy_up 1\n')));
+    const res = { setHeader: vi.fn(), send: vi.fn() };
+    await rawMetrics({ instance: { id: 'allowed', adminUrl: 'http://caddy:2019' }, apiToken: { instanceIds: ['allowed'] } }, res);
+    expect(reads).toHaveBeenCalledTimes(2);
+    expect(reads.mock.calls.every(([id]) => id === 'allowed')).toBe(true);
+    expect(res.send.mock.calls[0][0]).not.toContain('private');
+});
 
 const NOW = Date.UTC(2026, 0, 1, 12, 0, 0);
 

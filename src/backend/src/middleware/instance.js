@@ -6,10 +6,14 @@ export function instanceMiddleware(req, res, next) {
         return res.status(503).json({ error: 'No instances configured', code: 'NO_INSTANCES' });
     }
 
-    const instance = getInstance(req.headers['x-instance-id']);
+    // Token selection is exact: never fall back if an allowed instance disappears.
+    const instance = req.apiToken
+        ? getInstances().find(instance => instance.id === req.apiToken.instanceId)
+        : getInstance(req.headers['x-instance-id']);
     if (!instance) {
         return res.status(404).json({ error: 'Selected instance not found', code: 'INSTANCE_SELECTION_INVALID' });
     }
+
 
     try {
         req.instance = {

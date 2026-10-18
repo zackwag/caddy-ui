@@ -1,12 +1,15 @@
-import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import logger from './logger.js';
+import { MAX_API_TOKENS, validApiTokenInput, validApiTokenRecord } from './apiTokenPolicy.js';
 
 const derive = promisify(scrypt);
 const KDF = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
+
+function apiTokenMetadata({ hash, ...metadata }) { return structuredClone(metadata); }
 
 function validHash(value) {
     return value?.algorithm === 'scrypt' && /^[a-f0-9]{32}$/.test(value.salt)
@@ -35,7 +38,7 @@ export function validateCredentials(username, password) {
 }
 
 // Authentication has its own store. UI metadata remains installation-wide.
-export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/auth.json') {
+export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/auth.json', { now = Date.now } = {}) {
     let state;
     let writes = Promise.resolve();
 
@@ -55,7 +58,9 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 await handle.close();
             }
             if (parsed?.version !== 1 || typeof parsed.username !== 'string' || !parsed.username.trim()
-                || parsed.username.length > 128 || !validHash(parsed.password) || !validHash(parsed.recovery)) {
+                || parsed.username.length > 128 || !validHash(parsed.password) || !validHash(parsed.recovery)
+                || (parsed.apiTokens !== undefined && (!Array.isArray(parsed.apiTokens) || parsed.apiTokens.length > MAX_API_TOKENS
+                    || !parsed.apiTokens.every(validApiTokenRecord) || new Set(parsed.apiTokens.map(token => token.id)).size !== parsed.apiTokens.length))) {
                 throw new Error('Invalid credential record');
             }
             await fs.chmod(path, 0o600);
@@ -110,6 +115,42 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
             // Derive even for an unknown username to avoid a cheap username oracle.
             return state !== null && await matches(password, state.password) && username === state.username;
         },
+        listApiTokens() {
+            requireLoaded();
+            return (state?.apiTokens || []).map(apiTokenMetadata);
+        },
+        verifyApiToken(token) {
+            requireLoaded();
+            if (typeof token !== 'string' || !/^cui_[A-Za-z0-9_-]{43}$/.test(token)) return null;
+            const digest = createHash('sha256').update(token).digest();
+            const record = (state?.apiTokens || []).find(record => timingSafeEqual(digest, Buffer.from(record.hash, 'hex')));
+            if (!record || Date.parse(record.expiresAt) <= now()) return null;
+            return apiTokenMetadata(record);
+        },
+        issueApiToken(input) {
+            return serialize(async () => {
+                requireLoaded();
+                if (!state || !validApiTokenInput(input)) throw new Error('Invalid API token configuration');
+                const previous = state.apiTokens || [];
+                if (previous.length >= MAX_API_TOKENS) throw new Error('API token limit reached');
+                const token = 'cui_' + randomBytes(32).toString('base64url');
+                const time = now();
+                const metadata = { id: randomBytes(16).toString('hex'), name: input.name.trim(),
+                    scopes: [...input.scopes], instanceIds: [...input.instanceIds],
+                    createdAt: new Date(time).toISOString(), expiresAt: new Date(time + input.expiresInDays * 86400000).toISOString() };
+                await persist({ ...state, apiTokens: [...previous, { ...metadata, hash: createHash('sha256').update(token).digest('hex') }] }, false);
+                return { ...structuredClone(metadata), token };
+            });
+        },
+        revokeApiToken(id) {
+            return serialize(async () => {
+                requireLoaded();
+                const previous = state?.apiTokens || [];
+                if (!previous.some(token => token.id === id)) return false;
+                await persist({ ...state, apiTokens: previous.filter(token => token.id !== id) }, false);
+                return true;
+            });
+        },
         initializeAuth(username, password) {
             return serialize(async () => {
                 requireLoaded();
@@ -124,6 +165,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 requireLoaded();
                 if (!state || !await matches(recoveryKey, state.recovery)) return null;
                 const next = await recordFor(state.username, password);
+                // Replacing the whole record deliberately revokes every API token.
                 await persist(next.record, false);
                 return next.recoveryKey;
             });

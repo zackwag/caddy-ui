@@ -7,6 +7,7 @@ import { diagnosticMiddleware } from './errorReporting.js';
 import { authMiddleware, initializeAuthentication, publicMetrics } from './middleware/auth.js';
 import { createCrossSiteMiddleware } from './middleware/crossSite.js';
 import { createCsrfMiddleware } from './middleware/csrf.js';
+import { createApiTokenMiddleware } from './middleware/apiToken.js';
 import { instanceMiddleware } from './middleware/instance.js';
 import { initMonitor } from './notifications.js';
 import authRouter from './routes/auth.js';
@@ -78,6 +79,7 @@ const authLimiter = rateLimit({
 
 app.use('/api', apiLimiter);
 app.use('/api', createCrossSiteMiddleware(process.env.CADDY_UI_EXTERNAL_URL));
+app.use('/api', createApiTokenMiddleware(authentication));
 app.use('/api', createCsrfMiddleware(authentication.sessions));
 
 // Auth routes are always public

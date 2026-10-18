@@ -26,7 +26,7 @@ export function getAuthentication() {
 export function authMiddleware(req, res, next) {
     try {
         // Public metrics permits reads only, never configuration changes.
-        if (!(publicMetrics && req.method === 'GET' && req.path === '/metrics')) {
+        if (!req.apiToken && !(publicMetrics && req.method === 'GET' && req.path === '/metrics')) {
             getAuthentication().requireManagement(req, res);
         }
         next();

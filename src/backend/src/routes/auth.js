@@ -20,6 +20,12 @@ export function createAuthRouter(getService = getAuthentication) {
         await service.login(req, res, req.body);
         res.json({ ok: true });
     }));
+    router.get('/tokens', operation(async (req, res, service) => res.json(service.listApiTokens(req, res))));
+    router.post('/tokens', operation(async (req, res, service) => res.status(201).json(await service.issueApiToken(req, res, req.body))));
+    router.delete('/tokens/:id', operation(async (req, res, service) => {
+        await service.revokeApiToken(req, res, req.params.id);
+        res.json({ ok: true });
+    }));
     router.post('/setup', operation(async (req, res, service) => {
         const recoveryKey = await service.completeSetup(req, res, req.body);
         res.json({ ok: true, recoveryKey });

@@ -8,6 +8,8 @@ import { createAuthSessions } from '../../src/authSessions.js';
 import { authMiddleware, initializeAuthentication } from '../../src/middleware/auth.js';
 import { createCrossSiteMiddleware } from '../../src/middleware/crossSite.js';
 import { createCsrfMiddleware } from '../../src/middleware/csrf.js';
+import { createApiTokenMiddleware } from '../../src/middleware/apiToken.js';
+import { instanceMiddleware } from '../../src/middleware/instance.js';
 import { createAuthRouter } from '../../src/routes/auth.js';
 
 export async function authFixture({ env = {}, now, store } = {}) {
@@ -18,10 +20,14 @@ export async function authFixture({ env = {}, now, store } = {}) {
     const app = express();
     app.use(express.json());
     app.use('/api', createCrossSiteMiddleware(env.CADDY_UI_EXTERNAL_URL));
+    app.use('/api', createApiTokenMiddleware(service));
     app.use('/api', createCsrfMiddleware(service.sessions));
     app.use('/api/auth', createAuthRouter(() => service));
     app.get('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
     app.put('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
+    for (const path of ['/status', '/metrics', '/metrics/raw']) {
+        app.get('/api' + path, instanceMiddleware, authMiddleware, (req, res) => res.json({ instanceId: req.instance.id }));
+    }
     app.get('/api/stream', authMiddleware, (req, res) => {
         res.setHeader('Content-Type', 'text/event-stream');
         res.write('data: connected\n\n');
