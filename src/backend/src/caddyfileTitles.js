@@ -1,8 +1,6 @@
-import { readFile } from 'fs/promises';
 import { getCaddyEnv, resolveEnvVars } from './docker.js';
 import logger from './logger.js';
-
-const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
+import { hasStoredNotes } from './routeNotes.js';
 
 let _enabled = null;
 
@@ -14,22 +12,13 @@ export async function initCaddyfileTitles() {
         return;
     }
 
-    let reason = 'no route-notes.json file found';
-    try {
-        const data = await readFile(ROUTE_NOTES_PATH, 'utf8');
-        const notes = JSON.parse(data);
-        if (Object.keys(notes).length > 0) {
-            _enabled = false;
-            logger.info('Caddyfile titles', { enabled: false, source: 'auto', reason: 'existing route-notes.json entries found' });
-            return;
-        }
-        reason = 'route-notes.json has no entries';
-    } catch {
-        // file doesn't exist or is invalid
+    if (await hasStoredNotes()) {
+        _enabled = false;
+        logger.info('Caddyfile titles', { enabled: false, source: 'auto', reason: 'existing route-notes.json entries found' });
+        return;
     }
-
     _enabled = true;
-    logger.info('Caddyfile titles', { enabled: true, source: 'auto', reason });
+    logger.info('Caddyfile titles', { enabled: true, source: 'auto', reason: 'no route notes stored' });
 }
 
 export function caddyfileTitlesEnabled() {

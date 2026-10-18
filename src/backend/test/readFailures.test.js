@@ -83,7 +83,9 @@ describe('route notes', () => {
     it('keeps existing notes when adding one', async () => {
         await writeFile(notesPath, JSON.stringify({ 'other.example.com': 'kept' }));
         expect((await request('PUT', '/route-notes/app.example.com', { note: 'new' })).status).toBe(200);
-        expect(JSON.parse(await readFile(notesPath, 'utf8'))).toEqual({ 'other.example.com': 'kept', 'app.example.com': 'new' });
+        expect(JSON.parse(await readFile(notesPath, 'utf8'))).toEqual({
+            version: 2, instances: { default: { 'app.example.com': 'new' } }, unassigned: { 'other.example.com': 'kept' },
+        });
     });
 
     it("doesn't prune notes while an instance's config can't be read", async () => {
@@ -101,7 +103,9 @@ describe('route notes', () => {
         await writeFile(notesPath, JSON.stringify({ 'app.example.com': 'kept', 'gone.example.com': 'removed' }));
         caddyGet.mockImplementation(async (path, adminUrl) => (adminUrl === 'http://alpha:2019' ? servers : null));
         await cleanupOrphanedNotes();
-        expect(JSON.parse(await readFile(notesPath, 'utf8'))).toEqual({ 'app.example.com': 'kept' });
+        expect(JSON.parse(await readFile(notesPath, 'utf8'))).toEqual({
+            version: 2, instances: { alpha: { 'app.example.com': 'kept' } }, unassigned: {},
+        });
     });
 });
 

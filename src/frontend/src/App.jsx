@@ -228,10 +228,10 @@ export default function App() {
         });
     }, [onUnauth]);
 
-    // caddy/ui logs dont depend on instance, so Logs stays reachable alongside Instances.
+    // caddy/ui logs and notification settings don't depend on an instance, so they stay reachable alongside Instances.
     useEffect(() => {
         const path = '/' + location.pathname.split('/')[1];
-        if (noInstances && path !== '/logs' && path !== '/instances') navigate('/instances', { replace: true });
+        if (noInstances && !['/logs', '/notifications', '/instances'].includes(path)) navigate('/instances', { replace: true });
     }, [noInstances, location.pathname, navigate]);
 
     useEffect(() => {

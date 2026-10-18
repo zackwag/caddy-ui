@@ -1,47 +1,39 @@
 import { Router } from 'express';
-import { readFile, writeFile } from 'fs/promises';
 import { caddyGet } from '../caddy.js';
 import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
-import { AppError, asAppError } from '../AppError.js';
+import { asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
+import { claimUnassignedNotes, getInstanceNotes, hasUnassignedNotes, pruneOrphanedNotes, setInstanceNote } from '../routeNotes.js';
 
 const router = Router();
-const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
 
-// A missing file means no notes yet. Any other failure throws, so an
-// unreadable or corrupt file is never treated as empty and then overwritten.
-async function readNotes() {
-    let data;
+// Hosts an instance currently routes, from its live config; null when the
+// config can't be read.
+export async function servedHosts(inst) {
+    let servers;
     try {
-        data = await readFile(ROUTE_NOTES_PATH, 'utf8');
-    } catch (err) {
-        if (err.code === 'ENOENT') return {};
-        throw new AppError('ROUTE_NOTES_READ_FAILED', { cause: err, context: { path: ROUTE_NOTES_PATH } });
+        servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
+    } catch {
+        return null;
     }
-    let notes;
-    try {
-        notes = JSON.parse(data);
-    } catch (err) {
-        throw new AppError('ROUTE_NOTES_READ_FAILED', { cause: err, context: { path: ROUTE_NOTES_PATH } });
+    const hosts = new Set();
+    for (const server of Object.values(servers || {})) {
+        for (const route of server.routes || []) {
+            for (const host of route.match?.find(m => m.host)?.host || []) hosts.add(host);
+        }
     }
-    if (!notes || typeof notes !== 'object' || Array.isArray(notes)) {
-        throw new AppError('ROUTE_NOTES_READ_FAILED', { context: { path: ROUTE_NOTES_PATH } });
-    }
-    return notes;
+    return hosts;
 }
 
-async function writeNotes(notes) {
-    await writeFile(ROUTE_NOTES_PATH, JSON.stringify(notes, null, 2), 'utf8');
-}
-
-// GET /api/route-notes
+// GET /api/route-notes -- the selected instance's notes
 router.get('/', async (req, res) => {
     let notes;
     try {
-        notes = await readNotes();
+        if (await hasUnassignedNotes()) await claimUnassignedNotes(getInstances(), servedHosts);
+        notes = await getInstanceNotes(req.instance.id);
     } catch (err) {
         return sendAppError(res, asAppError(err, 'ROUTE_NOTES_READ_FAILED'));
     }
@@ -59,71 +51,25 @@ router.get('/', async (req, res) => {
     res.json(notes);
 });
 
-// PUT /api/route-notes/:domain -- upsert or clear (blank note) a note
+// PUT /api/route-notes/:domain -- upsert or clear (blank note) the selected instance's note
 router.put('/:domain', async (req, res) => {
     const { domain } = req.params;
     const { note } = req.body;
-    let notes;
     try {
-        notes = await readNotes();
+        await setInstanceNote(req.instance.id, domain, typeof note === 'string' ? note.trim() : '');
     } catch (err) {
-        return sendAppError(res, asAppError(err, 'ROUTE_NOTES_READ_FAILED'));
+        return sendAppError(res, asAppError(err, 'ROUTE_NOTES_SAVE_FAILED'));
     }
-    if (note && note.trim()) {
-        notes[domain] = note.trim();
-    } else {
-        delete notes[domain];
-    }
-    await writeNotes(notes);
     res.json({ ok: true });
 });
 
+// Runs once at startup: assigns notes saved before notes were per instance,
+// then drops notes for domains their instance no longer serves.
 export async function cleanupOrphanedNotes() {
     try {
-        const notes = await readNotes();
-        const domains = Object.keys(notes);
-        if (domains.length === 0) return;
-
-        // Only prune against a complete view: an instance whose config can't be
-        // read would otherwise have all of its notes treated as orphaned.
-        const activeDomains = new Set();
-        const unreadable = [];
-        await Promise.all(getInstances().map(async inst => {
-            let servers;
-            try {
-                servers = await caddyGet('/config/apps/http/servers', inst.adminUrl);
-            } catch {
-                unreadable.push(inst.id);
-                return;
-            }
-            if (!servers) return;
-            for (const server of Object.values(servers)) {
-                for (const route of server.routes || []) {
-                    const hosts = route.match?.find(m => m.host)?.host || [];
-                    for (const h of hosts) activeDomains.add(h);
-                }
-            }
-        }));
-
-        if (unreadable.length) {
-            logger.warn('Skipped route notes cleanup: Caddy config unavailable', { instances: unreadable });
-            return;
-        }
-
-        let removed = 0;
-        for (const domain of domains) {
-            const domainParts = domain.split(', ');
-            const stillActive = domainParts.some(d => activeDomains.has(d));
-            if (!stillActive) {
-                delete notes[domain];
-                removed++;
-            }
-        }
-
-        if (removed > 0) {
-            await writeNotes(notes);
-            logger.info(`Cleaned up orphaned route notes`, { removed });
-        }
+        const instances = getInstances();
+        await claimUnassignedNotes(instances, servedHosts);
+        await pruneOrphanedNotes(instances, servedHosts);
     } catch (e) {
         logger.warn(`Route notes cleanup failed`, { error: e.message });
     }

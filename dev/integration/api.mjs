@@ -40,6 +40,7 @@ test('real backend: container lifecycle and UI registration are independent', { 
     assert.equal((await stack.api('/instances/default', { method: 'DELETE' })).status, 200);
     assert.equal((await stack.api('/caddyfile')).data.code, 'NO_INSTANCES');
     assert.equal((await stack.api('/logs/app')).status, 200);
+    assert.equal((await stack.api('/notifications/config')).status, 200);
     await stack.close();
     assert.deepEqual(await stack.harness.names(), []);
     assert.deepEqual(await stack.harness.names('volume'), []);

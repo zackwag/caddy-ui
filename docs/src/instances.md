@@ -69,6 +69,30 @@ Instance-scoped endpoints read the instance id from the `X-Instance-Id` header:
 - **Any other id that doesn't exist:** the request is rejected with `404` and `{ "code": "INSTANCE_SELECTION_INVALID" }` and never reaches another instance.
 - **No instances configured:** `503` with `{ "code": "NO_INSTANCES" }`.
 
+### What's per instance and what's shared
+
+**Per instance.** Each instance has its own copy, and it's only shown when that instance is selected:
+
+- Caddyfile and its saved history.
+- Routes, TLS certificates, access logs and metrics.
+- Uptime history.
+- Server labels.
+- Maintenance mode.
+- Route notes.
+
+Two instances can use the same hostname without sharing any of these.
+
+**Shared by every instance.** These don't need an instance and keep working when none is configured:
+
+- Appearance and language settings.
+- Route table columns and route check settings.
+- Custom themes.
+- Notification settings.
+- caddy/ui's own logs.
+- Sign-in.
+
+Route notes saved before notes were per instance are copied to every instance that serves the note's domain, so each instance keeps showing what it showed before. After that, each copy is edited separately. Notes for a domain no instance serves are removed by the usual startup cleanup. When an instance is removed, its notes are kept aside rather than handed to a new instance that reuses its id. An instance that serves the same domains can pick them up.
+
 ## Manual configuration
 
 Instances can also be configured via the REST API (`POST /api/instances`) or by placing an `instances.json` file at `/etc/caddy-ui/instances.json`:

@@ -61,6 +61,7 @@ export default {
         caddyfileReadFailed: 'Could not read the Caddyfile.',
         caddyfileHistoryReadFailed: 'Could not read the Caddyfile history.',
         routeNotesReadFailed: 'Could not read route notes. Saved notes were left unchanged.',
+        routeNotesSaveFailed: 'Could not save the route note.',
         caddyReloadFailed: 'Could not reload Caddy.',
         instanceNotFound: 'The instance was not found.',
         instanceSelectionInvalid: 'The selected instance no longer exists. Switched to an available instance.',

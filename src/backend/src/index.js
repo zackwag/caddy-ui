@@ -87,10 +87,12 @@ app.get('/api/version', (req, res) => {
     res.json({ version: APP_VERSION, update: getUpdateInfo({ backend: APP_VERSION, frontend }) });
 });
 
-// Instance, settings, and custom-theme routes require auth but not instance middleware
+// Instance, settings, custom-theme and notification routes require auth but not instance middleware
 app.use('/api/instances', authMiddleware, instancesRouter);
 app.use('/api/settings', authMiddleware, settingsRouter);
 app.use('/api/custom-themes', authMiddleware, customThemesRouter);
+// Notification settings cover every instance, so they work with none configured
+app.use('/api/notifications', authMiddleware, notificationsRouter);
 
 // GET /api/languages -- always public, non-sensitive
 app.get('/api/languages', (req, res) => res.json({
@@ -118,7 +120,6 @@ app.use('/api/server-names', servernamesRouter);
 app.use('/api/tls', tlsRouter);
 app.use('/api/health', healthRouter);
 app.use('/api/route-notes', routenotesRouter);
-app.use('/api/notifications', notificationsRouter);
 
 app.use((err, req, res, next) => {
     logger.error(`Unhandled error`, { requestId: req.diagnosticId, method: req.method, path: req.diagnosticPath || req.path, error: err.message, stack: err.stack });
