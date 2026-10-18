@@ -5,10 +5,9 @@ import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch, setInstanceId } from "../utils/api.js";
+import { updateLink } from "../utils/updateLink.js";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
-const RELEASES_URL = "https://github.com/zackwag/caddy-ui/releases";
-const COMMITS_URL = "https://github.com/zackwag/caddy-ui/commits/main";
 
 // Releases read "v2.17.0"; edge/beta/dev builds show their name as is
 // ("edge-c6a3f0f", not "vedge-c6a3f0f")
@@ -50,7 +49,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
         update?.frontend && t("sidebar.updatePartFrontend", { version: update.frontend }),
         update?.backend && t("sidebar.updatePartBackend", { version: update.backend }),
     ].filter(Boolean);
-    const updateUrl = /^\d/.test(update?.frontend || update?.backend || "") ? RELEASES_URL : COMMITS_URL;
+    const updateUrl = updateLink(update, { backend: backendVersion, frontend: FRONTEND_VERSION });
 
     useEffect(() => {
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
