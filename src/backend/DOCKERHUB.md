@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.29.2. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 2.29.3. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -308,8 +308,8 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | `DELETE` | `/api/routes/:id` | Remove a route and its Caddyfile block |
 | `GET` | `/api/route-notes` | Read all route notes |
 | `PUT` | `/api/route-notes/:domain` | Set or clear a route note |
-| `GET` | `/api/health` | Check upstream health via Caddy pool API with TCP fallback |
-| `GET` | `/api/health/uptime` | Uptime stats per upstream from persisted history |
+| `GET` | `/api/health` | Live upstream check via Caddy pool API with TCP fallback (not recorded in uptime history) |
+| `GET` | `/api/health/uptime` | Uptime stats per upstream from persisted history, sampled every 30 seconds by the backend |
 | `GET` | `/api/health/history` | Raw timestamped checks for one upstream, for the route status history view |
 | `GET` | `/api/tls` | List all certificates with expiry and status |
 | `DELETE` | `/api/tls/:domain` | Delete an orphaned, superseded, or expired internal cert |
