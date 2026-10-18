@@ -23,7 +23,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - **Notifications** — Push alerts via ntfy, Discord, Slack, Pushover, or custom webhook when upstreams go offline/online, routes go down/recover (with route checks on), or TLS certs are expiring. Configurable debounce and per-trigger opt-in. Self-hosted services on your LAN or Docker network (e.g. `http://ntfy/caddy-alerts`) work as destinations; loopback and link-local addresses are blocked, and redirects aren't followed, so configure the final URL
 - **26 Themes + Custom Themes** — Choose from 13 dark and 13 light palettes (VT2026, Dracula, Nord, Catppuccin, Tokyo Night, Gruvbox, One Dark Pro, Solarized, Material, GitHub, Ayu, Night Owl, Metro, and more), or drop your own into [`THEMES_PATH`](https://zackwag.github.io/caddy-ui/themes.html#custom-themes) for a fully custom palette. Pick one palette for dark mode and one for light mode, then toggle between them with one click. First-run welcome modal helps new users choose. Preferences stored server-side in `settings.json`
 - **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
-- **Authentication** — Optional JWT-based login screen protecting the UI and authenticated API routes
+- **Authentication** — Persistent administrator credentials, cookie sessions, CSRF protection and recovery keys
 - **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
@@ -60,12 +60,12 @@ mkdir -p /docker/caddy-ui
 ```
 <!-- ANCHOR_END: quick-start-directories -->
 
-### 3. Generate a JWT secret (if using auth)
+### 3. Plan administrator setup
 
 <!-- ANCHOR: quick-start-auth -->
-```bash
-openssl rand -base64 32
-```
+No authentication environment variables are needed for a new installation. Open the UI after deployment, create the administrator and save the one-time recovery key. Until setup finishes, management endpoints remain locked. The first visitor can establish credentials, so keep an uninitialized installation reachable only by its intended administrator.
+
+Keep `/etc/caddy-ui` mounted persistently: it contains the credential hashes alongside the existing settings and metadata.
 <!-- ANCHOR_END: quick-start-auth -->
 
 ### 4. Update your compose file
@@ -106,10 +106,8 @@ services:
       # Browser-facing URL: replace your-server with the host you open in your browser.
       # Required for browser writes over plain HTTP; behind HTTPS use the external HTTPS URL.
       - CADDY_UI_EXTERNAL_URL=http://your-server:9877
-      # Optional -- leave unset to disable auth
-      - CADDY_UI_USER=admin
-      - CADDY_UI_PASSWORD=yourpassword
-      - JWT_SECRET=your-long-random-secret
+      # Authentication is enabled by default; create credentials in the UI.
+      # Optional deliberate opt-out: CADDY_UI_AUTH_DISABLED=true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /docker/caddy-ui:/etc/caddy-ui

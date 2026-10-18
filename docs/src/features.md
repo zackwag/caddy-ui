@@ -60,7 +60,7 @@ See [certificates](screenshots.md#tls-certificates) and the
 ## Adjust access and appearance
 
 - **Authentication**
-  Protect the UI and API with optional JWT-based login.
+  Protect the UI and API with persistent administrator credentials, cookie sessions and CSRF checks.
 - **Themes**
   Choose built-in dark and light palettes or provide a custom theme.
 - **Navigation**

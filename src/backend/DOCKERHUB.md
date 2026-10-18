@@ -30,7 +30,7 @@ caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker 
 - Tails and streams access logs via SSE
 - Parses and updates log configuration in the global Caddyfile block
 - Persists server labels and route notes to disk
-- Optional JWT authentication for protected API endpoints
+- Cookie-session authentication and CSRF protection for management endpoints
 - Caddy process info and HTTP metrics via Prometheus endpoint
 - Metrics enable/disable toggle that modifies the Caddyfile global block
 - Optional public `/api/metrics/raw` endpoint for Prometheus scraping
@@ -70,12 +70,12 @@ mkdir -p /docker/caddy-ui
 ```
 <!-- ANCHOR_END: quick-start-directories -->
 
-### 3. Generate a JWT secret (if using auth)
+### 3. Plan administrator setup
 
 <!-- ANCHOR: quick-start-auth -->
-```bash
-openssl rand -base64 32
-```
+No authentication environment variables are needed for a new installation. Open the UI after deployment, create the administrator and save the one-time recovery key. Until setup finishes, management endpoints remain locked. The first visitor can establish credentials, so keep an uninitialized installation reachable only by its intended administrator.
+
+Keep `/etc/caddy-ui` mounted persistently: it contains the credential hashes alongside the existing settings and metadata.
 <!-- ANCHOR_END: quick-start-auth -->
 
 ### 4. Update your compose file
@@ -116,10 +116,8 @@ services:
       # Browser-facing URL: replace your-server with the host you open in your browser.
       # Required for browser writes over plain HTTP; behind HTTPS use the external HTTPS URL.
       - CADDY_UI_EXTERNAL_URL=http://your-server:9877
-      # Optional -- leave unset to disable auth
-      - CADDY_UI_USER=admin
-      - CADDY_UI_PASSWORD=yourpassword
-      - JWT_SECRET=your-long-random-secret
+      # Authentication is enabled by default; create credentials in the UI.
+      # Optional deliberate opt-out: CADDY_UI_AUTH_DISABLED=true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /docker/caddy-ui:/etc/caddy-ui
@@ -179,15 +177,17 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `de`). Reviewed languages (currently English and Arabic) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
 | `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
-| `CADDY_UI_PASSWORD` | — | Password for UI authentication |
+| `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
+| `CADDY_UI_AUTH_DISABLED` | `false` | Explicitly disable authentication. Browser-write CSRF protection remains enabled. |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
 | `CADDY_UI_UPDATE_CHECK_URL` | `https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json` | Where the update check reads published image versions from |
-| `CADDY_UI_USER` | — | Username for UI authentication (leave all three auth variables unset to disable) |
+| `CADDY_UI_USER` | — | Legacy username for credential enrollment; ignored after stored credentials are initialized |
+| `AUTH_PATH` | `/etc/caddy-ui/auth.json` | Persistent administrator credential/recovery hashes. Keep on a writable persistent volume, separate from UI settings. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
 | `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://zackwag.github.io/caddy-ui/instances.html#multi-instance)) |
-| `JWT_SECRET` | — | Secret key for signing JWT tokens |
+| `JWT_SECRET` | — | Legacy configuration marker required alongside the legacy username/password before enrollment. No new JWTs are issued. |
 | `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
 | `MAINTENANCE_PATH` | `/etc/caddy-ui/maintenance.json` | Path to the maintenance mode state file |
 | `NOTIFICATIONS_CONFIG_PATH` | `/etc/caddy-ui/notifications.json` | Path to the notification settings file |
@@ -203,25 +203,47 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 
 ## Authentication
 
-Authentication is disabled only when `CADDY_UI_USER`, `CADDY_UI_PASSWORD`, and `JWT_SECRET` are all unset. To enable it, provide all three with non-empty, non-whitespace-only values. Valid values are used exactly as supplied; leading/trailing spaces are not removed from credentials. When enabled, protected API endpoints require a valid JWT and the login screen appears automatically.
+Authentication is enabled by default. With no stored credentials or legacy environment credentials, the UI offers administrator setup while management endpoints remain locked. The first visitor can create the administrator; restrict access until setup is complete.
 
-> **Upgrade note:** Earlier versions could silently disable authentication when one or more values were missing or empty. The backend now exits unsuccessfully before opening its API port if authentication is partially configured or any provided value is blank. Explicitly empty environment variables count as provided, including empty Compose substitutions. The startup error lists variable names only. Supply all three valid values, or remove all three variables to intentionally disable authentication. Inspect the error with `docker compose logs --tail=100 caddy-ui-backend` (using your service name).
+### Existing installations
 
-Without authentication, anyone who can reach caddy/ui can change your Caddy configuration, so enable it unless the UI is only reachable by people you trust. In either mode, browser-origin checks reject cross-site writes as described below; they do not authenticate the caller.
+Settings, labels, instances, snapshots and the Caddyfile remain in their current stores. They are installation-wide and are not reassigned or rewritten when the administrator username changes during setup.
 
-`GET /api/auth/status` and `GET /api/version` remain public. `POST /api/auth/sessions` validates the configured credentials to issue a JWT; it does not require an existing token. With `CADDY_UI_PUBLIC_METRICS=true`, `GET /api/metrics` and `GET /api/metrics/raw` are also accessible without a JWT.
+If `CADDY_UI_USER`, `CADDY_UI_PASSWORD` and `JWT_SECRET` are configured, sign in with the existing username/password to authorize enrollment. This produces a limited session that can complete setup but cannot manage Caddy. All three legacy variables must be non-empty before enrollment; partial or blank configuration still fails startup, reporting variable names only. Once new credentials are saved successfully, stored credentials take precedence and the old environment variables can be removed, including `JWT_SECRET`.
+
+An existing installation that had authentication disabled receives the same setup form as a new installation, preserving its data. Initialization never depends on theme preferences, labels or the age of the installation. Unreadable, corrupt or unsupported credential storage fails startup rather than reopening setup. Inspect failures with `docker compose logs --tail=100 caddy-ui-backend` (using your service name).
+
+### Sessions and recovery
+
+Passwords and recovery keys are stored as salted scrypt hashes in `AUTH_PATH`, with owner-only file permissions. Passwords require at least 12 characters and at most 1024 bytes. Credential writes are atomic, and concurrent setup requests cannot overwrite an initialized administrator.
+
+The browser receives a host-only, HttpOnly, SameSite=Strict cookie scoped to `/api`. It does not store authentication tokens in localStorage or URLs. Management sessions expire after 24 hours; enrollment and pre-login contexts expire after 10 minutes. Sessions are process-local: restarting the backend signs everyone out. Logout revokes the session on the server, including its live log streams.
+
+Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
+
+If both password and recovery key are lost, stop the backend and restrict network access before removing only `AUTH_PATH` to repeat credential setup. Remove obsolete legacy auth variables as well, or those credentials will be required for enrollment. Do not remove the settings directory or Caddyfile. Restore normal access only after setup is complete.
+
+### Explicitly disabling authentication
+
+Set `CADDY_UI_AUTH_DISABLED=true` only when everyone who can reach the service is trusted to manage it. Omitting this variable, or setting it to `false`, enables authentication. Other values fail startup. Disabling authentication does not delete stored credentials and does not disable CSRF/origin checks. Login, setup and recovery are unavailable while authentication is explicitly disabled.
+
+`GET /api/auth/status`, `GET /api/auth/csrf`, `GET /api/version` and `GET /api/languages` are public. With `CADDY_UI_PUBLIC_METRICS=true`, the parsed and raw metrics GET endpoints are also public. Other management endpoints require a management session unless authentication is explicitly disabled.
+
+### API compatibility
+
+This change replaces browser login JWTs with cookie sessions. Legacy Bearer JWTs and `?token=` authentication are no longer accepted. Scoped integration API tokens are a separate follow-up; coordinate deployment if existing integrations depend on JWTs. Prometheus can use the explicit public-metrics option, while cookie-aware scripts can establish a session. Do not distribute the administrator password to monitoring integrations as a substitute for scoped tokens.
+
+For a cookie-aware client, first fetch `/api/auth/csrf`, preserve its cookie and send the returned token as `X-CSRF-Token` on every write, including login, setup, recovery and logout. After a session change, fetch a fresh token. A rejected write is never automatically replayed by the UI.
 
 ### Browser request origins
 
-Set `CADDY_UI_EXTERNAL_URL` on the backend to the URL you open in the browser, for example `http://caddy-ui.lan:9877` or `https://caddy-ui.example.com`. The scheme, hostname and external port define the expected origin; a path is ignored. Invalid URLs, non-HTTP(S) schemes and credentials fail startup. After changing the public URL, update this setting and restart the backend.
+Set `CADDY_UI_EXTERNAL_URL` to the browser-facing URL, including scheme and external port, such as `http://caddy-ui.lan:9877` or `https://caddy-ui.example.com`. Its origin validates browser writes; any path is ignored. Invalid URLs, non-HTTP(S) schemes and embedded credentials fail startup. Restart after changing it.
 
-This setting is required for browser writes over ordinary HTTP, where browsers can omit `Sec-Fetch-Site`. Without it, writes carrying Origin or Referer are rejected unless Fetch Metadata identifies them as same-origin. HTTPS and trustworthy localhost requests with same-origin Fetch Metadata work without the setting. Configuring it also validates any Origin/Referer supplied by those requests.
+Ordinary HTTP browser writes require this setting because Fetch Metadata may be absent. Trustworthy localhost requests with same-origin Fetch Metadata work without it. For HTTPS, configure the external HTTPS URL so cookies are marked Secure, even when the reverse proxy reaches nginx/backend over HTTP. Origin is never inferred from `Host`, `Forwarded` or `X-Forwarded-*`. Alternate hostnames, schemes and ports are different origins. This setting does not enable TLS. HTTP is supported with a non-Secure HttpOnly cookie, but network interception can expose passwords and sessions.
 
-Behind a reverse proxy, configure the external HTTPS URL and port even when nginx reaches the backend over HTTP. The policy never derives its expected origin from `Host`, `Forwarded` or `X-Forwarded-*`; TLS termination, internal service names and nginx's removal of the external port therefore do not change it. Use the configured canonical URL to access the UI; alternate hostnames, schemes or ports are different origins. This variable does not configure your reverse proxy or enable TLS.
+Cross-site and same-site Fetch Metadata reject writes. Otherwise, a supplied Origin must match exactly; `Origin: null` is rejected. Without Origin, a supplied Referer must match. GET, HEAD and OPTIONS are unchanged; CORS remains disabled.
 
-For writes, cross-site or same-site Fetch Metadata is always rejected. Otherwise Origin must match exactly, including scheme and port. Origin takes precedence over Referer, and opaque `Origin: null` is rejected. If Origin is absent, the Referer URL's origin must match. Rejections return `FORBIDDEN` (403) before the route runs, with the expected origin recorded in correlated server diagnostics. GET, HEAD and OPTIONS retain their existing behavior; CORS remains disabled.
-
-Requests without Fetch Metadata, Origin or Referer remain allowed for script compatibility. A browser request stripped of all origin evidence is indistinguishable from such a script. These checks are not a complete CSRF-token mechanism, do not prevent DNS rebinding, and do not replace authentication or network access controls.
+Every write also requires `X-CSRF-Token` bound to the current cookie context, including login, setup, recovery, logout and explicitly disabled authentication. Headerless scripts have no exemption. Tokens rotate with sessions. These controls do not replace network access restrictions or prevent DNS rebinding.
 
 ## Prometheus Metrics
 
@@ -285,8 +307,12 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/auth/sessions` | Authenticate and receive a JWT token |
-| `GET` | `/api/auth/status` | Check if auth is enabled |
+| `POST` | `/api/auth/sessions` | Authenticate and set a session cookie (CSRF required) |
+| `DELETE` | `/api/auth/sessions/current` | Revoke the current session (CSRF required) |
+| `GET` | `/api/auth/csrf` | Obtain the CSRF token for the current or a new pre-login context |
+| `POST` | `/api/auth/setup` | Initialize stored credentials once and return a recovery key (CSRF required) |
+| `POST` | `/api/auth/recovery` | Reset password using a recovery key and rotate that key (CSRF required) |
+| `GET` | `/api/auth/status` | Read authentication, enrollment and session state without credentials |
 | `GET` | `/api/metrics` | Parsed HTTP metrics for the Metrics tab |
 | `GET` | `/api/metrics/config` | Check if Caddy metrics directive is enabled |
 | `PUT` | `/api/metrics/config` | Enable or disable Caddy metrics directive |

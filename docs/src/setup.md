@@ -14,7 +14,7 @@
 
 {{#include ../../README.md:quick-start-directories}}
 
-## 3. Generate a JWT secret (if using auth)
+## 3. Plan administrator setup
 
 {{#include ../../README.md:quick-start-auth}}
 

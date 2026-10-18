@@ -36,9 +36,10 @@ published HTTP/admin ports are dynamically allocated and bound to host loopback.
 Do not expose these admin ports externally: they have no authentication.
 
 All UI state is redirected to `.dev-caddy/backend/`, including instance
-registrations, settings, notifications, history, themes and uptime. Inherited UI
-auth environment variables still apply; unset them for an unauthenticated local
-session. The harness disables update checks. It seeds a default registration only
+registrations, settings, notifications, history, themes, uptime and credential hashes.
+On first use, complete administrator setup, or sign in with inherited legacy
+credentials to enroll. For an intentionally unauthenticated local session, set
+`CADDY_UI_AUTH_DISABLED=true`; browser writes still require CSRF protection. The harness disables update checks. It seeds a default registration only
 when the isolated instances file does not exist, and refreshes that registration's
 address on startup while preserving other UI edits. It never rewrites the registry
 while the backend is running.
