@@ -231,7 +231,7 @@ Set `CADDY_UI_AUTH_DISABLED=true` only when everyone who can reach the service i
 
 ### API compatibility
 
-This change replaces browser login JWTs with cookie sessions. Legacy Bearer JWTs and `?token=` authentication are no longer accepted. Scoped integration API tokens are a separate follow-up; coordinate deployment if existing integrations depend on JWTs. Prometheus can use the explicit public-metrics option, while cookie-aware scripts can establish a session. Do not distribute the administrator password to monitoring integrations as a substitute for scoped tokens.
+Legacy JWT authentication is removed: Bearer JWTs and `?token=` authentication are no longer accepted. `CADDY_UI_AUTH_DISABLED=true` does not restore previous API write behavior: POST/PUT/PATCH/DELETE still require CSRF tokens. Dedicated, scoped, read-only API tokens are planned for a separate follow-up PR. Coordinate upgrades with existing automation. Prometheus can use the public-metrics option; do not distribute the administrator password to monitoring integrations as a substitute for scoped tokens.
 
 For a cookie-aware client, first fetch `/api/auth/csrf`, preserve its cookie and send the returned token as `X-CSRF-Token` on every write, including login, setup, recovery and logout. After a session change, fetch a fresh token. A rejected write is never automatically replayed by the UI.
 
@@ -240,6 +240,8 @@ For a cookie-aware client, first fetch `/api/auth/csrf`, preserve its cookie and
 Set `CADDY_UI_EXTERNAL_URL` to the browser-facing URL, including scheme and external port, such as `http://caddy-ui.lan:9877` or `https://caddy-ui.example.com`. Its origin validates browser writes; any path is ignored. Invalid URLs, non-HTTP(S) schemes and embedded credentials fail startup. Restart after changing it.
 
 Ordinary HTTP browser writes require this setting because Fetch Metadata may be absent. Trustworthy localhost requests with same-origin Fetch Metadata work without it. For HTTPS, configure the external HTTPS URL so cookies are marked Secure, even when the reverse proxy reaches nginx/backend over HTTP. Origin is never inferred from `Host`, `Forwarded` or `X-Forwarded-*`. Alternate hostnames, schemes and ports are different origins. This setting does not enable TLS. HTTP is supported with a non-Secure HttpOnly cookie, but network interception can expose passwords and sessions.
+
+With authentication enabled, startup warns if Secure cookies are not enabled. This is informational; it does not infer the public scheme behind a proxy or prevent HTTP/local deployments.
 
 Cross-site and same-site Fetch Metadata reject writes. Otherwise, a supplied Origin must match exactly; `Origin: null` is rejected. Without Origin, a supplied Referer must match. GET, HEAD and OPTIONS are unchanged; CORS remains disabled.
 

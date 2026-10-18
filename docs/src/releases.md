@@ -1,5 +1,7 @@
 # Images and releases
 
+{{#include ../../README.md:auth-migration}}
+
 ## Docker Hub
 
 | Image | Link |

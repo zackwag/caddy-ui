@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createAuthService } from '../src/authService.js';
 import { createAuthStore } from '../src/authStore.js';
+import { initializeAuthentication } from '../src/middleware/auth.js';
+import logger from '../src/logger.js';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -22,8 +24,64 @@ async function loadAuth(env = {}) {
     return { authEnabled: service.getAuthState({ headers: {} }).authEnabled };
 }
 afterEach(async () => {
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
     await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true })));
+});
+
+describe('authentication startup warnings', () => {
+    const deployments = [undefined, 'http://ui.example:9877', 'https://ui.example:8443'];
+    const cases = ['setup', 'legacy', 'stored', 'disabled'].flatMap(state => deployments.map(externalUrl => [state, externalUrl]));
+    it.each(cases)('warns only for the relevant %s state at %s', async (state, externalUrl) => {
+        const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+        const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
+        directories.push(directory);
+        const store = createAuthStore(join(directory, 'auth.json'));
+        if (state === 'stored') {
+            await store.loadAuth();
+            await store.initializeAuth('administrator', values.CADDY_UI_PASSWORD);
+        }
+        const env = { CADDY_UI_EXTERNAL_URL: externalUrl,
+            ...(state === 'legacy' ? values : {}),
+            ...(state === 'disabled' ? { CADDY_UI_AUTH_DISABLED: 'true' } : {}),
+        };
+        const service = await initializeAuthentication({ store, env });
+        const messages = warn.mock.calls.map(([message]) => message);
+        expect(messages.filter(message => message.includes('Administrator enrollment is open'))).toHaveLength(state === 'setup' ? 1 : 0);
+        expect(messages.filter(message => message.includes('Secure session cookies are not enabled'))).toHaveLength(state !== 'disabled' && externalUrl?.startsWith('https:') !== true ? 1 : 0);
+        if (state === 'setup') {
+            expect(messages[0]).toContain('first person reaching the setup page can claim administrator access');
+            expect(messages[0]).toContain('Restrict access until enrollment is complete');
+        }
+        if (state !== 'disabled' && externalUrl?.startsWith('https:') !== true) {
+            expect(messages.at(-1)).toContain('For HTTPS deployments, set CADDY_UI_EXTERNAL_URL=https://your-public-hostname');
+        }
+        for (const message of messages) {
+            for (const value of Object.values(values)) expect(message).not.toContain(value);
+            if (externalUrl) expect(message).not.toContain(externalUrl);
+        }
+        // Polling authentication state must not repeat startup warnings.
+        service.getAuthState({ headers: {} });
+        service.getAuthState({ headers: {} });
+        expect(warn).toHaveBeenCalledTimes(messages.length);
+    });
+
+    it('emits each warning once to production container stdout', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
+        directories.push(directory);
+        const env = { ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info', AUTH_PATH: join(directory, 'auth.json') };
+        for (const key of [...KEYS, 'CADDY_UI_AUTH_DISABLED', 'CADDY_UI_EXTERNAL_URL']) delete env[key];
+        const script = `import { initializeAuthentication } from ${JSON.stringify(new URL('../src/middleware/auth.js', import.meta.url).href)};
+            const authentication = await initializeAuthentication();
+            authentication.getAuthState({ headers: {} });`;
+        const { stdout, stderr } = await execute(process.execPath, ['--input-type=module', '--eval', script], { env, timeout: 10000 });
+        expect(stderr).toBe('');
+        const entries = stdout.trim().split('\n').map(line => JSON.parse(line));
+        expect(entries).toHaveLength(2);
+        expect(entries.every(entry => entry.level === 'warn')).toBe(true);
+        expect(entries[0].message).toContain('Administrator enrollment is open');
+        expect(entries[1].message).toContain('Secure session cookies are not enabled');
+    });
 });
 
 describe('auth configuration', () => {
