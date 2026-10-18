@@ -6,7 +6,11 @@ const LIMITED_MS = 10 * 60 * 1000;
 const digest = value => createHash('sha256').update(value).digest('hex');
 
 // Deliberately process-local: a backend restart signs every browser out.
-export function createAuthSessions({ secure = false, now = Date.now, limit = 2048 } = {}) {
+// Anyone can create an anonymous pre-login context by fetching a CSRF token,
+// so those have their own cap and evict the oldest instead of refusing. Only
+// sessions that required credentials count toward `limit`, so anonymous
+// requests can never lock the administrator out.
+export function createAuthSessions({ secure = false, now = Date.now, limit = 2048, anonymousLimit = 1024 } = {}) {
     const sessions = new Map();
 
     function remove(id) {
@@ -38,7 +42,18 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
 
     function createSession(req, res, permission = 'anonymous') {
         for (const [id, value] of sessions) if (value.expires <= now()) remove(id);
-        if (sessions.size >= limit && !readSession(req)) throw new Error('Session capacity reached. Try again later.');
+        if (permission === 'anonymous') {
+            // Map order is creation order, so the first anonymous entry is the oldest
+            const anonymous = [...sessions.values()].filter(value => value.permission === 'anonymous');
+            if (anonymous.length >= anonymousLimit) remove(anonymous[0].id);
+        } else {
+            // Replacing a signed-in session doesn't add one, so only that may exceed the limit
+            const authenticated = [...sessions.values()].filter(value => value.permission !== 'anonymous').length;
+            const replacing = readSession(req);
+            if (authenticated >= limit && !(replacing && replacing.permission !== 'anonymous')) {
+                throw new Error('Session capacity reached. Try again later.');
+            }
+        }
         revokeSession(req, res);
         const token = randomBytes(32).toString('base64url');
         const id = digest(token);

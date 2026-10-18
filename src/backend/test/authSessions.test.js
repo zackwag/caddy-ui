@@ -37,6 +37,23 @@ describe('browser session boundary', () => {
         const headers = await context(url);
         expect((await fetch(url + '/login', { method: 'POST', headers })).status).toBe(200);
     });
+    it("doesn't let anonymous CSRF contexts lock the administrator out", async () => {
+        const { url, sessions } = await fixture({ limit: 4, anonymousLimit: 3 });
+        const first = await context(url);
+        for (let i = 0; i < 10; i++) await fetch(url + '/csrf');
+        // The oldest anonymous contexts were evicted rather than new ones refused
+        expect(sessions.readSession({ headers: { cookie: first.cookie } })).toBeNull();
+        const headers = await context(url);
+        expect((await fetch(url + '/login', { method: 'POST', headers })).status).toBe(200);
+    });
+
+    it('still refuses new sign-ins once authenticated sessions reach the limit', async () => {
+        const { url } = await fixture({ limit: 1 });
+        expect((await fetch(url + '/login', { method: 'POST', headers: await context(url) })).status).toBe(200);
+        const response = await fetch(url + '/login', { method: 'POST', headers: await context(url) });
+        expect(response.status).toBe(500);
+    });
+
     it('binds CSRF tokens to a cookie context and rejects missing, mixed and duplicate cookies', async () => {
         const f = await fixture();
         const first = await context(f.url);
