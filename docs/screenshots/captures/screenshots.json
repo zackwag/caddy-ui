@@ -23,24 +23,12 @@
               "content-type": "application/json; charset=utf-8"
             },
             "body": {
-              "authEnabled": false,
+              "authEnabled": true,
+              "authenticated": true,
+              "setupRequired": false,
+              "enrollmentRequired": false,
+              "enrollmentAuthenticated": false,
               "publicMetrics": false
-            }
-          }
-        },
-        {
-          "request": {
-            "method": "GET",
-            "path": "/auth/check",
-            "body": null
-          },
-          "response": {
-            "status": 200,
-            "headers": {
-              "content-type": "application/json; charset=utf-8"
-            },
-            "body": {
-              "authEnabled": false
             }
           }
         },
