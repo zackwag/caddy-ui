@@ -27,7 +27,7 @@ curl --fail-with-body \
   https://caddy-ui.example.com/api/status
 ```
 
-Use the instance's stable `id`, shown in the token dialog and available from `GET /api/instances` with an administrator session. Omitting `X-Instance-Id` selects `default`, which must be explicitly permitted by the token. An unknown or removed instance never falls back to another instance. Renaming an instance does not change its ID. Raw Prometheus responses filter caddy/ui's historical series to the token's permitted instance IDs, in addition to reading Caddy metrics for the requested instance.
+Use the instance's stable `id`, shown in the token dialog and available from `GET /api/instances` with an administrator session. Without `X-Instance-Id`, a token permitting one instance reads that instance, and a token permitting several reads `default`, which must be explicitly permitted by the token. An unknown or removed instance never falls back to another instance. Renaming an instance does not change its ID. Raw Prometheus responses filter caddy/ui's historical series to the token's permitted instance IDs, in addition to reading Caddy metrics for the requested instance.
 
 The [integration examples](integrations.md) show Homepage and Prometheus configuration. Keep `CADDY_UI_PUBLIC_METRICS=false` when metrics must be protected: the public option deliberately exposes parsed/raw metrics without a token.
 

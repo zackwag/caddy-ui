@@ -102,12 +102,26 @@ describe('scoped read-only integration tokens', () => {
         expect(unpermitted.status).toBe(403);
         expect((await unpermitted.json()).code).toBe('FORBIDDEN');
         const metrics = await f.issue(input({ scopes: ['metrics:read'], instanceIds: ['second'] }));
-        expect((await bearer(f.url, metrics.token, '/metrics/raw')).status).toBe(403);
+        expect((await bearer(f.url, metrics.token, '/metrics/raw', { headers: { 'X-Instance-Id': 'default' } })).status).toBe(403);
         expect((await bearer(f.url, metrics.token, '/metrics/raw', { headers: { 'X-Instance-Id': 'second' } })).status).toBe(200);
         vi.mocked(instances.getInstances).mockReturnValue([instance('default')]);
-        const removed = await bearer(f.url, metrics.token, '/metrics/raw', { headers: { 'X-Instance-Id': 'second' } });
-        expect(removed.status).toBe(404);
-        expect((await removed.json()).code).toBe('INSTANCE_SELECTION_INVALID');
+        for (const headers of [{ 'X-Instance-Id': 'second' }, {}]) {
+            const removed = await bearer(f.url, metrics.token, '/metrics/raw', { headers });
+            expect(removed.status).toBe(404);
+            expect((await removed.json()).code).toBe('INSTANCE_SELECTION_INVALID');
+        }
+    });
+
+    it('defaults a header-less request to the token\'s only instance, and broader tokens to default', async () => {
+        vi.mocked(instances.getInstances).mockReturnValue([instance('default'), instance('second'), instance('third')]);
+        const f = await fixture();
+        const servedInstance = async instanceIds => {
+            const response = await bearer(f.url, (await f.issue(input({ instanceIds }))).token, '/status');
+            return response.status === 200 ? (await response.json()).instanceId : response.status;
+        };
+        expect(await servedInstance(['second'])).toBe('second');
+        expect(await servedInstance(['second', 'default'])).toBe('default');
+        expect(await servedInstance(['second', 'third'])).toBe(403);
     });
 
     it('never authorizes writes, mints sessions or falls back to a more privileged cookie', async () => {
