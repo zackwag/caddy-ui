@@ -27,7 +27,11 @@ async function csrfToken() {
                 const body = await response.json();
                 if (!response.ok || typeof body.csrfToken !== 'string') throw new ApiError('Cannot establish request context', { code: 'CSRF_INVALID' });
                 return body.csrfToken;
-            }).catch(error => { csrfRequest = undefined; throw error; });
+            }).catch(error => {
+                csrfRequest = undefined;
+                if (error instanceof ApiError) throw error;
+                throw new ApiError('Network connection failed', { code: 'NETWORK_ERROR' });
+            });
     }
     return csrfRequest;
 }

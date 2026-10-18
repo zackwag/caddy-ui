@@ -14,6 +14,12 @@ beforeEach(() => {
 afterEach(() => { resetAuthContext(); vi.unstubAllGlobals(); });
 
 describe('cookie authentication client', () => {
+    it('reports network loss while establishing CSRF context without sending a mutation', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+        await expect(apiFetch('/settings', { method: 'PUT' })).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(fetch.mock.calls[0][0]).toBe('/api/auth/csrf');
+    });
     it.each([[401, 'UNAUTHORIZED', true], [403, 'FORBIDDEN', false]])('distinguishes HTTP %s from permission failures', async (status, code, signedOut) => {
         const onUnauth = vi.fn();
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ code, error: 'Operation failed', requestId: 'request-diagnostic' }, status)));
