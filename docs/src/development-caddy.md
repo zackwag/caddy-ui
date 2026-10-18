@@ -27,12 +27,23 @@ Both ports must be free; the runner rejects occupied ports. The frontend's norma
 Caddyfile syntax-mode fetch runs before Vite starts and needs network access on
 first use. The default image is pinned to `caddy:2.10.2-alpine`.
 
-Startup creates/restarts `default`, waits for its admin API and the backend,
-then starts Vite. Its printed HTTP URL has `/health` (200), `/error` (503), and a
-catch-all response identifying the instance. Requests generate JSON access logs.
-The Caddyfile disables automatic HTTPS so no public DNS, certificates, or ports
-80/443 on the host are needed. Caddy admin listens on port 2019 inside its container;
-published HTTP/admin ports are dynamically allocated and bound to host loopback.
+Startup creates/restarts `default` and an owned `example-upstream` Caddy service,
+waits for the default instance's admin API and the backend, then starts Vite.
+New default volumes use the same real example Caddyfile as documentation capture:
+`example.com`, `media.home.arpa` and `api.internal`, with titles, reverse proxies,
+metrics, JSON logging and `tls internal`. Caddy generates local certificates and
+keys in its own volume; it does not contact a public certificate authority or
+install its root CA on your computer. No private keys are checked into Git.
+
+The printed HTTP URL retains `/health` (200), `/error` (503), and a catch-all
+response. HTTPS also has a dynamically allocated loopback port, printed as
+`httpsUrl`; use an example hostname for SNI and trust the instance's root CA
+when testing it. The TLS page reads the generated certificates directly from
+Caddy storage. This setup does not seed screenshot uptime history, credentials,
+notification settings or other UI preferences.
+
+Caddy admin listens on port 2019 inside its container; published HTTP, HTTPS and
+admin ports are dynamically allocated and bound to host loopback.
 Do not expose these admin ports externally: they have no authentication.
 
 All UI state is redirected to `.dev-caddy/backend/`, including instance
@@ -55,6 +66,7 @@ stop or remove them. A startup failure also leaves Caddy available for diagnosis
 ```sh
 npm run dev:instances -- create alpha
 npm run dev:instances -- create beta
+npm run dev:instances -- create preview --examples  # real example sites and local TLS
 npm run dev:instances -- list
 npm run dev:instances -- stop alpha
 npm run dev:instances -- create alpha     # restarts it, preserving edits
@@ -67,6 +79,13 @@ npm run dev:instances -- remove-all --purge --yes  # explicit destructive consen
 Names are lowercase letters, digits and hyphens, starting with a letter, at most
 32 characters. Multiple instances use separate volumes and random published
 ports. Create is repeatable. List reports stopped containers and retained volumes.
+`example-upstream` is reserved for the shared example service. Basic `create`
+commands and focused integration/E2E scenarios retain their minimal HTTP fixture.
+
+**Existing Caddyfiles are preserved**, including retained volumes from an older
+HTTP-only development setup. To try the richer fixture without deleting those
+edits, create a fresh `preview --examples` instance and register its printed
+details in the UI. The preset is applied only when the volume has no Caddyfile.
 
 **Docker lifecycle and UI registration are separate.** Create prints the exact
 fields for the UI's instance form. Add extra instances in the Instances screen
@@ -121,6 +140,11 @@ loopback-published ports for the frontend and backend to reach Caddy. Remote Doc
 Engines are unsupported because published loopback ports belong to the remote host.
 Use the printed HTTP URL to test a route and the printed admin URL when registering
 an instance; container IPs suggested by discovery may be unreachable from the host.
+The example reverse proxies connect to their owned peer's Docker-network address.
+For backend upstream checks on Docker Desktop, run inside the Dev Container on
+the same Docker network; a host process may not reach private container IPs.
+If you remove/recreate `example-upstream` and its IP changes, update the example
+upstream address in existing Caddyfiles, just as for another recreated service.
 
 ## Troubleshooting and cleanup safety
 
@@ -216,6 +240,7 @@ Read the support code in this order:
 | File | Responsibility |
 | --- | --- |
 | `dev/dev-caddy/harness.mjs` | Existing Docker operations, ownership checks and environment paths; shared by development commands and tests. |
+| `dev/dev-caddy/examples.mjs` | Real example site configuration shared by documentation capture and interactive development. |
 | `dev/integration/lifecycle.mjs` | Resource acquisition, cancellation and reverse-order cleanup. It has no Docker, backend or browser dependencies. |
 | `dev/integration/stack.mjs` | Claim namespace, create Caddy, seed temporary state, start backend, discover its bound port, and wait for HTTP readiness. |
 | `dev/e2e/fixture.mjs` | Add Vite, Chromium, a browser context and bounded diagnostics to the same resource owner. |

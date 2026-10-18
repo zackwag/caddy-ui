@@ -9,56 +9,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { backendEnvironment, checkDocker, Harness, IMAGE } from '../../dev/dev-caddy/harness.mjs';
 import { CAPTURE_VERSION, normalizeCapture, validateCapture } from '../../dev/playground/capture-format.js';
+import { EXAMPLE_SITES as SITES, exampleCaddyfile, exampleUpstream } from '../../dev/dev-caddy/examples.mjs';
 
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
-
-const SITES = [
-    { domain: 'example.com', title: 'Home Assistant' },
-    { domain: 'media.home.arpa', title: 'Jellyfin' },
-    { domain: 'api.internal', title: 'Internal API' },
-];
-
-function screenshotCaddyfile(upstream) {
-    return `{
-    admin 0.0.0.0:2019
-    auto_https disable_redirects
-    skip_install_trust
-    metrics
-    log {
-        output file /data/dev-caddy/logs/access.log
-        format json
-    }
-}
-
-(screenshot_backend) {
-    reverse_proxy ${upstream} {
-        transport http {
-            network_proxy none
-        }
-    }
-}
-
-:80 {
-    log
-    @sites host ${SITES.map(site => site.domain).join(' ')}
-    handle @sites {
-        import screenshot_backend
-    }
-    handle {
-        respond /health "ok" 200
-        respond "Screenshot capture instance" 200
-    }
-}
-
-${SITES.map(({ domain, title }) => `${domain} {
-    # ${title}
-    tls internal
-    log
-    import screenshot_backend
-}`).join('\n\n')}
-`;
-}
 
 // Seed the normal persisted history format, not an invented API response.
 // These illustrative samples are distinct from the traffic measured below.
@@ -147,10 +101,7 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
         assert.deepEqual(await harness.names('volume'), []);
         const info = await harness.create('screenshots');
         const staging = await harness.create('staging');
-        // Caddy reaches its peer on the Docker network, not the host's
-        // published loopback port returned for a local CLI client.
-        const stagingContainer = await harness.inspect('container', staging.instance.containerName);
-        const upstream = stagingContainer.NetworkSettings.Networks[await harness.network() || 'bridge'].IPAddress + ':80';
+        const upstream = await exampleUpstream(harness, staging.instance);
         const env = { ...backendEnvironment(directory, info.instance), PORT: socketPath,
             DOCKER_SOCKET: fileURLToPath(endpoint.replace(/^unix:/, 'file:')),
             APP_VERSION: '1.20.0', CADDY_UI_PUBLIC_METRICS: 'false', CADDY_UI_ADDITIONAL_LANGUAGES: '',
@@ -183,7 +134,7 @@ export async function captureScreenshots({ output = resolve(import.meta.dirname,
         await successful('/server-names/srv1', 'PUT', { name: 'Local HTTP' });
 
         // Exercise the real session/CSRF-protected configuration-write path.
-        await successful('/caddyfile?fmt=false&sort=false', 'PUT', screenshotCaddyfile(upstream));
+        await successful('/caddyfile?fmt=false&sort=false', 'PUT', exampleCaddyfile(upstream));
         for (const site of SITES) await successful('/route-notes/' + encodeURIComponent(site.domain), 'PUT', { note: site.title });
 
         // Populate logs and request counters with real traffic to owned services.

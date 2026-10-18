@@ -3,6 +3,7 @@ import { createServer } from 'node:net';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { backendEnvironment, checkDocker, Harness, namespace, STATE, withLock } from './harness.mjs';
+import { createExampleInstance } from './examples.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const children = new Set();
@@ -64,7 +65,7 @@ try {
     const lock = resolve(STATE, 'runner.lock');
     await mkdir(lock).catch(() => { throw new Error('A dev:with-caddy runner is already active. Remove .dev-caddy/runner.lock only if the previous runner crashed.'); });
     runnerLock = lock;
-    const info = await withLock(STATE, async () => new Harness(await namespace()).create('default'));
+    const info = await withLock(STATE, async () => createExampleInstance(new Harness(await namespace()), 'default'));
     console.log(JSON.stringify(info, null, 2));
     await waitFor(`${info.instance.adminUrl}/config/`);
     const env = backendEnvironment(STATE, info.instance);

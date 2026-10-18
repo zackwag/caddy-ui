@@ -1,18 +1,20 @@
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { checkDocker, Harness, namespace, STATE, withLock } from './harness.mjs';
+import { createExampleInstance } from './examples.mjs';
 
 const [command, ...args] = process.argv.slice(2);
-const usage = 'Usage: npm run dev:instances -- create|stop|remove|list|remove-all [name] [--purge] [--yes]';
+const usage = 'Usage: npm run dev:instances -- create|stop|remove|list|remove-all [name] [--examples] [--purge] [--yes]';
 
 try {
     if (!['create', 'stop', 'remove', 'list', 'remove-all'].includes(command)) throw new Error(usage);
     const purge = args.includes('--purge');
     const yes = args.includes('--yes');
+    const examples = args.includes('--examples');
     const names = args.filter(arg => !arg.startsWith('--'));
-    if (args.some(arg => arg.startsWith('--') && !['--purge', '--yes'].includes(arg)) ||
+    if (args.some(arg => arg.startsWith('--') && !['--purge', '--yes', '--examples'].includes(arg)) ||
         names.length !== (['create', 'stop', 'remove'].includes(command) ? 1 : 0) ||
-        (purge && !['remove', 'remove-all'].includes(command))) throw new Error(usage);
+        (purge && !['remove', 'remove-all'].includes(command)) || (examples && command !== 'create')) throw new Error(usage);
     const destructive = command === 'remove-all' || purge;
     let confirmed = yes;
     if (destructive && !confirmed) {
@@ -27,7 +29,7 @@ try {
     await withLock(STATE, async () => {
         const harness = new Harness(await namespace());
         if (command === 'create') {
-            const info = await harness.create(names[0]);
+            const info = await (examples ? createExampleInstance(harness, names[0]) : harness.create(names[0]));
             console.log(JSON.stringify(info, null, 2));
             console.log('Register the instance in the UI using the fields above. Discovery may suggest an unreachable address on Docker Desktop; use adminUrl above.');
         } else if (command === 'list') {

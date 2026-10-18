@@ -114,7 +114,7 @@ export class Harness {
         throw new Error('Cannot determine the Dev Container network. Set DEV_CADDY_NETWORK to its Docker network name (docker inspect <dev-container>). Docker Desktop container IPs are not reachable from the host.');
     }
 
-    async create(name) {
+    async create(name, { caddyfile = defaultCaddyfile(name), publishHttps = false } = {}) {
         const resource = this.resource(name);
         const existing = await this.inspect('container', resource);
         if (existing) {
@@ -129,9 +129,10 @@ export class Harness {
             ...this.labels(name).flatMap(l => ['--label', l]),
             '--mount', `type=volume,src=${resource},dst=/data/dev-caddy`,
             '--publish', '127.0.0.1::80', '--publish', '127.0.0.1::2019',
+            ...(publishHttps ? ['--publish', '127.0.0.1::443'] : []),
             ...(network ? ['--network', network] : []),
             '--env', 'XDG_DATA_HOME=/data/dev-caddy/data', '--env', 'XDG_CONFIG_HOME=/data/dev-caddy/config',
-            '--env', `DEV_CADDYFILE=${defaultCaddyfile(name)}`,
+            '--env', `DEV_CADDYFILE=${caddyfile}`,
             '--env', 'CADDY_CONFIG_PATH=/data/dev-caddy/Caddyfile', '--env', 'CADDY_LOG_PATH=/data/dev-caddy/logs/access.log',
             '--entrypoint', 'sh', IMAGE, '-c',
             'mkdir -p /data/dev-caddy/logs; if [ ! -f /data/dev-caddy/Caddyfile ]; then printf "%s" "$DEV_CADDYFILE" > /data/dev-caddy/Caddyfile; fi; exec caddy run --config /data/dev-caddy/Caddyfile --adapter caddyfile']);
@@ -149,6 +150,7 @@ export class Harness {
         return {
             name, running: detail.State.Running,
             httpUrl: `http://${address}:${network ? 80 : port('80/tcp')}`,
+            ...(port('443/tcp') ? { httpsUrl: `https://${address}:${network ? 443 : port('443/tcp')}` } : {}),
             instance: { name: `Dev ${name}`, adminUrl: `http://${address}:${network ? 2019 : port('2019/tcp')}`,
                 containerName: this.resource(name), configPath: '/data/dev-caddy/Caddyfile',
                 logPath: '/data/dev-caddy/logs/access.log', dataPath: '/data/dev-caddy/data/caddy', serverName: 'srv0' },
