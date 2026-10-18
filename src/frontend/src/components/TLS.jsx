@@ -10,6 +10,8 @@ export default function TLS({ toast, onUnauth, confirm }) {
     const { t } = useTranslation();
     const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
+    // Kept until a load succeeds, so unreadable storage isn't shown as "no certificates"
+    const [loadError, setLoadError] = useState(null);
     const [filter, setFilter] = useState("all");
     const [sortCol, setSortCol] = useState("domain");
     const [sortDir, setSortDir] = useState("asc");
@@ -18,8 +20,8 @@ export default function TLS({ toast, onUnauth, confirm }) {
         setLoading(true);
         const key = stateNotificationKey('tls.load', getInstanceId());
         apiFetch("/tls", {}, onUnauth)
-            .then(data => { toast.recover(key); setCerts(data); })
-            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
+            .then(data => { toast.recover(key); setLoadError(null); setCerts(data); })
+            .catch(e => { setLoadError(e); toast.error(localizeError(e, t), e, { mode: 'state', key }); })
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
     }, [onUnauth]);
@@ -175,7 +177,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
                 </div>
                 {sorted.length === 0 ? (
                     <div className="card-empty">
-                        {filter === "orphaned" ? t("tls.noOrphaned") : filter === "superseded" ? t("tls.noSuperseded") : t("tls.noCertificates")}
+                        {loadError && !certs.length ? localizeError(loadError, t) : filter === "orphaned" ? t("tls.noOrphaned") : filter === "superseded" ? t("tls.noSuperseded") : t("tls.noCertificates")}
                     </div>
                 ) : (
                     <div className="table-wrap">

@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import { asAppError } from '../AppError.js';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
 import { getCaddyEnv, resolveEnvVars } from '../docker.js';
+import { sendAppError } from '../errorReporting.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
 import {
@@ -143,15 +145,6 @@ function isSimpleReverseProxy(route) {
     return handles[0].handler === 'reverse_proxy';
 }
 
-async function getAllServers(adminUrl) {
-    try {
-        const config = await caddyGet('/config/apps/http/servers', adminUrl);
-        return config || {};
-    } catch {
-        return {};
-    }
-}
-
 // Caddy happily accepts routes for a server ID that doesn't exist, creating a
 // server with no listen address -- so the route never serves traffic. Returns
 // an error message for that case, or null when the primary server exists.
@@ -165,27 +158,29 @@ function checkPrimaryServer(servers, primaryServer) {
         + 'Update the instance\'s Primary Server ID on the Instances page.';
 }
 
-// GET /api/routes
+// GET /api/routes -- an empty list means Caddy has no HTTP routes. When the
+// config can't be read the request fails, so an outage never looks empty.
 router.get('/', async (req, res) => {
+    let servers;
     try {
-        const servers = await getAllServers(req.instance.adminUrl);
-        const allRoutes = [];
-
-        for (const [serverName, server] of Object.entries(servers)) {
-            const routes = server.routes || [];
-            for (const route of routes) {
-                allRoutes.push({
-                    ...route,
-                    _server: serverName,
-                    _simpleProxy: isSimpleReverseProxy(route),
-                });
-            }
-        }
-
-        res.json(allRoutes);
-    } catch {
-        res.json([]);
+        servers = (await caddyGet('/config/apps/http/servers', req.instance.adminUrl)) || {};
+    } catch (err) {
+        return sendAppError(res, asAppError(err, 'CADDY_CONFIG_UNAVAILABLE', { instanceId: req.instance.id }));
     }
+    const allRoutes = [];
+
+    for (const [serverName, server] of Object.entries(servers)) {
+        const routes = server.routes || [];
+        for (const route of routes) {
+            allRoutes.push({
+                ...route,
+                _server: serverName,
+                _simpleProxy: isSimpleReverseProxy(route),
+            });
+        }
+    }
+
+    res.json(allRoutes);
 });
 
 // POST /api/routes
@@ -197,8 +192,7 @@ router.post('/', async (req, res) => {
     logger.info(`Adding route`, { domain, upstream, stripPrefix });
 
     const primaryServer = req.instance.serverName;
-    // Unlike getAllServers, let an unreachable Caddy surface as an error
-    // rather than reading as "no servers"
+    // Let an unreachable Caddy surface as an error rather than reading as "no servers"
     const servers = (await caddyGet('/config/apps/http/servers', req.instance.adminUrl)) || {};
     const serverError = checkPrimaryServer(servers, primaryServer);
     if (serverError) {

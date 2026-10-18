@@ -240,6 +240,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const [serverLabels, setServerLabels] = useState({});
     const [maintenance, setMaintenance] = useState({});
     const [loading, setLoading] = useState(true);
+    // Kept until a load succeeds, so an outage isn't shown as "no routes"
+    const [loadError, setLoadError] = useState(null);
     const [healthLoading, setHealthLoading] = useState(false);
     const [editModal, setEditModal] = useState(null);
     const [newModal, setNewModal] = useState(false);
@@ -265,8 +267,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const load = useCallback(() => {
         const key = stateNotificationKey('routes.load', getInstanceId());
         apiFetch("/routes", {}, onUnauth)
-            .then(data => { toast.recover(key); setRoutes(data); })
-            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
+            .then(data => { toast.recover(key); setLoadError(null); setRoutes(data); })
+            .catch(e => { setLoadError(e); toast.error(localizeError(e, t), e, { mode: 'state', key }); })
             .finally(() => setLoading(false));
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
         apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
@@ -556,7 +558,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                 <div className="card card-flush">
                     {sorted.length === 0 ? (
                         <div className="card-empty">
-                            {search ? t("routes.noMatching", { search }) : t("routes.noneConfigured")}
+                            {loadError && !routes.length ? localizeError(loadError, t) : search ? t("routes.noMatching", { search }) : t("routes.noneConfigured")}
                         </div>
                     ) : (
                         <div className="table-wrap">

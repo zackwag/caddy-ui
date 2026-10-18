@@ -25,6 +25,7 @@ export const ERROR_MESSAGES = Object.freeze({
     METRICS_UNAVAILABLE: 'errors.metricsUnavailable',
     METRICS_CONFIG_FAILED: 'errors.metricsConfigFailed',
     CADDY_STATUS_UNAVAILABLE: 'errors.upstreamUnavailable',
+    CADDY_CONFIG_UNAVAILABLE: 'errors.upstreamUnavailable',
     NOT_FOUND: 'errors.notFound',
     CONFLICT: 'errors.conflict',
     UPSTREAM_UNAVAILABLE: 'errors.upstreamUnavailable',
