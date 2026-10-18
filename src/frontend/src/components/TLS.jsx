@@ -2,7 +2,7 @@ import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { apiFetch, getToken, getInstanceId } from "../utils/api.js";
+import { apiFetch, getInstanceId } from "../utils/api.js";
 import { currentLocale } from "../utils/format.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
 
@@ -35,8 +35,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
     };
 
     const downloadCA = () => {
-        const token = getToken();
-        window.open(token ? `/api/tls/ca?token=${token}` : `/api/tls/ca`, '_blank');
+        window.open(`/api/tls/ca`, '_blank');
     };
 
     const summary = {

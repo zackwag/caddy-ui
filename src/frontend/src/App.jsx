@@ -18,8 +18,9 @@ import ThemeWelcome from "./components/ThemeWelcome.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
 import { css, THEME_LIST, THEME_VAR_KEYS } from "./styles.js";
-import { API, apiFetch, fetchCustomThemes, fetchSettings, getAuthEnabled, getInstanceId, getToken, saveSettings, setAuthEnabled, setToken } from "./utils/api.js";
+import { apiFetch, authRequest, fetchAuthStatus, fetchCustomThemes, fetchSettings, getInstanceId, resetAuthContext, saveSettings } from "./utils/api.js";
 import { useTranslation } from 'react-i18next';
+import { localizeError } from './utils/errorMessages.js';
 
 const DEFAULTS = {
     firstTimeRun: true,
@@ -52,12 +53,10 @@ export default function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [instanceKey, setInstanceKey] = useState(getInstanceId);
     const [instanceListVersion, setInstanceListVersion] = useState(0);
-    const [authEnabled, setAuthEnabledState] = useState(false);
-    const [authed, setAuthed] = useState(() => {
-        const cached = getAuthEnabled();
-        if (cached === null) return null;
-        return !cached || !!getToken();
-    });
+    const [authState, setAuthState] = useState(null);
+    const [authError, setAuthError] = useState(false);
+    const authEnabled = authState?.authEnabled ?? true;
+    const authed = Boolean(authState && (!authEnabled || authState.authenticated));
     const [sessionExpired, setSessionExpired] = useState(false);
     const [language, setLanguage] = useState(DEFAULTS.language);
     const [enabledLanguages, setEnabledLanguages] = useState(['en']);
@@ -76,11 +75,31 @@ export default function App() {
     const { dialog: confirmDialog, confirm, resolve: resolveConfirm } = useConfirm();
 
     const onUnauth = useCallback(() => {
-        const wasAuthed = !!getToken();
-        setToken(null);
-        setAuthed(false);
-        if (wasAuthed) setSessionExpired(true);
+        resetAuthContext();
+        setAuthState(previous => previous ? { ...previous, authenticated: false } : null);
+        setSettingsLoaded(false);
+        setSessionExpired(true);
     }, []);
+
+    const refreshAuth = useCallback(async () => {
+        setAuthError(false);
+        try {
+            const state = await fetchAuthStatus();
+            setAuthState(state);
+            setSessionExpired(false);
+        } catch {
+            setAuthState(null);
+            setAuthError(true);
+        }
+    }, []);
+
+    const logout = async () => {
+        try {
+            await authRequest('/sessions/current', { method: 'DELETE' });
+            onUnauth();
+            await refreshAuth();
+        } catch (error) { toast.error(localizeError(error, t), error); }
+    };
 
     useEffect(() => {
         let cancelled = false;
@@ -202,15 +221,9 @@ export default function App() {
     };
 
     useEffect(() => {
-        fetch(`${API}/auth/status`)
-            .then(r => r.json())
-            .then(d => {
-                setAuthEnabled(d.authEnabled);
-                setAuthEnabledState(d.authEnabled);
-                setAuthed(!d.authEnabled || !!getToken());
-            })
-            .catch(() => setAuthed(true));
-    }, []);
+        resetAuthContext();
+        refreshAuth();
+    }, [refreshAuth]);
 
     const fetchStatus = useCallback(() => {
         apiFetch("/status", {}, onUnauth).then((s) => {
@@ -259,8 +272,14 @@ export default function App() {
     return (
         <>
             <style>{css}</style>
-            {authed === null || !languageReady ? null : !authed ? (
-                <Login onLogin={() => { setAuthed(true); setSessionExpired(false); }} sessionExpired={sessionExpired} />
+            {!languageReady ? null : authError ? (
+                <div className="login-shell"><div className="login-card">
+                    <div className="login-logo">caddy/ui</div>
+                    <p className="login-error" role="alert">{t('login.serverUnreachable')}</p>
+                    <button className="btn btn-primary btn--full" onClick={refreshAuth}>{t('login.retry')}</button>
+                </div></div>
+            ) : !authState ? null : !authed ? (
+                <Login authState={authState} onLogin={refreshAuth} sessionExpired={sessionExpired} />
             ) : (
                 <div className="shell">
                     <div className={`sidebar-overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
@@ -271,6 +290,7 @@ export default function App() {
                         onRefreshStatus={fetchStatus}
                         authEnabled={authEnabled}
                         onUnauth={onUnauth}
+                        onLogout={logout}
                         sidebarOpen={sidebarOpen}
                         setSidebarOpen={setSidebarOpen}
                         selectedInstanceId={instanceKey}

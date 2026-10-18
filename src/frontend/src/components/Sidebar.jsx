@@ -25,7 +25,7 @@ const NAV = [
     { path: "/instances", labelKey: "sidebar.nav.instances", icon: "instances" },
 ];
 
-export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange, instanceListVersion }) {
+export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, onLogout, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange, instanceListVersion }) {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
@@ -124,7 +124,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
             </nav>
             <div className="nav-footer">
                 {authEnabled && (
-                    <button type="button" className="nav-item sidebar-signout" onClick={onUnauth}>
+                    <button type="button" className="nav-item sidebar-signout" onClick={onLogout || onUnauth}>
                         <span className="nav-icon"><PixelIcon name="logout" /></span>
                         {t("sidebar.signOut")}
                     </button>

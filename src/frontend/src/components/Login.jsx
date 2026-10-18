@@ -1,53 +1,64 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { API, setToken } from "../utils/api.js";
+import { authRequest } from "../utils/api.js";
 
-export default function Login({ onLogin, sessionExpired }) {
+import AuthSetup from './AuthSetup.jsx';
+import AuthRecovery from './AuthRecovery.jsx';
+import { localizeError } from '../utils/errorMessages.js';
+
+export default function Login({ authState, onLogin, sessionExpired }) {
     const { t } = useTranslation();
+    const [recovering, setRecovering] = useState(false);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState(sessionExpired ? t("login.sessionExpired") : "");
     const [loading, setLoading] = useState(false);
 
-    const login = async () => {
+    const login = async event => {
+        event.preventDefault();
         if (!username || !password) return;
         setLoading(true);
         setError("");
         try {
-            const res = await fetch(`${API}/auth/sessions`, {
+            await authRequest('/sessions', {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),
             });
-            const data = await res.json();
-            if (!res.ok) { setError(t("login.failed")); return; }
-            setToken(data.token);
-            onLogin();
-        } catch {
-            setError(t("login.serverUnreachable"));
+            setPassword('');
+            await onLogin();
+        } catch (error) {
+            setError(error.code === 'UNAUTHORIZED' ? t('login.failed') : localizeError(error, t));
         } finally {
             setLoading(false);
         }
     };
 
+    if (recovering) return <AuthRecovery onCancel={() => setRecovering(false)} onComplete={async () => { setRecovering(false); await onLogin(); }} />;
+    if (authState?.setupRequired && (!authState.enrollmentRequired || authState.enrollmentAuthenticated)) {
+        return <AuthSetup enrollment={authState.enrollmentRequired} onComplete={onLogin} />;
+    }
+
     return (
         <div className="login-shell">
-            <div className="login-card">
+            <form className="login-card" onSubmit={login}>
                 <div className="login-logo">caddy/ui</div>
                 <div className="login-sub">{t("login.serverManager")}</div>
-                {error && <div className="login-error">{error}</div>}
+                {authState?.enrollmentRequired && <p className="auth-help">{t('login.legacyHint')}</p>}
+                {error && <div className="login-error" role="alert">{error}</div>}
                 <div className="field">
-                    <label>{t("login.username")}</label>
-                    <input value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} autoFocus autoComplete="username" />
+                    <label htmlFor="login-username">{t("login.username")}</label>
+                    <input id="login-username" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} autoFocus autoComplete="username" />
                 </div>
                 <div className="field">
-                    <label>{t("login.password")}</label>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} autoComplete="current-password" />
+                    <label htmlFor="login-password">{t("login.password")}</label>
+                    <input id="login-password" autoComplete="current-password" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" />
                 </div>
-                <button className="btn btn-primary btn--full" onClick={login} disabled={loading || !username || !password}>
+                <button className="btn btn-primary btn--full" type="submit" disabled={loading || !username || !password}>
                     {loading ? t("login.signingIn") : t("login.signIn")}
                 </button>
-            </div>
+                {!authState?.setupRequired && <button type="button" className="btn btn--full" onClick={() => setRecovering(true)}>{t('login.forgotPassword')}</button>}
+            </form>
         </div>
     );
 }

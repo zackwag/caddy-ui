@@ -3,7 +3,7 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { API, apiFetch, getToken, getInstanceId } from "../utils/api.js";
+import { API, apiFetch, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { resolveLogSource } from "../utils/logSource.js";
 
@@ -75,9 +75,8 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
 
     const toggleLive = () => {
         if (live) { esRef.current?.close(); esRef.current = null; setLive(false); return; }
-        const token = getToken();
         const streamPath = source === "caddy" ? "/logs/stream" : "/logs/app/stream";
-        const url = token ? `${API}${streamPath}?token=${token}` : `${API}${streamPath}`;
+        const url = `${API}${streamPath}`;
         const es = new EventSource(url);
         const streamKey = stateNotificationKey('logs.stream.' + source, getInstanceId());
         es.onmessage = e => {

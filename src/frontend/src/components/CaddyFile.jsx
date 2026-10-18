@@ -3,7 +3,7 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PaneDivider from "./PaneDivider.jsx";
-import { apiFetch, getToken, getInstanceId } from "../utils/api.js";
+import { apiFetch, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
@@ -319,8 +319,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     };
 
     const exportFile = () => {
-        const token = getToken();
-        window.open(token ? `/api/caddyfile?download=true&token=${token}` : `/api/caddyfile?download=true`, '_blank');
+        window.open(`/api/caddyfile?download=true`, '_blank');
     };
 
     const importFile = (e) => {
