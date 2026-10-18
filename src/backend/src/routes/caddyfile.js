@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
 import { caddyLoad, withTimeout } from '../caddy.js';
-import { readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
+import { describeReadError, readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
 import { execInInstance } from '../docker.js';
 import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
 import logger from '../logger.js';
-import { asAppError } from '../AppError.js';
+import { AppError, asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 
 const router = Router();
@@ -188,23 +188,64 @@ async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
     }
 }
 
-// Saves a Caddyfile produced by a route edit, with the same safety net as the
-// editor's save: snapshot the current file into history, write, reload, and
-// restore the previous file if Caddy rejects the change. Edits that already
-// applied their change through the admin API pass { reload: false }.
-async function saveRouteEdit(instance, content, { reload = true } = {}) {
+// Reads the file a change would replace: null when there is no file yet, so a
+// rollback removes it. Any other read failure stops the change, since the
+// previous content couldn't be restored.
+async function readPreviousCaddyfile(configPath, containerName) {
+    try {
+        return await readContainerFile(containerName, configPath);
+    } catch (err) {
+        if (describeReadError(err) === 'not found') return null;
+        throw new AppError('CADDYFILE_READ_FAILED', { cause: err, context: { configPath } });
+    }
+}
+
+async function restoreCaddyfile(previous, { configPath, containerName }) {
+    if (previous === null) await removeContainerPath(containerName, configPath);
+    else await writeContainerFile(containerName, configPath, previous);
+}
+
+// The one path for changing an instance's Caddyfile, so disk and the running
+// config stay in agreement: snapshot the current file into history, write,
+// apply, and restore the previous file if writing or applying fails. `apply`
+// defaults to reloading Caddy from the new content; admin API edits pass their
+// own live change instead. Throws:
+// - CADDYFILE_READ_FAILED / CADDYFILE_WRITE_FAILED: nothing changed
+// - CADDYFILE_CHANGE_REJECTED: applying failed and the previous file was restored
+// - CADDYFILE_ROLLBACK_FAILED: the previous file couldn't be restored, so the
+//   file on disk is not what Caddy is running
+// With rollback: false (the editor's force save), a failed apply leaves the
+// new file in place and resolves to { applied: false, error }.
+async function saveCaddyfileChange(instance, content, { apply = () => reloadCaddy(content, instance), rollback = true } = {}) {
     const { configPath, containerName, id } = instance;
-    const previous = await readContainerFile(containerName, configPath).catch(() => null);
-    await snapshotCaddyfile(configPath, containerName, id);
-    await writeContainerFile(containerName, configPath, content);
-    if (!reload) return;
+    const context = { instanceId: id, configPath };
+    const previous = await readPreviousCaddyfile(configPath, containerName);
+    if (previous !== null) await snapshotCaddyfile(configPath, containerName, id);
+
+    const restore = async (stage, cause) => {
+        try {
+            await restoreCaddyfile(previous, instance);
+        } catch (restoreErr) {
+            logger.error('Could not restore the previous Caddyfile', { ...context, stage, error: restoreErr.message });
+            throw new AppError('CADDYFILE_ROLLBACK_FAILED', { cause, context: { ...context, stage, restoreError: restoreErr.message } });
+        }
+    };
 
     try {
-        await reloadCaddy(content, instance);
+        await writeContainerFile(containerName, configPath, content);
     } catch (err) {
-        if (previous !== null) await writeContainerFile(containerName, configPath, previous).catch(() => { });
-        logger.warn('Caddy reload failed, route edit rolled back', { error: err.message });
-        throw new Error(`Caddy rejected the change, so the Caddyfile was restored: ${err.message}`, { cause: err });
+        await restore('write', err);
+        throw new AppError('CADDYFILE_WRITE_FAILED', { cause: err, context });
+    }
+
+    try {
+        await apply();
+        return { applied: true };
+    } catch (err) {
+        if (!rollback) return { applied: false, error: err };
+        await restore('apply', err);
+        logger.warn('Caddy rejected the change, previous Caddyfile restored', { ...context, error: err.message });
+        throw new AppError('CADDYFILE_CHANGE_REJECTED', { cause: err, context });
     }
 }
 
@@ -418,7 +459,7 @@ router.put('/', async (req, res) => {
     const skipValidation = req.query.validate === 'false';
     logger.info(`Saving Caddyfile`, { bytes: content.length, fmt, sort, skipValidation });
 
-    const { configPath, containerName } = req.instance;
+    const { containerName } = req.instance;
 
     if (skipValidation) {
         logger.warn(`Caddyfile save requested without validation (force save)`);
@@ -435,8 +476,6 @@ router.put('/', async (req, res) => {
         }
     }
 
-    await snapshotCaddyfile(configPath, containerName, req.instance.id);
-
     let final = content;
     if (fmt) {
         try {
@@ -452,22 +491,23 @@ router.put('/', async (req, res) => {
         logger.info(`Caddyfile sorted`);
     }
 
-    const previous = await readContainerFile(containerName, configPath).catch(() => null);
-    await writeContainerFile(containerName, configPath, final);
-
+    let result;
     try {
-        await reloadCaddy(final, req.instance);
+        // A force save keeps the file even when Caddy rejects it
+        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation });
     } catch (err) {
-        if (!skipValidation) {
-            if (previous !== null) await writeContainerFile(containerName, configPath, previous).catch(() => { });
-            logger.warn(`Caddy reload failed, save rolled back`, { error: err.message });
-            return res.status(422).json({ valid: false, errors: [`Caddy reload failed: ${err.message}`] });
-        }
-        logger.warn(`Caddy reload failed after force save; file left on disk`, { error: err.message });
+        if (!(err instanceof AppError)) throw err;
+        res.locals.appError = err;
+        const detail = err.cause?.message || err.message;
+        const errors = [err.code === 'CADDYFILE_CHANGE_REJECTED' || err.code === 'CADDYFILE_ROLLBACK_FAILED' ? `Caddy reload failed: ${detail}` : detail];
+        return res.status(err.status).json({ valid: false, code: err.code, errors });
+    }
+    if (!result.applied) {
+        logger.warn(`Caddy reload failed after force save; file left on disk`, { error: result.error.message });
         return res.json({
             ok: true,
             message: 'Caddyfile written to disk. Caddy reload failed — changes apply on the next restart or manual reload.',
-            warning: err.message,
+            warning: result.error.message,
         });
     }
 
@@ -476,4 +516,4 @@ router.put('/', async (req, res) => {
 });
 
 export default router;
-export { migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, saveRouteEdit, sortCaddyfile };
+export { migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, saveCaddyfileChange, sortCaddyfile };

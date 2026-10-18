@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { asAppError } from '../AppError.js';
+import { AppError, asAppError } from '../AppError.js';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
@@ -12,7 +12,7 @@ import {
     hasUnassignedMaintenance, isInMaintenance, isMaintenanceBlock, setMaintenance,
 } from '../maintenance.js';
 import { validateContainerName, validatePath } from '../validation.js';
-import { saveRouteEdit } from './caddyfile.js';
+import { saveCaddyfileChange } from './caddyfile.js';
 
 const router = Router();
 
@@ -205,15 +205,20 @@ router.post('/', async (req, res) => {
     const configPath = req.instance.configPath;
 
     const routesPath = `/config/apps/http/servers/${primaryServer}/routes`;
-    if (!servers[primaryServer].routes) {
-        await caddyPut(routesPath, [route], req.instance.adminUrl);
-    } else {
-        await caddyPost(routesPath, route, req.instance.adminUrl);
-    }
+    const addLive = () => (servers[primaryServer].routes
+        ? caddyPost(routesPath, route, req.instance.adminUrl)
+        : caddyPut(routesPath, [route], req.instance.adminUrl));
 
     const caddyfile = await readContainerFile(req.instance.containerName, configPath);
     const block = buildCaddyfileBlock({ domain, upstream, stripPrefix });
-    await saveRouteEdit(req.instance, `${caddyfile.trimEnd()}\n\n${block}\n`, { reload: false });
+    // Written before the live change, so a rejected route restores the file
+    // instead of leaving a running route the Caddyfile doesn't have
+    try {
+        await saveCaddyfileChange(req.instance, `${caddyfile.trimEnd()}\n\n${block}\n`, { apply: addLive });
+    } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
+        throw e;
+    }
 
     logger.info(`Route added`, { id, domain, upstream });
     res.status(201).json({ ok: true, id, route });
@@ -265,11 +270,12 @@ router.patch('/caddyfile/:domain', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${finalContent}\n`;
-        await saveRouteEdit(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated);
 
         logger.info('Caddyfile site block updated', { domain });
         res.json({ ok: true, domain });
     } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to update site block', { domain, error: e.message });
         res.status(500).json({ error: e.message });
     }
@@ -287,11 +293,12 @@ router.delete('/caddyfile/:domain', async (req, res) => {
         if (!existing) return res.status(404).json({ error: 'site block not found' });
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await saveRouteEdit(req.instance, cleaned);
+        await saveCaddyfileChange(req.instance, cleaned);
 
         logger.info('Caddyfile site block deleted', { domain });
         res.json({ ok: true, domain });
     } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to delete site block', { domain, error: e.message });
         res.status(500).json({ error: e.message });
     }
@@ -315,7 +322,7 @@ router.patch('/:id', async (req, res) => {
     }
 
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
-    await caddyPatch(`/id/${id}`, route, req.instance.adminUrl);
+    const patchLive = () => caddyPatch(`/id/${id}`, route, req.instance.adminUrl);
 
     if (oldDomain) {
         const [caddyfile, env] = await Promise.all([
@@ -324,7 +331,14 @@ router.patch('/:id', async (req, res) => {
         ]);
         const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
         const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock, env);
-        await saveRouteEdit(req.instance, updated, { reload: false });
+        try {
+            await saveCaddyfileChange(req.instance, updated, { apply: patchLive });
+        } catch (e) {
+            if (e instanceof AppError) return sendAppError(res, e);
+            throw e;
+        }
+    } else {
+        await patchLive();
     }
 
     logger.info(`Route updated`, { id, domain, upstream });
@@ -344,7 +358,7 @@ router.delete('/:id', async (req, res) => {
         logger.warn(`Could not fetch route for deletion`, { id });
     }
 
-    await caddyDelete(`/id/${id}`, req.instance.adminUrl);
+    const deleteLive = () => caddyDelete(`/id/${id}`, req.instance.adminUrl);
 
     if (domain) {
         const [caddyfile, env] = await Promise.all([
@@ -352,7 +366,14 @@ router.delete('/:id', async (req, res) => {
             getCaddyEnv(req.instance.containerName),
         ]);
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await saveRouteEdit(req.instance, cleaned, { reload: false });
+        try {
+            await saveCaddyfileChange(req.instance, cleaned, { apply: deleteLive });
+        } catch (e) {
+            if (e instanceof AppError) return sendAppError(res, e);
+            throw e;
+        }
+    } else {
+        await deleteLive();
     }
 
     logger.info(`Route deleted`, { id, domain });
@@ -410,13 +431,14 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
-        await saveRouteEdit(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated);
 
         await setMaintenance(req.instance.id, domain, block);
 
         logger.info('Maintenance mode enabled', { domain });
         res.json({ ok: true, domain });
     } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to enable maintenance mode', { domain, error: e.message });
         res.status(500).json({ error: e.message });
     }
@@ -440,12 +462,13 @@ router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${originalContent}\n`;
-        await saveRouteEdit(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated);
         await clearMaintenance(req.instance.id, domain);
 
         logger.info('Maintenance mode disabled', { domain });
         res.json({ ok: true, domain });
     } catch (e) {
+        if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to disable maintenance mode', { domain, error: e.message });
         res.status(500).json({ error: e.message });
     }

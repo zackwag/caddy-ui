@@ -1,8 +1,10 @@
 import { Router } from 'express';
-import { caddyLoad } from '../caddy.js';
-import { readContainerFile, writeContainerFile } from '../containerFs.js';
+import { readContainerFile } from '../containerFs.js';
 import { execInInstance, spawnInInstance } from '../docker.js';
 import logger, { getRecentLogEntries, subscribeToLogs } from '../logger.js';
+import { asAppError } from '../AppError.js';
+import { sendAppError } from '../errorReporting.js';
+import { saveCaddyfileChange } from './caddyfile.js';
 const router = Router();
 const appLogsRouter = Router();
 const TAIL_LINES = 200;
@@ -171,8 +173,11 @@ router.put('/config', async (req, res) => {
         return res.status(422).json({ errors: [err.message] });
     }
 
-    await writeContainerFile(containerName, configPath, updated);
-    await caddyLoad(updated, adminUrl);
+    try {
+        await saveCaddyfileChange(req.instance, updated);
+    } catch (err) {
+        return sendAppError(res, asAppError(err, 'CADDYFILE_WRITE_FAILED', { instanceId: req.instance.id }));
+    }
     logger.info(`Log config saved and reloaded`);
     res.json({ ok: true, message: 'Log config saved and reloaded' });
 });

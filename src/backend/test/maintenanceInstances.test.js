@@ -18,7 +18,7 @@ vi.mock('../src/docker.js', async importOriginal => ({
     getCaddyEnv: vi.fn(async () => ({})),
 }));
 vi.mock('../src/routes/caddyfile.js', () => ({
-    saveRouteEdit: vi.fn(async (instance, content) => { files.set(instance.configPath, content); }),
+    saveCaddyfileChange: vi.fn(async (instance, content) => { files.set(instance.configPath, content); return { applied: true }; }),
 }));
 vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));
 
