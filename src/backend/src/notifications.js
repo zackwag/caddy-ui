@@ -1,6 +1,6 @@
 import { X509Certificate } from 'crypto';
 import { join } from 'path';
-import { listContainerDir, readContainerFile } from './containerFs.js';
+import { containerPathExists, describeReadError, listContainerDir, readContainerDir, readContainerFile } from './containerFs.js';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { failureReason } from './routeChecks.js';
@@ -198,9 +198,35 @@ async function checkCerts() {
     await Promise.all(getInstances().map(checkCertsForInstance));
 }
 
-async function checkCertsForInstance(inst) {
+// Instances whose certificate storage couldn't be read on the last check, so
+// the failure is logged once per outage rather than on every check.
+const certReadFailures = new Set();
+
+// Unreadable storage means expiry alerts can't be sent, so it's logged rather
+// than treated as "no certificates". A missing certificates directory under
+// an existing data directory just means Caddy hasn't stored one yet.
+async function readCertIssuers(inst, certsPath) {
+    try {
+        const issuers = await readContainerDir(inst.containerName, certsPath);
+        if (certReadFailures.delete(inst.id)) logger.info('Certificate expiry checks resumed', { instance: inst.name });
+        return issuers;
+    } catch (err) {
+        const reason = describeReadError(err);
+        if (reason === 'not found' && await containerPathExists(inst.containerName, inst.dataPath)) {
+            certReadFailures.delete(inst.id);
+            return [];
+        }
+        if (!certReadFailures.has(inst.id)) {
+            certReadFailures.add(inst.id);
+            logger.warn('Certificate expiry checks skipped: certificates could not be read', { instance: inst.name, path: certsPath, reason });
+        }
+        return [];
+    }
+}
+
+export async function checkCertsForInstance(inst) {
     const certsPath = join(inst.dataPath, 'certificates');
-    const issuers = await listContainerDir(inst.containerName, certsPath);
+    const issuers = await readCertIssuers(inst, certsPath);
     if (!issuers.length) return;
 
     const instLabel = instanceLabel(inst);

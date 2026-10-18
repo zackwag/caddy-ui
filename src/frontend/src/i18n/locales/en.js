@@ -59,6 +59,8 @@ export default {
         operationWarning: 'The operation completed with warnings. See the application logs.',
         viewLogs: 'View logs',
         caddyfileReadFailed: 'Could not read the Caddyfile.',
+        caddyfileHistoryReadFailed: 'Could not read the Caddyfile history.',
+        routeNotesReadFailed: 'Could not read route notes. Saved notes were left unchanged.',
         caddyReloadFailed: 'Could not reload Caddy.',
         instanceNotFound: 'The instance was not found.',
         instanceSelectionInvalid: 'The selected instance no longer exists. Switched to an available instance.',

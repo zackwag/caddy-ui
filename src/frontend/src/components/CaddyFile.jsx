@@ -142,6 +142,8 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [editorShare, setEditorShare] = useState(60);
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    // Kept until a load succeeds, so unreadable history isn't shown as "no snapshots"
+    const [historyError, setHistoryError] = useState(null);
     const [previewEntry, setPreviewEntry] = useState(null);
     const [previewContent, setPreviewContent] = useState("");
     const [previewLoading, setPreviewLoading] = useState(false);
@@ -192,6 +194,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         try {
             const entries = await apiFetch("/caddyfile/history", {}, onUnauth);
             if (request !== historyRequest.current) return;
+            setHistoryError(null);
             setHistory(entries);
             const selected = entries.find(entry => entry.filename === selectedFilename.current) || entries[0];
             if (!selected) clearPreview();
@@ -200,7 +203,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                 changeCompareTo("current");
             }
         } catch (e) {
-            if (request === historyRequest.current) toast.error(localizeError(e, t), e);
+            if (request === historyRequest.current) { setHistoryError(e); toast.error(localizeError(e, t), e); }
         } finally {
             if (request === historyRequest.current) setHistoryLoading(false);
         }
@@ -450,7 +453,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                             {historyLoading && history.length === 0 ? (
                                 <div className="loading">{t("common.loading")}</div>
                             ) : history.length === 0 ? (
-                                <div className="card-empty">{t("caddyfile.noSnapshots")}</div>
+                                <div className="card-empty">{historyError ? localizeError(historyError, t) : t("caddyfile.noSnapshots")}</div>
                             ) : previewLoading || (previewMode === "diff" && compareLoading) ? (
                                 <div className="loading">{t("common.loading")}</div>
                             ) : previewEntry ? (
@@ -476,7 +479,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                         </button>
                                     </div>
                                 ))}
-                                {!historyLoading && history.length === 0 && <div className="card-empty">{t("caddyfile.noSavedVersions")}</div>}
+                                {!historyLoading && history.length === 0 && <div className="card-empty">{historyError ? localizeError(historyError, t) : t("caddyfile.noSavedVersions")}</div>}
                             </div>
                         )}
                     </div>

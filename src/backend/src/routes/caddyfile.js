@@ -334,8 +334,9 @@ router.get('/history', async (req, res) => {
                 return { filename, timestamp: ts };
             });
         res.json(snapshots);
-    } catch {
-        res.json([]);
+    } catch (err) {
+        if (err.code === 'ENOENT') return res.json([]);
+        sendAppError(res, asAppError(err, 'CADDYFILE_HISTORY_READ_FAILED', { instanceId: req.instance.id }));
     }
 });
 
