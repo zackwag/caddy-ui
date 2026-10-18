@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.29.3](https://github.com/zackwag/caddy-ui/compare/v2.29.2...v2.29.3) (2026-10-18)
+
+
+### Bug Fixes
+
+* reject explicitly unknown Caddy instance selections ([#312](https://github.com/zackwag/caddy-ui/issues/312)) ([798abec](https://github.com/zackwag/caddy-ui/commit/798abecea86458461e6fee1ebd6849bf32a08581))
+* stop health reads from adding uptime history samples ([#313](https://github.com/zackwag/caddy-ui/issues/313)) ([f3a03fc](https://github.com/zackwag/caddy-ui/commit/f3a03fca9dfb4d089a207a785057c81ebd16d7c5))
+
 ## [2.29.2](https://github.com/zackwag/caddy-ui/compare/v2.29.1...v2.29.2) (2026-10-16)
 
 
