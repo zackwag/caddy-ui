@@ -106,8 +106,7 @@ services:
       # Browser-facing URL: replace your-server with the host you open in your browser.
       # Required for browser writes over plain HTTP; behind HTTPS use the external HTTPS URL.
       - CADDY_UI_EXTERNAL_URL=http://your-server:9877
-      # Authentication is enabled by default; create credentials in the UI.
-      # Optional deliberate opt-out: CADDY_UI_AUTH_DISABLED=true
+      # Authentication is required; create credentials in the UI.
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /docker/caddy-ui:/etc/caddy-ui

@@ -34,14 +34,14 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
     const interrupt = () => startup.abort(new Error('Capture interrupted.'));
     process.once('SIGINT', interrupt);
     process.once('SIGTERM', interrupt);
-    let requestContext;
+    const requestContexts = new Map();
     async function api(path, method = 'GET', body = null) {
-        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !requestContext) {
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !requestContexts.get(activeSocket)?.['X-CSRF-Token']) {
             await api('/auth/csrf');
         }
         return new Promise((resolve, reject) => {
             const call = request({ socketPath: activeSocket, path: '/api' + path, method, timeout: 5000, signal: startup.signal,
-                headers: { ...(!['GET', 'HEAD', 'OPTIONS'].includes(method) ? requestContext : {}), 'Content-Type': typeof body === 'string' ? 'text/plain' : 'application/json', 'X-Instance-Id': 'default' } }, response => {
+                headers: { ...requestContexts.get(activeSocket), 'Content-Type': typeof body === 'string' ? 'text/plain' : 'application/json', 'X-Instance-Id': 'default' } }, response => {
                 const chunks = [];
                 response.on('data', chunk => chunks.push(chunk));
                 response.on('error', reject);
@@ -49,10 +49,11 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
                     try {
                         const text = Buffer.concat(chunks).toString();
                         const headers = Object.fromEntries(['content-type', 'x-request-id'].filter(key => response.headers[key]).map(key => [key, response.headers[key]]));
-                        if (path === '/auth/csrf') requestContext = {
-                            Cookie: response.headers['set-cookie'].at(-1).split(';')[0],
-                            'X-CSRF-Token': JSON.parse(text).csrfToken,
-                        };
+                        const cookie = response.headers['set-cookie']?.at(-1);
+                        if (cookie) requestContexts.set(activeSocket, { Cookie: cookie.split(';')[0] });
+                        if (path === '/auth/csrf') requestContexts.set(activeSocket, {
+                            ...requestContexts.get(activeSocket), 'X-CSRF-Token': JSON.parse(text).csrfToken,
+                        });
                         resolve({ request: { method, path, body }, response: {
                             status: response.statusCode, headers,
                             body: headers['content-type']?.includes('application/json') ? JSON.parse(text) : text,
@@ -104,11 +105,12 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         const env = { ...backendEnvironment(directory, info.instance), PORT: socketPath,
             DOCKER_SOCKET: fileURLToPath(endpoint.replace(/^unix:/, 'file:')),
             APP_VERSION: 'dev-caddy-preview', CADDY_UI_PUBLIC_METRICS: 'false', CADDY_UI_ADDITIONAL_LANGUAGES: '',
-            CADDY_SERVER_NAME: 'srv0', NODE_ENV: 'development', CADDY_UI_AUTH_DISABLED: 'true' };
+            CADDY_SERVER_NAME: 'srv0', NODE_ENV: 'development' };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
         await mkdir(resolve(directory, 'backend'), { recursive: true });
         startBackend(env);
         await waitForBackend();
+        await successful('/auth/setup', 'POST', { username: 'capture-administrator', password: randomBytes(24).toString('base64url') });
         const csrfRecord = await successful('/auth/csrf');
         // Replay needs the observed response shape, never a live context secret.
         csrfRecord.response.body.csrfToken = 'offline-preview-context';
@@ -230,9 +232,9 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
             DOCKER_SOCKET: resolve(localDirectory, 'docker-unavailable.sock') };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete localEnv[key];
         activeSocket = localEnv.PORT;
-        requestContext = undefined;
         startBackend(localEnv);
         await waitForBackend();
+        await successful('/auth/setup', 'POST', { username: 'capture-administrator', password: randomBytes(24).toString('base64url') });
         const added = await successful('/instances', 'POST', { name: 'Local Preview', adminUrl: info.instance.adminUrl,
             containerName: '', serverName: 'srv0', configPath: localConfig,
             logPath: resolve(localDirectory, 'access.log'), dataPath: resolve(localDirectory, 'data') });
@@ -259,7 +261,6 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         const routesEmpty = await routeSnapshot('routes-empty');
         assert.deepEqual(routesEmpty.requests[0].response.body, []);
         activeSocket = localEnv.PORT;
-        requestContext = undefined;
         const instancesMissing = await instanceSnapshot('instances-missing-server');
         assert.deepEqual(instancesMissing.requests.at(-1).response.body, []);
         await successful(`/instances/${localId}`, 'DELETE');

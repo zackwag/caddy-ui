@@ -44,7 +44,7 @@ async function fixture(t, legacy = false) {
     // This is ordinary, non-trustworthy HTTP in Chromium, without security overrides.
     const origin = new URL(`http://[::ffff:127.0.0.1]:${proxy.address().port}`).origin;
     const env = { ...backendEnvironment(directory, {}), PORT: '0', CADDY_UI_EXTERNAL_URL: origin,
-        CADDY_UI_AUTH_DISABLED: 'false', AUTH_PATH: join(directory, 'backend/auth.json') };
+        AUTH_PATH: join(directory, 'backend/auth.json') };
     for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
     const previous = { username: 'legacy-administrator', password: secret() };
     if (legacy) Object.assign(env, { CADDY_UI_USER: previous.username, CADDY_UI_PASSWORD: previous.password, JWT_SECRET: secret() });

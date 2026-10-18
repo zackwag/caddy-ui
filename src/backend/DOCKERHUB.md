@@ -116,8 +116,7 @@ services:
       # Browser-facing URL: replace your-server with the host you open in your browser.
       # Required for browser writes over plain HTTP; behind HTTPS use the external HTTPS URL.
       - CADDY_UI_EXTERNAL_URL=http://your-server:9877
-      # Authentication is enabled by default; create credentials in the UI.
-      # Optional deliberate opt-out: CADDY_UI_AUTH_DISABLED=true
+      # Authentication is required; create credentials in the UI.
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /docker/caddy-ui:/etc/caddy-ui
@@ -178,7 +177,6 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `de`). Reviewed languages (currently English and Arabic) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
 | `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
-| `CADDY_UI_AUTH_DISABLED` | `false` | Explicitly disable authentication. Browser-write CSRF protection remains enabled. |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
 | `CADDY_UI_UPDATE_CHECK_URL` | `https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json` | Where the update check reads published image versions from |
@@ -203,7 +201,7 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 
 ## Authentication
 
-Authentication is enabled by default. With no stored credentials or legacy environment credentials, the UI offers administrator setup while management endpoints remain locked. The first visitor can create the administrator; restrict access until setup is complete.
+Authentication is required. With no stored credentials or legacy environment credentials, the UI offers administrator setup while management endpoints remain locked. The first visitor can create the administrator; restrict access until setup is complete.
 
 ### Existing installations
 
@@ -223,15 +221,13 @@ Save the recovery key shown after setup. The recovery form accepts that key and 
 
 If both password and recovery key are lost, stop the backend and restrict network access before removing only `AUTH_PATH` to repeat credential setup. Remove obsolete legacy auth variables as well, or those credentials will be required for enrollment. Do not remove the settings directory or Caddyfile. Restore normal access only after setup is complete.
 
-### Explicitly disabling authentication
+### Public endpoints
 
-Set `CADDY_UI_AUTH_DISABLED=true` only when everyone who can reach the service is trusted to manage it. Omitting this variable, or setting it to `false`, enables authentication. Other values fail startup. Disabling authentication does not delete stored credentials and does not disable CSRF/origin checks. Login, setup and recovery are unavailable while authentication is explicitly disabled.
-
-`GET /api/auth/status`, `GET /api/auth/csrf`, `GET /api/version` and `GET /api/languages` are public. With `CADDY_UI_PUBLIC_METRICS=true`, the parsed and raw metrics GET endpoints are also public. Other management endpoints require a management session unless authentication is explicitly disabled.
+`GET /api/auth/status`, `GET /api/auth/csrf`, `GET /api/version` and `GET /api/languages` are public. With `CADDY_UI_PUBLIC_METRICS=true`, the parsed and raw metrics GET endpoints are also public. Other management endpoints require a management session.
 
 ### API compatibility
 
-Legacy JWT authentication is removed: Bearer JWTs and `?token=` authentication are no longer accepted. `CADDY_UI_AUTH_DISABLED=true` does not restore previous API write behavior: POST/PUT/PATCH/DELETE still require CSRF tokens. Dedicated, scoped, read-only API tokens are planned for a separate follow-up PR. Coordinate upgrades with existing automation. Prometheus can use the public-metrics option; do not distribute the administrator password to monitoring integrations as a substitute for scoped tokens.
+Legacy JWT authentication is removed: Bearer JWTs and `?token=` authentication are no longer accepted. Management requests require a session, and POST/PUT/PATCH/DELETE also require CSRF tokens. Dedicated, scoped, read-only API tokens are planned for a separate follow-up PR. Coordinate upgrades with existing automation. Prometheus can use the public-metrics option; do not distribute the administrator password to monitoring integrations as a substitute for scoped tokens.
 
 For a cookie-aware client, first fetch `/api/auth/csrf`, preserve its cookie and send the returned token as `X-CSRF-Token` on every write, including login, setup, recovery and logout. After a session change, fetch a fresh token. A rejected write is never automatically replayed by the UI.
 
@@ -241,11 +237,11 @@ Set `CADDY_UI_EXTERNAL_URL` to the browser-facing URL, including scheme and exte
 
 Ordinary HTTP browser writes require this setting because Fetch Metadata may be absent. Trustworthy localhost requests with same-origin Fetch Metadata work without it. For HTTPS, configure the external HTTPS URL so cookies are marked Secure, even when the reverse proxy reaches nginx/backend over HTTP. Origin is never inferred from `Host`, `Forwarded` or `X-Forwarded-*`. Alternate hostnames, schemes and ports are different origins. This setting does not enable TLS. HTTP is supported with a non-Secure HttpOnly cookie, but network interception can expose passwords and sessions.
 
-With authentication enabled, startup warns if Secure cookies are not enabled. This is informational; it does not infer the public scheme behind a proxy or prevent HTTP/local deployments.
+Startup warns if Secure cookies are not enabled. This is informational; it does not infer the public scheme behind a proxy or prevent HTTP/local deployments.
 
 Cross-site and same-site Fetch Metadata reject writes. Otherwise, a supplied Origin must match exactly; `Origin: null` is rejected. Without Origin, a supplied Referer must match. GET, HEAD and OPTIONS are unchanged; CORS remains disabled.
 
-Every write also requires `X-CSRF-Token` bound to the current cookie context, including login, setup, recovery, logout and explicitly disabled authentication. Headerless scripts have no exemption. Tokens rotate with sessions. These controls do not replace network access restrictions or prevent DNS rebinding.
+Every write also requires `X-CSRF-Token` bound to the current cookie context, including login, setup, recovery and logout. Headerless scripts have no exemption. Tokens rotate with sessions. These controls do not replace network access restrictions or prevent DNS rebinding.
 
 ## Prometheus Metrics
 

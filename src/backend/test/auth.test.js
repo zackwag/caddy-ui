@@ -19,15 +19,17 @@ async function setup(client, username = 'administrator', password = secret()) {
 }
 
 describe('browser authentication HTTP contracts', () => {
-    it('requires an explicit opt-out and retains CSRF protection while authentication is disabled', async () => {
-        const { url, store } = await fixture({ env: { CADDY_UI_AUTH_DISABLED: 'true' } });
+    it('requires a management session even when a valid CSRF context is supplied', async () => {
+        const { url } = await fixture();
         const client = authClient(url);
-        expect((await client.request('/auth/status')).data).toMatchObject({ authEnabled: false, setupRequired: false });
-        expect((await client.request('/protected')).status).toBe(200);
+        expect((await client.request('/auth/status')).data).toMatchObject({ authEnabled: true, setupRequired: true });
+        expect((await client.request('/protected')).status).toBe(401);
         expect((await client.request('/protected', { method: 'PUT', csrf: false })).status).toBe(403);
+        expect((await client.request('/protected', { method: 'PUT' })).status).toBe(401);
+        await setup(client);
         expect((await client.request('/protected', { method: 'PUT' })).status).toBe(200);
-        expect((await client.request('/auth/setup', { method: 'POST', body: { username: 'administrator', password: secret() } })).status).toBe(403);
-        expect(store.isInitialized()).toBe(false);
+        const anonymous = authClient(url);
+        expect((await anonymous.request('/protected', { method: 'PUT' })).status).toBe(401);
     });
     it('locks management before setup, protects setup from CSRF and never returns a login token', async () => {
         const { url } = await fixture();

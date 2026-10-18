@@ -31,7 +31,7 @@ afterEach(async () => {
 
 describe('authentication startup warnings', () => {
     const deployments = [undefined, 'http://ui.example:9877', 'https://ui.example:8443'];
-    const cases = ['setup', 'legacy', 'stored', 'disabled'].flatMap(state => deployments.map(externalUrl => [state, externalUrl]));
+    const cases = ['setup', 'legacy', 'stored'].flatMap(state => deployments.map(externalUrl => [state, externalUrl]));
     it.each(cases)('warns only for the relevant %s state at %s', async (state, externalUrl) => {
         const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
@@ -43,17 +43,17 @@ describe('authentication startup warnings', () => {
         }
         const env = { CADDY_UI_EXTERNAL_URL: externalUrl,
             ...(state === 'legacy' ? values : {}),
-            ...(state === 'disabled' ? { CADDY_UI_AUTH_DISABLED: 'true' } : {}),
         };
         const service = await initializeAuthentication({ store, env });
+        expect(service.getAuthState({ headers: {} }).authEnabled).toBe(true);
         const messages = warn.mock.calls.map(([message]) => message);
         expect(messages.filter(message => message.includes('Administrator enrollment is open'))).toHaveLength(state === 'setup' ? 1 : 0);
-        expect(messages.filter(message => message.includes('Secure session cookies are not enabled'))).toHaveLength(state !== 'disabled' && externalUrl?.startsWith('https:') !== true ? 1 : 0);
+        expect(messages.filter(message => message.includes('Secure session cookies are not enabled'))).toHaveLength(externalUrl?.startsWith('https:') !== true ? 1 : 0);
         if (state === 'setup') {
             expect(messages[0]).toContain('first person reaching the setup page can claim administrator access');
             expect(messages[0]).toContain('Restrict access until enrollment is complete');
         }
-        if (state !== 'disabled' && externalUrl?.startsWith('https:') !== true) {
+        if (externalUrl?.startsWith('https:') !== true) {
             expect(messages.at(-1)).toContain('For HTTPS deployments, set CADDY_UI_EXTERNAL_URL=https://your-public-hostname');
         }
         for (const message of messages) {
@@ -70,7 +70,7 @@ describe('authentication startup warnings', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
         directories.push(directory);
         const env = { ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info', AUTH_PATH: join(directory, 'auth.json') };
-        for (const key of [...KEYS, 'CADDY_UI_AUTH_DISABLED', 'CADDY_UI_EXTERNAL_URL']) delete env[key];
+        for (const key of [...KEYS, 'CADDY_UI_EXTERNAL_URL']) delete env[key];
         const script = `import { initializeAuthentication } from ${JSON.stringify(new URL('../src/middleware/auth.js', import.meta.url).href)};
             const authentication = await initializeAuthentication();
             authentication.getAuthState({ headers: {} });`;
@@ -85,9 +85,6 @@ describe('authentication startup warnings', () => {
 });
 
 describe('auth configuration', () => {
-    it.each(['', '1', 'TRUE', 'yes'])('rejects ambiguous authentication opt-out %j', async value => {
-        await expect(loadAuth({ CADDY_UI_AUTH_DISABLED: value })).rejects.toThrow('must be true or false');
-    });
     it.each([
         ['none', []],
         ['username', [KEYS[0]]],

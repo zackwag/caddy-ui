@@ -167,7 +167,7 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
         await waitForHttp(first.instance.adminUrl + '/config/', { signal: scope.signal });
         const version = VERSION + '-' + project;
         const env = { ...backendEnvironment(directory, first.instance), PORT: '0', APP_VERSION: version, LOG_LEVEL: 'info',
-            CADDY_UI_ADDITIONAL_LANGUAGES: additionalLanguages, CADDY_UI_AUTH_DISABLED: 'true' };
+            CADDY_UI_ADDITIONAL_LANGUAGES: additionalLanguages };
         for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
         await scope.run(async () => {
             await mkdir(join(directory, 'backend'), { recursive: true });
@@ -189,27 +189,37 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
             signal: readySignal,
         });
         let requestContext;
+        let cookie = '';
         async function csrfContext() {
             if (!requestContext) {
-                requestContext = fetch(url + '/api/auth/csrf', { signal: scope.signal }).then(async response => ({
-                    Cookie: response.headers.getSetCookie().at(-1).split(';')[0],
-                    'X-CSRF-Token': (await response.json()).csrfToken,
-                }));
+                requestContext = fetch(url + '/api/auth/csrf', { headers: { Cookie: cookie }, signal: scope.signal }).then(async response => {
+                    const replacement = response.headers.getSetCookie().at(-1);
+                    if (replacement) cookie = replacement.split(';')[0];
+                    return { Cookie: cookie, 'X-CSRF-Token': (await response.json()).csrfToken };
+                });
             }
             return requestContext;
         }
+        async function api(path, { method = 'GET', body, instanceId = 'default', plain = false } = {}) {
+            const response = await fetch(url + '/api' + path, {
+                method,
+                headers: { ...await csrfContext(), 'X-Instance-Id': instanceId, ...(body === undefined ? {} : { 'Content-Type': plain ? 'text/plain' : 'application/json' }) },
+                ...(body === undefined ? {} : { body: plain ? body : JSON.stringify(body) }),
+                signal: AbortSignal.any([scope.signal, AbortSignal.timeout(15000)]),
+            });
+            const replacement = response.headers.getSetCookie().at(-1);
+            if (replacement) {
+                cookie = replacement.split(';')[0];
+                requestContext = undefined;
+            }
+            const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : await response.text();
+            return { status: response.status, requestId: response.headers.get('X-Request-ID'), data };
+        }
+        const credentials = { username: 'integration-administrator', password: randomBytes(24).toString('base64url') };
+        const enrollment = await api('/auth/setup', { method: 'POST', body: credentials });
+        if (enrollment.status !== 200) throw new Error('Integration administrator setup failed');
         return {
-            harness, directory, url, instances, close,
-            async api(path, { method = 'GET', body, instanceId = 'default', plain = false } = {}) {
-                const response = await fetch(url + '/api' + path, {
-                    method,
-                    headers: { ...(!['GET', 'HEAD', 'OPTIONS'].includes(method) ? await csrfContext() : {}), 'X-Instance-Id': instanceId, ...(body === undefined ? {} : { 'Content-Type': plain ? 'text/plain' : 'application/json' }) },
-                    ...(body === undefined ? {} : { body: plain ? body : JSON.stringify(body) }),
-                    signal: AbortSignal.any([scope.signal, AbortSignal.timeout(15000)]),
-                });
-                const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : await response.text();
-                return { status: response.status, requestId: response.headers.get('X-Request-ID'), data };
-            },
+            harness, directory, url, instances, close, api, credentials,
             async create(name) {
                 const info = await scope.run(() => harness.create(name));
                 await waitForHttp(info.httpUrl + '/health', { signal: scope.signal });

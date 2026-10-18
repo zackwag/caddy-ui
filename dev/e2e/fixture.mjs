@@ -38,6 +38,11 @@ export async function useBrowserFixture(t, options) {
         ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
     }), browser => browser.close());
     const context = await scope.acquire(() => browser.newContext({ viewport: { width: 1440, height: 900 } }), context => context.close());
+    const csrf = await context.request.get(origin + '/api/auth/csrf');
+    const login = await context.request.post(origin + '/api/auth/sessions', {
+        headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken }, data: stack.credentials,
+    });
+    assert.equal(login.status(), 200, 'Browser fixture login');
     const page = await scope.run(() => context.newPage());
     page.setDefaultTimeout(10000);
     const record = entry => {
