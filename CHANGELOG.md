@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.29.5](https://github.com/zackwag/caddy-ui/compare/v2.29.4...v2.29.5) (2026-10-18)
+
+
+### Bug Fixes
+
+* distinguish empty routes and certificates from unavailable data ([#318](https://github.com/zackwag/caddy-ui/issues/318)) ([ac2d4a5](https://github.com/zackwag/caddy-ui/commit/ac2d4a5db18efde82a2eb61c29e97f0e160078c3))
+* stop treating unreadable notes, history and cert storage as empty ([#319](https://github.com/zackwag/caddy-ui/issues/319)) ([f04d1aa](https://github.com/zackwag/caddy-ui/commit/f04d1aaec15b9c93d3a5113d744243ad90cce2a7))
+
 ## [2.29.4](https://github.com/zackwag/caddy-ui/compare/v2.29.3...v2.29.4) (2026-10-18)
 
 
