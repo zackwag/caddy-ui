@@ -160,8 +160,9 @@ function InstancesFixture() {
 function UptimeFixture() {
     const [routeChecks, setRouteChecks] = useState(true);
     const [excludes, setExcludes] = useState([]);
-    return <UpstreamUptime onUnauth={noop} routeChecks={routeChecks} onRouteChecksChange={setRouteChecks}
-        routeCheckExcludes={excludes} onRouteCheckExcludesChange={setExcludes} />;
+    const toast = useToast();
+    return <><UpstreamUptime toast={toast} onUnauth={noop} routeChecks={routeChecks} onRouteChecksChange={setRouteChecks}
+        routeCheckExcludes={excludes} onRouteCheckExcludesChange={setExcludes} /><Toasts toasts={toast.toasts} /></>;
 }
 
 export default function FixtureView({ scenario }) {

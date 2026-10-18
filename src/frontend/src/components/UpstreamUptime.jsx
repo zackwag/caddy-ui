@@ -2,8 +2,9 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
-import { apiFetch } from "../utils/api.js";
+import { apiFetch, getInstanceId } from "../utils/api.js";
 import { formatPercent, formatPercentParts } from "../utils/format.js";
+import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
 
 const STATUS = {
@@ -82,7 +83,7 @@ function summarize(rows) {
     };
 }
 
-export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
+export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
     const { t } = useTranslation();
     const [routes, setRoutes] = useState(null);
     const [uptime, setUptime] = useState({});
@@ -97,7 +98,11 @@ export default function UpstreamUptime({ onUnauth, routeChecks, onRouteChecksCha
             .catch(e => setError(localizeError(e, t)));
         apiFetch("/health/uptime", {}, onUnauth).then(setUptime).catch(() => { });
         if (routeChecks) apiFetch("/health/uptime?kind=route", {}, onUnauth).then(setRouteUptime).catch(() => { });
-        apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
+        const notesKey = stateNotificationKey('routeNotes.load', getInstanceId());
+        apiFetch("/route-notes", {}, onUnauth)
+            .then(data => { toast.recover(notesKey); setNotes(data); })
+            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key: notesKey }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
     }, [onUnauth, routeChecks, t]);
 
     useEffect(() => {

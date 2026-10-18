@@ -236,6 +236,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const [routeUptime, setRouteUptime] = useState({});
     const [certs, setCerts] = useState([]);
     const [notes, setNotes] = useState({});
+    // Set while notes couldn't be loaded, so a blank title isn't saved over a real note
+    const [notesError, setNotesError] = useState(null);
     // Dashboard labels by Server ID, e.g. { srv0: "HTTPS Sites" }
     const [serverLabels, setServerLabels] = useState({});
     const [maintenance, setMaintenance] = useState({});
@@ -269,7 +271,10 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
             .finally(() => setLoading(false));
         apiFetch("/tls", {}, onUnauth).then(setCerts).catch(() => { });
-        apiFetch("/route-notes", {}, onUnauth).then(setNotes).catch(() => { });
+        const notesKey = stateNotificationKey('routeNotes.load', getInstanceId());
+        apiFetch("/route-notes", {}, onUnauth)
+            .then(data => { toast.recover(notesKey); setNotesError(null); setNotes(data); })
+            .catch(e => { setNotesError(e); toast.error(localizeError(e, t), e, { mode: 'state', key: notesKey }); });
         apiFetch("/server-names", {}, onUnauth).then(setServerLabels).catch(() => { });
         apiFetch("/routes/maintenance", {}, onUnauth).then(setMaintenance).catch(() => { });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
@@ -329,10 +334,12 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                 await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
                 toast.success(t("routes.updated"));
             }
-            if (!editModal.isCaddyfileManaged || !usesCaddyfileTitles || editModal.siteBlockFailed) {
+            // Without loaded notes the title field starts blank, so blank can't mean "clear the note"
+            const saveNote = !(notesError && !title.trim());
+            if (saveNote && (!editModal.isCaddyfileManaged || !usesCaddyfileTitles || editModal.siteBlockFailed)) {
                 await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: title }) }, onUnauth);
             }
-            setNotes(n => { const u = { ...n }; if (title.trim()) u[domain] = title.trim(); else delete u[domain]; return u; });
+            if (saveNote) setNotes(n => { const u = { ...n }; if (title.trim()) u[domain] = title.trim(); else delete u[domain]; return u; });
             setEditModal(null); load(); loadHealth();
         } catch (e) { toast.error(localizeError(e, t), e); }
     };

@@ -181,6 +181,7 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
             )}
 
             <UpstreamUptime
+                toast={toast}
                 onUnauth={onUnauth}
                 routeChecks={routeChecks}
                 onRouteChecksChange={onRouteChecksChange}
