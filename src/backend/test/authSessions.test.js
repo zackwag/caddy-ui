@@ -54,6 +54,22 @@ describe('browser session boundary', () => {
         expect(response.status).toBe(500);
     });
 
+    it('preserves and rotates a signed-in session at capacity while anonymous contexts are evicted', async () => {
+        const { url } = await fixture({ limit: 1, anonymousLimit: 2 });
+        const login = await fetch(url + '/login', { method: 'POST', headers: await context(url) });
+        expect(login.status).toBe(200);
+        const cookie = login.headers.getSetCookie().at(-1).split(';')[0];
+        for (let i = 0; i < 5; i++) expect((await fetch(url + '/csrf')).status).toBe(200);
+        expect((await fetch(url + '/protected', { headers: { cookie } })).status).toBe(200);
+        const response = await fetch(url + '/csrf', { headers: { cookie } });
+        const { csrfToken } = await response.json();
+        const rotated = await fetch(url + '/login', { method: 'POST', headers: { cookie, 'x-csrf-token': csrfToken } });
+        expect(rotated.status).toBe(200);
+        const replacement = rotated.headers.getSetCookie().at(-1).split(';')[0];
+        expect((await fetch(url + '/protected', { headers: { cookie } })).status).toBe(401);
+        expect((await fetch(url + '/protected', { headers: { cookie: replacement } })).status).toBe(200);
+    });
+
     it('binds CSRF tokens to a cookie context and rejects missing, mixed and duplicate cookies', async () => {
         const f = await fixture();
         const first = await context(f.url);
