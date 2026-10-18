@@ -104,8 +104,16 @@ test('HTTP setup, session cookies, CSRF, logout and one-time recovery work in th
     const { page, context } = f;
     await page.getByRole('heading', { name: 'Create administrator' }).waitFor();
     assert.equal(await page.evaluate(() => isSecureContext), false);
+    await page.setViewportSize({ width: 390, height: 360 });
+    await page.locator('.login-shell').evaluate(element => { element.scrollTop = 0; });
+    assert((await page.locator('.login-card').boundingBox()).y >= 0, 'the form starts inside the viewport');
+    const submit = page.getByRole('button', { name: 'Complete setup' });
+    await submit.scrollIntoViewIfNeeded();
+    const bounds = await submit.boundingBox();
+    assert(bounds.y >= 0 && bounds.y + bounds.height <= 360, 'setup controls can scroll into view');
     const password = secret();
     const recoveryKey = await completeSetup(page, password);
+    await page.setViewportSize({ width: 1440, height: 900 });
     const cookie = (await context.cookies()).find(value => value.name === 'caddy_ui_session');
     assert.equal(cookie.httpOnly, true);
     assert.equal(cookie.secure, false);

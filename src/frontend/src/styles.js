@@ -1706,10 +1706,12 @@ export const css = `
   .login-card > .btn + .btn { margin-top: 12px; }
   .login-shell {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     height: 100vh;
     height: 100dvh;
+    overflow-y: auto;
+    padding: 16px 0;
     background: var(--bg);
   }
 
@@ -1720,6 +1722,8 @@ export const css = `
     padding: 40px;
     width: 360px;
     max-width: calc(100vw - 32px);
+    margin-block: auto;
+    flex-shrink: 0;
   }
 
   .login-logo {
