@@ -25,8 +25,11 @@ test('reviewed Arabic and German work without opt-in, with a bundled font only f
     assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'ar' } })).status, 200);
     assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'de' } })).status, 200);
     assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'es-mx' } })).status, 400);
+    // The page loaded before these saves, and its settings request can land
+    // between them and briefly apply Arabic. Reload so it reads only German.
     const fonts = [];
     page.on('request', request => { if (isArabicFont(request.url())) fonts.push(request.url()); });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForView('.language-picker-select');
     assert.deepEqual(fonts, []);
     await select(page, 'de');
