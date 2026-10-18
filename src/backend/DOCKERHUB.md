@@ -223,11 +223,13 @@ If both password and recovery key are lost, stop the backend and restrict networ
 
 ### Public endpoints
 
-`GET /api/auth/status`, `GET /api/auth/csrf`, `GET /api/version` and `GET /api/languages` are public. With `CADDY_UI_PUBLIC_METRICS=true`, the parsed and raw metrics GET endpoints are also public. Other management endpoints require a management session.
+`GET /api/auth/status`, `GET /api/auth/csrf`, `GET /api/version` and `GET /api/languages` are public. With `CADDY_UI_PUBLIC_METRICS=true`, the parsed and raw metrics GET endpoints are also public. Management endpoints require a session; scoped API tokens permit selected status/metrics reads only.
 
 ### API compatibility
 
-Legacy JWT authentication is removed: Bearer JWTs and `?token=` authentication are no longer accepted. Management requests require a session, and POST/PUT/PATCH/DELETE also require CSRF tokens. Dedicated, scoped, read-only API tokens are planned for a separate follow-up PR. Coordinate upgrades with existing automation. Prometheus can use the public-metrics option; do not distribute the administrator password to monitoring integrations as a substitute for scoped tokens.
+Legacy JWTs and `?token=` authentication are removed. Create scoped status/metrics tokens in the sidebar's **API tokens** panel. Select instance IDs and expiry (up to 365 days). Tokens are shown once, stored hashed in `AUTH_PATH`, and survive restarts. Revoke them in the UI; recovery revokes all. See the [token guide](https://zackwag.github.io/caddy-ui/api-tokens.html).
+
+Send `Authorization: Bearer <token>` and `X-Instance-Id: <id>`; omitting the latter selects `default`, which must be allowed. Tokens permit reads only. Token management requires a session and CSRF; bearer reads need no CSRF. CORS remains disabled.
 
 For a cookie-aware client, first fetch `/api/auth/csrf`, preserve its cookie and send the returned token as `X-CSRF-Token` on every write, including login, setup, recovery and logout. After a session change, fetch a fresh token. A rejected write is never automatically replayed by the UI.
 
@@ -245,7 +247,7 @@ Every write also requires `X-CSRF-Token` bound to the current cookie context, in
 
 ## Prometheus Metrics
 
-Enable Caddy's metrics endpoint from the Metrics tab, or add `metrics` to your Caddyfile global block manually. Set `CADDY_UI_PUBLIC_METRICS=true` to expose `/api/metrics/raw` without auth for Prometheus scraping.
+Enable Caddy metrics in the Metrics tab or Caddyfile. Use a `metrics:read` token for selected instances. `CADDY_UI_PUBLIC_METRICS=true` instead exposes metrics without authentication.
 
 ```yaml
 scrape_configs:
@@ -253,9 +255,15 @@ scrape_configs:
     static_configs:
       - targets: ['caddy-ui-backend:3001']
     metrics_path: /api/metrics/raw
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/caddy_ui_metrics_token
+    http_headers:
+      X-Instance-Id:
+        values: ['default']
 ```
 
-Alongside Caddy's own metrics, the endpoint serves caddy-ui's upstream uptime history for **every** instance (labeled `instance_id`, `instance_name`, `upstream`), plus route check history when route checks are on (labeled `instance_id`, `instance_name`, `route`), even when Caddy's metrics are disabled:
+Alongside Caddy's own metrics, the endpoint serves caddy-ui's upstream uptime history (labeled `instance_id`, `instance_name`, `upstream`), plus route check history when enabled (labeled `instance_id`, `instance_name`, `route`), even when Caddy's metrics are disabled. API-token requests include only allowed instances; administrator sessions and public scrapes include every instance:
 
 | Metric | Description |
 |---|---|
@@ -271,7 +279,7 @@ Upstreams that haven't been checked in 5 minutes, and routes that haven't been c
 
 ## Homepage Widget
 
-The status endpoint returns enriched data for use with [Homepage](https://gethomepage.dev):
+The status endpoint returns enriched data for [Homepage](https://gethomepage.dev). Create a `status:read` token and supply it through Homepage's environment substitution:
 
 ```yaml
 - Caddy:
@@ -280,6 +288,9 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
     widget:
         type: customapi
         url: http://caddy-ui-backend:3001/api/status
+        headers:
+            Authorization: Bearer {{HOMEPAGE_VAR_CADDY_UI_TOKEN}}
+            X-Instance-Id: default
         mappings:
             - field: online
               label: Status
@@ -310,6 +321,9 @@ The status endpoint returns enriched data for use with [Homepage](https://gethom
 | `GET` | `/api/auth/csrf` | Obtain the CSRF token for the current or a new pre-login context |
 | `POST` | `/api/auth/setup` | Initialize stored credentials once and return a recovery key (CSRF required) |
 | `POST` | `/api/auth/recovery` | Reset password using a recovery key and rotate that key (CSRF required) |
+| `GET` | `/api/auth/tokens` | List token metadata (management session only) |
+| `POST` | `/api/auth/tokens` | Create a read-only integration token (session + CSRF) |
+| `DELETE` | `/api/auth/tokens/:id` | Revoke an integration token (session + CSRF) |
 | `GET` | `/api/auth/status` | Read authentication, enrollment and session state without credentials |
 | `GET` | `/api/metrics` | Parsed HTTP metrics for the Metrics tab |
 | `GET` | `/api/metrics/config` | Check if Caddy metrics directive is enabled |

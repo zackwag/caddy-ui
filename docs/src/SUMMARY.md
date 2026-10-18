@@ -10,6 +10,7 @@
     - [Custom themes](themes.md)
     - [Caddyfile behavior](caddyfile.md)
 - [Integrations](integrations.md)
+    - [Read-only API tokens](api-tokens.md)
 - [API reference](api.md)
 - [Building from source](building.md)
     - [Project structure](project-structure.md)
