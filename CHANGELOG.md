@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.0.0](https://github.com/zackwag/caddy-ui/compare/v2.29.7...v3.0.0) (2026-10-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* harden authentication flow ([#311](https://github.com/zackwag/caddy-ui/issues/311))
+
+### Bug Fixes
+
+* authed api ([#316](https://github.com/zackwag/caddy-ui/issues/316)) ([78f87fe](https://github.com/zackwag/caddy-ui/commit/78f87fe1c89cd91bb18b7c5686a5724552817f9a))
+* harden authentication flow ([#311](https://github.com/zackwag/caddy-ui/issues/311)) ([dcb1b51](https://github.com/zackwag/caddy-ui/commit/dcb1b513bea501ec79fb2346af4cb180bfea6d1a))
+* treat a missing Caddy data directory as no certificates ([#327](https://github.com/zackwag/caddy-ui/issues/327)) ([b9e0da9](https://github.com/zackwag/caddy-ui/commit/b9e0da98c3b792deb390092b3d17f402029d4238))
+
 ## [2.29.7](https://github.com/zackwag/caddy-ui/compare/v2.29.6...v2.29.7) (2026-10-18)
 
 
