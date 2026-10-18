@@ -2,6 +2,8 @@
 
 Create tokens with **API tokens** in the sidebar after signing in. Give each integration its own name, select permissions and specific Caddy instances, and choose an expiry. Copy the token when it is displayed: it cannot be retrieved later. Tokens are not saved in browser storage. If a token is lost, revoke it and create another.
 
+While the one-time token is visible, Close and Escape are disabled. Choose **I have saved the token** to continue, or **Discard and revoke token** to invalidate it before hiding it. Failed revocation keeps the token visible so you can retry. Closing the browser or reloading can still lose an unsaved token; revoke that entry after signing in again.
+
 The UI offers 30, 90 or 365 days; the API accepts 1–365 days. Up to 64 token records, including expired ones, can be stored. Revoke unused or expired tokens before reaching that limit. There is no write scope, wildcard instance scope or automatic access to instances added later.
 
 ## Permissions

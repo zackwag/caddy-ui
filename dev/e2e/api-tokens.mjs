@@ -47,6 +47,10 @@ test('the real UI issues, scopes and revokes read-only tokens without relaxing C
     assert.equal((await request('/settings', { method: 'PUT' })).status, 403);
     assert.equal(await page.evaluate(token => JSON.stringify({ ...localStorage }).includes(token), token), false);
     assert(urls.every(url => !url.includes(token)));
+    assert.equal(await dialog.getByRole('button', { name: 'Close', exact: true }).isDisabled(), true);
+    await page.keyboard.press('Escape');
+    assert.equal(await dialog.isVisible(), true);
+    assert.equal(await dialog.getByLabel('API token', { exact: true }).inputValue(), token);
     await dialog.getByRole('button', { name: 'I have saved the token' }).click();
     assert.equal(await dialog.getByLabel('API token', { exact: true }).count(), 0);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
@@ -69,4 +73,18 @@ test('the real UI issues, scopes and revokes read-only tokens without relaxing C
     assert.equal(scrape.status, 200);
     assert.match(await scrape.text(), /caddy_ui_caddy_metrics_up/);
     assert.equal((await fetch(stack.url + '/api/status', { headers: { Authorization: 'Bearer ' + metricsToken } })).status, 403);
+    // A failed discard must preserve the one-time secret and let the user retry.
+    await page.route('**/api/auth/tokens/*', route => route.fulfill({
+        status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'AUTH_PERSISTENCE_FAILED' }),
+    }));
+    await dialog.getByRole('button', { name: 'Discard and revoke token' }).click();
+    await dialog.getByRole('alert').waitFor();
+    assert.equal(await dialog.getByLabel('API token', { exact: true }).inputValue(), metricsToken);
+    assert.equal(await dialog.getByRole('button', { name: 'Close', exact: true }).isDisabled(), true);
+    await page.unroute('**/api/auth/tokens/*');
+    await dialog.getByRole('button', { name: 'Discard and revoke token' }).click();
+    await dialog.getByText('No API tokens have been issued.').waitFor();
+    assert.equal((await fetch(stack.url + '/api/metrics/raw', { headers: { Authorization: 'Bearer ' + metricsToken } })).status, 401);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    assert.equal(await dialog.isVisible(), false);
 });

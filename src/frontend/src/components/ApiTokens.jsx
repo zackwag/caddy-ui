@@ -53,7 +53,7 @@ export default function ApiTokens({ onClose, onUnauth }) {
                 body: JSON.stringify({ name, scopes, instanceIds, expiresInDays: days }) }, onUnauth);
             const { token, ...metadata } = result;
             setTokens(previous => [...previous, metadata]);
-            setIssued(token);
+            setIssued({ token, id: metadata.id });
             setName('');
         } catch (error) { setError(localizeError(error, t)); }
         finally { setBusy(false); }
@@ -65,20 +65,26 @@ export default function ApiTokens({ onClose, onUnauth }) {
         try {
             await apiFetch(`/auth/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' }, onUnauth);
             setTokens(previous => previous.filter(token => token.id !== id));
-        } catch (error) { setError(localizeError(error, t)); }
+            return true;
+        } catch (error) { setError(localizeError(error, t)); return false; }
         finally { setBusy(false); }
     }
 
     return <dialog ref={dialog} className="modal api-tokens-dialog" aria-labelledby="api-tokens-title"
-        onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
+        onCancel={event => { event.preventDefault(); if (!busy && !issued) onClose(); }}>
         <h2 className="modal-title" id="api-tokens-title">{t('apiTokens.title')}</h2>
         <p className="modal-hint">{t('apiTokens.hint')}</p>
         {error && <p className="login-error" role="alert">{error}</p>}
         {loading ? <p>{t('common.loading')}</p> : issued ? <section>
             <p className="modal-hint">{t('apiTokens.oneTime')}</p>
             <div className="field"><label htmlFor="issued-api-token">{t('apiTokens.secret')}</label>
-                <textarea id="issued-api-token" className="auth-recovery-key" rows={3} readOnly value={issued} dir="ltr" spellCheck={false} /></div>
-            <button className="btn btn-primary" onClick={() => setIssued(null)}>{t('apiTokens.saved')}</button>
+                <textarea id="issued-api-token" className="auth-recovery-key" rows={3} readOnly value={issued.token} dir="ltr" spellCheck={false} /></div>
+            <div className="btn-row">
+                <button className="btn btn-primary" disabled={busy} onClick={() => setIssued(null)}>{t('apiTokens.saved')}</button>
+                <button className="btn btn-danger" disabled={busy} onClick={async () => {
+                    if (await revoke(issued.id)) setIssued(null);
+                }}>{t('apiTokens.discard')}</button>
+            </div>
         </section> : <>
             <form onSubmit={create}>
                 <div className="field"><label htmlFor="api-token-name">{t('apiTokens.name')}</label>
@@ -114,6 +120,6 @@ export default function ApiTokens({ onClose, onUnauth }) {
                 <button className="btn btn-danger" disabled={busy} aria-label={t('apiTokens.revokeNamed', { name: token.name })} onClick={() => revoke(token.id)}>{t('apiTokens.revoke')}</button>
             </li>)}</ul>
         </>}
-        <div className="btn-row flex-end"><button className="btn btn-ghost" disabled={busy} onClick={onClose}>{t('common.close')}</button></div>
+        <div className="btn-row flex-end"><button className="btn btn-ghost" disabled={busy || !!issued} onClick={onClose}>{t('common.close')}</button></div>
     </dialog>;
 }

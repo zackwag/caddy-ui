@@ -125,6 +125,7 @@ export default {
         oneTime: 'Save this token now. It will not be shown again. Send it in the Authorization: Bearer header, never in a URL. Use HTTPS where possible; HTTP cannot protect it from network interception.',
         secret: 'API token',
         saved: 'I have saved the token',
+        discard: 'Discard and revoke token',
         existing: 'Issued tokens',
         empty: 'No API tokens have been issued.',
         expiresAt: 'Expires: {{date}}',
