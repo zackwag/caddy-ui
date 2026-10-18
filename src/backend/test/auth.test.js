@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rename, rm } from 'node:fs/promises';
 import { afterEach, describe, expect, it } from 'vitest';
 import { authClient, authFixture } from './fixtures/auth.mjs';
 
@@ -78,6 +78,23 @@ describe('browser authentication HTTP contracts', () => {
         expect((await recovery.request('/protected')).status).toBe(401);
         expect((await recovery.request('/auth/recovery', { method: 'POST', body: { recoveryKey: credentials.recoveryKey, password: secret() } })).status).toBe(401);
         expect((await recovery.request('/auth/sessions', { method: 'POST', body: credentials })).status).toBe(401);
+    });
+
+    it('preserves credentials, recovery key and active sessions when recovery cannot be persisted', async () => {
+        const f = await fixture();
+        const client = authClient(f.url);
+        const credentials = await setup(client);
+        await rename(f.path, f.path + '.original');
+        await mkdir(f.path);
+        const recovery = authClient(f.url);
+        const body = { recoveryKey: credentials.recoveryKey, password: secret() };
+        expect((await recovery.request('/auth/recovery', { method: 'POST', body })).status).toBe(503);
+        expect((await client.request('/protected')).status).toBe(200);
+        expect(await f.store.verifyPassword(credentials.username, credentials.password)).toBe(true);
+        await rm(f.path, { recursive: true });
+        await rename(f.path + '.original', f.path);
+        expect((await recovery.request('/auth/recovery', { method: 'POST', body })).status).toBe(200);
+        expect((await client.request('/protected')).status).toBe(401);
     });
 
     it('requires CSRF for login and logout and revokes the server-side session on logout', async () => {

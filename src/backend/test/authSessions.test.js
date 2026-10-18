@@ -32,6 +32,11 @@ async function context(url) {
 }
 
 describe('browser session boundary', () => {
+    it('can rotate an existing login context even when the session registry is full', async () => {
+        const { url } = await fixture({ limit: 1 });
+        const headers = await context(url);
+        expect((await fetch(url + '/login', { method: 'POST', headers })).status).toBe(200);
+    });
     it('binds CSRF tokens to a cookie context and rejects missing, mixed and duplicate cookies', async () => {
         const f = await fixture();
         const first = await context(f.url);

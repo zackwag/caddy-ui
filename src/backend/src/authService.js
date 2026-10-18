@@ -38,7 +38,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
     }
     async function persist(operation) {
         try { return await operation(); }
-        catch { throw new AppError('AUTH_PERSISTENCE_FAILED'); }
+        catch (cause) { throw new AppError('AUTH_PERSISTENCE_FAILED', { cause }); }
     }
 
     return {

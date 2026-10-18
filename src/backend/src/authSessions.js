@@ -38,7 +38,7 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
 
     function createSession(req, res, permission = 'anonymous') {
         for (const [id, value] of sessions) if (value.expires <= now()) remove(id);
-        if (sessions.size >= limit) throw new Error('Session capacity reached. Try again later.');
+        if (sessions.size >= limit && !readSession(req)) throw new Error('Session capacity reached. Try again later.');
         revokeSession(req, res);
         const token = randomBytes(32).toString('base64url');
         const id = digest(token);
