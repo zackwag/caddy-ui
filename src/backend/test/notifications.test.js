@@ -218,20 +218,40 @@ describe('notifyUpstreamChecks', () => {
         }
     });
 
-    it.each([
-        { initial: true, title: 'Upstream offline' },
-        { initial: false, title: 'Upstream recovered' },
-    ])('continues sending $title alerts after one delivery fails', async ({ initial, title }) => {
+    it('continues sending Upstream offline alerts after one delivery fails', async () => {
         const { notifyUpstreamChecks, updateMonitorConfig } = await load();
         updateMonitorConfig(config(true));
         try {
-            await notifyUpstreamChecks(inst, [check('first:3000', initial), check('second:3000', initial)]);
+            await notifyUpstreamChecks(inst, [check('first:3000', true), check('second:3000', true)]);
             sendWebhook.mockRejectedValueOnce(new Error('ntfy responded 500'));
-            const changed = [check('first:3000', !initial), check('second:3000', !initial)];
+            const changed = [check('first:3000', false), check('second:3000', false)];
 
             await expect(notifyUpstreamChecks(inst, changed)).resolves.toBeUndefined();
             expect(sendWebhook).toHaveBeenCalledTimes(2);
-            expect(sendWebhook.mock.calls[1][1].headers.Title).toBe(title);
+            expect(sendWebhook.mock.calls[1][1].headers.Title).toBe('Upstream offline');
+            expect(sendWebhook.mock.calls[1][1].body).toContain('second:3000');
+
+            await notifyUpstreamChecks(inst, changed);
+            expect(sendWebhook).toHaveBeenCalledTimes(2);
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+
+    it('continues sending Upstream recovered alerts after one delivery fails', async () => {
+        const { notifyUpstreamChecks, updateMonitorConfig, _test } = await load();
+        updateMonitorConfig(config(true));
+        try {
+            // Seed delivered offline state so recovery gate passes
+            _test.deliveredOffline.add(`${inst.id}:first:3000`);
+            _test.deliveredOffline.add(`${inst.id}:second:3000`);
+            await notifyUpstreamChecks(inst, [check('first:3000', false), check('second:3000', false)]);
+            sendWebhook.mockRejectedValueOnce(new Error('ntfy responded 500'));
+            const changed = [check('first:3000', true), check('second:3000', true)];
+
+            await expect(notifyUpstreamChecks(inst, changed)).resolves.toBeUndefined();
+            expect(sendWebhook).toHaveBeenCalledTimes(2);
+            expect(sendWebhook.mock.calls[1][1].headers.Title).toBe('Upstream recovered');
             expect(sendWebhook.mock.calls[1][1].body).toContain('second:3000');
 
             await notifyUpstreamChecks(inst, changed);
