@@ -28,6 +28,11 @@ export function createAuthRouter(getService = getAuthentication) {
     router.get('/credentials', operation(async (req, res, service) => res.json(service.getCredentials(req, res))));
     router.patch('/credentials', operation(async (req, res, service) => res.json(await service.updateCredentials(req, res, req.body))));
     router.get('/passkeys', operation(async (req, res, service) => res.json(service.passkeys.list(req, res))));
+    router.post('/passkeys/authentication/options', operation(async (req, res, service) => res.json(await service.passkeys.authenticationOptions(req))));
+    router.post('/passkeys/authentication', operation(async (req, res, service) => {
+        await service.passkeys.authenticate(req, res, req.body);
+        res.json({ ok: true });
+    }));
     router.post('/passkeys/registration/options', operation(async (req, res, service) => res.json(await service.passkeys.registrationOptions(req, res, req.body))));
     router.post('/passkeys/registration', operation(async (req, res, service) => res.status(201).json(await service.passkeys.register(req, res, req.body))));
     router.delete('/passkeys/:id', operation(async (req, res, service) => {

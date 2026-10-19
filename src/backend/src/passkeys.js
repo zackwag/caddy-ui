@@ -1,4 +1,4 @@
-import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server';
+import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server';
 import { AppError } from './AppError.js';
 import { MAX_PASSKEYS, PASSKEY_ALGORITHMS, passkeyMetadata, validPasskeyName } from './passkeyPolicy.js';
 
@@ -85,6 +85,39 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
                     createdAt: new Date(now()).toISOString(), lastUsedAt: null };
                 await persist(() => store.addPasskey(record));
                 return passkeyMetadata(record);
+            });
+        },
+        authenticationOptions(req) {
+            return serialize(async () => {
+                requireEnabled();
+                const session = sessions.readSession(req);
+                if (session?.permission !== 'anonymous') throw new AppError('PASSKEY_INVALID');
+                delete session.passkeyChallenge;
+                // Discoverable credentials avoid publishing the administrator's credential IDs.
+                const options = await generateAuthenticationOptions({ rpID, timeout: CHALLENGE_MS, userVerification: 'required' });
+                session.passkeyChallenge = { kind: 'authentication', challenge: options.challenge, expires: now() + CHALLENGE_MS };
+                return options;
+            });
+        },
+        authenticate(req, res, response) {
+            return serialize(async () => {
+                requireEnabled();
+                if (sessions.readSession(req)?.permission !== 'anonymous') throw new AppError('PASSKEY_INVALID');
+                const pending = takeChallenge(req, 'authentication');
+                const record = store.listPasskeys().find(key => key.id === response?.id && key.rpId === rpID);
+                if (!record || response?.response?.userHandle !== store.getPasskeyUserId()) throw new AppError('PASSKEY_INVALID');
+                let result;
+                try {
+                    rejectEmbeddedResponse(response);
+                    result = await verifyAuthenticationResponse({ response, expectedChallenge: pending.challenge,
+                        expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true,
+                        credential: { id: record.id, publicKey: Buffer.from(record.publicKey, 'base64url'),
+                            counter: record.counter, transports: record.transports } });
+                } catch { throw new AppError('PASSKEY_INVALID'); }
+                if (!result.verified) throw new AppError('PASSKEY_INVALID');
+                // Persist replay protection before issuing a management session.
+                await persist(() => store.updatePasskeyUsage(record.id, result.authenticationInfo));
+                sessions.createSession(req, res, 'management');
             });
         },
         remove(req, res, id, input) {
