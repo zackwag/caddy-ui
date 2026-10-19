@@ -5,6 +5,7 @@ import { createAuthSessions } from './authSessions.js';
 import { API_TOKEN_SCOPES, MAX_API_TOKENS, validApiTokenInput } from './apiTokenPolicy.js';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
+import { createPasskeyService } from './passkeys.js';
 
 function sameSecret(actual, expected) {
     if (typeof actual !== 'string') return false;
@@ -12,7 +13,7 @@ function sameSecret(actual, expected) {
     return timingSafeEqual(hash(actual), hash(expected));
 }
 
-export async function createAuthService({ store = createAuthStore(), env = process.env, sessions } = {}) {
+export async function createAuthService({ store = createAuthStore(), env = process.env, sessions, now = Date.now } = {}) {
     await store.loadAuth();
     let legacy = null;
     if (!store.isInitialized()) {
@@ -39,9 +40,11 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         try { return await operation(); }
         catch (cause) { throw new AppError('AUTH_PERSISTENCE_FAILED', { cause }); }
     }
+    const passkeys = createPasskeyService({ store, sessions, env, serialize, persist, now });
 
     return {
         sessions,
+        passkeys,
         verifyApiToken(token) { return store.verifyApiToken(token); },
         // Token metadata for background monitors, which have no request to authorize.
         apiTokenMetadata() { return store.listApiTokens(); },
@@ -103,6 +106,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                 enrollmentRequired: !store.isInitialized() && legacy !== null,
                 enrollmentAuthenticated: session?.permission === 'enrollment',
                 publicMetrics: env.CADDY_UI_PUBLIC_METRICS === 'true',
+                ...passkeys.state(),
             };
         },
         requireManagement(req, res) {

@@ -16,7 +16,7 @@ export async function authFixture({ env = {}, now, store } = {}) {
     const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-http-'));
     const path = join(directory, 'auth.json');
     store ??= createAuthStore(path);
-    const service = await initializeAuthentication({ store, env, sessions: createAuthSessions({ now }) });
+    const service = await initializeAuthentication({ store, env, now, sessions: createAuthSessions({ now }) });
     const app = express();
     app.use(express.json());
     app.use('/api', createCrossSiteMiddleware(env.CADDY_UI_EXTERNAL_URL));
