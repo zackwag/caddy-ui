@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import logger from './logger.js';
 import { MAX_API_TOKENS, validApiTokenInput, validApiTokenRecord } from './apiTokenPolicy.js';
+import { MAX_PASSKEYS, validPasskeyRecord, validPasskeyStore } from './passkeyPolicy.js';
 
 const derive = promisify(scrypt);
 const KDF = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
@@ -64,7 +65,8 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
             if (parsed?.version !== 1 || typeof parsed.username !== 'string' || !parsed.username.trim()
                 || parsed.username.length > 128 || !validHash(parsed.password) || !validHash(parsed.recovery)
                 || (parsed.apiTokens !== undefined && (!Array.isArray(parsed.apiTokens) || parsed.apiTokens.length > MAX_API_TOKENS
-                    || !parsed.apiTokens.every(validApiTokenRecord) || new Set(parsed.apiTokens.map(token => token.id)).size !== parsed.apiTokens.length))) {
+                    || !parsed.apiTokens.every(validApiTokenRecord) || new Set(parsed.apiTokens.map(token => token.id)).size !== parsed.apiTokens.length))
+                || (parsed.passkeys !== undefined && !validPasskeyStore(parsed.passkeys))) {
                 throw new Error('Invalid credential record');
             }
             await fs.chmod(path, 0o600);
@@ -114,6 +116,46 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         loadAuth,
         isInitialized() { requireLoaded(); return state !== null; },
         getUsername() { requireLoaded(); return state?.username ?? null; },
+        getPasskeyUserId() { requireLoaded(); return state?.passkeys?.userId ?? null; },
+        listPasskeys() { requireLoaded(); return structuredClone(state?.passkeys?.credentials || []); },
+        ensurePasskeyUserId() {
+            return serialize(async () => {
+                requireLoaded();
+                if (!state) throw new Error('Authentication is not initialized');
+                if (!state.passkeys) await persist({ ...state, passkeys: { userId: randomBytes(32).toString('base64url'), credentials: [] } }, false);
+                return state.passkeys.userId;
+            });
+        },
+        addPasskey(record) {
+            return serialize(async () => {
+                requireLoaded();
+                const previous = state?.passkeys;
+                if (!previous || !validPasskeyRecord(record) || previous.credentials.length >= MAX_PASSKEYS
+                    || previous.credentials.some(key => key.id === record.id)) throw new Error('Invalid or duplicate passkey');
+                await persist({ ...state, passkeys: { ...previous, credentials: [...previous.credentials, structuredClone(record)] } }, false);
+            });
+        },
+        updatePasskeyUsage(id, { newCounter, credentialDeviceType, credentialBackedUp }) {
+            return serialize(async () => {
+                requireLoaded();
+                const previous = state?.passkeys;
+                const key = previous?.credentials.find(key => key.id === id);
+                if (!key) throw new Error('Passkey no longer exists');
+                const updated = { ...key, counter: newCounter, deviceType: credentialDeviceType,
+                    backedUp: credentialBackedUp, lastUsedAt: new Date(now()).toISOString() };
+                if (!validPasskeyRecord(updated) || (key.counter > 0 && newCounter <= key.counter)) throw new Error('Invalid passkey counter');
+                await persist({ ...state, passkeys: { ...previous, credentials: previous.credentials.map(key => key.id === id ? updated : key) } }, false);
+            });
+        },
+        removePasskey(id) {
+            return serialize(async () => {
+                requireLoaded();
+                const previous = state?.passkeys;
+                if (!previous?.credentials.some(key => key.id === id)) return false;
+                await persist({ ...state, passkeys: { ...previous, credentials: previous.credentials.filter(key => key.id !== id) } }, false);
+                return true;
+            });
+        },
         async verifyPassword(username, password) {
             requireLoaded();
             // Derive even for an unknown username to avoid a cheap username oracle.
@@ -181,7 +223,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 requireLoaded();
                 if (!state || !await matches(recoveryKey, state.recovery)) return null;
                 const next = await recordFor(state.username, password);
-                // Replacing the whole record deliberately revokes every API token.
+                // Replacing the whole record deliberately revokes API tokens and passkeys.
                 await persist(next.record, false);
                 return next.recoveryKey;
             });
