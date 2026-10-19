@@ -346,6 +346,8 @@ Passwords and recovery keys are stored as salted scrypt hashes in `AUTH_PATH`, w
 
 The browser receives a host-only, HttpOnly, SameSite=Strict cookie scoped to `/api`. It does not store authentication tokens in localStorage or URLs. Management sessions expire after 24 hours; enrollment and pre-login contexts expire after 10 minutes. Sessions are process-local: restarting the backend signs everyone out. Logout revokes the session on the server, including its live log streams.
 
+Open **Security → User** to change the administrator username or password. The current password is required; leave the new password blank to change only the username. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged. **Auth** is a disabled preview for future TOTP/passkey support.
+
 Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
 
 If both password and recovery key are lost, stop the backend and restrict network access before removing only `AUTH_PATH` to repeat credential setup. Remove obsolete legacy auth variables as well, or those credentials will be required for enrollment. Do not remove the settings directory or Caddyfile. Restore normal access only after setup is complete.
@@ -356,7 +358,7 @@ If both password and recovery key are lost, stop the backend and restrict networ
 
 ### API compatibility
 
-Legacy JWTs and `?token=` authentication are removed. Create scoped status/metrics tokens in **API tokens** in the sidebar. Secrets are shown once and stored hashed in `AUTH_PATH`; recovery revokes all. See the [token guide](https://zackwag.github.io/caddy-ui/api-tokens.html) for expiry, revocation and response details.
+Legacy JWTs and `?token=` authentication are removed. Create scoped status/metrics tokens in **Security → API tokens** in the sidebar. Secrets are shown once and stored hashed in `AUTH_PATH`; recovery revokes all. See the [token guide](https://zackwag.github.io/caddy-ui/api-tokens.html) for expiry, revocation and response details.
 
 Send `Authorization: Bearer <token>` and `X-Instance-Id: <id>`. Without the header, a token permitting one instance reads that instance; a token permitting several reads `default`, which must be allowed. Tokens permit reads only. Token management requires a session and CSRF; bearer reads need no CSRF. CORS remains disabled.
 
@@ -467,6 +469,8 @@ See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoin
 | `DELETE` | `/api/auth/sessions/current` | Revoke the current session (CSRF required) |
 | `GET` | `/api/auth/csrf` | Obtain the CSRF token for the current or a new pre-login context |
 | `POST` | `/api/auth/setup` | Initialize stored credentials once and return a recovery key (CSRF required) |
+| `GET` | `/api/auth/credentials` | Read the administrator username (management session required) |
+| `PATCH` | `/api/auth/credentials` | Update `username` and/or `password`, requiring `currentPassword`, a management session and CSRF; renews this session and revokes old sessions, preserving API tokens and recovery |
 | `POST` | `/api/auth/recovery` | Reset password using a recovery key and rotate that key (CSRF required) |
 | `GET` | `/api/auth/tokens` | List token metadata (management session only) |
 | `POST` | `/api/auth/tokens` | Create a read-only integration token (session + CSRF) |
