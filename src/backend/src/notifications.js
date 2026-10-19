@@ -102,13 +102,19 @@ export async function notifyExpiringApiTokens(tokens, now = Date.now()) {
         if (remaining <= 0 || remaining > TOKEN_EXPIRY_WINDOW_MS) continue;
         if (expiresAt - Date.parse(token.createdAt) <= TOKEN_EXPIRY_WINDOW_MS) continue;
         if (notifiedTokens.has(token.id)) continue;
+        // Reserve pending deliveries too, so overlapping checks cannot duplicate them.
         notifiedTokens.add(token.id);
-        const days = Math.ceil(remaining / DAY_MS);
-        await sendNotification(config, {
-            title: 'API token expiring',
-            message: `API token "${token.name}" expires in ${days} day${days !== 1 ? 's' : ''} (${new Date(expiresAt).toISOString().slice(0, 10)})`,
-            priority: 'high',
-        });
+        try {
+            const days = Math.ceil(remaining / DAY_MS);
+            await sendNotification(config, {
+                title: 'API token expiring',
+                message: `API token "${token.name}" expires in ${days} day${days !== 1 ? 's' : ''} (${new Date(expiresAt).toISOString().slice(0, 10)})`,
+                priority: 'high',
+            });
+        } catch (err) {
+            notifiedTokens.delete(token.id);
+            throw err;
+        }
     }
 }
 

@@ -225,6 +225,45 @@ describe('notifyExpiringApiTokens', () => {
         }
     });
 
+    it.each(['ntfy responded 500', 'ntfy request timed out'])('retries after delivery fails: %s', async message => {
+        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
+        const tokens = [token('a', 90, 6.5)];
+        const error = new Error(message);
+        sendWebhook.mockRejectedValueOnce(error);
+        try {
+            await expect(notifyExpiringApiTokens(tokens, now)).rejects.toBe(error);
+            await notifyExpiringApiTokens(tokens, now + 30_000);
+            await notifyExpiringApiTokens(tokens, now + 60_000);
+            expect(sendWebhook).toHaveBeenCalledTimes(2);
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+
+    it.each(['success', 'failure'])('suppresses overlapping sends while delivery is pending, then handles %s', async outcome => {
+        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
+        const tokens = [token('a', 90, 6.5)];
+        const error = new Error('ntfy request timed out');
+        let finish;
+        sendWebhook.mockImplementationOnce(() => new Promise((resolve, reject) => {
+            finish = () => outcome === 'success' ? resolve() : reject(error);
+        }));
+        const pending = notifyExpiringApiTokens(tokens, now);
+        const settled = pending.then(() => undefined, err => err);
+        try {
+            await notifyExpiringApiTokens(tokens, now + 30_000);
+            expect(sendWebhook).toHaveBeenCalledTimes(1);
+            finish();
+            expect(await settled).toBe(outcome === 'success' ? undefined : error);
+            await notifyExpiringApiTokens(tokens, now + 60_000);
+            expect(sendWebhook).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 2);
+        } finally {
+            finish();
+            await settled;
+            updateMonitorConfig(config(false));
+        }
+    });
+
     it('skips tokens outside the window, already expired, or short-lived by choice', async () => {
         const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
         try {
