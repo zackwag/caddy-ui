@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, rename, rm } from 'node:fs/promises';
-import { afterEach, describe, expect, it } from 'vitest';
+import { mkdir, readFile, rename, rm } from 'node:fs/promises';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { authClient, authFixture } from './fixtures/auth.mjs';
 import { authenticator } from './fixtures/webauthn.mjs';
 
@@ -84,6 +84,26 @@ describe('passkey enrollment and removal', () => {
         await optionsFor(f.client, f.password);
         expect((await f.client.request('/auth/passkeys/registration', { method: 'POST', body: {} })).data.code).toBe('PASSKEY_INVALID');
         expect(f.store.listPasskeys()).toEqual([]);
+    });
+
+    it('rejects invalid transport metadata before persistence and keeps valid enrollment usable', async () => {
+        const f = await fixture();
+        const add = vi.spyOn(f.store, 'addPasskey');
+        for (const transports of ['internal', {}, [7], ['x'.repeat(33)], Array(9).fill('internal')]) {
+            const options = await optionsFor(f.client, f.password);
+            const response = authenticator().registration(options.data);
+            response.response.transports = transports;
+            const before = await readFile(f.path, 'utf8');
+            const result = await f.client.request('/auth/passkeys/registration', { method: 'POST', body: response });
+            expect(result.status).toBe(400);
+            expect(result.data.code).toBe('PASSKEY_INVALID');
+            expect(add).not.toHaveBeenCalled();
+            expect(await readFile(f.path, 'utf8')).toBe(before);
+        }
+        expect(f.store.listPasskeys()).toEqual([]);
+        expect((await f.client.request('/protected')).status).toBe(200);
+        expect((await register(f)).result.status).toBe(201);
+        expect(add).toHaveBeenCalledOnce();
     });
 
     it('binds challenges to the initiating session, expires them and consumes them once', async () => {

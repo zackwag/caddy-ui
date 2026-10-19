@@ -1,6 +1,6 @@
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server';
 import { AppError } from './AppError.js';
-import { MAX_PASSKEYS, PASSKEY_ALGORITHMS, passkeyMetadata, validPasskeyName } from './passkeyPolicy.js';
+import { MAX_PASSKEYS, PASSKEY_ALGORITHMS, passkeyMetadata, validPasskeyName, validPasskeyRecord } from './passkeyPolicy.js';
 
 const CHALLENGE_MS = 2 * 60 * 1000;
 
@@ -80,9 +80,10 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
                 const { credential, credentialDeviceType, credentialBackedUp } = result.registrationInfo;
                 if (store.listPasskeys().some(key => key.id === credential.id)) throw new AppError('CONFLICT');
                 const record = { id: credential.id, publicKey: Buffer.from(credential.publicKey).toString('base64url'),
-                    counter: credential.counter, transports: (credential.transports || []).slice(0, 8),
+                    counter: credential.counter, transports: credential.transports ?? [],
                     name: pending.name, rpId: rpID, deviceType: credentialDeviceType, backedUp: credentialBackedUp,
                     createdAt: new Date(now()).toISOString(), lastUsedAt: null };
+                if (!validPasskeyRecord(record)) throw new AppError('PASSKEY_INVALID');
                 await persist(() => store.addPasskey(record));
                 return passkeyMetadata(record);
             });
