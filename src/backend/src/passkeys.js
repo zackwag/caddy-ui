@@ -40,7 +40,7 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
         },
         list(req, res) {
             management(req, res);
-            return { enabled: !!origin, limit: MAX_PASSKEYS, passkeys: store.listPasskeys().map(passkeyMetadata) };
+            return { enabled: !!origin, origin, limit: MAX_PASSKEYS, passkeys: store.listPasskeys().map(passkeyMetadata) };
         },
         registrationOptions(req, res, input) {
             return serialize(async () => {

@@ -1438,6 +1438,7 @@ export const css = `
   .security-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
   .security-fields:disabled { opacity: .65; }
   .security-planned { padding-bottom: 12px; }
+  .passkey-planned { margin-top: 16px; }
   .security-saved { color: var(--accent); margin-bottom: 16px; }
   .api-token-options { border: 1px solid var(--border); padding: 8px 12px; margin: 12px 0; min-width: 0; }
   .api-token-options .auth-ack span { min-width: 0; overflow-wrap: anywhere; }
