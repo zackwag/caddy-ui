@@ -13,15 +13,15 @@ let checkTimer = null;
 const debounceMap = new Map(); // key -> last alert timestamp
 
 export function updateMonitorConfig(newConfig) {
-    const prevTriggers = config?.triggers;
     config = newConfig;
+    for (const [stateKey, pending] of pendingRetries) {
+        const trigger = pending.type === 'offline' ? 'upstreamOffline' : 'upstreamOnline';
+        if (!config.enabled || !config.triggers[trigger]) cancelPendingRetry(stateKey);
+    }
     if (config.enabled && !checkTimer) {
         startMonitor();
     } else if (!config.enabled && checkTimer) {
         stopMonitor();
-    }
-    if (prevTriggers && (!config.triggers.upstreamOffline && !config.triggers.upstreamOnline)) {
-        cancelAllPendingRetries();
     }
 }
 
@@ -127,7 +127,7 @@ export async function notifyExpiringApiTokens(tokens, now = Date.now()) {
 // Track previous upstream state to detect transitions
 const upstreamState = new Map(); // stateKey -> boolean (online)
 
-// Pending upstream alert retries: stateKey -> { type, alert, attempt, timer }
+// One record owns all attempts; deleting it invalidates in-flight completions too.
 const pendingRetries = new Map();
 
 // Upstreams whose offline alert was successfully delivered, so recovery
@@ -154,36 +154,65 @@ export function cancelAllPendingRetries() {
     pendingRetries.clear();
 }
 
-async function attemptUpstreamAlert(stateKey, type, alert, attempt) {
-    if (!config?.enabled) { pendingRetries.delete(stateKey); return; }
-    if (type === 'offline' && !config.triggers.upstreamOffline) { pendingRetries.delete(stateKey); return; }
-    if (type === 'online' && !config.triggers.upstreamOnline) { pendingRetries.delete(stateKey); return; }
+function queueUpstreamAlert(stateKey, type, alert) {
+    const pending = { type, alert, attempt: 1, timer: null };
+    pendingRetries.set(stateKey, pending);
+    return attemptUpstreamAlert(stateKey, pending);
+}
+
+async function attemptUpstreamAlert(stateKey, pending) {
+    if (pendingRetries.get(stateKey) !== pending) return;
+    const { type, alert, attempt } = pending;
+    const trigger = type === 'offline' ? 'upstreamOffline' : 'upstreamOnline';
+    if (!config?.enabled || !config.triggers[trigger] || upstreamState.get(stateKey) !== (type === 'online')) {
+        cancelPendingRetry(stateKey);
+        return;
+    }
 
     if (attempt > 1) {
         const instId = stateKey.split(':')[0];
-        if (!getInstances().some(i => i.id === instId)) { pendingRetries.delete(stateKey); return; }
+        if (!getInstances().some(i => i.id === instId)) { forgetUpstream(stateKey); return; }
     }
 
+    pending.timer = null;
     try {
         await sendNotification(config, alert);
+        if (pendingRetries.get(stateKey) !== pending) return;
         pendingRetries.delete(stateKey);
         markSent(`${type}:${stateKey}`);
         if (type === 'offline') deliveredOffline.add(stateKey);
+        else deliveredOffline.delete(stateKey);
     } catch (err) {
+        if (pendingRetries.get(stateKey) !== pending) return;
         if (attempt < MAX_UPSTREAM_ATTEMPTS) {
             const delay = RETRY_DELAYS_MS[attempt - 1];
             logger.warn('Upstream notification delivery failed, scheduling retry', {
                 stateKey, type, attempt, nextIn: `${delay / 1000}s`, error: err.message,
             });
-            const timer = setTimeout(() => attemptUpstreamAlert(stateKey, type, alert, attempt + 1), delay);
-            timer.unref?.();
-            pendingRetries.set(stateKey, { type, alert, attempt: attempt + 1, timer });
+            pending.attempt = attempt + 1;
+            pending.timer = setTimeout(() => void attemptUpstreamAlert(stateKey, pending), delay);
+            pending.timer.unref?.();
         } else {
             pendingRetries.delete(stateKey);
             logger.error('Upstream notification delivery failed after max retries', {
                 stateKey, type, attempts: MAX_UPSTREAM_ATTEMPTS, error: err.message,
             });
         }
+    }
+}
+
+function forgetUpstream(stateKey) {
+    cancelPendingRetry(stateKey);
+    upstreamState.delete(stateKey);
+    deliveredOffline.delete(stateKey);
+    debounceMap.delete(`offline:${stateKey}`);
+    debounceMap.delete(`online:${stateKey}`);
+}
+
+// Removal must clean up even if this was the last instance being monitored.
+export function releaseInstanceNotifications(instanceId) {
+    for (const stateKey of upstreamState.keys()) {
+        if (stateKey.startsWith(`${instanceId}:`)) forgetUpstream(stateKey);
     }
 }
 
@@ -201,11 +230,12 @@ export async function notifyUpstreamChecks(inst, checks) {
         if (prev !== undefined && prev !== check.online) changes.push(check);
     }
 
-    // Discard pending retries for upstreams that disappeared from this instance
-    for (const key of [...pendingRetries.keys()]) {
-        if (key.startsWith(`${inst.id}:`) && !seen.has(key)) cancelPendingRetry(key);
+    // Removed upstreams must not carry delivery history into a fresh baseline.
+    for (const key of upstreamState.keys()) {
+        if (key.startsWith(`${inst.id}:`) && !seen.has(key)) forgetUpstream(key);
     }
 
+    for (const check of changes) cancelPendingRetry(`${inst.id}:${check.upstream}`);
     if (!config?.enabled) return;
 
     const instLabel = instanceLabel(inst);
@@ -213,25 +243,20 @@ export async function notifyUpstreamChecks(inst, checks) {
         const stateKey = `${inst.id}:${check.upstream}`;
         const label = check.domain ? `${instLabel}${check.domain} (${check.upstream})` : `${instLabel}${check.upstream}`;
 
-        cancelPendingRetry(stateKey);
-
         if (!check.online && config.triggers.upstreamOffline) {
             const key = `offline:${stateKey}`;
             if (!isDebouncedKey(key)) {
                 const alert = { title: 'Upstream offline', message: `${label} is unreachable`, priority: 'high' };
-                pendingRetries.set(stateKey, { type: 'offline', alert, attempt: 1, timer: null });
-                await attemptUpstreamAlert(stateKey, 'offline', alert, 1);
+                await queueUpstreamAlert(stateKey, 'offline', alert);
             }
         }
 
         if (check.online && config.triggers.upstreamOnline) {
             if (!deliveredOffline.has(stateKey)) continue;
-            deliveredOffline.delete(stateKey);
             const key = `online:${stateKey}`;
             if (!isDebouncedKey(key)) {
                 const alert = { title: 'Upstream recovered', message: `${label} is back online`, priority: 'default' };
-                pendingRetries.set(stateKey, { type: 'online', alert, attempt: 1, timer: null });
-                await attemptUpstreamAlert(stateKey, 'online', alert, 1);
+                await queueUpstreamAlert(stateKey, 'online', alert);
             }
         }
     }

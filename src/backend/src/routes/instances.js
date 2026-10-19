@@ -8,6 +8,7 @@ import { sendAppError } from '../errorReporting.js';
 import { releaseInstanceMaintenance } from '../maintenance.js';
 import { releaseInstanceNotes } from '../routeNotes.js';
 import { removeInstanceServerNames } from '../serverNames.js';
+import { releaseInstanceNotifications } from '../notifications.js';
 import { validatePath, validateUrl } from '../validation.js';
 
 const router = Router();
@@ -155,6 +156,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
         await removeInstance(id);
+        releaseInstanceNotifications(id);
         await removeInstanceServerNames(id);
         await releaseInstanceMaintenance(id);
         await releaseInstanceNotes(id);
