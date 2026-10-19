@@ -76,6 +76,7 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
             const cleanup = () => { clearTimeout(timer); session.connections.delete(close); };
             res.once('close', cleanup);
             res.once('finish', cleanup);
+            return cleanup;
         },
         issueCsrfToken(req, res) {
             return (readSession(req) || createSession(req, res)).csrf;

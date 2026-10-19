@@ -45,6 +45,32 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         verifyApiToken(token) { return store.verifyApiToken(token); },
         // Token metadata for background monitors, which have no request to authorize.
         apiTokenMetadata() { return store.listApiTokens(); },
+        getCredentials(req, res) {
+            this.requireManagement(req, res);
+            return { username: store.getUsername() };
+        },
+        updateCredentials(req, res, input) {
+            return serialize(async () => {
+                const unwatch = this.requireManagement(req, res);
+                if (!input || typeof input !== 'object' || Array.isArray(input)
+                    || typeof input.currentPassword !== 'string'
+                    || (input.username === undefined && input.password === undefined)) {
+                    throw new AppError('VALIDATION_FAILED');
+                }
+                const currentUsername = store.getUsername();
+                if (!await store.verifyPassword(currentUsername, input.currentPassword)) {
+                    throw new AppError('CURRENT_PASSWORD_INVALID');
+                }
+                const username = input.username === undefined ? currentUsername : input.username;
+                validate(username, input.password === undefined ? input.currentPassword : input.password);
+                await persist(() => store.updateCredentials(username, input.password));
+                // Keep this response open while closing every old session/stream.
+                unwatch();
+                sessions.revokeAllSessions();
+                sessions.createSession(req, res, 'management');
+                return { username };
+            });
+        },
         listApiTokens(req, res) {
             this.requireManagement(req, res);
             return { tokens: store.listApiTokens(), scopes: API_TOKEN_SCOPES };
@@ -82,7 +108,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         requireManagement(req, res) {
             const session = sessions.readSession(req);
             if (session?.permission !== 'management') throw new AppError('UNAUTHORIZED');
-            sessions.watchSession(session, res);
+            return sessions.watchSession(session, res);
         },
         login(req, res, { username, password } = {}) {
             return serialize(async () => {

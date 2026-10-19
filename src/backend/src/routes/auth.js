@@ -25,6 +25,8 @@ export function createAuthRouter(getService = getAuthentication) {
         await service.login(req, res, req.body);
         res.json({ ok: true });
     }));
+    router.get('/credentials', operation(async (req, res, service) => res.json(service.getCredentials(req, res))));
+    router.patch('/credentials', operation(async (req, res, service) => res.json(await service.updateCredentials(req, res, req.body))));
     router.get('/tokens', operation(async (req, res, service) => res.json(service.listApiTokens(req, res))));
     router.post('/tokens', operation(async (req, res, service) => res.status(201).json(await service.issueApiToken(req, res, req.body))));
     router.delete('/tokens/:id', operation(async (req, res, service) => {

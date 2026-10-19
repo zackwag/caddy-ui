@@ -28,10 +28,14 @@ async function matches(secret, hash) {
     return timingSafeEqual(digest, Buffer.from(hash.digest, 'hex'));
 }
 
-export function validateCredentials(username, password) {
+function validateUsername(username) {
     if (typeof username !== 'string' || !username.trim() || username.length > 128) {
         throw new Error('Username must contain between 1 and 128 characters');
     }
+}
+
+export function validateCredentials(username, password) {
+    validateUsername(username);
     if (typeof password !== 'string' || password.length < 12 || Buffer.byteLength(password) > 1024) {
         throw new Error('Password must contain at least 12 characters and at most 1024 bytes');
     }
@@ -158,6 +162,18 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 const { record, recoveryKey } = await recordFor(username, password);
                 await persist(record, true);
                 return recoveryKey;
+            });
+        },
+        updateCredentials(username, password) {
+            return serialize(async () => {
+                requireLoaded();
+                if (!state) throw new Error('Authentication is not initialized');
+                validateUsername(username);
+                if (password !== undefined) validateCredentials(username, password);
+                // Normal account changes preserve recovery and integration credentials.
+                const record = { ...state, username,
+                    password: password === undefined ? state.password : await hashSecret(password) };
+                await persist(record, false);
             });
         },
         replaceCredentials(recoveryKey, password) {
