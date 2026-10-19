@@ -21,16 +21,23 @@ async function fakeCaddy(upstream) {
     caddy.server = createHttpServer((req, res) => {
         if (req.method === 'GET' && req.url === '/config/apps/http/servers') {
             caddy.configReads++;
-            if (caddy.failNextRead) {
-                caddy.failNextRead = false;
-                res.writeHead(500).end('unavailable');
-                return;
-            }
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ srv0: { listen: [':443'], routes: caddy.hasRoute ? [{
+            const fail = caddy.failNextRead;
+            caddy.failNextRead = false;
+            const snapshot = JSON.stringify({ srv0: { listen: [':443'], routes: caddy.hasRoute ? [{
                 match: [{ host: ['app.example.com'] }],
                 handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: upstream }] }],
-            }] : [] } }));
+            }] : [] } });
+            const respond = () => {
+                if (fail) res.writeHead(500).end('unavailable');
+                else {
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(snapshot);
+                }
+            };
+            const hold = caddy.nextConfigRead;
+            caddy.nextConfigRead = null;
+            if (hold) hold(respond);
+            else respond();
             return;
         }
         req.resume();
@@ -38,6 +45,25 @@ async function fakeCaddy(upstream) {
     });
     caddy.adminUrl = `http://127.0.0.1:${await listen(caddy.server)}`;
     return caddy;
+}
+
+// Hold a response after its snapshot is captured, without timing-based sleeps.
+function holdNextConfigRead(caddy) {
+    let finish;
+    let markStarted;
+    const started = new Promise(resolve => { markStarted = resolve; });
+    caddy.nextConfigRead = respond => {
+        finish = respond;
+        markStarted();
+    };
+    return {
+        started,
+        release() {
+            const respond = finish;
+            finish = null;
+            respond?.();
+        },
+    };
 }
 
 let dials = 0;
@@ -85,6 +111,7 @@ beforeEach(() => {
         c.configReads = 0;
         c.failNextRead = false;
         c.hasRoute = true;
+        c.nextConfigRead = null;
     }
 });
 
@@ -131,6 +158,39 @@ describe('shared configuration and upstream observations', () => {
         await get('/status');
         expect(caddy.configReads).toBe(2);
         expect(dials).toBe(2);
+    });
+
+    it.each([
+        { outcome: 'succeeds', fail: false },
+        { outcome: 'fails', fail: true },
+    ])('keeps the newer config cached when an older pre-write read $outcome', async ({ fail }) => {
+        const held = holdNextConfigRead(caddy);
+        caddy.failNextRead = fail;
+        const earlier = getServers(caddy.adminUrl);
+        const earlierResult = earlier.then(value => ({ value }), error => ({ error }));
+        try {
+            await held.started;
+            caddy.hasRoute = false;
+            await caddyLoad('example.com {\n}\n', caddy.adminUrl);
+
+            const later = getServers(caddy.adminUrl);
+            expect(later).not.toBe(earlier);
+            const fresh = await later;
+            expect(fresh.srv0.routes).toEqual([]);
+            expect(caddy.configReads).toBe(2);
+
+            held.release();
+            const result = await earlierResult;
+            if (fail) expect(result.error.message).toContain('Caddy API error: 500');
+            else expect(result.value.srv0.routes).toHaveLength(1);
+
+            // Neither an old success nor an old rejection may displace the new entry.
+            expect(await getServers(caddy.adminUrl)).toBe(fresh);
+            expect(caddy.configReads).toBe(2);
+        } finally {
+            held.release();
+            await earlierResult;
+        }
     });
 
     it('refreshes upstream checks when their older source config expires', async () => {
