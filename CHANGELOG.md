@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/zackwag/caddy-ui/compare/v3.2.1...v3.3.0) (2026-10-19)
+
+
+### Features
+
+* add security settings and administrator credential updates ([#362](https://github.com/zackwag/caddy-ui/issues/362)) ([5a13b7f](https://github.com/zackwag/caddy-ui/commit/5a13b7fab74f8b6fce9c55b22eb45245ca2a0a51))
+
 ## [3.2.1](https://github.com/zackwag/caddy-ui/compare/v3.2.0...v3.2.1) (2026-10-19)
 
 
