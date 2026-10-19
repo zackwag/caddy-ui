@@ -20,11 +20,11 @@ function isCurrent(entry, adminUrl, now) {
         && (entry.settledAt === null || now - entry.settledAt <= OBSERVATION_MAX_AGE_MS);
 }
 
-function observe(kind, adminUrl, collect) {
+function observe(kind, adminUrl, collect, sourceConfig) {
     const key = `${kind} ${adminUrl}`;
     const now = Date.now();
     const existing = entries.get(key);
-    if (existing && isCurrent(existing, adminUrl, now)) return existing.promise;
+    if (existing && existing.sourceConfig === sourceConfig && isCurrent(existing, adminUrl, now)) return existing.promise;
 
     // Expired entries are dropped as new ones are made, so removed instances
     // don't accumulate.
@@ -32,7 +32,7 @@ function observe(kind, adminUrl, collect) {
         if (entry.settledAt !== null && now - entry.settledAt > OBSERVATION_MAX_AGE_MS) entries.delete(other);
     }
     // Taken before collecting, so a write that lands mid-read retires the result.
-    const entry = { generation: configGeneration(adminUrl), settledAt: null };
+    const entry = { generation: configGeneration(adminUrl), settledAt: null, sourceConfig };
     entry.promise = collect().then(value => {
         entry.settledAt = Date.now();
         return value;
@@ -52,12 +52,14 @@ export function getServers(adminUrl) {
 
 // Upstream checks for the instance's current config, with when they were
 // made. Rejects when the config can't be read, so an unreachable Caddy never
-// reads as "no upstreams".
-export function getUpstreamChecks(adminUrl) {
+// reads as "no upstreams". Resolve the config first so cached checks cannot
+// outlive the server observation they were collected from.
+export async function getUpstreamChecks(adminUrl) {
+    const servers = await getServers(adminUrl);
     return observe('upstreams', adminUrl, async () => {
-        const checks = await checkInstanceUpstreams(adminUrl, await getServers(adminUrl));
+        const checks = await checkInstanceUpstreams(adminUrl, servers);
         return { checks, checkedAt: new Date() };
-    });
+    }, servers);
 }
 
 // For tests, which change what Caddy returns between cases.

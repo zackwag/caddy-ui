@@ -4,7 +4,7 @@ import { createServer as createTcpServer } from 'node:net';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { caddyLoad } from '../src/caddy.js';
-import { clearObservations, OBSERVATION_MAX_AGE_MS } from '../src/observations.js';
+import { clearObservations, getServers, OBSERVATION_MAX_AGE_MS } from '../src/observations.js';
 import healthRouter from '../src/routes/health.js';
 import statusRouter from '../src/routes/status.js';
 
@@ -15,9 +15,9 @@ async function listen(server) {
 }
 
 // A stand-in admin API serving one site that proxies to `upstream`, counting
-// config reads. `failNextRead` makes the next read fail like an outage.
+// config reads. `failNextRead` simulates an outage; `hasRoute` an external removal.
 async function fakeCaddy(upstream) {
-    const caddy = { configReads: 0, failNextRead: false };
+    const caddy = { configReads: 0, failNextRead: false, hasRoute: true };
     caddy.server = createHttpServer((req, res) => {
         if (req.method === 'GET' && req.url === '/config/apps/http/servers') {
             caddy.configReads++;
@@ -27,10 +27,10 @@ async function fakeCaddy(upstream) {
                 return;
             }
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ srv0: { listen: [':443'], routes: [{
+            res.end(JSON.stringify({ srv0: { listen: [':443'], routes: caddy.hasRoute ? [{
                 match: [{ host: ['app.example.com'] }],
                 handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: upstream }] }],
-            }] } }));
+            }] : [] } }));
             return;
         }
         req.resume();
@@ -84,6 +84,7 @@ beforeEach(() => {
     for (const c of caddies) {
         c.configReads = 0;
         c.failNextRead = false;
+        c.hasRoute = true;
     }
 });
 
@@ -130,6 +131,25 @@ describe('shared configuration and upstream observations', () => {
         await get('/status');
         expect(caddy.configReads).toBe(2);
         expect(dials).toBe(2);
+    });
+
+    it('refreshes upstream checks when their older source config expires', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        await getServers(caddy.adminUrl);
+        vi.advanceTimersByTime(100);
+        caddy.hasRoute = false;
+
+        // The config is still cached when upstream checks are first requested.
+        vi.advanceTimersByTime(OBSERVATION_MAX_AGE_MS - 200);
+        expect(await get('/health')).toMatchObject([{ domain: 'app.example.com', upstream }]);
+        expect([caddy.configReads, dials]).toEqual([1, 1]);
+
+        // Config expiry must also retire checks built later from that old config.
+        vi.advanceTimersByTime(201);
+        const [status, health] = await Promise.all([get('/status'), get('/health')]);
+        expect(status).toMatchObject({ online: true, routeCount: 0, upstreamsOnline: 0, upstreamsTotal: 0 });
+        expect(health).toEqual([]);
+        expect([caddy.configReads, dials]).toEqual([2, 1]);
     });
 
     it('does not reuse a failed read, so recovery shows on the next request', async () => {
