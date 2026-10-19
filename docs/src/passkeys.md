@@ -23,7 +23,7 @@ The administrator can register **three passkeys**. A passkey synchronized by a p
 
 ## Sign in and remove passkeys
 
-After registration, the login page offers **Sign in with a passkey**. No username entry is needed. Password sign-in remains available if the authenticator is missing, broken or unavailable.
+After registration, the login page offers **Sign in with a passkey**. No username entry is needed. On a different HTTPS origin, the button is disabled and a message identifies the configured address to open. Password sign-in remains available if the authenticator is missing, broken or unavailable.
 
 Remove a passkey under **Security → Auth**. Deleting the **last** passkey requires your current password. Any removal signs out all previous sessions and live log streams, including sessions that the removed credential may have opened, and renews the browser performing the removal. API tokens and the recovery key remain valid.
 

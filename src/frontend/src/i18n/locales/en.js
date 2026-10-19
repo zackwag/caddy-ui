@@ -134,6 +134,7 @@ export default {
         hint: 'Sign in with your device, security key or password manager. Confirm your password each time you add a passkey. Password login and account recovery remain available.',
         httpsRequired: 'Passkeys need HTTPS. Set up a secure connection for Caddy UI, then reopen it using its HTTPS address.',
         unsupported: 'This browser does not support passkeys. Try an up-to-date browser or sign in with your password.',
+        originMismatch: 'Passkeys are configured for a different address. Open Caddy UI at {{origin}} to sign in with a passkey.',
         openTls: 'Open TLS',
         count: '{{count}} of {{limit}} passkeys registered',
         empty: 'No passkeys have been added.',

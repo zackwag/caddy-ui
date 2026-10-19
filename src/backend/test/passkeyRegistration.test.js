@@ -40,6 +40,7 @@ describe('passkey enrollment and removal', () => {
         expect((await optionsFor(f.client, undefined)).data.code).toBe('CURRENT_PASSWORD_INVALID');
         const http = await fixture({ env: { CADDY_UI_EXTERNAL_URL: 'http://ui.example.com' } });
         expect((await optionsFor(http.client, http.password)).data.code).toBe('PASSKEY_UNAVAILABLE');
+        expect((await http.client.request('/auth/status')).data.passkeyOrigin).toBeNull();
         const unset = await fixture({ env: {} });
         expect((await optionsFor(unset.client, unset.password)).data.code).toBe('PASSKEY_UNAVAILABLE');
     });
@@ -54,6 +55,14 @@ describe('passkey enrollment and removal', () => {
         expect(listed.headers.get('cache-control')).toBe('no-store');
         expect(listed.data.passkeys).toEqual([result.data]);
         expect(listed.data.limit).toBe(3);
+    });
+
+    it('publishes the configured HTTPS origin without URL paths, queries or fragments', async () => {
+        const f = await fixture({ env: { CADDY_UI_EXTERNAL_URL: externalUrl + '/ignored?setting=ignored#ignored' } });
+        const state = await authClient(f.url).request('/auth/status');
+        expect(state.status).toBe(200);
+        expect(state.data.passkeyOrigin).toBe(externalUrl);
+        expect(JSON.stringify(state.data)).not.toContain('ignored');
     });
 
     it('denies scoped bearer tokens even when a valid management cookie accompanies the request', async () => {

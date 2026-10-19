@@ -15,6 +15,7 @@ export default function Login({ authState, onLogin, sessionExpired }) {
     const [error, setError] = useState(sessionExpired ? t("login.sessionExpired") : "");
     const [loading, setLoading] = useState(false);
     const support = passkeySupport();
+    const passkeyOriginMatches = authState?.passkeyOrigin === window.location.origin;
 
     async function passkeyLogin() {
         setLoading(true);
@@ -71,9 +72,11 @@ export default function Login({ authState, onLogin, sessionExpired }) {
                     {loading ? t("login.signingIn") : t("login.signIn")}
                 </button>
                 {authState?.passkeyLoginAvailable && <>
-                    <button type="button" className="btn btn--full" disabled={loading || !support.secure || !support.supported} onClick={passkeyLogin}>{t('passkeys.signIn')}</button>
+                    <button type="button" className="btn btn--full" disabled={loading || !support.secure || !support.supported || !passkeyOriginMatches} onClick={passkeyLogin}>{t('passkeys.signIn')}</button>
                     {!support.secure ? <p className="auth-help">{t('passkeys.httpsRequired')}</p> :
-                        !support.supported && <p className="auth-help">{t('passkeys.unsupported')}</p>}
+                        !support.supported ? <p className="auth-help">{t('passkeys.unsupported')}</p> :
+                            !passkeyOriginMatches && <p className="auth-help">{authState.passkeyOrigin ?
+                                t('passkeys.originMismatch', { origin: authState.passkeyOrigin }) : t('errors.passkeyUnavailable')}</p>}
                 </>}
                 {!authState?.setupRequired && <button type="button" className="btn btn--full" disabled={loading} onClick={() => setRecovering(true)}>{t('login.forgotPassword')}</button>}
             </form>

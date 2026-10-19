@@ -35,7 +35,7 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
 
     return {
         state() {
-            return { passkeysEnabled: !!origin,
+            return { passkeysEnabled: !!origin, passkeyOrigin: origin,
                 passkeyLoginAvailable: !!origin && store.listPasskeys().some(key => key.rpId === rpID) };
         },
         list(req, res) {

@@ -279,3 +279,27 @@ test('HTTPS browsers distinguish missing passkey configuration from unsupported 
     await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
     await dialog.getByText('This browser does not support passkeys.', { exact: false }).waitFor();
 });
+
+test('passkey sign-in explains an incompatible HTTPS origin and works at the configured address', { timeout: 60000 }, async t => {
+    const { page, context, origin } = await fixture(t, false, { https: true });
+    const password = secret();
+    await completeSetup(page, password);
+    const device = await virtualAuthenticator(context, page);
+    const dialog = await openPasskeys(page);
+    await addPasskey(dialog, password, 'Laptop');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    const alternate = new URL(origin);
+    alternate.hostname = '127.0.0.1';
+    await page.goto(alternate.origin);
+    assert.equal(await page.evaluate(() => isSecureContext), true);
+    const button = page.getByRole('button', { name: 'Sign in with a passkey', exact: true });
+    await button.waitFor();
+    assert.equal(await button.isDisabled(), true);
+    await page.getByText('Passkeys are configured for a different address.', { exact: false }).waitFor();
+    assert((await page.locator('.login-card').innerText()).includes(origin));
+    await page.goto(origin);
+    await page.getByRole('button', { name: 'Sign in with a passkey', exact: true }).click();
+    await page.locator('.shell').waitFor();
+    await device.cdp.detach();
+});
