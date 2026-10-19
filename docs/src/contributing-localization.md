@@ -62,6 +62,12 @@ backend environment, restart the backend, and select the language in the UI.
 A matching frontend locale file must exist. Preview availability does not
 change the translation authorship and review requirements above.
 
+Spanish (Spain) is available as a partial, opt-in preview catalog. Set
+`CADDY_UI_ADDITIONAL_LANGUAGES=es-es` on the backend, restart it, and select
+Spanish (Spain) in the UI language picker. Only human-reviewed strings are
+included; missing translations fall back to English. This catalog is separate
+from Mexican Spanish (`es-mx`) and is not enabled by default.
+
 Default availability is an explicit maintainer decision, recorded in
 `REVIEWED_LANGUAGES` in `src/backend/src/languages.js`; it is not inferred from
 translation coverage. Bundled fonts load automatically when their language is
