@@ -1,41 +1,29 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.0.2. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.1.1. Do not edit directly. -->
 
 # caddy/ui — Backend
 
-The API backend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-frontend), a web interface for managing your [Caddy](https://caddyserver.com) server. Built with Node.js and Express.
+The Node.js/Express API backend for caddy/ui.
 
 > This is the **backend** image. You will also need the [frontend image](https://hub.docker.com/r/zackwag/caddy-ui-frontend).
 
 ## Overview
 
-caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker containers alongside your Caddy instance(s) and communicates with Caddy's built-in admin API. Your Caddyfile remains the source of truth — the UI reads from it, writes to it, and never takes ownership away from you. Manage one Caddy server or many from a single interface.
+caddy/ui manages one or more [Caddy](https://caddyserver.com) servers through their admin APIs. It runs as two Docker containers alongside Caddy. Your Caddyfile remains the source of truth: you can edit it directly or through the UI.
 
 ## Features
 
-- Proxies requests to Caddy's admin API (`/config`, `/id`, `/load`)
-- Reads and writes the Caddyfile on disk
-- Runs `caddy validate` via Caddy's `/adapt` admin API endpoint
-- Runs `caddy fmt` and detects Caddy version via `docker exec` into the running Caddy container (requires Docker socket mount)
-- Sorts Caddyfile site blocks on save (public → internal → http)
-- Appends, updates, and removes site blocks when routes are managed via the UI
-- Fetches routes from all HTTP servers with recursive upstream extraction for complex route structures
-- Health checks use Caddy's reverse proxy upstream pool API as primary source, with TCP fallback for upstreams not yet in the pool
-- Persisted per-upstream uptime history with a configurable retention window (default 7 days)
-- Push notifications via ntfy, Discord, Slack, Pushover, or custom webhook — triggered on upstream offline/online and cert expiry
-- Configurable notification debounce to suppress repeat alerts
-- Reads TLS certificate files from disk and parses expiry dates
-- Detects and deletes orphaned, superseded, and expired certificates (resolves issuer directory automatically)
-- Root CA cert download via Caddy's `/pki/ca/local` admin API
-- Automatic Caddyfile snapshots on every save with configurable retention
-- Tails and streams access logs via SSE
-- Parses and updates log configuration in the global Caddyfile block
-- Persists server labels and route notes to disk
-- Cookie-session authentication and CSRF protection for management endpoints
-- Caddy process info and HTTP metrics via Prometheus endpoint
-- Metrics enable/disable toggle that modifies the Caddyfile global block
-- Optional public `/api/metrics/raw` endpoint for Prometheus scraping
-- Structured JSON logging with configurable log level via `LOG_LEVEL`
-- Enriched status endpoint with route count, upstream health, and uptime for Homepage widget support
+- Caddy admin API access (`/config`, `/id`, `/load`) and Caddyfile validation via `/adapt`
+- Caddyfile reads/writes, site sorting (public → internal → http), and route block updates
+- Formatting and version detection through `docker exec` in Docker mode (requires the socket mount)
+- Route discovery across HTTP servers, including nested upstreams
+- Upstream pool health checks with TCP fallback, plus persisted upstream/route history (7-day default retention)
+- Notification providers and trigger controls with configurable debounce
+- Certificate expiry checks, orphan/superseded/expired certificate cleanup, and root CA download
+- Caddyfile snapshots on save, live SSE logs, and access-log configuration
+- Persistent server labels, route notes and UI settings
+- Administrator cookie sessions, CSRF protection and scoped read-only integration tokens
+- Caddy process/HTTP metrics, metrics configuration, and optional public Prometheus scraping
+- Structured JSON logs (`LOG_LEVEL`) and status/uptime data for Homepage widgets
 
 ## Quick Start
 
@@ -141,7 +129,7 @@ networks:
     driver: bridge
 ```
 
-The backend only needs two volumes: the **Docker socket** (to interact with Caddy containers via `docker exec` and discover new instances) and its own **config directory** (for instance registry, history, and settings). No Caddy volume mounts required — all Caddyfile, log, and certificate operations go through the Docker socket.
+The backend needs only the **Docker socket** for discovery and file operations in Caddy containers, plus its persistent **config directory** for credentials, instances, history and settings. It does not need Caddy's volumes mounted directly.
 <!-- ANCHOR_END: quick-start-compose -->
 
 ### 5. Deploy
@@ -156,9 +144,9 @@ Open `http://your-server:9877` in your browser.
 
 ## Architecture
 <!-- ANCHOR: architecture -->
-caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
+The Nginx frontend proxies API requests to the Node.js/Express backend, which talks to Caddy's admin API.
 
-In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
+Docker mode uses the socket for container discovery and file operations. Local mode supports Caddy outside Docker. The backend's persistent config directory holds credentials, settings and instance data.
 
 ## Environment Variables
 
@@ -229,7 +217,7 @@ If both password and recovery key are lost, stop the backend and restrict networ
 
 Legacy JWTs and `?token=` authentication are removed. Create scoped status/metrics tokens in **API tokens** in the sidebar. Secrets are shown once and stored hashed in `AUTH_PATH`; recovery revokes all. See the [token guide](https://zackwag.github.io/caddy-ui/api-tokens.html) for expiry, revocation and response details.
 
-Send `Authorization: Bearer <token>` and `X-Instance-Id: <id>`; omitting the latter selects `default`, which must be allowed. Tokens permit reads only. Token management requires a session and CSRF; bearer reads need no CSRF. CORS remains disabled.
+Send `Authorization: Bearer <token>` and `X-Instance-Id: <id>`. Without the header, a token permitting one instance reads that instance; a token permitting several reads `default`, which must be allowed. Tokens permit reads only. Token management requires a session and CSRF; bearer reads need no CSRF. CORS remains disabled.
 
 For a cookie-aware client, first fetch `/api/auth/csrf`, preserve its cookie and send the returned token as `X-CSRF-Token` on every write, including login, setup, recovery and logout. After a session change, fetch a fresh token. A rejected write is never automatically replayed by the UI.
 
@@ -312,57 +300,8 @@ The status endpoint returns enriched data for [Homepage](https://gethomepage.dev
 ```
 
 ## API Endpoints
-<!-- ANCHOR: api-endpoints -->
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/auth/sessions` | Authenticate and set a session cookie (CSRF required) |
-| `DELETE` | `/api/auth/sessions/current` | Revoke the current session (CSRF required) |
-| `GET` | `/api/auth/csrf` | Obtain the CSRF token for the current or a new pre-login context |
-| `POST` | `/api/auth/setup` | Initialize stored credentials once and return a recovery key (CSRF required) |
-| `POST` | `/api/auth/recovery` | Reset password using a recovery key and rotate that key (CSRF required) |
-| `GET` | `/api/auth/tokens` | List token metadata (management session only) |
-| `POST` | `/api/auth/tokens` | Create a read-only integration token (session + CSRF) |
-| `DELETE` | `/api/auth/tokens/:id` | Revoke an integration token (session + CSRF) |
-| `GET` | `/api/auth/status` | Read authentication, enrollment and session state without credentials |
-| `GET` | `/api/metrics` | Parsed HTTP metrics for the Metrics tab |
-| `GET` | `/api/metrics/config` | Check if Caddy metrics directive is enabled |
-| `PUT` | `/api/metrics/config` | Enable or disable Caddy metrics directive |
-| `GET` | `/api/metrics/raw` | Raw Prometheus metrics (public if `CADDY_UI_PUBLIC_METRICS=true`) |
-| `GET` | `/api/status` | Server status, route count, upstream health, and uptime |
-| `GET` | `/api/status/caddy-config` | Full raw Caddy JSON config |
-| `GET` | `/api/status/process` | Caddy process info including version |
-| `GET` | `/api/caddyfile` | Read Caddyfile from disk |
-| `GET` | `/api/caddyfile?download=true` | Download Caddyfile as a timestamped attachment |
-| `PUT` | `/api/caddyfile` | Save, validate, format, and reload |
-| `POST` | `/api/caddyfile/validations` | Validate (and optionally format) without saving |
-| `POST` | `/api/caddyfile/reloads` | Reload Caddy from disk |
-| `GET` | `/api/caddyfile/history` | List all Caddyfile snapshots |
-| `GET` | `/api/caddyfile/history/:filename` | Read a specific snapshot |
-| `DELETE` | `/api/caddyfile/history/:filename` | Delete a snapshot |
-| `GET` | `/api/routes` | List all routes across all HTTP servers |
-| `POST` | `/api/routes` | Add a reverse proxy route |
-| `PATCH` | `/api/routes/:id` | Update a UI-managed route by ID |
-| `DELETE` | `/api/routes/:id` | Remove a route and its Caddyfile block |
-| `GET` | `/api/route-notes` | Read all route notes |
-| `PUT` | `/api/route-notes/:domain` | Set or clear a route note |
-| `GET` | `/api/health` | Live upstream check via Caddy pool API with TCP fallback (not recorded in uptime history) |
-| `GET` | `/api/health/uptime` | Uptime stats per upstream from persisted history, sampled every 30 seconds by the backend |
-| `GET` | `/api/health/history` | Raw timestamped checks for one upstream, for the route status history view |
-| `GET` | `/api/tls` | List all certificates with expiry and status |
-| `DELETE` | `/api/tls/:domain` | Delete an orphaned, superseded, or expired internal cert |
-| `GET` | `/api/tls/ca` | Download Caddy's root CA certificate |
-| `GET` | `/api/logs` | Last 200 lines of the access log |
-| `GET` | `/api/logs/stream` | SSE stream of live log output |
-| `GET` | `/api/logs/config` | Read log configuration |
-| `PUT` | `/api/logs/config` | Update log configuration |
-| `GET` | `/api/server-names` | Read server labels for the selected instance |
-| `GET` | `/api/server-names/all` | Read server labels for every instance |
-| `PUT` | `/api/server-names/:id` | Set a server label |
-| `DELETE` | `/api/server-names/:id` | Remove a server label |
-| `GET` | `/api/notifications/config` | Read notification settings |
-| `PUT` | `/api/notifications/config` | Update notification settings |
-| `POST` | `/api/notifications/test` | Send a test notification |
+See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoints and authentication requirements.
 
 ## Image Tags
 

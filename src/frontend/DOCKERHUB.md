@@ -1,30 +1,29 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.0.2. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.1.1. Do not edit directly. -->
 
 # caddy/ui — Frontend
 
-The web frontend for [caddy/ui](https://hub.docker.com/r/zackwag/caddy-ui-backend), a web interface for managing your [Caddy](https://caddyserver.com) server. Built with React and served via Nginx.
+The React frontend for caddy/ui, served by Nginx.
 
 > This is the **frontend** image. You will also need the [backend image](https://hub.docker.com/r/zackwag/caddy-ui-backend).
 
 ## Overview
 
-caddy/ui is a self-hosted management interface for Caddy. It runs as two Docker containers alongside your Caddy instance(s) and communicates with Caddy's built-in admin API. Your Caddyfile remains the source of truth — the UI reads from it, writes to it, and never takes ownership away from you. Manage one Caddy server or many from a single interface.
+caddy/ui manages one or more [Caddy](https://caddyserver.com) servers through their admin APIs. It runs as two Docker containers alongside Caddy. Your Caddyfile remains the source of truth: you can edit it directly or through the UI.
 
 ## Features
 
-- **Dashboard** — Live server status, TLS state, an HTTP servers table (label, Server ID, listen address, route count) with optional labels, upstream health overview, and Caddy process info (version, uptime, memory, last reload)
-- **Caddyfile Editor** — Edit your Caddyfile with [real Caddyfile-grammar syntax highlighting](https://zackwag.github.io/caddy-ui/caddyfile.html#caddyfile-syntax-highlighting) (directives, matchers, placeholders, env vars — not a generic nginx approximation), live validation, `caddy fmt` formatting, automatic site block sorting, export/import, and full version history with inline preview and one-click rollback
-- **Route Manager** — View all reverse proxy routes across all HTTP servers, with a live health-status column (hover for uptime %), search/filter by domain, upstream, note, or server, sortable columns, a column picker to show/hide Title/Upstream/Server/ID, clickable domain and upstream links, edit routes in-place, and per-route notes
-- **TLS Certificates** — View cert status, expiry dates, and sortable columns for all managed domains. Detect and delete orphaned certs. Download Caddy's root CA cert with per-OS install instructions
-- **Access Logs** — Tail live log output with SSE streaming, real-time keyword search, ERROR/WARN/INFO level filters, and log export
-- **Log Configuration** — Enable, disable, and configure Caddy access logging directly from the UI
-- **Metrics** — Request count, RPS, avg response time, status code breakdown, and p50/p95/p99 percentiles powered by Caddy's built-in Prometheus endpoint
-- **Uptime** — On the Metrics tab, uptime %, current state, and a status history timeline for every route's upstream, recorded every 30s in the background. Optional **route checks** also request each site through Caddy every 5 minutes (User-Agent `caddy-ui-route-check`), so a route counts as down when its upstream accepts connections but the site returns 5xx, times out, or serves a certificate a browser would reject (expired, wrong name, or not issued by a trusted CA — Caddy's own local CA is trusted automatically). An offline route shows why its last check failed, and routes that can't be checked meaningfully can be skipped individually. Route checks are off by default because those requests appear in Caddy's access logs and request metrics.
-- **Notifications** — Push alerts via ntfy, Discord, Slack, Pushover, or custom webhook when upstreams go offline/online, routes go down/recover (with route checks on), or TLS certs are expiring. Configurable debounce and per-trigger opt-in. Self-hosted services on your LAN or Docker network (e.g. `http://ntfy/caddy-alerts`) work as destinations; loopback and link-local addresses are blocked, and redirects aren't followed, so configure the final URL
-- **26 Themes + Custom Themes** — Choose from 13 dark and 13 light palettes (VT2026, Dracula, Nord, Catppuccin, Tokyo Night, Gruvbox, One Dark Pro, Solarized, Material, GitHub, Ayu, Night Owl, Metro, and more), or drop your own into [`THEMES_PATH`](https://zackwag.github.io/caddy-ui/themes.html#custom-themes) for a fully custom palette. Pick one palette for dark mode and one for light mode, then toggle between them with one click. First-run welcome modal helps new users choose. Preferences stored server-side in `settings.json`
-- **URL-Based Navigation** — Full browser history support, bookmarkable URLs, and deep links (e.g. `/routes?filter=srv0`)
+- **Dashboard** — Server and TLS status, HTTP server labels/listeners/route counts, upstream health, and Caddy version, uptime, memory and reload information
+- **Caddyfile Editor** — [Caddyfile grammar highlighting](https://zackwag.github.io/caddy-ui/caddyfile.html#caddyfile-syntax-highlighting), live validation, `caddy fmt`, site sorting, import/export, and version history with previews and rollback
+- **Route Manager** — Routes across HTTP servers, health and uptime, search, sortable/configurable columns, domain/upstream links, inline editing and notes
+- **TLS Certificates** — Certificate status and expiry, orphan cleanup, and root CA download with OS installation instructions
+- **Logs** — Live SSE streaming, keyword/severity filters, export, and access-log configuration
+- **Metrics** — Request counts, RPS, response times, status codes and p50/p95/p99 latency from Caddy's Prometheus endpoint
+- **Uptime** — Upstream state, uptime and history sampled every 30 seconds. Optional route checks request sites through Caddy every 5 minutes (`caddy-ui-route-check`), detecting 5xx responses, timeouts and invalid TLS certificates; Caddy's local CA is trusted automatically. Failures show their cause, and individual routes can be skipped. Route checks default to off because they add access-log entries and request metrics.
+- **Notifications** — ntfy, Discord, Slack, Pushover or custom webhooks for upstream/route state changes and expiring certificates or API tokens, with trigger controls and debounce. Route alerts require route checks. LAN/Docker destinations work; loopback and link-local addresses are blocked, and redirects are not followed.
+- **Themes** — 13 dark and 13 light palettes, independent dark/light selections, a first-run picker, and [custom themes](https://zackwag.github.io/caddy-ui/themes.html#custom-themes) in `THEMES_PATH`. Preferences persist in `settings.json`.
+- **Navigation** — Browser history, bookmarks and filtered deep links (e.g. `/routes?filter=srv0`)
 - **Authentication** — Persistent administrator credentials, cookie sessions, CSRF protection and recovery keys
-- **Multi-Instance** — Manage multiple Caddy instances from a single UI. Auto-discover Caddy containers on your Docker network, add/edit/remove instances from the Instances page, and switch between them with the sidebar instance switcher
+- **Multi-Instance** — Discover Caddy containers, add/edit/remove instances, and switch servers from the sidebar
 - **Mobile Friendly** — Responsive layout with collapsible sidebar
 
 ## Quick Start
@@ -131,7 +130,7 @@ networks:
     driver: bridge
 ```
 
-The backend only needs two volumes: the **Docker socket** (to interact with Caddy containers via `docker exec` and discover new instances) and its own **config directory** (for instance registry, history, and settings). No Caddy volume mounts required — all Caddyfile, log, and certificate operations go through the Docker socket.
+The backend needs only the **Docker socket** for discovery and file operations in Caddy containers, plus its persistent **config directory** for credentials, instances, history and settings. It does not need Caddy's volumes mounted directly.
 <!-- ANCHOR_END: quick-start-compose -->
 
 ### 5. Deploy
@@ -146,9 +145,9 @@ Open `http://your-server:9877` in your browser.
 
 ## Architecture
 <!-- ANCHOR: architecture -->
-caddy/ui runs as two services: a React frontend served by Nginx and a Node.js/Express backend. The frontend proxies API requests to the backend, which communicates with Caddy's admin API.
+The Nginx frontend proxies API requests to the Node.js/Express backend, which talks to Caddy's admin API.
 
-In Docker mode, the backend uses the Docker socket for container discovery and file operations inside Caddy containers. Its persistent configuration directory stores application settings and instance data. Local mode supports Caddy installations outside Docker. The Caddyfile remains the source of truth.
+Docker mode uses the socket for container discovery and file operations. Local mode supports Caddy outside Docker. The backend's persistent config directory holds credentials, settings and instance data.
 
 ## Custom Nginx Config
 
