@@ -48,8 +48,10 @@ describe('notification category isolation', () => {
     });
 
     it('a throwing category does not prevent subsequent categories from running', async () => {
-        // Make certificate checks throw
-        readContainerDir.mockRejectedValue(new Error('simulated cert failure'));
+        // Fail an operation whose error reaches the category scheduler.
+        readContainerDir.mockResolvedValue(['acme']);
+        const { listContainerDir } = await import('../src/containerFs.js');
+        listContainerDir.mockRejectedValue(new Error('simulated cert failure'));
 
         notifications.updateMonitorConfig(cfg());
 
