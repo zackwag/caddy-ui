@@ -205,7 +205,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         while (Date.now() < certDeadline) {
             certRecord = await successful('/tls');
             if (certRecord.response.body.some(cert => cert.domain === 'preview.internal' && cert.status === 'valid')) break;
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
         assert.equal(certRecord.response.body.length, 1);
         assert.equal(certRecord.response.body[0].status, 'valid');
@@ -222,7 +222,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         while (Date.now() < orphanDeadline) {
             orphanRecord = await successful('/tls');
             if (orphanRecord.response.body.some(cert => cert.domain === 'preview.internal' && cert.status === 'orphaned')) break;
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
         const tlsOrphaned = { id: 'tls-internal-orphaned', requests: [orphanRecord] };
         assert.equal(tlsOrphaned.requests[0].response.body[0].status, 'orphaned');
@@ -267,7 +267,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         while (Date.now() < emptyDeadline) {
             noServers = await snapshot('dashboard-empty');
             if (noServers.requests[0].response.body.serverCount === 0) break;
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
         assert.equal(noServers.requests[0].response.body.online, true, JSON.stringify(noServers.requests[0].response.body));
         assert.equal(noServers.requests[0].response.body.serverCount, 0);
