@@ -262,6 +262,15 @@ export default function Notifications({ toast, onUnauth }) {
                         <input
                             type="checkbox"
                             className="config-checkbox"
+                            checked={config.triggers?.apiTokenExpiring ?? true}
+                            onChange={e => updateTriggers({ apiTokenExpiring: e.target.checked })}
+                        />
+                        {t("notifications.apiTokenExpiring")}
+                    </label>
+                    <label className="config-checkbox-label">
+                        <input
+                            type="checkbox"
+                            className="config-checkbox"
                             checked={config.triggers?.updateAvailable ?? true}
                             onChange={e => updateTriggers({ updateAvailable: e.target.checked })}
                         />

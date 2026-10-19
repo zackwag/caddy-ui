@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.0.1. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.0.2. Do not edit directly. -->
 
 # caddy/ui — Frontend
 
@@ -102,7 +102,7 @@ services:
     environment:
       - TZ=America/New_York
       # Optional -- opt into installed preview UI languages (reviewed languages are enabled by default)
-      - CADDY_UI_ADDITIONAL_LANGUAGES=de
+      - CADDY_UI_ADDITIONAL_LANGUAGES=es-es
       # Browser-facing URL: replace your-server with the host you open in your browser.
       # Required for browser writes over plain HTTP; behind HTTPS use the external HTTPS URL.
       - CADDY_UI_EXTERNAL_URL=http://your-server:9877

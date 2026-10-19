@@ -20,6 +20,7 @@ const DEFAULT_CONFIG = {
         upstreamOffline: true,
         upstreamOnline: true,
         certExpiring: true,
+        apiTokenExpiring: true,
         updateAvailable: true,
         // Need route checks on (Metrics page), so they start off
         routeOffline: false,

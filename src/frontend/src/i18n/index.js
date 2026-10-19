@@ -37,6 +37,8 @@ i18n
     .init({
         lng: 'en',
         fallbackLng: 'en',
+        // Match regional resource lookups to the lowercase catalog filenames.
+        lowerCaseLng: true,
         resources: {
             en: {
                 translation: en,

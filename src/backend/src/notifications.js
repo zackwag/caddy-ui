@@ -57,6 +57,10 @@ async function runChecks() {
         if (config.triggers.updateAvailable !== false) {
             await checkForUpdate();
         }
+        // Also newer than some saved configs, so also on by default
+        if (config.triggers.apiTokenExpiring !== false) {
+            await notifyExpiringApiTokens(listApiTokens());
+        }
     } catch (err) {
         logger.error('Notification monitor check failed', { error: err.message });
     }
@@ -71,6 +75,43 @@ async function checkForUpdate() {
     if (!notification || notifiedUpdates.has(notification.key)) return;
     notifiedUpdates.add(notification.key);
     await sendNotification(config, { title: notification.title, message: notification.message, priority: 'default' });
+}
+
+const DAY_MS = 86_400_000;
+
+// API tokens alert once each when this much of their lifetime is left. Tokens
+// issued for no longer than this are short-lived on purpose and skipped, or
+// they'd alert as soon as they were created.
+const TOKEN_EXPIRY_WINDOW_MS = 7 * DAY_MS;
+
+// Each token notifies once (per process), like releases: it can't recover
+// the way an upstream can, so repeating every debounce window would only nag.
+const notifiedTokens = new Set();
+
+// Token metadata (no secrets) from the auth service, supplied by initMonitor.
+let listApiTokens = () => [];
+
+export async function notifyExpiringApiTokens(tokens, now = Date.now()) {
+    for (const token of tokens) {
+        const expiresAt = Date.parse(token.expiresAt);
+        const remaining = expiresAt - now;
+        if (remaining <= 0 || remaining > TOKEN_EXPIRY_WINDOW_MS) continue;
+        if (expiresAt - Date.parse(token.createdAt) <= TOKEN_EXPIRY_WINDOW_MS) continue;
+        if (notifiedTokens.has(token.id)) continue;
+        // Reserve pending deliveries too, so overlapping checks cannot duplicate them.
+        notifiedTokens.add(token.id);
+        try {
+            const days = Math.ceil(remaining / DAY_MS);
+            await sendNotification(config, {
+                title: 'API token expiring',
+                message: `API token "${token.name}" expires in ${days} day${days !== 1 ? 's' : ''} (${new Date(expiresAt).toISOString().slice(0, 10)})`,
+                priority: 'high',
+            });
+        } catch (err) {
+            notifiedTokens.delete(token.id);
+            throw err;
+        }
+    }
 }
 
 // Track previous upstream state to detect transitions
@@ -330,7 +371,8 @@ export async function sendNotification(cfg, { title, message, priority }) {
     }
 }
 
-export async function initMonitor() {
+export async function initMonitor({ apiTokens } = {}) {
+    if (apiTokens) listApiTokens = apiTokens;
     try {
         const { loadConfig } = await import('./routes/notifications.js');
         config = await loadConfig();

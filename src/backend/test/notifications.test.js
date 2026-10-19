@@ -231,3 +231,91 @@ describe('notifyUpstreamChecks', () => {
         }
     });
 });
+
+describe('notifyExpiringApiTokens', () => {
+    const DAY = 86_400_000;
+    const now = Date.parse('2026-10-18T12:00:00Z');
+    const token = (id, lifetimeDays, remainingDays) => ({
+        id, name: `Token ${id}`,
+        createdAt: new Date(now - (lifetimeDays - remainingDays) * DAY).toISOString(),
+        expiresAt: new Date(now + remainingDays * DAY).toISOString(),
+    });
+    const config = enabled => ({
+        enabled, provider: 'ntfy', ntfy: { url: 'http://ntfy/caddy-alerts' }, debounceMinutes: 30,
+        triggers: { upstreamOffline: false, upstreamOnline: false, certExpiring: false, updateAvailable: false, apiTokenExpiring: true },
+    });
+
+    async function load() {
+        vi.resetModules();
+        const notifications = await import('../src/notifications.js');
+        notifications.updateMonitorConfig(config(true));
+        return notifications;
+    }
+
+    beforeEach(() => {
+        sendWebhook.mockReset().mockResolvedValue(undefined);
+    });
+
+    it('alerts once per token when 7 days or less remain', async () => {
+        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
+        try {
+            await notifyExpiringApiTokens([token('a', 90, 6.5)], now);
+            await notifyExpiringApiTokens([token('a', 90, 6.5)], now);
+            expect(sendWebhook).toHaveBeenCalledTimes(1);
+            const [, request] = sendWebhook.mock.calls[0];
+            expect(request.headers.Title).toBe('API token expiring');
+            expect(request.body).toBe('API token "Token a" expires in 7 days (2026-10-25)');
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+
+    it.each(['ntfy responded 500', 'ntfy request timed out'])('retries after delivery fails: %s', async message => {
+        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
+        const tokens = [token('a', 90, 6.5)];
+        const error = new Error(message);
+        sendWebhook.mockRejectedValueOnce(error);
+        try {
+            await expect(notifyExpiringApiTokens(tokens, now)).rejects.toBe(error);
+            await notifyExpiringApiTokens(tokens, now + 30_000);
+            await notifyExpiringApiTokens(tokens, now + 60_000);
+            expect(sendWebhook).toHaveBeenCalledTimes(2);
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+
+    it.each(['success', 'failure'])('suppresses overlapping sends while delivery is pending, then handles %s', async outcome => {
+        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
+        const tokens = [token('a', 90, 6.5)];
+        const error = new Error('ntfy request timed out');
+        let finish;
+        sendWebhook.mockImplementationOnce(() => new Promise((resolve, reject) => {
+            finish = () => outcome === 'success' ? resolve() : reject(error);
+        }));
+        const pending = notifyExpiringApiTokens(tokens, now);
+        const settled = pending.then(() => undefined, err => err);
+        try {
+            await notifyExpiringApiTokens(tokens, now + 30_000);
+            expect(sendWebhook).toHaveBeenCalledTimes(1);
+            finish();
+            expect(await settled).toBe(outcome === 'success' ? undefined : error);
+            await notifyExpiringApiTokens(tokens, now + 60_000);
+            expect(sendWebhook).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 2);
+        } finally {
+            finish();
+            await settled;
+            updateMonitorConfig(config(false));
+        }
+    });
+
+    it('skips tokens outside the window, already expired, or short-lived by choice', async () => {
+        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
+        try {
+            await notifyExpiringApiTokens([token('far', 90, 8), token('gone', 90, -1), token('short', 7, 3)], now);
+            expect(sendWebhook).not.toHaveBeenCalled();
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+});

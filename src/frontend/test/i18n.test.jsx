@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import i18n, { availableLocales, fetchEnabledLanguages, loadLocale } from '../src/i18n/index.js';
 import { additionalFonts } from '../src/i18n/fonts.js';
+import spanish from '../src/i18n/locales/es-es.js';
 
 describe('i18n integration', () => {
     afterEach(async () => {
@@ -31,6 +32,15 @@ describe('i18n integration', () => {
             i18n.removeResourceBundle('en', 'fallback-test');
             i18n.removeResourceBundle('de', 'fallback-test');
         }
+    });
+
+    it('resolves a regional catalog and falls back for its unreviewed keys', async () => {
+        await loadLocale('es-ES');
+
+        expect(i18n.resolvedLanguage).toBe('es-es');
+        expect(i18n.t('test.languageLoaded')).toBe(spanish.test.languageLoaded);
+        expect(i18n.t('common.save')).toBe(spanish.common.save);
+        expect(i18n.t('apiTokens.title')).toBe('API tokens');
     });
 
     it('loads the probe key for every installed locale advertised by the language API', async () => {

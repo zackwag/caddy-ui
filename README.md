@@ -211,7 +211,7 @@ services:
     environment:
       - TZ=America/New_York
       # Optional -- opt into installed preview UI languages (reviewed languages are enabled by default)
-      - CADDY_UI_ADDITIONAL_LANGUAGES=de
+      - CADDY_UI_ADDITIONAL_LANGUAGES=es-es
       # Browser-facing URL: replace your-server with the host you open in your browser.
       # Required for browser writes over plain HTTP; behind HTTPS use the external HTTPS URL.
       - CADDY_UI_EXTERNAL_URL=http://your-server:9877
@@ -299,7 +299,7 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_DATA_PATH` | `/data/caddy` | Path to Caddy's data directory inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
-| `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `de`). Reviewed languages (currently English and Arabic) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
+| `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `es-es` for the partial Spanish (Spain) catalog). Reviewed languages (currently English, Arabic and German) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Missing translations fall back to English. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
 | `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
@@ -371,7 +371,7 @@ If both password and recovery key are lost, stop the backend and restrict networ
 
 Legacy JWTs and `?token=` authentication are removed. Create scoped status/metrics tokens in **API tokens** in the sidebar. Secrets are shown once and stored hashed in `AUTH_PATH`; recovery revokes all. See the [token guide](https://zackwag.github.io/caddy-ui/api-tokens.html) for expiry, revocation and response details.
 
-Send `Authorization: Bearer <token>` and `X-Instance-Id: <id>`; omitting the latter selects `default`, which must be allowed. Tokens permit reads only. Token management requires a session and CSRF; bearer reads need no CSRF. CORS remains disabled.
+Send `Authorization: Bearer <token>` and `X-Instance-Id: <id>`. Without the header, a token permitting one instance reads that instance; a token permitting several reads `default`, which must be allowed. Tokens permit reads only. Token management requires a session and CSRF; bearer reads need no CSRF. CORS remains disabled.
 
 For a cookie-aware client, first fetch `/api/auth/csrf`, preserve its cookie and send the returned token as `X-CSRF-Token` on every write, including login, setup, recovery and logout. After a session change, fetch a fresh token. A rejected write is never automatically replayed by the UI.
 

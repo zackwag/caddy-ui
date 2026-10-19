@@ -18,7 +18,10 @@ export function createApiTokenMiddleware(service) {
             if (!token) throw new AppError('UNAUTHORIZED');
             const scope = apiTokenScope(req.method, req.path);
             if (!scope || !token.scopes.includes(scope)) throw new AppError('FORBIDDEN');
-            const instanceId = req.headers['x-instance-id'] || DEFAULT_INSTANCE_ID;
+            // Without a header, a token for one instance can only mean that
+            // instance; broader tokens keep the documented `default`.
+            const instanceId = req.headers['x-instance-id']
+                || (token.instanceIds.length === 1 ? token.instanceIds[0] : DEFAULT_INSTANCE_ID);
             if (!token.instanceIds.includes(instanceId)) throw new AppError('FORBIDDEN');
             if (!getInstances().some(instance => instance.id === instanceId)) throw new AppError('INSTANCE_SELECTION_INVALID');
             req.apiToken = { ...token, instanceId };

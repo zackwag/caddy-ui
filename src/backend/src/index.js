@@ -157,6 +157,6 @@ const server = app.listen(PORT, error => {
     logger.info(`Available UI fonts`, { languages: getAvailableFonts() });
     // Launchers using IPC can discover an OS-assigned port after it is bound.
     if (process.connected) process.send({ type: 'caddy-ui:listening', port });
-    initMonitor();
+    initMonitor({ apiTokens: () => authentication.apiTokenMetadata() });
     initCaddyfileTitles().then(() => cleanupOrphanedNotes());
 });

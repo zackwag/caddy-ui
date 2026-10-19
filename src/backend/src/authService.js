@@ -43,6 +43,8 @@ export async function createAuthService({ store = createAuthStore(), env = proce
     return {
         sessions,
         verifyApiToken(token) { return store.verifyApiToken(token); },
+        // Token metadata for background monitors, which have no request to authorize.
+        apiTokenMetadata() { return store.listApiTokens(); },
         listApiTokens(req, res) {
             this.requireManagement(req, res);
             return { tokens: store.listApiTokens(), scopes: API_TOKEN_SCOPES };
