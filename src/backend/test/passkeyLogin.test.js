@@ -74,6 +74,18 @@ describe('passkey sign-in', () => {
         expect((await submit(b, f.device.assertion(retry.data, { counter: 2 }))).status).toBe(200);
     });
 
+    it('rejects an expired sign-in challenge without granting a management session', async () => {
+        const f = await fixture();
+        let time = Date.now();
+        const isolated = await authFixture({ env, now: () => time, store: createAuthStore(f.path) });
+        fixtures.push(isolated);
+        const client = authClient(isolated.url);
+        const options = await optionsFor(client);
+        time += 120001;
+        expect((await submit(client, f.device.assertion(options.data))).data.code).toBe('PASSKEY_INVALID');
+        expect((await client.request('/protected')).status).toBe(401);
+    });
+
     it('does not issue a session if counter persistence fails', async () => {
         const f = await fixture();
         const client = authClient(f.url);

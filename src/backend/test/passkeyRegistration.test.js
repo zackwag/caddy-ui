@@ -56,6 +56,24 @@ describe('passkey enrollment and removal', () => {
         expect(listed.data.limit).toBe(3);
     });
 
+    it('denies scoped bearer tokens even when a valid management cookie accompanies the request', async () => {
+        const f = await fixture();
+        const token = await f.store.issueApiToken({ name: 'Automation', scopes: ['status:read'], instanceIds: ['default'], expiresInDays: 30 });
+        const headers = { Authorization: 'Bearer ' + token.token };
+        expect((await f.client.request('/auth/passkeys', { headers })).status).toBe(403);
+        expect((await f.client.request('/auth/passkeys/registration/options', { method: 'POST', headers,
+            body: { name: 'Laptop', currentPassword: f.password } })).status).toBe(403);
+        expect(f.store.listPasskeys()).toEqual([]);
+    });
+
+    it('invalidates an earlier registration authorization when a new password check fails', async () => {
+        const f = await fixture();
+        const options = await optionsFor(f.client, f.password);
+        const response = authenticator().registration(options.data);
+        expect((await optionsFor(f.client, secret())).status).toBe(403);
+        expect((await f.client.request('/auth/passkeys/registration', { method: 'POST', body: response })).data.code).toBe('PASSKEY_INVALID');
+    });
+
     it('rejects wrong origins, RP IDs, missing user verification and malformed attestation', async () => {
         const f = await fixture();
         for (const mutation of [{ origin: 'https://evil.example.com' }, { rpId: 'evil.example.com' }, { verified: false }, { crossOrigin: true }]) {
