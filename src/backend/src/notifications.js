@@ -23,8 +23,8 @@ export function updateMonitorConfig(newConfig) {
 
 function startMonitor() {
     logger.info('Notification monitor started');
-    checkTimer = setInterval(runChecks, CHECK_INTERVAL_MS);
-    runChecks();
+    checkTimer = setInterval(runNotificationCycle, CHECK_INTERVAL_MS);
+    runNotificationCycle();
 }
 
 function stopMonitor() {
@@ -46,23 +46,30 @@ function markSent(key) {
     debounceMap.set(key, Date.now());
 }
 
-async function runChecks() {
+async function runNotificationCategory(category, check) {
+    try {
+        await check();
+    } catch (err) {
+        logger.error('Notification monitor check failed', {
+            category,
+            error: err.message,
+        });
+    }
+}
+
+async function runNotificationCycle() {
     if (!config?.enabled) return;
 
-    try {
-        if (config.triggers.certExpiring) {
-            await checkCerts();
-        }
-        // Missing from configs saved before this trigger existed; on by default
-        if (config.triggers.updateAvailable !== false) {
-            await checkForUpdate();
-        }
-        // Also newer than some saved configs, so also on by default
-        if (config.triggers.apiTokenExpiring !== false) {
-            await notifyExpiringApiTokens(listApiTokens());
-        }
-    } catch (err) {
-        logger.error('Notification monitor check failed', { error: err.message });
+    if (config.triggers.certExpiring) {
+        await runNotificationCategory('certificates', checkCerts);
+    }
+    if (config.triggers.updateAvailable !== false) {
+        await runNotificationCategory('updates', checkForUpdate);
+    }
+    if (config.triggers.apiTokenExpiring !== false) {
+        await runNotificationCategory('api-tokens', () =>
+            notifyExpiringApiTokens(listApiTokens())
+        );
     }
 }
 
