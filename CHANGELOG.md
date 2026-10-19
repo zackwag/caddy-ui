@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.1](https://github.com/zackwag/caddy-ui/compare/v3.2.0...v3.2.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* poll for stopped Caddy status in capture script ([#366](https://github.com/zackwag/caddy-ui/issues/366)) ([a709179](https://github.com/zackwag/caddy-ui/commit/a70917922290005351a566c175eb9370040e8e56))
+
 ## [3.2.0](https://github.com/zackwag/caddy-ui/compare/v3.1.3...v3.2.0) (2026-10-19)
 
 
