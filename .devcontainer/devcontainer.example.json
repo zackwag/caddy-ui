@@ -11,6 +11,7 @@
         "REMOTE_CONTAINERS": "true"
     },
     "forwardPorts": [3001, 5173],
+    "appPort": ["15173:5173"],
     "portsAttributes": {
         "3001": { "label": "caddy-ui backend", "onAutoForward": "silent" },
         "5173": { "label": "caddy-ui frontend", "onAutoForward": "openBrowser" }

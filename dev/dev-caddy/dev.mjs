@@ -91,9 +91,15 @@ try {
         predev.once('exit', code => { children.delete(predev); code === 0 ? resolve() : reject(new Error('Frontend predev failed.')); });
     });
     if (!stopping) {
-        start(process.execPath, ['src/frontend/node_modules/vite/bin/vite.js', 'src/frontend', '--host', '127.0.0.1', '--port', '5173', '--strictPort'], env);
+        // Allow the configured reverse-proxy hostname without disabling Vite's host checks.
+        if (env.CADDY_UI_EXTERNAL_URL) {
+            env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS = [env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS,
+                new URL(env.CADDY_UI_EXTERNAL_URL).hostname].filter(Boolean).join(',');
+        }
+        start(process.execPath, ['src/frontend/node_modules/vite/bin/vite.js', 'src/frontend', '--host', '0.0.0.0', '--port', '5173', '--strictPort'], env);
         await waitFor('http://127.0.0.1:5173');
-        console.log('Caddy UI ready at http://localhost:5173. Ctrl-C stops UI processes; Caddy containers/data remain until explicit cleanup.');
+        console.log('Caddy UI listening on 0.0.0.0:5173 (local: http://localhost:5173). Dev Containers need a published frontend port for access from the Docker host or a reverse proxy.');
+        console.log('Ctrl-C stops UI processes; Caddy containers/data remain until explicit cleanup.');
     }
 } catch (error) {
     console.error(error.message);
