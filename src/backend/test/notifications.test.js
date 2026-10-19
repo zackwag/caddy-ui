@@ -218,6 +218,29 @@ describe('notifyUpstreamChecks', () => {
         }
     });
 
+    it.each([
+        { initial: true, title: 'Upstream offline' },
+        { initial: false, title: 'Upstream recovered' },
+    ])('continues sending $title alerts after one delivery fails', async ({ initial, title }) => {
+        const { notifyUpstreamChecks, updateMonitorConfig } = await load();
+        updateMonitorConfig(config(true));
+        try {
+            await notifyUpstreamChecks(inst, [check('first:3000', initial), check('second:3000', initial)]);
+            sendWebhook.mockRejectedValueOnce(new Error('ntfy responded 500'));
+            const changed = [check('first:3000', !initial), check('second:3000', !initial)];
+
+            await expect(notifyUpstreamChecks(inst, changed)).resolves.toBeUndefined();
+            expect(sendWebhook).toHaveBeenCalledTimes(2);
+            expect(sendWebhook.mock.calls[1][1].headers.Title).toBe(title);
+            expect(sendWebhook.mock.calls[1][1].body).toContain('second:3000');
+
+            await notifyUpstreamChecks(inst, changed);
+            expect(sendWebhook).toHaveBeenCalledTimes(2);
+        } finally {
+            updateMonitorConfig(config(false));
+        }
+    });
+
     it('tracks state while off, so turning alerts on does not report an old transition', async () => {
         const { notifyUpstreamChecks, updateMonitorConfig } = await load();
         await notifyUpstreamChecks(inst, [check('app:3000', true)]);

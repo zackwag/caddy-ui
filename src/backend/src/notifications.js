@@ -141,28 +141,36 @@ export async function notifyUpstreamChecks(inst, checks) {
         const stateKey = `${inst.id}:${check.upstream}`;
         const label = check.domain ? `${instLabel}${check.domain} (${check.upstream})` : `${instLabel}${check.upstream}`;
 
-        if (!check.online && config.triggers.upstreamOffline) {
-            const key = `offline:${stateKey}`;
-            if (!isDebouncedKey(key)) {
-                markSent(key);
-                await sendNotification(config, {
-                    title: 'Upstream offline',
-                    message: `${label} is unreachable`,
-                    priority: 'high',
-                });
+        try {
+            if (!check.online && config.triggers.upstreamOffline) {
+                const key = `offline:${stateKey}`;
+                if (!isDebouncedKey(key)) {
+                    markSent(key);
+                    await sendNotification(config, {
+                        title: 'Upstream offline',
+                        message: `${label} is unreachable`,
+                        priority: 'high',
+                    });
+                }
             }
-        }
 
-        if (check.online && config.triggers.upstreamOnline) {
-            const key = `online:${stateKey}`;
-            if (!isDebouncedKey(key)) {
-                markSent(key);
-                await sendNotification(config, {
-                    title: 'Upstream recovered',
-                    message: `${label} is back online`,
-                    priority: 'default',
-                });
+            if (check.online && config.triggers.upstreamOnline) {
+                const key = `online:${stateKey}`;
+                if (!isDebouncedKey(key)) {
+                    markSent(key);
+                    await sendNotification(config, {
+                        title: 'Upstream recovered',
+                        message: `${label} is back online`,
+                        priority: 'default',
+                    });
+                }
             }
+        } catch (err) {
+            logger.warn('Upstream notification failed', {
+                instance: inst.name,
+                upstream: check.upstream,
+                error: err.message,
+            });
         }
     }
 }
