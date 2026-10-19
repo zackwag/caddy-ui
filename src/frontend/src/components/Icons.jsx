@@ -19,6 +19,10 @@ const PIXEL_PATHS = {
     tls: [
         'M6 1h4v1h2v5h2v8H2V7h2V2h2Zm0 2v4h4V3ZM7 9v3h2V9Z',
     ],
+    // An old-fashioned key with an open bow, long shaft and stepped teeth.
+    key: [
+        'M5 1h4v1h2v4H9v1H8v4h4v1h-2v1h2v2H6V7H5V6H3V2h2Zm0 2v2h4V3Z',
+    ],
     // Block entries keep the visual rhythm of terminal output.
     logs: ['M1 2h3v3H1ZM6 2h9v3H6ZM1 7h3v3H1ZM6 7h7v3H6ZM1 12h3v3H1ZM6 12h9v3H6Z'],
     metrics: ['M2 9h3v5H2ZM7 5h3v9H7ZM12 1h3v13h-3ZM1 14h14v1H1Z'],

@@ -123,7 +123,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
             </nav>
             <div className="nav-footer">
                 {onSecurity && <button type="button" className="nav-item sidebar-signout" onClick={onSecurity}>
-                    <span className="nav-icon"><UtilityIcon name="settings" /></span>{t('security.title')}
+                    <span className="nav-icon"><PixelIcon name="key" /></span>{t('security.title')}
                 </button>}
                 {authEnabled && (
                     <button type="button" className="nav-item sidebar-signout" onClick={onLogout || onUnauth}>
