@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.1.0](https://github.com/zackwag/caddy-ui/compare/v3.0.2...v3.1.0) (2026-10-19)
+
+
+### Features
+
+* add opt-in es-ES translations ([#341](https://github.com/zackwag/caddy-ui/issues/341)) ([8e489de](https://github.com/zackwag/caddy-ui/commit/8e489de4f84bfcc38a04324005835213173752c0))
+* default API token requests to the token's only instance ([#338](https://github.com/zackwag/caddy-ui/issues/338)) ([284e0f4](https://github.com/zackwag/caddy-ui/commit/284e0f4ff4a86892d037827f63652b886141ba3b)), closes [#337](https://github.com/zackwag/caddy-ui/issues/337)
+* notify before API tokens expire ([#336](https://github.com/zackwag/caddy-ui/issues/336)) ([d4396c2](https://github.com/zackwag/caddy-ui/commit/d4396c2368d6c4779e5a0c1457f6a128fe4e4a47)), closes [#335](https://github.com/zackwag/caddy-ui/issues/335)
+
+
+### Code Refactoring
+
+* share configuration reads and upstream checks across requests and monitors ([#334](https://github.com/zackwag/caddy-ui/issues/334)) ([912f6a0](https://github.com/zackwag/caddy-ui/commit/912f6a022625396b4b82fe15313718e362d81e79)), closes [#307](https://github.com/zackwag/caddy-ui/issues/307)
+
 ## [3.0.2](https://github.com/zackwag/caddy-ui/compare/v3.0.1...v3.0.2) (2026-10-19)
 
 
