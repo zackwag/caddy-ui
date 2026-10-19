@@ -8,7 +8,12 @@ export function createAuthRouter(getService = getAuthentication) {
     // Session state, CSRF values and one-time recovery keys must never be cached.
     router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
     router.get('/status', (req, res) => res.json(getService().getAuthState(req)));
-    router.get('/csrf', (req, res) => res.json({ csrfToken: getService().sessions.issueCsrfToken(req, res) }));
+    router.get('/csrf', (req, res) => {
+        if (req.headers['sec-fetch-mode'] === 'navigate') {
+            return res.status(403).json({ code: 'CSRF_NAVIGATION', error: 'This endpoint does not accept navigations' });
+        }
+        res.json({ csrfToken: getService().sessions.issueCsrfToken(req, res) });
+    });
 
     function operation(handler) {
         return async (req, res) => {

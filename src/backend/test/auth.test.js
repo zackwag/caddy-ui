@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, rename, rm } from 'node:fs/promises';
+import http from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { authClient, authFixture } from './fixtures/auth.mjs';
 
@@ -123,5 +124,39 @@ describe('browser authentication HTTP contracts', () => {
         expect((await unauthorized.request('/protected?token=' + secret())).status).toBe(401);
         expect((await client.request('/auth/sessions/current', { method: 'DELETE', headers: { Origin: 'https://attacker.example' } })).status).toBe(403);
         expect((await client.request('/protected')).status).toBe(200);
+    });
+
+    it('rejects navigations to /auth/csrf so a cross-site GET cannot replace the session cookie', async () => {
+        const { url } = await fixture();
+        const client = authClient(url);
+        await setup(client);
+        const oldCookie = client.cookie;
+
+        // Node's fetch enforces the Fetch spec and overrides Sec-Fetch-Mode,
+        // so use http.request to simulate the raw browser navigation header.
+        const parsed = new URL(url + '/api/auth/csrf');
+        const navigation = await new Promise((resolve, reject) => {
+            const req = http.request({ hostname: parsed.hostname, port: parsed.port, path: parsed.pathname, method: 'GET',
+                headers: { 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Site': 'cross-site' },
+            }, res => {
+                const chunks = [];
+                res.on('data', chunk => chunks.push(chunk));
+                res.on('end', () => resolve({ status: res.statusCode, data: JSON.parse(Buffer.concat(chunks).toString()), setCookie: res.headers['set-cookie'] }));
+            });
+            req.on('error', reject);
+            req.end();
+        });
+
+        expect(navigation.status).toBe(403);
+        expect(navigation.data.code).toBe('CSRF_NAVIGATION');
+        expect(navigation.setCookie).toBeUndefined();
+
+        // The authenticated session is still intact
+        expect((await fetch(url + '/api/protected', { headers: { cookie: oldCookie } })).status).toBe(200);
+
+        // A same-origin fetch (no navigate mode) still works
+        const normal = await fetch(url + '/api/auth/csrf');
+        expect(normal.status).toBe(200);
+        expect((await normal.json()).csrfToken).toBeTruthy();
     });
 });
