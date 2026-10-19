@@ -46,30 +46,28 @@ function markSent(key) {
     debounceMap.set(key, Date.now());
 }
 
-async function runNotificationCategory(category, check) {
-    try {
-        await check();
-    } catch (err) {
-        logger.error('Notification monitor check failed', {
-            category,
-            error: err.message,
-        });
-    }
-}
-
 async function runNotificationCycle() {
     if (!config?.enabled) return;
 
+    const categories = [];
     if (config.triggers.certExpiring) {
-        await runNotificationCategory('certificates', checkCerts);
+        categories.push({ category: 'certificates', check: checkCerts });
     }
     if (config.triggers.updateAvailable !== false) {
-        await runNotificationCategory('updates', checkForUpdate);
+        categories.push({ category: 'updates', check: checkForUpdate });
     }
     if (config.triggers.apiTokenExpiring !== false) {
-        await runNotificationCategory('api-tokens', () =>
-            notifyExpiringApiTokens(listApiTokens())
-        );
+        categories.push({ category: 'api-tokens', check: () => notifyExpiringApiTokens(listApiTokens()) });
+    }
+
+    const results = await Promise.allSettled(categories.map(c => c.check()));
+    for (let i = 0; i < results.length; i++) {
+        if (results[i].status === 'rejected') {
+            logger.error('Notification monitor check failed', {
+                category: categories[i].category,
+                error: results[i].reason?.message ?? String(results[i].reason),
+            });
+        }
     }
 }
 
