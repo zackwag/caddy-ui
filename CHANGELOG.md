@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.1.3](https://github.com/zackwag/caddy-ui/compare/v3.1.2...v3.1.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* avoid CodeQL parse error in playground HMR cleanup ([#350](https://github.com/zackwag/caddy-ui/issues/350)) ([ae6dad2](https://github.com/zackwag/caddy-ui/commit/ae6dad27f7a0803abb94e5f0e319da361ced9303))
+* poll for empty server count in capture script ([#360](https://github.com/zackwag/caddy-ui/issues/360)) ([ba4eaec](https://github.com/zackwag/caddy-ui/commit/ba4eaec6852d7d76e9db16830ab283c5debaa099))
+* poll for orphaned certificate status in capture script ([#358](https://github.com/zackwag/caddy-ui/issues/358)) ([04949eb](https://github.com/zackwag/caddy-ui/commit/04949eb404ca477fa95da41770479f6ca5c46cb3))
+
 ## [3.1.2](https://github.com/zackwag/caddy-ui/compare/v3.1.1...v3.1.2) (2026-10-19)
 
 
