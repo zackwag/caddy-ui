@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.2.0](https://github.com/zackwag/caddy-ui/compare/v3.1.3...v3.2.0) (2026-10-19)
+
+
+### Features
+
+* retry failed upstream notifications ([#351](https://github.com/zackwag/caddy-ui/issues/351)) ([23ea7c8](https://github.com/zackwag/caddy-ui/commit/23ea7c8732e761ab802f591d39c9cf2e8c7603d6))
+
+
+### Bug Fixes
+
+* increase capture polling intervals to avoid rate limiting ([#364](https://github.com/zackwag/caddy-ui/issues/364)) ([1deef42](https://github.com/zackwag/caddy-ui/commit/1deef428b939d60c7183cb646d07dc8946d2b1a1))
+
 ## [3.1.3](https://github.com/zackwag/caddy-ui/compare/v3.1.2...v3.1.3) (2026-10-19)
 
 
