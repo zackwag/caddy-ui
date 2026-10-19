@@ -5,6 +5,7 @@ import { authRequest } from "../utils/api.js";
 import AuthSetup from './AuthSetup.jsx';
 import AuthRecovery from './AuthRecovery.jsx';
 import { localizeError } from '../utils/errorMessages.js';
+import { passkeySupport, signInWithPasskey } from '../utils/passkeys.js';
 
 export default function Login({ authState, onLogin, sessionExpired }) {
     const { t } = useTranslation();
@@ -13,6 +14,18 @@ export default function Login({ authState, onLogin, sessionExpired }) {
     const [password, setPassword] = useState("");
     const [error, setError] = useState(sessionExpired ? t("login.sessionExpired") : "");
     const [loading, setLoading] = useState(false);
+    const support = passkeySupport();
+
+    async function passkeyLogin() {
+        setLoading(true);
+        setError('');
+        try {
+            await signInWithPasskey();
+            setPassword('');
+            await onLogin();
+        } catch (error) { setError(localizeError(error, t)); }
+        finally { setLoading(false); }
+    }
 
     const login = async event => {
         event.preventDefault();
@@ -57,7 +70,12 @@ export default function Login({ authState, onLogin, sessionExpired }) {
                 <button className="btn btn-primary btn--full" type="submit" disabled={loading || !username || !password}>
                     {loading ? t("login.signingIn") : t("login.signIn")}
                 </button>
-                {!authState?.setupRequired && <button type="button" className="btn btn--full" onClick={() => setRecovering(true)}>{t('login.forgotPassword')}</button>}
+                {authState?.passkeyLoginAvailable && <>
+                    <button type="button" className="btn btn--full" disabled={loading || !support.secure || !support.supported} onClick={passkeyLogin}>{t('passkeys.signIn')}</button>
+                    {!support.secure ? <p className="auth-help">{t('passkeys.httpsRequired')}</p> :
+                        !support.supported && <p className="auth-help">{t('passkeys.unsupported')}</p>}
+                </>}
+                {!authState?.setupRequired && <button type="button" className="btn btn--full" disabled={loading} onClick={() => setRecovering(true)}>{t('login.forgotPassword')}</button>}
             </form>
         </div>
     );
