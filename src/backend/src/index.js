@@ -32,6 +32,7 @@ import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCheck.js';
 import { startUpstreamMonitor } from './upstreamMonitor.js';
+import { parseTrustedProxies } from './trustedProxies.js';
 import { getAvailableFonts, getEnabledLanguages } from './languages.js';
 
 const authentication = await initializeAuthentication();
@@ -40,7 +41,7 @@ const PORT = process.env.PORT || 3001;
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
 const APP_VERSION = process.env.APP_VERSION || 'dev';
 
-app.set('trust proxy', 1);
+app.set('trust proxy', parseTrustedProxies(process.env.CADDY_UI_TRUSTED_PROXIES));
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
 app.use(diagnosticMiddleware);
@@ -65,6 +66,8 @@ const apiLimiter = rateLimit({
     limit: 200,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
+    // Untrusted forwarding headers are intentionally ignored in direct mode.
+    validate: { xForwardedForHeader: false, forwardedHeader: false },
     message: { error: 'Too many requests, please try again later' },
 });
 
@@ -74,6 +77,7 @@ const authLimiter = rateLimit({
     skip: req => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
     standardHeaders: 'draft-7',
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false, forwardedHeader: false },
     message: { error: 'Too many login attempts, please try again later' },
 });
 

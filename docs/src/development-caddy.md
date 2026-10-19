@@ -53,7 +53,7 @@ On first use, complete administrator setup, or sign in with inherited legacy
 credentials to enroll. Authentication is required, including for local sessions;
 browser writes also require CSRF protection. Automated integration and capture
 fixtures enroll disposable administrators and use real sessions. The harness
-disables update checks. It seeds a default registration only
+disables update checks and proxy trust, so local tests do not inherit deployment-specific forwarding trust. It seeds a default registration only
 when the isolated instances file does not exist, and refreshes that registration's
 address on startup while preserving other UI edits. It never rewrites the registry
 while the backend is running.

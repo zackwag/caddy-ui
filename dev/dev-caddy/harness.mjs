@@ -191,7 +191,8 @@ export class Harness {
 
 export function backendEnvironment(directory, instance) {
     const env = { ...process.env, NODE_ENV: 'development', PORT: '3001', APP_VERSION: 'dev-caddy',
-        CADDY_UI_UPDATE_CHECK: 'false', CADDY_ADMIN_URL: instance.adminUrl, CADDY_CONTAINER_NAME: instance.containerName,
+        CADDY_UI_UPDATE_CHECK: 'false', CADDY_UI_TRUSTED_PROXIES: '',
+        CADDY_ADMIN_URL: instance.adminUrl, CADDY_CONTAINER_NAME: instance.containerName,
         CADDY_CONFIG_PATH: instance.configPath, CADDY_LOG_PATH: instance.logPath, CADDY_DATA_PATH: instance.dataPath };
     for (const [key, file] of Object.entries({ AUTH_PATH: 'auth.json', INSTANCES_PATH: 'instances.json', SETTINGS_PATH: 'settings.json',
         SERVER_NAMES_PATH: 'server-names.json', UPTIME_HISTORY_PATH: 'uptime-history.json',

@@ -141,6 +141,7 @@ test('all backend state overrides are isolated even with inherited production pa
         }
     }
     assert.equal(env.CADDY_UI_UPDATE_CHECK, 'false');
+    assert.equal(env.CADDY_UI_TRUSTED_PROXIES, '');
 });
 
 test('Dev Container network selection is explicit and never mutates the Dev Container', async () => {

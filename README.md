@@ -288,6 +288,7 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `es-es` for the partial Spanish (Spain) catalog). Reviewed languages (currently English, Arabic and German) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Missing translations fall back to English. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
 | `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
+| `CADDY_UI_TRUSTED_PROXIES` | — | Optional comma-separated proxy IPs/CIDRs allowed to supply client addresses for rate limiting and logs. Unset means forwarding headers are ignored. See [client addresses and rate limits](#client-addresses-and-rate-limits). |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
@@ -375,6 +376,16 @@ Startup warns if Secure cookies are not enabled. This is informational; it does 
 Cross-site and same-site Fetch Metadata reject writes. Otherwise, a supplied Origin must match exactly; `Origin: null` is rejected. Without Origin, a supplied Referer must match. GET, HEAD and OPTIONS are unchanged; CORS remains disabled.
 
 Every write also requires `X-CSRF-Token` bound to the current cookie context, including login, setup, recovery and logout. Headerless scripts have no exemption. Tokens rotate with sessions. These controls do not replace network access restrictions or prevent DNS rebinding.
+
+### Client addresses and rate limits
+
+By default, rate limits and request logs use the backend connection's peer address and ignore `X-Forwarded-For`. Direct clients cannot reset their limits by changing forwarding headers. Behind nginx or another reverse proxy, clients share that proxy's rate-limit budget until proxy trust is configured.
+
+For separate client budgets, set `CADDY_UI_TRUSTED_PROXIES` to the proxy addresses the backend actually sees, for example `172.30.0.3` or a narrowly scoped CIDR. IPv4 and IPv6 addresses/CIDRs are supported; boolean values, hop counts and hostnames are rejected at startup. Restart after changing the setting. Prefer stable, specific proxy addresses and keep direct backend access restricted. Do not trust arbitrary clients, entire untrusted networks or a NAT gateway through which untrusted clients can reach the backend.
+
+The bundled nginx replaces incoming `X-Forwarded-For` with its connection's client address. If nginx itself is behind another proxy, requests share that outer proxy's budget unless nginx is configured to establish a verified client address, such as with `set_real_ip_from` and `real_ip_header` for known proxies. Mount a custom nginx configuration for that deployment; do not simply preserve or append arbitrary client-supplied forwarding headers. Every trusted proxy must sanitize the addresses it forwards.
+
+`CADDY_UI_TRUSTED_PROXIES` does not authenticate requests or enable CORS. Origin validation and Secure cookie selection still use `CADDY_UI_EXTERNAL_URL`; forwarding headers do not configure them.
 
 <!-- dockerhub:backend:end -->
 <!-- ANCHOR_END: authentication -->
