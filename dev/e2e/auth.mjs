@@ -1,87 +1,13 @@
 import assert from 'node:assert/strict';
-import { fork } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { once } from 'node:events';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { createServer, request } from 'node:http';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import test, { before } from 'node:test';
-import { chromium } from 'playwright';
-import { createServer as createVite } from 'vite';
-import { backendEnvironment } from '../dev-caddy/harness.mjs';
-import { FixtureScope } from '../integration/lifecycle.mjs';
-import { waitForBackendPort } from '../integration/stack.mjs';
-import { prepareBrowserTests } from './fixture.mjs';
+import { prepareBrowserTests, useAuthBrowserFixture as fixture } from './fixture.mjs';
 
 before(prepareBrowserTests, { timeout: 35000 });
 
-const root = resolve(import.meta.dirname, '../..');
 const secret = () => randomBytes(24).toString('base64url');
 
-// Real backend and frontend, with an empty instance registry: auth needs no Docker.
-async function fixture(t, legacy = false) {
-    const scope = new FixtureScope(t.signal);
-    t.after(() => scope.close());
-    const directory = await scope.acquire(() => mkdtemp(join(tmpdir(), 'caddy-auth-browser-')), value => rm(value, { recursive: true, force: true }));
-    const vite = await scope.acquire(() => createVite({ root: join(root, 'src/frontend'),
-        server: { middlewareMode: true, hmr: false }, cacheDir: join(directory, 'vite-cache'),
-    }), value => value.close());
-    let target;
-    const proxy = await scope.acquire(async () => {
-        const server = createServer((req, res) => {
-            if (!req.url.startsWith('/api/')) return vite.middlewares(req, res);
-            if (!target) { res.writeHead(502); return res.end(); }
-            const upstream = request(target + req.url, { method: req.method, headers: req.headers }, response => {
-                res.writeHead(response.statusCode, response.headers);
-                response.pipe(res);
-            });
-            upstream.on('error', () => { res.writeHead(502); res.end(); });
-            res.on('close', () => upstream.destroy());
-            req.pipe(upstream);
-        });
-        server.listen(0, '127.0.0.1');
-        await once(server, 'listening');
-        return server;
-    }, async value => { value.closeAllConnections(); await new Promise(resolve => value.close(resolve)); });
-    // This is ordinary, non-trustworthy HTTP in Chromium, without security overrides.
-    const origin = new URL(`http://[::ffff:127.0.0.1]:${proxy.address().port}`).origin;
-    const env = { ...backendEnvironment(directory, {}), PORT: '0', CADDY_UI_EXTERNAL_URL: origin,
-        AUTH_PATH: join(directory, 'backend/auth.json') };
-    for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
-    const previous = { username: 'legacy-administrator', password: secret() };
-    if (legacy) Object.assign(env, { CADDY_UI_USER: previous.username, CADDY_UI_PASSWORD: previous.password, JWT_SECRET: secret() });
-    await mkdir(join(directory, 'backend'));
-    await writeFile(env.INSTANCES_PATH, '[]');
-    const metadata = JSON.stringify({ firstTimeRun: false, language: 'en', theme: 'dark', routeColumns: { id: false } });
-    await writeFile(env.SETTINGS_PATH, metadata);
-    let output = '';
-    const backend = await scope.acquire(() => fork(join(root, 'src/backend/src/index.js'), [], { cwd: root, env, silent: true }), async child => {
-        if (child.exitCode !== null || child.signalCode !== null) return;
-        const exited = once(child, 'exit');
-        child.kill('SIGTERM');
-        const timer = setTimeout(() => child.kill('SIGKILL'), 3000);
-        try { await exited; } finally { clearTimeout(timer); }
-    });
-    backend.stdout.on('data', chunk => { output = (output + chunk).slice(-32000); });
-    backend.stderr.on('data', chunk => { output = (output + chunk).slice(-32000); });
-    const failed = new AbortController();
-    backend.once('exit', () => failed.abort(new Error('Backend exited before readiness: ' + output)));
-    target = 'http://127.0.0.1:' + await waitForBackendPort(backend, { signal: AbortSignal.any([scope.signal, failed.signal]) });
-    const browser = await scope.acquire(() => chromium.launch({
-        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
-    }), value => value.close());
-    const context = await scope.acquire(() => browser.newContext({ viewport: { width: 1440, height: 900 } }), value => value.close());
-    const page = await context.newPage();
-    page.setDefaultTimeout(10000);
-    const pageErrors = [];
-    const urls = [];
-    page.on('pageerror', error => pageErrors.push(error.message));
-    page.on('request', req => urls.push(req.url()));
-    t.after(() => assert.deepEqual(pageErrors, []));
-    await page.goto(origin);
-    return { page, context, previous, origin, urls, env, metadata, disconnect() { target = null; } };
-}
 
 async function completeSetup(page, password) {
     await page.getByLabel('Username', { exact: true }).fill('administrator');
@@ -169,7 +95,10 @@ test('Security sections update credentials on HTTP and preserve the current brow
     const tokens = dialog.getByRole('button', { name: 'API tokens', exact: true });
     assert.equal(await user.getAttribute('aria-expanded'), 'true');
     assert.equal(await tokens.getAttribute('aria-expanded'), 'false');
-    assert.equal(await dialog.getByRole('button', { name: 'Auth Coming later', exact: true }).isDisabled(), true);
+    await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    await dialog.getByText('Passkeys need HTTPS.', { exact: false }).waitFor();
+    assert.equal(await dialog.getByRole('button', { name: 'Add passkey', exact: true }).isDisabled(), true);
+    await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
     assert.equal(await dialog.getByLabel('Username', { exact: true }).inputValue(), 'administrator');
     await user.press('Enter');
     assert.equal(await dialog.getByLabel('Username', { exact: true }).isVisible(), false);
@@ -244,4 +173,109 @@ test('backend failure presents a retry screen instead of entering the applicatio
     await page.getByRole('alert').filter({ hasText: 'Could not reach the server' }).waitFor();
     assert.equal(await page.locator('.shell').count(), 0);
     await page.getByRole('button', { name: 'Retry', exact: true }).waitFor();
+});
+
+async function openPasskeys(page) {
+    await page.getByRole('button', { name: 'Security', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Security', exact: true });
+    await dialog.getByRole('button', { name: 'User', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    await dialog.getByText('No passkeys have been added.').or(dialog.getByRole('button', { name: /^Remove / })).first().waitFor();
+    return dialog;
+}
+
+async function virtualAuthenticator(context, page) {
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', { options: {
+        protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true,
+        isUserVerified: true, automaticPresenceSimulation: true,
+    } });
+    return { cdp, authenticatorId };
+}
+
+async function addPasskey(dialog, password, name) {
+    await dialog.getByLabel('Passkey name', { exact: true }).fill(name);
+    await dialog.getByLabel('Confirm your password', { exact: true }).fill(password);
+    await dialog.getByRole('button', { name: 'Add passkey', exact: true }).click();
+    await dialog.getByRole('status').filter({ hasText: 'Passkey added.' }).waitFor();
+}
+
+test('HTTPS passkeys survive a backend replacement, sign in, and require a password for last-key removal', { timeout: 90000 }, async t => {
+    const f = await fixture(t, false, { https: true });
+    const { page, context } = f;
+    assert.equal(await page.evaluate(() => isSecureContext), true);
+    const password = secret();
+    await completeSetup(page, password);
+    const device = await virtualAuthenticator(context, page);
+    let dialog = await openPasskeys(page);
+    await addPasskey(dialog, password, 'Laptop');
+    assert.equal(await dialog.getByLabel('Confirm your password', { exact: true }).inputValue(), '');
+    const persisted = JSON.parse(await readFile(f.env.AUTH_PATH, 'utf8'));
+    assert.equal(persisted.passkeys.credentials.length, 1);
+    assert(!JSON.stringify(persisted).includes(password));
+    await page.setViewportSize({ width: 390, height: 700 });
+    const bounds = await dialog.boundingBox();
+    assert(bounds.x >= 0 && bounds.x + bounds.width <= 390);
+    await dialog.screenshot({ path: '/tmp/caddy-ui-passkeys-mobile.png' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await dialog.screenshot({ path: '/tmp/caddy-ui-passkeys-desktop.png' });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await f.restart();
+    await page.reload();
+    await page.getByRole('button', { name: 'Sign in with a passkey', exact: true }).click();
+    await page.locator('.shell').waitFor();
+    dialog = await openPasskeys(page);
+    await dialog.getByRole('button', { name: 'Remove Laptop', exact: true }).click();
+    await dialog.getByLabel('Password to remove the last passkey').fill(secret());
+    await dialog.getByRole('button', { name: 'Remove passkey', exact: true }).click();
+    await dialog.getByRole('alert').filter({ hasText: 'The current password is incorrect.' }).waitFor();
+    await dialog.getByLabel('Password to remove the last passkey').fill(password);
+    await dialog.getByRole('button', { name: 'Remove passkey', exact: true }).click();
+    await dialog.getByText('No passkeys have been added.').waitFor();
+    assert.equal(JSON.parse(await readFile(f.env.AUTH_PATH, 'utf8')).passkeys.credentials.length, 0);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Sign in with a passkey', exact: true }).count(), 0);
+    await login(page, password);
+    await page.locator('.shell').waitFor();
+    await device.cdp.detach();
+});
+
+test('HTTPS passkey enrollment checks each password, supports multiple authenticators and enforces three keys', { timeout: 90000 }, async t => {
+    const { page, context } = await fixture(t, false, { https: true });
+    const password = secret();
+    await completeSetup(page, password);
+    const dialog = await openPasskeys(page);
+    for (const name of ['Laptop', 'Phone', 'Security key']) {
+        const device = await virtualAuthenticator(context, page);
+        if (name === 'Phone') {
+            await dialog.getByLabel('Passkey name', { exact: true }).fill(name);
+            await dialog.getByLabel('Confirm your password', { exact: true }).fill(secret());
+            await dialog.getByRole('button', { name: 'Add passkey', exact: true }).click();
+            await dialog.getByRole('alert').filter({ hasText: 'The current password is incorrect.' }).waitFor();
+        }
+        await addPasskey(dialog, password, name);
+        await device.cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId: device.authenticatorId });
+        await device.cdp.detach();
+    }
+    await dialog.getByText('You can register up to three passkeys.', { exact: false }).waitFor();
+    assert.equal(await dialog.getByRole('button', { name: 'Add passkey', exact: true }).count(), 0);
+    await dialog.getByRole('button', { name: 'Remove Phone', exact: true }).click();
+    assert.equal(await dialog.getByLabel('Password to remove the last passkey').count(), 0);
+    await dialog.getByRole('button', { name: 'Remove passkey', exact: true }).click();
+    await dialog.getByText('2 of 3 passkeys registered').waitFor();
+});
+
+test('HTTPS browsers distinguish missing passkey configuration from unsupported WebAuthn', { timeout: 60000 }, async t => {
+    const { page } = await fixture(t, false, { https: true, configurePasskeys: false });
+    await completeSetup(page, secret());
+    const dialog = await openPasskeys(page);
+    await dialog.getByText('Passkey setup is incomplete.', { exact: false }).waitFor();
+    assert.equal(await dialog.getByText('Passkeys need HTTPS.', { exact: false }).count(), 0);
+    await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    await page.evaluate(() => { window.PublicKeyCredential = undefined; });
+    await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    await dialog.getByText('This browser does not support passkeys.', { exact: false }).waitFor();
 });
