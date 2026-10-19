@@ -159,6 +159,83 @@ test('existing environment login enrolls credentials without changing installati
     assert.equal(await readFile(env.SETTINGS_PATH, 'utf8'), metadata);
 });
 
+test('Security sections update credentials on HTTP and preserve the current browser session', { timeout: 60000 }, async t => {
+    const { page, context, env, metadata } = await fixture(t);
+    const password = secret();
+    await completeSetup(page, password);
+    await page.getByRole('button', { name: 'Security', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Security', exact: true });
+    const user = dialog.getByRole('button', { name: 'User', exact: true });
+    const tokens = dialog.getByRole('button', { name: 'API tokens', exact: true });
+    assert.equal(await user.getAttribute('aria-expanded'), 'true');
+    assert.equal(await tokens.getAttribute('aria-expanded'), 'false');
+    assert.equal(await dialog.getByRole('button', { name: 'Auth Coming later', exact: true }).isDisabled(), true);
+    assert.equal(await dialog.getByLabel('Username', { exact: true }).inputValue(), 'administrator');
+    await user.press('Enter');
+    assert.equal(await dialog.getByLabel('Username', { exact: true }).isVisible(), false);
+    await user.press('Enter');
+    await tokens.click();
+    await dialog.getByText('No API tokens have been issued.').waitFor();
+    await tokens.click();
+    const save = dialog.getByRole('button', { name: 'Save', exact: true });
+    assert.equal(await save.isDisabled(), true);
+    await dialog.getByLabel('Username', { exact: true }).fill('renamed-admin');
+    await dialog.getByLabel('Current password', { exact: true }).fill(secret());
+    await save.click();
+    await dialog.getByRole('alert').filter({ hasText: 'The current password is incorrect.' }).waitFor();
+    assert.equal(await dialog.getByLabel('Current password', { exact: true }).inputValue(), '');
+    const oldCookie = (await context.cookies()).find(cookie => cookie.name === 'caddy_ui_session').value;
+    await dialog.getByLabel('Current password', { exact: true }).fill(password);
+    const updated = page.waitForResponse(response => response.url().endsWith('/api/auth/credentials') && response.request().method() === 'PATCH');
+    await save.click();
+    assert.equal((await updated).status(), 200);
+    await dialog.getByRole('status').filter({ hasText: 'Administrator credentials updated.' }).waitFor();
+    assert.notEqual((await context.cookies()).find(cookie => cookie.name === 'caddy_ui_session').value, oldCookie);
+    assert.equal(await readFile(env.SETTINGS_PATH, 'utf8'), metadata);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.reload();
+    await page.locator('.shell').waitFor();
+    await page.getByRole('button', { name: 'Security', exact: true }).click();
+    assert.equal(await dialog.getByLabel('Username', { exact: true }).inputValue(), 'renamed-admin');
+    const replacement = secret();
+    await dialog.getByLabel('Current password', { exact: true }).fill(password);
+    await dialog.getByLabel('New password', { exact: true }).fill(replacement);
+    await dialog.getByLabel('Confirm password', { exact: true }).fill(secret());
+    await save.click();
+    await dialog.getByRole('alert').filter({ hasText: 'The passwords do not match.' }).waitFor();
+    await dialog.getByLabel('Confirm password', { exact: true }).fill(replacement);
+    await page.route('**/api/auth/credentials', route => route.request().method() === 'PATCH'
+        ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'AUTH_PERSISTENCE_FAILED' }) })
+        : route.continue());
+    await save.click();
+    await dialog.getByRole('alert').filter({ hasText: 'Credentials could not be saved.' }).waitFor();
+    assert.equal(await dialog.getByLabel('New password', { exact: true }).inputValue(), replacement);
+    assert.equal(await dialog.getByLabel('Current password', { exact: true }).inputValue(), '');
+    await page.unroute('**/api/auth/credentials');
+    await dialog.getByLabel('Current password', { exact: true }).fill(password);
+    await save.click();
+    await dialog.getByRole('status').filter({ hasText: 'Administrator credentials updated.' }).waitFor();
+    assert.equal(await dialog.getByLabel('New password', { exact: true }).inputValue(), '');
+    assert.equal(await dialog.getByLabel('Confirm password', { exact: true }).inputValue(), '');
+    // A token mutation needs a fresh CSRF value after the session was renewed.
+    const nextWrite = await page.evaluate(async () => {
+        const { apiFetch } = await import('/src/utils/api.js');
+        return apiFetch('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'en' }) });
+    });
+    assert.equal(nextWrite.language, 'en');
+    await page.setViewportSize({ width: 390, height: 500 });
+    const bounds = await dialog.boundingBox();
+    assert(bounds.x >= 0 && bounds.x + bounds.width <= 390);
+    assert(bounds.y >= 0 && bounds.y + bounds.height <= 500);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await login(page, password, 'renamed-admin');
+    await page.getByRole('alert').filter({ hasText: 'Login failed' }).waitFor();
+    await login(page, replacement, 'renamed-admin');
+    await page.locator('.shell').waitFor();
+});
+
 test('backend failure presents a retry screen instead of entering the application', { timeout: 30000 }, async t => {
     const { page, disconnect } = await fixture(t);
     await page.getByRole('heading', { name: 'Create administrator' }).waitFor();

@@ -10,6 +10,10 @@ test('the real UI issues, scopes and revokes read-only tokens without relaxing C
     page.on('request', request => urls.push(request.url()));
     await page.getByRole('button', { name: 'Security', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Security', exact: true });
+    await dialog.getByLabel('Username', { exact: true }).fill('renamed-administrator');
+    await dialog.getByLabel('Current password', { exact: true }).fill(stack.credentials.password);
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await dialog.getByRole('status').filter({ hasText: 'Administrator credentials updated.' }).waitFor();
     await dialog.getByRole('button', { name: 'API tokens', exact: true }).click();
     await dialog.getByLabel('Token name').fill('Homepage integration');
     await dialog.getByLabel('Expires after').selectOption('30');
@@ -30,6 +34,9 @@ test('the real UI issues, scopes and revokes read-only tokens without relaxing C
     assert.equal(response.headers()['cache-control'], 'no-store');
     const token = await dialog.getByLabel('API token', { exact: true }).inputValue();
     assert.match(token, /^cui_[A-Za-z0-9_-]{43}$/);
+    assert.equal(await dialog.getByRole('button', { name: 'API tokens', exact: true }).isDisabled(), true);
+    assert.equal(await dialog.getByRole('button', { name: 'User', exact: true }).isDisabled(), true);
+    assert.equal(await dialog.getByLabel('Current password', { exact: true }).isDisabled(), true);
     const request = (path, options = {}) => fetch(stack.url + '/api' + path, {
         ...options, headers: { Authorization: 'Bearer ' + token, ...options.headers },
     });
