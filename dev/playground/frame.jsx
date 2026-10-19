@@ -251,13 +251,17 @@ async function configurePreview(event) {
     scheduleReport();
 }
 window.addEventListener('message', configurePreview);
-import.meta.hot?.dispose(() => {
-    disposed = true;
-    mutations.disconnect(); sizes.disconnect();
-    window.removeEventListener('message', configurePreview);
-    root.unmount(); style.remove();
-    Date.now = realNow;
-    if (HTMLElement.prototype.focus === previewFocus) HTMLElement.prototype.focus = focus;
-    // Keep virtual storage/replay in place until the next module initializes.
-});
+if (import.meta.hot) {
+    // Keep import.meta out of statement-leading position for CodeQL's parser.
+    const hot = import.meta.hot;
+    hot.dispose(() => {
+        disposed = true;
+        mutations.disconnect(); sizes.disconnect();
+        window.removeEventListener('message', configurePreview);
+        root.unmount(); style.remove();
+        Date.now = realNow;
+        if (HTMLElement.prototype.focus === previewFocus) HTMLElement.prototype.focus = focus;
+        // Keep virtual storage/replay in place until the next module initializes.
+    });
+}
 send({ type: 'preview-ready' });
