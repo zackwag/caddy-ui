@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, getInstanceId } from '../utils/api.js';
 import { localizeError } from '../utils/errorMessages.js';
@@ -6,25 +6,16 @@ import { localizeError } from '../utils/errorMessages.js';
 const STATUS_SCOPE = 'status:read';
 const SCOPE_KEYS = { [STATUS_SCOPE]: 'apiTokens.status', 'metrics:read': 'apiTokens.metrics' };
 
-export default function ApiTokens({ onClose, onUnauth }) {
+export default function ApiTokens({ onUnauth, busy, setBusy, issued, setIssued, disabled }) {
     const { t, i18n } = useTranslation();
-    const dialog = useRef(null);
     const [tokens, setTokens] = useState([]);
     const [instances, setInstances] = useState([]);
     const [name, setName] = useState('');
     const [scopes, setScopes] = useState([STATUS_SCOPE]);
     const [instanceIds, setInstanceIds] = useState([]);
     const [days, setDays] = useState(90);
-    const [issued, setIssued] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-
-    useEffect(() => {
-        const element = dialog.current;
-        element.showModal();
-        return () => element.close();
-    }, []);
 
     useEffect(() => {
         let active = true;
@@ -70,9 +61,7 @@ export default function ApiTokens({ onClose, onUnauth }) {
         finally { setBusy(false); }
     }
 
-    return <dialog ref={dialog} className="modal api-tokens-dialog" aria-labelledby="api-tokens-title"
-        onCancel={event => { event.preventDefault(); if (!busy && !issued) onClose(); }}>
-        <h2 className="modal-title" id="api-tokens-title">{t('apiTokens.title')}</h2>
+    return <fieldset className="security-fields" disabled={disabled || busy}>
         <p className="modal-hint">{t('apiTokens.hint')}</p>
         {error && <p className="login-error" role="alert">{error}</p>}
         {loading ? <p>{t('common.loading')}</p> : issued ? <section>
@@ -120,6 +109,5 @@ export default function ApiTokens({ onClose, onUnauth }) {
                 <button className="btn btn-danger" disabled={busy} aria-label={t('apiTokens.revokeNamed', { name: token.name })} onClick={() => revoke(token.id)}>{t('apiTokens.revoke')}</button>
             </li>)}</ul>
         </>}
-        <div className="btn-row flex-end"><button className="btn btn-ghost" disabled={busy || !!issued} onClick={onClose}>{t('common.close')}</button></div>
-    </dialog>;
+    </fieldset>;
 }

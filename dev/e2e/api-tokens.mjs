@@ -8,8 +8,9 @@ test('the real UI issues, scopes and revokes read-only tokens without relaxing C
     const { page, stack } = await useBrowserFixture(t);
     const urls = [];
     page.on('request', request => urls.push(request.url()));
-    await page.getByRole('button', { name: 'API tokens', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'API tokens', exact: true });
+    await page.getByRole('button', { name: 'Security', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Security', exact: true });
+    await dialog.getByRole('button', { name: 'API tokens', exact: true }).click();
     await dialog.getByLabel('Token name').fill('Homepage integration');
     await dialog.getByLabel('Expires after').selectOption('30');
     const selected = dialog.getByRole('group', { name: 'Allowed instances' }).getByRole('checkbox');
@@ -54,7 +55,8 @@ test('the real UI issues, scopes and revokes read-only tokens without relaxing C
     await dialog.getByRole('button', { name: 'I have saved the token' }).click();
     assert.equal(await dialog.getByLabel('API token', { exact: true }).count(), 0);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByRole('button', { name: 'API tokens', exact: true }).click();
+    await page.getByRole('button', { name: 'Security', exact: true }).click();
+    await dialog.getByRole('button', { name: 'API tokens', exact: true }).click();
     await dialog.getByRole('button', { name: 'Revoke Homepage integration' }).waitFor();
     assert.equal((await dialog.innerText()).includes(token), false);
     await dialog.getByRole('button', { name: 'Revoke Homepage integration' }).click();

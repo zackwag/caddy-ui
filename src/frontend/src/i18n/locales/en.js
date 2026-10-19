@@ -111,6 +111,14 @@ export default {
         },
     },
 
+    security: {
+        title: 'Security',
+        user: 'User',
+        auth: 'Auth',
+        comingLater: 'Coming later',
+        authHint: 'TOTP and passkey support is planned for follow-up updates.',
+    },
+
     apiTokens: {
         title: 'API tokens',
         hint: 'Read-only credentials for integrations. Choose specific Caddy instances and permissions. Tokens cannot change configuration, read logs or manage credentials.',

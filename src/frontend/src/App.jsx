@@ -5,7 +5,7 @@ import { UtilityIcon } from "./components/Icons.jsx";
 import { ConfirmDialog, useConfirm } from "./components/Confirm.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import Login from "./components/Login.jsx";
-import ApiTokens from './components/ApiTokens.jsx';
+import SecuritySettings from './components/SecuritySettings.jsx';
 import Logs from "./components/Logs.jsx";
 import Metrics from "./components/Metrics.jsx";
 import Instances from "./components/Instances.jsx";
@@ -56,7 +56,7 @@ export default function App() {
     const [instanceListVersion, setInstanceListVersion] = useState(0);
     const [authState, setAuthState] = useState(null);
     const [authError, setAuthError] = useState(false);
-    const [showApiTokens, setShowApiTokens] = useState(false);
+    const [showSecurity, setShowSecurity] = useState(false);
     const authEnabled = authState?.authEnabled ?? true;
     const authed = Boolean(authState && (!authEnabled || authState.authenticated));
     const [sessionExpired, setSessionExpired] = useState(false);
@@ -77,6 +77,7 @@ export default function App() {
     const { dialog: confirmDialog, confirm, resolve: resolveConfirm } = useConfirm();
 
     const onUnauth = useCallback(() => {
+        setShowSecurity(false);
         resetAuthContext();
         setAuthState(previous => previous ? { ...previous, authenticated: false } : null);
         setSettingsLoaded(false);
@@ -300,7 +301,7 @@ export default function App() {
                         authEnabled={authEnabled}
                         onUnauth={onUnauth}
                         onLogout={logout}
-                        onApiTokens={() => { setSidebarOpen(false); setShowApiTokens(true); }}
+                        onSecurity={() => { setSidebarOpen(false); setShowSecurity(true); }}
                         sidebarOpen={sidebarOpen}
                         setSidebarOpen={setSidebarOpen}
                         selectedInstanceId={instanceKey}
@@ -350,7 +351,7 @@ export default function App() {
                     </div>
                     <Toasts toasts={toast.toasts} />
                     <ConfirmDialog dialog={confirmDialog} resolve={resolveConfirm} />
-                    {showApiTokens && <ApiTokens onClose={() => setShowApiTokens(false)} onUnauth={onUnauth} />}
+                    {showSecurity && <SecuritySettings onClose={() => setShowSecurity(false)} onUnauth={onUnauth} />}
                     {showThemeWelcome && <ThemeWelcome themes={allThemes} languages={enabledLanguages} language={language} onLanguageChange={changeLanguage} onComplete={handleThemeWelcome} />}
                 </div>
             )}

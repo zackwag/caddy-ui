@@ -1426,8 +1426,19 @@ export const css = `
   }
 
   .modal--confirm { width: 380px; }
-  .api-tokens-dialog { color: var(--text); width: 620px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; }
-  .api-tokens-dialog::backdrop { background: var(--scrim); }
+  .security-dialog { color: var(--text); width: 620px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; }
+  .security-dialog::backdrop { background: var(--scrim); }
+  .security-section { border-top: 1px solid var(--border); }
+  .security-section h3 { margin: 0; font-size: 13px; }
+  .security-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 16px 0; color: var(--text); background: none; border: 0; font: inherit; text-align: start; cursor: pointer; }
+  .security-toggle:disabled { color: var(--muted); cursor: default; }
+  .security-toggle[aria-expanded="true"] > svg { transform: rotate(180deg); }
+  .security-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .security-section-body { padding-bottom: 20px; }
+  .security-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .security-fields:disabled { opacity: .65; }
+  .security-planned { padding-bottom: 12px; }
+  .security-saved { color: var(--accent); margin-bottom: 16px; }
   .api-token-options { border: 1px solid var(--border); padding: 8px 12px; margin: 12px 0; min-width: 0; }
   .api-token-options .auth-ack span { min-width: 0; overflow-wrap: anywhere; }
   .api-token-list { list-style: none; padding: 0; overflow-wrap: anywhere; }
