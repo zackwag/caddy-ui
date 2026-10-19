@@ -6,6 +6,7 @@
     - [Architecture](architecture.md)
 - [Quickstart](setup.md)
 - [Configuration](configuration.md)
+    - [Security and passkeys](passkeys.md)
     - [Instances](instances.md)
     - [Custom themes](themes.md)
     - [Caddyfile behavior](caddyfile.md)

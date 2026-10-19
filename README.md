@@ -287,13 +287,13 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `es-es` for the partial Spanish (Spain) catalog). Reviewed languages (currently English, Arabic and German) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Missing translations fall back to English. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
-| `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
+| `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes. An HTTPS URL is required for passkeys; never inferred from proxy headers. |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
 | `CADDY_UI_UPDATE_CHECK_URL` | `https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json` | Where the update check reads published image versions from |
 | `CADDY_UI_USER` | — | Legacy username for credential enrollment; ignored after stored credentials are initialized |
-| `AUTH_PATH` | `/etc/caddy-ui/auth.json` | Persistent administrator credential/recovery hashes. Keep on a writable persistent volume, separate from UI settings. |
+| `AUTH_PATH` | `/etc/caddy-ui/auth.json` | Persistent administrator credential/recovery hashes and passkey records. Keep on a writable persistent volume, separate from UI settings. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
 | `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://zackwag.github.io/caddy-ui/instances.html#multi-instance)) |
@@ -346,9 +346,11 @@ Passwords and recovery keys are stored as salted scrypt hashes in `AUTH_PATH`, w
 
 The browser receives a host-only, HttpOnly, SameSite=Strict cookie scoped to `/api`. It does not store authentication tokens in localStorage or URLs. Management sessions expire after 24 hours; enrollment and pre-login contexts expire after 10 minutes. Sessions are process-local: restarting the backend signs everyone out. Logout revokes the session on the server, including its live log streams.
 
-Open **Security → User** to change the administrator username or password. The current password is required; leave the new password blank to change only the username. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged. **Auth** is a disabled preview for future TOTP/passkey support.
+Open **Security → User** to change the administrator username or password. The current password is required; leave the new password blank to change only the username. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens, passkeys and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged.
 
-Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
+**Security → Auth** supports up to three passkeys. Adding one always requires your current password; deleting the last one also requires it. Passkeys need HTTPS and a matching `CADDY_UI_EXTERNAL_URL`. Records persist in `AUTH_PATH` across container rebuilds when its volume is retained. Password login remains available. See the [passkey guide](https://zackwag.github.io/caddy-ui/passkeys.html) for browser requirements and recovery. TOTP is a separate follow-up.
+
+Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session, API token and passkey. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
 
 If both password and recovery key are lost, stop the backend and restrict network access before removing only `AUTH_PATH` to repeat credential setup. Remove obsolete legacy auth variables as well, or those credentials will be required for enrollment. Do not remove the settings directory or Caddyfile. Restore normal access only after setup is complete.
 
@@ -470,7 +472,13 @@ See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoin
 | `GET` | `/api/auth/csrf` | Obtain the CSRF token for the current or a new pre-login context |
 | `POST` | `/api/auth/setup` | Initialize stored credentials once and return a recovery key (CSRF required) |
 | `GET` | `/api/auth/credentials` | Read the administrator username (management session required) |
-| `PATCH` | `/api/auth/credentials` | Update `username` and/or `password`, requiring `currentPassword`, a management session and CSRF; renews this session and revokes old sessions, preserving API tokens and recovery |
+| `PATCH` | `/api/auth/credentials` | Update `username` and/or `password`, requiring `currentPassword`, a management session and CSRF; renews this session and revokes old sessions, preserving API tokens, passkeys and recovery |
+| `GET` | `/api/auth/passkeys` | List passkey metadata and HTTPS configuration (management session required) |
+| `POST` | `/api/auth/passkeys/registration/options` | Begin registration with `name` and `currentPassword` (management session + CSRF) |
+| `POST` | `/api/auth/passkeys/registration` | Verify and persist a registration response (management session + CSRF) |
+| `POST` | `/api/auth/passkeys/authentication/options` | Begin discoverable passkey sign-in (anonymous context + CSRF) |
+| `POST` | `/api/auth/passkeys/authentication` | Verify a signed assertion and issue a management session (anonymous context + CSRF) |
+| `DELETE` | `/api/auth/passkeys/:id` | Remove a passkey; `currentPassword` required for the last key; revokes old sessions and renews this one (management session + CSRF) |
 | `POST` | `/api/auth/recovery` | Reset password using a recovery key and rotate that key (CSRF required) |
 | `GET` | `/api/auth/tokens` | List token metadata (management session only) |
 | `POST` | `/api/auth/tokens` | Create a read-only integration token (session + CSRF) |
