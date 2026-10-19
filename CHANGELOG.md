@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.2](https://github.com/zackwag/caddy-ui/compare/v3.1.1...v3.1.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* isolate notification categories so one failure does not skip the rest ([#349](https://github.com/zackwag/caddy-ui/issues/349)) ([f6bf709](https://github.com/zackwag/caddy-ui/commit/f6bf7093e10d181813231ab6a61bdd82383d1128))
+
 ## [3.1.1](https://github.com/zackwag/caddy-ui/compare/v3.1.0...v3.1.1) (2026-10-19)
 
 
