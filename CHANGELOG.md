@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/zackwag/caddy-ui/compare/v3.0.1...v3.0.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* complete reviewed German translations ([#339](https://github.com/zackwag/caddy-ui/issues/339)) ([c4b0e32](https://github.com/zackwag/caddy-ui/commit/c4b0e32a59917d84e769721cc83254bc1cfd4ee5))
+
 ## [3.0.1](https://github.com/zackwag/caddy-ui/compare/v3.0.0...v3.0.1) (2026-10-18)
 
 
