@@ -281,10 +281,22 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         assert.deepEqual(instancesEmpty.requests[0].response.body, []);
         activeSocket = socketPath;
         await harness.stop('preview');
-        const stopped = await snapshot('dashboard-stopped');
+        let stopped;
+        const stoppedDeadline = Date.now() + 15000;
+        while (Date.now() < stoppedDeadline) {
+            stopped = await snapshot('dashboard-stopped');
+            if (stopped.requests[0].response.body.online === false) break;
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
         assert.equal(stopped.requests[0].response.body.online, false);
         assert.equal(stopped.requests[0].response.body.code, 'CADDY_STATUS_UNAVAILABLE');
-        const sidebarStopped = await sidebarSnapshot('sidebar-stopped');
+        let sidebarStopped;
+        const sidebarStoppedDeadline = Date.now() + 15000;
+        while (Date.now() < sidebarStoppedDeadline) {
+            sidebarStopped = await sidebarSnapshot('sidebar-stopped');
+            if (sidebarStopped.requests[3].response.body.online === false) break;
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
         assert.equal(sidebarOnline.requests[3].response.body.online, true);
         assert.equal(sidebarStopped.requests[3].response.body.online, false);
         const { stdout: commit } = await exec('git', ['rev-parse', 'HEAD'], { cwd: root });
