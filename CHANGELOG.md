@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.1](https://github.com/zackwag/caddy-ui/compare/v3.1.0...v3.1.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* reject navigations to /api/auth/csrf to prevent session replacement ([#353](https://github.com/zackwag/caddy-ui/issues/353)) ([2a347e9](https://github.com/zackwag/caddy-ui/commit/2a347e9c3b2ec4491e431cc018da0bb152843f92)), closes [#286](https://github.com/zackwag/caddy-ui/issues/286)
+
 ## [3.1.0](https://github.com/zackwag/caddy-ui/compare/v3.0.2...v3.1.0) (2026-10-19)
 
 
