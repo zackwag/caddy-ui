@@ -36,8 +36,8 @@ async function csrfToken() {
     return csrfRequest;
 }
 
-export async function authRequest(path, opts = {}) {
-    try { return await apiFetch('/auth' + path, opts); }
+export async function authRequest(path, opts = {}, onUnauth) {
+    try { return await apiFetch('/auth' + path, opts, onUnauth); }
     finally { csrfRequest = undefined; }
 }
 

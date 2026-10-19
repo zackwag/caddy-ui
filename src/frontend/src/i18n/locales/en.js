@@ -47,6 +47,7 @@ export default {
         forbidden: 'You do not have permission to perform this operation.',
         csrfInvalid: 'Your request context expired or changed. Retry the action, or reload and sign in again.',
         authPersistenceFailed: 'Credentials could not be saved. Check the authentication storage permissions and available disk space before retrying.',
+        currentPasswordInvalid: 'The current password is incorrect.',
         webhookDestinationBlocked: 'Notifications cannot be sent to loopback or link-local addresses. Use an address the backend reaches over the network, such as a LAN IP or Docker service name.',
         notificationSendFailed: 'Could not send the notification. See the application logs for details.',
         logFileMissing: 'The log file was not found.',
@@ -117,6 +118,11 @@ export default {
         auth: 'Auth',
         comingLater: 'Coming later',
         authHint: 'TOTP and passkey support is planned for follow-up updates.',
+        userHint: 'Update the administrator username or password. Saving signs out other browsers and renews this session. API tokens and your recovery key stay valid.',
+        currentPassword: 'Current password',
+        newPassword: 'New password',
+        passwordHint: 'Leave blank to keep your current password.',
+        saved: 'Administrator credentials updated.',
     },
 
     apiTokens: {

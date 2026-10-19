@@ -55,6 +55,22 @@ describe('cookie authentication client', () => {
         expect(fetch.mock.calls[3][1].headers['X-CSRF-Token']).toBe('signed-in');
     });
 
+    it('refreshes CSRF after credential updates and forwards session expiry to the app', async () => {
+        const onUnauth = vi.fn();
+        vi.stubGlobal('fetch', vi.fn()
+            .mockResolvedValueOnce(json({ csrfToken: 'old-session' }))
+            .mockResolvedValueOnce(json({ username: 'renamed' }))
+            .mockResolvedValueOnce(json({ csrfToken: 'renewed-session' }))
+            .mockResolvedValueOnce(json({ ok: true }))
+            .mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401)));
+        await authRequest('/credentials', { method: 'PATCH' }, onUnauth);
+        await apiFetch('/settings', { method: 'PUT' });
+        expect(fetch.mock.calls[3][1].headers['X-CSRF-Token']).toBe('renewed-session');
+        expect(onUnauth).not.toHaveBeenCalled();
+        await expect(authRequest('/credentials', { method: 'PATCH' }, onUnauth)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+        expect(onUnauth).toHaveBeenCalledOnce();
+    });
+
     it('rejects malformed authentication status instead of trusting cached local state', async () => {
         storage.set('caddy_ui_token', 'obsolete-session');
         storage.set('caddy_ui_auth_enabled', 'false');

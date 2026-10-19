@@ -4,6 +4,7 @@ export const ERROR_MESSAGES = Object.freeze({
     UNAUTHORIZED: 'errors.unauthorized',
     CSRF_INVALID: 'errors.csrfInvalid',
     AUTH_PERSISTENCE_FAILED: 'errors.authPersistenceFailed',
+    CURRENT_PASSWORD_INVALID: 'errors.currentPasswordInvalid',
     FORBIDDEN: 'errors.forbidden',
     WEBHOOK_DESTINATION_BLOCKED: 'errors.webhookDestinationBlocked',
     NOTIFICATION_SEND_FAILED: 'errors.notificationSendFailed',
