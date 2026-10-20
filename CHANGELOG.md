@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.0](https://github.com/zackwag/caddy-ui/compare/v3.5.0...v3.6.0) (2026-10-20)
+
+
+### Features
+
+* attribute saved Caddyfile versions to authenticated identities ([#373](https://github.com/zackwag/caddy-ui/issues/373)) ([57caad0](https://github.com/zackwag/caddy-ui/commit/57caad0a043e3c75cb6886034a8d883d6b56ecc3))
+
 ## [3.5.0](https://github.com/zackwag/caddy-ui/compare/v3.4.0...v3.5.0) (2026-10-20)
 
 
