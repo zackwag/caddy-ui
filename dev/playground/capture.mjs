@@ -177,9 +177,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         const before = (await successful('/caddyfile')).response.body;
         const revised = before + '\n# Localization playground snapshot\n';
         await successful('/caddyfile?fmt=false&sort=false', 'PUT', revised);
-        // Snapshot filenames have second precision. Keep the two saves distinct.
-        await new Promise(resolve => setTimeout(resolve, 1010 - Date.now() % 1000));
-        await successful('/caddyfile?fmt=false&sort=false', 'PUT', revised);
+        // One save retains the previous baseline and commits the saved version.
         const caddyfileHistory = { id: 'caddyfile-history', requests: [await successful('/caddyfile'), await successful('/caddyfile/history')] };
         const entries = caddyfileHistory.requests[1].response.body;
         assert(entries.length >= 2);
