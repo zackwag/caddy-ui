@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.4.0](https://github.com/zackwag/caddy-ui/compare/v3.3.0...v3.4.0) (2026-10-20)
+
+
+### Features
+
+* add HTTPS passkey sign-in and management ([#363](https://github.com/zackwag/caddy-ui/issues/363)) ([ac8ece3](https://github.com/zackwag/caddy-ui/commit/ac8ece3cf5407d088e70910ba1159e9858c36804))
+* derive default route titles from hostnames ([#371](https://github.com/zackwag/caddy-ui/issues/371)) ([5f0d7c3](https://github.com/zackwag/caddy-ui/commit/5f0d7c3443a4d3824c503e053ca980d0ba98d12f))
+* preserve client rate limits through trusted proxies ([#356](https://github.com/zackwag/caddy-ui/issues/356)) ([645df19](https://github.com/zackwag/caddy-ui/commit/645df19b4d6def91aeec5885d84261f1692dfaff))
+
 ## [3.3.0](https://github.com/zackwag/caddy-ui/compare/v3.2.1...v3.3.0) (2026-10-19)
 
 
