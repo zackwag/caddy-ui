@@ -599,7 +599,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                     <td
                                                         className={`col-status${routeStatus.history ? " col-status--clickable" : ""}`}
                                                         title={getHealthTitle(routeStatus)}
-                                                        onClick={() => routeStatus.history && setHistoryModal({ ...routeStatus.history, title: title || domain })}
+                                                        onClick={() => routeStatus.history && setHistoryModal({ ...routeStatus.history, title: note || domain })}
                                                     >{getHealthDot(routeStatus)}</td>
                                                 )}
                                                 <td>
@@ -617,11 +617,11 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                                 );
                                                             }) : <span className="mono">{domain}</span>}
                                                             {maintenance[domain] && <span className="badge badge-muted" style={{ marginLeft: 8, fontSize: 11 }}>{t("routes.maintenance")}</span>}
-                                                            {title && <div className="route-note route-note--mobile">{title}</div>}
+                                                            {title && <div className={`route-note route-note--mobile${!note ? " route-title--fallback" : ""}`}>{title}</div>}
                                                         </div>
                                                     </div>
                                                 </td>
-                                                {columns.title && <td className="col-title cell-muted">{title || "—"}</td>}
+                                                {columns.title && <td className={`col-title cell-muted${title && !note ? " route-title--fallback" : ""}`}>{title || "—"}</td>}
                                                 {columns.upstream && (
                                                     <td>
                                                         {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
