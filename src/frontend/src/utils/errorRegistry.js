@@ -6,6 +6,7 @@ export const ERROR_MESSAGES = Object.freeze({
     AUTH_PERSISTENCE_FAILED: 'errors.authPersistenceFailed',
     CURRENT_PASSWORD_INVALID: 'errors.currentPasswordInvalid',
     PASSKEY_UNAVAILABLE: 'errors.passkeyUnavailable',
+    PASSKEY_IP_UNAVAILABLE: 'errors.passkeyIpUnavailable',
     PASSKEY_INVALID: 'errors.passkeyInvalid',
     PASSKEY_LIMIT: 'errors.passkeyLimit',
     PASSKEY_CANCELLED: 'errors.passkeyCancelled',

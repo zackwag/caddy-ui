@@ -91,7 +91,7 @@ export async function useBrowserFixture(t, options) {
 }
 
 // Real backend and frontend, with an empty instance registry: auth needs no Docker.
-export async function useAuthBrowserFixture(t, legacy = false, { https = false, configurePasskeys = true } = {}) {
+export async function useAuthBrowserFixture(t, legacy = false, { https = false, configurePasskeys = true, httpsHostname = 'localhost' } = {}) {
     const root = resolve(import.meta.dirname, '../..');
     const secret = () => randomBytes(24).toString('base64url');
     const scope = new FixtureScope(t.signal);
@@ -131,7 +131,7 @@ export async function useAuthBrowserFixture(t, legacy = false, { https = false, 
     }), value => value.close());
     // HTTP scenarios use an untrustworthy origin; HTTPS pins only this fixture's certificate.
 
-    const origin = https ? `https://localhost:${proxy.address().port}` : new URL(`http://[::ffff:127.0.0.1]:${proxy.address().port}`).origin;
+    const origin = https ? `https://${httpsHostname}:${proxy.address().port}` : new URL(`http://[::ffff:127.0.0.1]:${proxy.address().port}`).origin;
     const env = { ...backendEnvironment(directory, {}), PORT: '0', CADDY_UI_EXTERNAL_URL: origin,
         AUTH_PATH: join(directory, 'backend/auth.json') };
     if (!configurePasskeys) delete env.CADDY_UI_EXTERNAL_URL;

@@ -201,7 +201,7 @@ async function addPasskey(dialog, password, name) {
     await dialog.getByRole('status').filter({ hasText: 'Passkey added.' }).waitFor();
 }
 
-test('HTTPS passkeys survive a backend replacement, sign in, and require a password for last-key removal', { timeout: 90000 }, async t => {
+test('HTTPS passkeys survive a backend replacement, sign in, and require a password for removal', { timeout: 90000 }, async t => {
     const f = await fixture(t, false, { https: true });
     const { page, context } = f;
     assert.equal(await page.evaluate(() => isSecureContext), true);
@@ -217,9 +217,7 @@ test('HTTPS passkeys survive a backend replacement, sign in, and require a passw
     await page.setViewportSize({ width: 390, height: 700 });
     const bounds = await dialog.boundingBox();
     assert(bounds.x >= 0 && bounds.x + bounds.width <= 390);
-    await dialog.screenshot({ path: '/tmp/caddy-ui-passkeys-mobile.png' });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await dialog.screenshot({ path: '/tmp/caddy-ui-passkeys-desktop.png' });
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await f.restart();
     await page.reload();
@@ -227,10 +225,10 @@ test('HTTPS passkeys survive a backend replacement, sign in, and require a passw
     await page.locator('.shell').waitFor();
     dialog = await openPasskeys(page);
     await dialog.getByRole('button', { name: 'Remove Laptop', exact: true }).click();
-    await dialog.getByLabel('Password to remove the last passkey').fill(secret());
+    await dialog.getByLabel('Password to remove this passkey').fill(secret());
     await dialog.getByRole('button', { name: 'Remove passkey', exact: true }).click();
     await dialog.getByRole('alert').filter({ hasText: 'The current password is incorrect.' }).waitFor();
-    await dialog.getByLabel('Password to remove the last passkey').fill(password);
+    await dialog.getByLabel('Password to remove this passkey').fill(password);
     await dialog.getByRole('button', { name: 'Remove passkey', exact: true }).click();
     await dialog.getByText('No passkeys have been added.').waitFor();
     assert.equal(JSON.parse(await readFile(f.env.AUTH_PATH, 'utf8')).passkeys.credentials.length, 0);
@@ -263,7 +261,11 @@ test('HTTPS passkey enrollment checks each password, supports multiple authentic
     await dialog.getByText('You can register up to three passkeys.', { exact: false }).waitFor();
     assert.equal(await dialog.getByRole('button', { name: 'Add passkey', exact: true }).count(), 0);
     await dialog.getByRole('button', { name: 'Remove Phone', exact: true }).click();
-    assert.equal(await dialog.getByLabel('Password to remove the last passkey').count(), 0);
+    await dialog.getByLabel('Password to remove this passkey').fill(secret());
+    await dialog.getByRole('button', { name: 'Remove passkey', exact: true }).click();
+    await dialog.getByRole('alert').filter({ hasText: 'The current password is incorrect.' }).waitFor();
+    await dialog.getByText('3 of 3 passkeys registered').waitFor();
+    await dialog.getByLabel('Password to remove this passkey').fill(password);
     await dialog.getByRole('button', { name: 'Remove passkey', exact: true }).click();
     await dialog.getByText('2 of 3 passkeys registered').waitFor();
 });
@@ -278,6 +280,35 @@ test('HTTPS browsers distinguish missing passkey configuration from unsupported 
     await page.evaluate(() => { window.PublicKeyCredential = undefined; });
     await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
     await dialog.getByText('This browser does not support passkeys.', { exact: false }).waitFor();
+});
+
+test('IP-literal HTTPS addresses explain why passkeys are unavailable while password login works', { timeout: 60000 }, async t => {
+    const { page } = await fixture(t, false, { https: true, httpsHostname: '127.0.0.1' });
+    const password = secret();
+    await completeSetup(page, password);
+    const dialog = await openPasskeys(page);
+    await dialog.getByText('Passkeys need a hostname,', { exact: false }).waitFor();
+    assert.equal(await dialog.getByRole('button', { name: 'Add passkey', exact: true }).isDisabled(), true);
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.getByText('Passkeys need a hostname,', { exact: false }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Sign in with a passkey', exact: true }).count(), 0);
+    await login(page, password);
+    await page.locator('.shell').waitFor();
+});
+
+test('Auth settings explain an origin mismatch instead of reporting missing configuration', { timeout: 60000 }, async t => {
+    const { page } = await fixture(t, false, { https: true });
+    await completeSetup(page, secret());
+    await page.route('**/api/auth/passkeys', async route => {
+        await route.fulfill({ json: { enabled: true, origin: 'https://configured.example.com',
+            limit: 3, passkeys: [] } });
+    });
+    const dialog = await openPasskeys(page);
+    await dialog.getByText('Passkeys are configured for a different address.', { exact: false }).waitFor();
+    assert((await dialog.innerText()).includes('https://configured.example.com'));
+    assert.equal(await dialog.getByText('Passkey setup is incomplete.', { exact: false }).count(), 0);
+    assert.equal(await dialog.getByRole('button', { name: 'Add passkey', exact: true }).isDisabled(), true);
 });
 
 test('passkey sign-in explains an incompatible HTTPS origin and works at the configured address', { timeout: 60000 }, async t => {

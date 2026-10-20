@@ -71,12 +71,12 @@ export default function Login({ authState, onLogin, sessionExpired }) {
                 <button className="btn btn-primary btn--full" type="submit" disabled={loading || !username || !password}>
                     {loading ? t("login.signingIn") : t("login.signIn")}
                 </button>
+                {authState?.passkeyUnavailableReason === 'ip-address' && <p className="auth-help">{t('errors.passkeyIpUnavailable')}</p>}
                 {authState?.passkeyLoginAvailable && <>
                     <button type="button" className="btn btn--full" disabled={loading || !support.secure || !support.supported || !passkeyOriginMatches} onClick={passkeyLogin}>{t('passkeys.signIn')}</button>
                     {!support.secure ? <p className="auth-help">{t('passkeys.httpsRequired')}</p> :
                         !support.supported ? <p className="auth-help">{t('passkeys.unsupported')}</p> :
-                            !passkeyOriginMatches && <p className="auth-help">{authState.passkeyOrigin ?
-                                t('passkeys.originMismatch', { origin: authState.passkeyOrigin }) : t('errors.passkeyUnavailable')}</p>}
+                            !passkeyOriginMatches && <p className="auth-help">{t('passkeys.originMismatch', { origin: authState.passkeyOrigin })}</p>}
                 </>}
                 {!authState?.setupRequired && <button type="button" className="btn btn--full" disabled={loading} onClick={() => setRecovering(true)}>{t('login.forgotPassword')}</button>}
             </form>

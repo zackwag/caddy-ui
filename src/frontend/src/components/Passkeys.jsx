@@ -54,7 +54,9 @@ export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls 
     }
 
     const unavailable = !support.secure ? t('passkeys.httpsRequired') : !support.supported ? t('passkeys.unsupported')
-        : data && (!data.enabled || data.origin !== window.location.origin) ? t('errors.passkeyUnavailable') : null;
+        : data?.unavailableReason === 'ip-address' ? t('errors.passkeyIpUnavailable')
+            : data && !data.enabled ? t('errors.passkeyUnavailable')
+                : data && data.origin !== window.location.origin ? t('passkeys.originMismatch', { origin: data.origin }) : null;
 
     return <fieldset className="security-fields" disabled={disabled || busy}>
         <h4 className="modal-section-label">{t('passkeys.title')}</h4>
@@ -77,10 +79,10 @@ export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls 
             {removing ? <form onSubmit={remove} className="passkey-remove-form">
                 <p>{t('passkeys.removeConfirm', { name: removing.name })}</p>
                 <p className="modal-hint">{t('passkeys.removeSessions')}</p>
-                {data.passkeys.length === 1 && <div className="field"><label htmlFor="passkey-remove-password">{t('passkeys.removePassword')}</label>
+                <div className="field"><label htmlFor="passkey-remove-password">{t('passkeys.removePassword')}</label>
                     <input id="passkey-remove-password" type="password" required autoComplete="current-password" maxLength={1024}
-                        value={removePassword} onChange={event => setRemovePassword(event.target.value)} /></div>}
-                <div className="btn-row"><button className="btn btn-danger">{t('passkeys.confirmRemove')}</button>
+                        value={removePassword} onChange={event => setRemovePassword(event.target.value)} /></div>
+                <div className="btn-row"><button className="btn btn-danger" disabled={!removePassword}>{t('passkeys.confirmRemove')}</button>
                     <button type="button" className="btn" onClick={() => { setRemoving(null); setRemovePassword(''); }}>{t('common.cancel')}</button></div>
             </form> : data.passkeys.length >= data.limit ? <p className="modal-hint">{t('errors.passkeyLimit')}</p> :
                 <form onSubmit={add}>
