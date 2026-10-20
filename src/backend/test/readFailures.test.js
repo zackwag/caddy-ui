@@ -117,7 +117,8 @@ describe('Caddyfile history list', () => {
         await writeFile(join(historyPath, 'Caddyfile-2026-10-18T12-00-00'), 'a {\n}\n');
         const { status, body } = await request('GET', '/caddyfile/history');
         expect(status).toBe(200);
-        expect(body).toEqual([{ filename: 'Caddyfile-2026-10-18T12-00-00', timestamp: '2026-10-18T12:00:00' }]);
+        expect(body).toEqual([{ filename: 'Caddyfile-2026-10-18T12-00-00', timestamp: '2026-10-18T12:00:00Z',
+            actor: null, parent: null, action: null, outcome: 'unknown' }]);
     });
 
     it.skipIf(isRoot)('reports an unreadable history directory instead of an empty list', async () => {

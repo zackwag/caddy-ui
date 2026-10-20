@@ -174,7 +174,7 @@ router.put('/config', async (req, res) => {
     }
 
     try {
-        await saveCaddyfileChange(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated, { actor: req.actor, action: 'logs.configure' });
     } catch (err) {
         return sendAppError(res, asAppError(err, 'CADDYFILE_WRITE_FAILED', { instanceId: req.instance.id }));
     }

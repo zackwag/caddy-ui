@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'fs/promises';
+import { mkdir, readdir, rename } from 'fs/promises';
 import { dirname, join } from 'path';
 import { caddyLoad, markConfigChanged, withTimeout } from '../caddy.js';
 import { describeReadError, readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
@@ -8,15 +8,16 @@ import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
 import logger from '../logger.js';
 import { AppError, asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
+import { createCaddyfileHistory } from '../caddyfileHistory.js';
+import { getAuthentication } from '../middleware/auth.js';
 
 const router = Router();
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
-const MAX_HISTORY = 20;
+const history = createCaddyfileHistory(HISTORY_PATH);
+const pendingChanges = new Map();
 
 function instanceHistoryDir(instanceId) {
-    return instanceId && instanceId !== DEFAULT_INSTANCE_ID
-        ? join(HISTORY_PATH, instanceId)
-        : HISTORY_PATH;
+    return history.directory(instanceId);
 }
 
 // Snapshots in the root of HISTORY_PATH belong to the 'default' instance. If
@@ -59,35 +60,6 @@ async function migrateLegacyHistory() {
 async function ensureHistoryDir(instanceId) {
     try {
         await mkdir(instanceHistoryDir(instanceId), { recursive: true });
-    } catch { }
-}
-
-async function snapshotCaddyfile(configPath, containerName, instanceId) {
-    try {
-        await ensureHistoryDir(instanceId);
-        const dir = instanceHistoryDir(instanceId);
-        const content = await readContainerFile(containerName, configPath);
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const filename = `Caddyfile-${timestamp}`;
-        await writeFile(join(dir, filename), content, 'utf8');
-        await pruneHistory(instanceId);
-        logger.info(`Caddyfile snapshot created`, { filename, instanceId });
-    } catch (err) {
-        logger.warn(`Failed to snapshot Caddyfile`, { error: err.message });
-    }
-}
-
-async function pruneHistory(instanceId) {
-    try {
-        const dir = instanceHistoryDir(instanceId);
-        const files = await readdir(dir);
-        const sorted = files
-            .filter(f => f.startsWith('Caddyfile-'))
-            .sort()
-            .reverse();
-        for (const file of sorted.slice(MAX_HISTORY)) {
-            await unlink(join(dir, file)).catch(() => { });
-        }
     } catch { }
 }
 
@@ -212,8 +184,8 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 }
 
 // The one path for changing an instance's Caddyfile, so disk and the running
-// config stay in agreement: snapshot the current file into history, write,
-// apply, and restore the previous file if writing or applying fails. `apply`
+// config stay in agreement: preserve the previous file, write, apply and commit
+// the saved version. Restore the previous file if writing or applying fails. `apply`
 // defaults to reloading Caddy from the new content; admin API edits pass their
 // own live change instead. Throws:
 // - CADDYFILE_READ_FAILED / CADDYFILE_WRITE_FAILED: nothing changed
@@ -222,11 +194,21 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 //   file on disk is not what Caddy is running
 // With rollback: false (the editor's force save), a failed apply leaves the
 // new file in place and resolves to { applied: false, error }.
-async function saveCaddyfileChange(instance, content, { apply = () => reloadCaddy(content, instance), rollback = true } = {}) {
+function saveCaddyfileChange(instance, content, options = {}) {
+    const queued = (pendingChanges.get(instance.id) || Promise.resolve()).catch(() => {})
+        .then(() => applyCaddyfileChange(instance, content, options));
+    pendingChanges.set(instance.id, queued);
+    const cleanup = () => { if (pendingChanges.get(instance.id) === queued) pendingChanges.delete(instance.id); };
+    void queued.then(cleanup, cleanup);
+    return queued;
+}
+
+async function applyCaddyfileChange(instance, content, { apply = () => reloadCaddy(content, instance), rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
     const { configPath, containerName, id } = instance;
     const context = { instanceId: id, configPath };
     const previous = await readPreviousCaddyfile(configPath, containerName);
-    if (previous !== null) await snapshotCaddyfile(configPath, containerName, id);
+    try { await history.preserve(id, previous); }
+    catch (cause) { throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context }); }
 
     const restore = async (stage, cause) => {
         try {
@@ -244,15 +226,21 @@ async function saveCaddyfileChange(instance, content, { apply = () => reloadCadd
         throw new AppError('CADDYFILE_WRITE_FAILED', { cause: err, context });
     }
 
+    let result;
     try {
         await apply();
-        return { applied: true };
+        result = { applied: true };
     } catch (err) {
-        if (!rollback) return { applied: false, error: err };
-        await restore('apply', err);
-        logger.warn('Caddy rejected the change, previous Caddyfile restored', { ...context, error: err.message });
-        throw new AppError('CADDYFILE_CHANGE_REJECTED', { cause: err, context });
+        if (!rollback) result = { applied: false, error: err };
+        else {
+            await restore('apply', err);
+            logger.warn('Caddy rejected the change, previous Caddyfile restored', { ...context, error: err.message });
+            throw new AppError('CADDYFILE_CHANGE_REJECTED', { cause: err, context });
+        }
     }
+    try { await history.record(id, content, { actor, action, outcome: result.applied ? 'applied' : 'saved-unapplied' }); }
+    catch (cause) { throw new AppError('CADDYFILE_HISTORY_COMMIT_FAILED', { cause, context: { ...context, applied: result.applied } }); }
+    return result;
 }
 
 function parseSiteBlocks(content) {
@@ -366,21 +354,8 @@ router.get('/', async (req, res) => {
 
 // GET /api/caddyfile/history
 router.get('/history', async (req, res) => {
-    const dir = instanceHistoryDir(req.instance.id);
-    await ensureHistoryDir(req.instance.id);
     try {
-        const files = await readdir(dir);
-        const snapshots = files
-            .filter(f => f.startsWith('Caddyfile-'))
-            .sort()
-            .reverse()
-            .map(filename => {
-                const ts = filename
-                    .replace('Caddyfile-', '')
-                    .replace(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/, '$1T$2:$3:$4');
-                return { filename, timestamp: ts };
-            });
-        res.json(snapshots);
+        res.json(await history.list(req.instance.id, actor => getAuthentication().resolveActor(actor)));
     } catch (err) {
         if (err.code === 'ENOENT') return res.json([]);
         sendAppError(res, asAppError(err, 'CADDYFILE_HISTORY_READ_FAILED', { instanceId: req.instance.id }));
@@ -390,22 +365,20 @@ router.get('/history', async (req, res) => {
 // GET /api/caddyfile/history/:filename
 router.get('/history/:filename', async (req, res) => {
     const { filename } = req.params;
-    if (filename.includes('..') || filename.includes('/')) {
+    if (!history.validFilename(filename)) {
         return res.status(400).json({ error: 'Invalid filename' });
     }
-    const dir = instanceHistoryDir(req.instance.id);
-    const content = await readFile(join(dir, filename), 'utf8');
+    const { content } = await history.read(req.instance.id, filename);
     res.type('text/plain').send(content);
 });
 
 // DELETE /api/caddyfile/history/:filename
 router.delete('/history/:filename', async (req, res) => {
     const { filename } = req.params;
-    if (filename.includes('..') || filename.includes('/')) {
+    if (!history.validFilename(filename)) {
         return res.status(400).json({ error: 'Invalid filename' });
     }
-    const dir = instanceHistoryDir(req.instance.id);
-    await unlink(join(dir, filename));
+    await history.remove(req.instance.id, filename);
     res.json({ ok: true });
 });
 
@@ -500,7 +473,7 @@ router.put('/', async (req, res) => {
     let result;
     try {
         // A force save keeps the file even when Caddy rejects it
-        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation });
+        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: req.actor, action: 'caddyfile.save' });
     } catch (err) {
         if (!(err instanceof AppError)) throw err;
         res.locals.appError = err;

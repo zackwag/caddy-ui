@@ -26,6 +26,8 @@ export const ERROR_MESSAGES = Object.freeze({
     CADDYFILE_CHANGE_REJECTED: 'errors.caddyfileChangeRejected',
     CADDYFILE_ROLLBACK_FAILED: 'errors.caddyfileRollbackFailed',
     CADDYFILE_HISTORY_READ_FAILED: 'errors.caddyfileHistoryReadFailed',
+    CADDYFILE_HISTORY_WRITE_FAILED: 'errors.caddyfileHistoryWriteFailed',
+    CADDYFILE_HISTORY_COMMIT_FAILED: 'errors.caddyfileHistoryCommitFailed',
     CADDY_RELOAD_FAILED: 'errors.caddyReloadFailed',
     INSTANCE_NOT_FOUND: 'errors.instanceNotFound',
     INSTANCE_SELECTION_INVALID: 'errors.instanceSelectionInvalid',

@@ -1,5 +1,8 @@
 import { once } from 'node:events';
 import { mkdtempSync, readdirSync } from 'fs';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { createCaddyfileHistory } from '../src/caddyfileHistory.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import express from 'express';
@@ -52,6 +55,44 @@ beforeEach(() => {
 });
 
 describe('saveCaddyfileChange', () => {
+    it('commits saved content to its actor and serializes concurrent saves', async () => {
+        let release, started;
+        const gate = new Promise(resolve => { release = resolve; });
+        const ready = new Promise(resolve => { started = resolve; });
+        const actor = { type: 'user', id: randomUUID(), name: 'administrator' };
+        const nextActor = { type: 'api-token', id: 'b'.repeat(32), name: 'Automation' };
+        const first = saveCaddyfileChange(instance, 'first committed content', { actor, apply: async () => { started(); await gate; } });
+        await ready;
+        const second = saveCaddyfileChange(instance, 'second committed content', { actor: nextActor });
+        expect(files.get(instance.configPath)).toBe('first committed content');
+        release();
+        await Promise.all([first, second]);
+        const history = createCaddyfileHistory(process.env.HISTORY_PATH);
+        const entries = await history.list('default');
+        expect(entries[0].actor).toEqual(nextActor);
+        expect(entries[1].actor).toEqual(actor);
+        expect(entries[0].parent).toBe(entries[1].filename);
+        expect((await history.read('default', entries[0].filename)).content).toBe('second committed content');
+        expect((await history.read('default', entries[1].filename)).content).toBe('first committed content');
+    });
+
+    it.each([false, true])('reports history storage failure accurately (after apply: %s)', async afterApply => {
+        const root = process.env.HISTORY_PATH;
+        const backup = root + '-backup';
+        const block = async () => { await rename(root, backup); await writeFile(root, 'blocked'); };
+        if (!afterApply) await block();
+        try {
+            await expect(saveCaddyfileChange(instance, 'saved despite history failure', { apply: afterApply ? block : caddyLoad }))
+                .rejects.toMatchObject({ code: afterApply ? 'CADDYFILE_HISTORY_COMMIT_FAILED' : 'CADDYFILE_HISTORY_WRITE_FAILED' });
+            expect(files.get(instance.configPath)).toBe(afterApply ? 'saved despite history failure' : original);
+            if (!afterApply) expect(caddyLoad).not.toHaveBeenCalled();
+            expect((await readFile(root, 'utf8'))).toBe('blocked');
+        } finally {
+            await rm(root);
+            await rename(backup, root);
+        }
+    });
+
     it('writes, reloads, and snapshots the previous file', async () => {
         const before = historyFiles().length;
         await expect(saveCaddyfileChange(instance, 'new.example.com {\n}\n')).resolves.toEqual({ applied: true });
@@ -62,8 +103,11 @@ describe('saveCaddyfileChange', () => {
 
     it('restores the previous file when Caddy rejects the change', async () => {
         caddyLoad.mockRejectedValue(new Error('Caddy API error: 400 adapting config'));
-        await expect(saveCaddyfileChange(instance, 'broken {\n')).rejects.toMatchObject({ code: 'CADDYFILE_CHANGE_REJECTED' });
+        const actor = { type: 'user', id: randomUUID(), name: 'Failed edit' };
+        await expect(saveCaddyfileChange(instance, 'broken {\n', { actor })).rejects.toMatchObject({ code: 'CADDYFILE_CHANGE_REJECTED' });
         expect(files.get(instance.configPath)).toBe(original);
+        const entries = await createCaddyfileHistory(process.env.HISTORY_PATH).list('default');
+        expect(entries.some(entry => entry.actor?.id === actor.id)).toBe(false);
     });
 
     it('applies a custom live change after writing, and restores the file when it fails', async () => {
@@ -105,18 +149,23 @@ describe('saveCaddyfileChange', () => {
         const result = await saveCaddyfileChange(instance, 'forced {\n}\n', { rollback: false });
         expect(result).toMatchObject({ applied: false });
         expect(files.get(instance.configPath)).toBe('forced {\n}\n');
+        const history = createCaddyfileHistory(process.env.HISTORY_PATH);
+        const latest = (await history.list('default'))[0];
+        expect(latest.outcome).toBe('saved-unapplied');
+        expect((await history.read('default', latest.filename)).content).toBe('forced {\n}\n');
     });
 });
 
 describe('API save paths', () => {
     let server;
     let baseUrl;
+    const actor = { type: 'user', id: randomUUID(), name: 'Authenticated administrator' };
 
     beforeAll(async () => {
         const app = express();
         app.use(express.json());
         app.use(express.text({ type: 'text/plain' }));
-        app.use('/api', (req, res, next) => { req.instance = instance; next(); });
+        app.use('/api', (req, res, next) => { req.instance = instance; req.actor = actor; next(); });
         app.use('/api/caddyfile', caddyfileRouter);
         app.use('/api/metrics', metricsRouter);
         app.use('/api/routes', routesRouter);
@@ -195,8 +244,12 @@ describe('API save paths', () => {
 
     it('adds the route to the Caddyfile and to Caddy', async () => {
         caddyGet.mockResolvedValue({ srv0: { listen: [':443'], routes: [] } });
-        expect((await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' })).status).toBe(201);
+        expect((await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000',
+            actor: { type: 'user', id: randomUUID(), name: 'Forged actor' } })).status).toBe(201);
         expect(caddyPost).toHaveBeenCalledTimes(1);
         expect(files.get(instance.configPath)).toContain('app.example.com {');
+        const latest = (await createCaddyfileHistory(process.env.HISTORY_PATH).list('default'))[0];
+        expect(latest.actor).toEqual(actor);
+        expect(latest.action).toBe('route.add');
     });
 });

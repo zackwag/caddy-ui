@@ -215,7 +215,7 @@ router.post('/', async (req, res) => {
     // Written before the live change, so a rejected route restores the file
     // instead of leaving a running route the Caddyfile doesn't have
     try {
-        await saveCaddyfileChange(req.instance, `${caddyfile.trimEnd()}\n\n${block}\n`, { apply: addLive });
+        await saveCaddyfileChange(req.instance, `${caddyfile.trimEnd()}\n\n${block}\n`, { apply: addLive, actor: req.actor, action: 'route.add' });
     } catch (e) {
         if (e instanceof AppError) return sendAppError(res, e);
         throw e;
@@ -271,7 +271,7 @@ router.patch('/caddyfile/:domain', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${finalContent}\n`;
-        await saveCaddyfileChange(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated, { actor: req.actor, action: 'route.edit' });
 
         logger.info('Caddyfile site block updated', { domain });
         res.json({ ok: true, domain });
@@ -294,7 +294,7 @@ router.delete('/caddyfile/:domain', async (req, res) => {
         if (!existing) return res.status(404).json({ error: 'site block not found' });
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
-        await saveCaddyfileChange(req.instance, cleaned);
+        await saveCaddyfileChange(req.instance, cleaned, { actor: req.actor, action: 'route.delete' });
 
         logger.info('Caddyfile site block deleted', { domain });
         res.json({ ok: true, domain });
@@ -333,7 +333,7 @@ router.patch('/:id', async (req, res) => {
         const newBlock = buildCaddyfileBlock({ domain, upstream, stripPrefix });
         const updated = replaceSiteBlock(caddyfile, oldDomain, newBlock, env);
         try {
-            await saveCaddyfileChange(req.instance, updated, { apply: patchLive });
+            await saveCaddyfileChange(req.instance, updated, { apply: patchLive, actor: req.actor, action: 'route.edit' });
         } catch (e) {
             if (e instanceof AppError) return sendAppError(res, e);
             throw e;
@@ -368,7 +368,7 @@ router.delete('/:id', async (req, res) => {
         ]);
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         try {
-            await saveCaddyfileChange(req.instance, cleaned, { apply: deleteLive });
+            await saveCaddyfileChange(req.instance, cleaned, { apply: deleteLive, actor: req.actor, action: 'route.delete' });
         } catch (e) {
             if (e instanceof AppError) return sendAppError(res, e);
             throw e;
@@ -432,7 +432,7 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
-        await saveCaddyfileChange(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated, { actor: req.actor, action: 'maintenance.enable' });
 
         await setMaintenance(req.instance.id, domain, block);
 
@@ -463,7 +463,7 @@ router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
 
         const cleaned = removeSiteBlock(caddyfile, domain, env);
         const updated = `${cleaned.trimEnd()}\n\n${originalContent}\n`;
-        await saveCaddyfileChange(req.instance, updated);
+        await saveCaddyfileChange(req.instance, updated, { actor: req.actor, action: 'maintenance.disable' });
         await clearMaintenance(req.instance.id, domain);
 
         logger.info('Maintenance mode disabled', { domain });

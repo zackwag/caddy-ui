@@ -72,6 +72,8 @@ export default {
         caddyfileChangeRejected: 'Caddy rejected the change, so the previous Caddyfile was restored.',
         caddyfileRollbackFailed: 'Caddy rejected the change and the previous Caddyfile could not be restored. The file on disk does not match what Caddy is running.',
         caddyfileHistoryReadFailed: 'Could not read the Caddyfile history.',
+        caddyfileHistoryWriteFailed: 'Could not preserve the previous Caddyfile in history. Nothing was changed.',
+        caddyfileHistoryCommitFailed: 'The Caddyfile was saved, but its history version could not be recorded. Check the current file and application logs.',
         routeNotesReadFailed: 'Could not read route notes. Saved notes were left unchanged.',
         routeNotesSaveFailed: 'Could not save the route note.',
         caddyReloadFailed: 'Could not reload Caddy.',

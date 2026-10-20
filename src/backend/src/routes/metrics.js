@@ -230,7 +230,7 @@ router.put('/config', async (req, res) => {
             content = content.replace(/^\s*metrics\s*\n?/m, '');
         }
         logger.info(`Metrics config update requested`, { enabled });
-        await saveCaddyfileChange(req.instance, content);
+        await saveCaddyfileChange(req.instance, content, { actor: req.actor, action: 'metrics.configure' });
         logger.info(`Metrics config saved and reloaded`, { enabled });
         res.json({ ok: true, enabled });
     } catch (err) {

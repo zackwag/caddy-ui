@@ -9,6 +9,8 @@ export const ERROR_REGISTRY = Object.freeze({
     CADDYFILE_CHANGE_REJECTED: { status: 422, level: 'warn' },
     CADDYFILE_ROLLBACK_FAILED: { status: 500, level: 'error' },
     CADDYFILE_HISTORY_READ_FAILED: { status: 500, level: 'error' },
+    CADDYFILE_HISTORY_WRITE_FAILED: { status: 500, level: 'error' },
+    CADDYFILE_HISTORY_COMMIT_FAILED: { status: 500, level: 'error' },
     ROUTE_NOTES_READ_FAILED: { status: 500, level: 'error' },
     ROUTE_NOTES_SAVE_FAILED: { status: 500, level: 'error' },
     CADDY_RELOAD_FAILED: { status: 502, level: 'error' },
