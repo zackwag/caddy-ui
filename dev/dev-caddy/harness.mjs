@@ -10,6 +10,11 @@ export const IMAGE = 'caddy:2.10.2-alpine';
 export const STATE = resolve(import.meta.dirname, '../../.dev-caddy');
 const exec = promisify(execFile);
 
+export function devFrontendHost(value = '127.0.0.1') {
+    if (!['127.0.0.1', '0.0.0.0'].includes(value)) throw new Error('CADDY_UI_DEV_HOST must be 127.0.0.1 or 0.0.0.0');
+    return value;
+}
+
 export async function docker(args) {
     const { stdout } = await exec('docker', args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 });
     return stdout.trim();

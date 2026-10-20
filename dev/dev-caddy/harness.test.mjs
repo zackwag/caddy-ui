@@ -3,9 +3,15 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { backendEnvironment, checkDocker, defaultCaddyfile, Harness, LABEL, namespace, validateName, withLock } from './harness.mjs';
+import { backendEnvironment, checkDocker, defaultCaddyfile, devFrontendHost, Harness, LABEL, namespace, validateName, withLock } from './harness.mjs';
 
 const project = '0123456789abcdef';
+test('development UI stays loopback-bound unless wide binding is explicitly requested', () => {
+    assert.equal(devFrontendHost(), '127.0.0.1');
+    assert.equal(devFrontendHost('127.0.0.1'), '127.0.0.1');
+    assert.equal(devFrontendHost('0.0.0.0'), '0.0.0.0');
+    assert.throws(() => devFrontendHost('true'), /CADDY_UI_DEV_HOST/);
+});
 function engine() {
     const containers = new Map();
     const volumes = new Map();

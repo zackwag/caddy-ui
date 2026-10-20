@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { backendEnvironment, checkDocker, Harness, namespace, STATE, withLock } from './harness.mjs';
+import { backendEnvironment, checkDocker, devFrontendHost, Harness, namespace, STATE, withLock } from './harness.mjs';
 import { createExampleInstance } from './examples.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -57,6 +57,7 @@ process.on('SIGINT', () => void shutdown());
 process.on('SIGTERM', () => void shutdown());
 
 try {
+    const frontendHost = devFrontendHost(process.env.CADDY_UI_DEV_HOST);
     await freePort(3001);
     await freePort(5173);
     await checkDocker();
@@ -96,9 +97,9 @@ try {
             env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS = [env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS,
                 new URL(env.CADDY_UI_EXTERNAL_URL).hostname].filter(Boolean).join(',');
         }
-        start(process.execPath, ['src/frontend/node_modules/vite/bin/vite.js', 'src/frontend', '--host', '0.0.0.0', '--port', '5173', '--strictPort'], env);
+        start(process.execPath, ['src/frontend/node_modules/vite/bin/vite.js', 'src/frontend', '--host', frontendHost, '--port', '5173', '--strictPort'], env);
         await waitFor('http://127.0.0.1:5173');
-        console.log('Caddy UI listening on 0.0.0.0:5173 (local: http://localhost:5173). Dev Containers need a published frontend port for access from the Docker host or a reverse proxy.');
+        console.log(`Caddy UI listening on ${frontendHost}:5173 (local: http://localhost:5173). Dev Containers need CADDY_UI_DEV_HOST=0.0.0.0 and a published frontend port for access from the Docker host or a reverse proxy.`);
         console.log('Ctrl-C stops UI processes; Caddy containers/data remain until explicit cleanup.');
     }
 } catch (error) {
