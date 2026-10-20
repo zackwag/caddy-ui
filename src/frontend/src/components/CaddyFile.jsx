@@ -7,11 +7,23 @@ import { apiFetch, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
+import { historyActor, historyComparison } from '../utils/caddyfileHistory.js';
 
 // eslint-disable-next-line i18next/no-literal-string -- Caddy CLI command, not translatable UI copy
 const CADDY_FMT_LABEL = "caddy fmt";
 // eslint-disable-next-line i18next/no-literal-string -- Stable DOM identifier linking the divider to the editor pane
 const EDITOR_PANE_ID = "caddyfile-editor-pane";
+
+const ACTION_KEYS = {
+    'caddyfile.save': 'caddyfile.actionSave',
+    'route.add': 'caddyfile.actionRouteAdd',
+    'route.edit': 'caddyfile.actionRouteEdit',
+    'route.delete': 'caddyfile.actionRouteDelete',
+    'maintenance.enable': 'caddyfile.actionMaintenanceEnable',
+    'maintenance.disable': 'caddyfile.actionMaintenanceDisable',
+    'logs.configure': 'caddyfile.actionLogs',
+    'metrics.configure': 'caddyfile.actionMetrics',
+};
 
 function CaddyfileCodeMirror({ value, onChange, theme }) {
     const containerRef = useRef(null);
@@ -188,7 +200,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         setCompareTo("current"); setCompareContent(null); setCompareLoading(false);
     };
 
-    const loadHistory = async () => {
+    const loadHistory = async (selectLatest = false) => {
         const request = ++historyRequest.current;
         setHistoryLoading(true);
         try {
@@ -196,11 +208,12 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             if (request !== historyRequest.current) return;
             setHistoryError(null);
             setHistory(entries);
-            const selected = entries.find(entry => entry.filename === selectedFilename.current) || entries[0];
+            const selected = (!selectLatest && entries.find(entry => entry.filename === selectedFilename.current)) || entries[0];
             if (!selected) clearPreview();
-            else if (selected.filename !== selectedFilename.current) previewSnapshot(selected);
-            else if (comparisonFilename.current !== "current" && !entries.some(entry => entry.filename === comparisonFilename.current)) {
-                changeCompareTo("current");
+            else if (selected.filename !== selectedFilename.current) previewSnapshot(selected, entries);
+            else {
+                setPreviewEntry(selected);
+                if (comparisonFilename.current !== "current" && !entries.some(entry => entry.filename === comparisonFilename.current)) changeCompareTo("current");
             }
         } catch (e) {
             if (request === historyRequest.current) { setHistoryError(e); toast.error(localizeError(e, t), e); }
@@ -222,7 +235,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         return snapshotCache.current.get(filename);
     };
 
-    const previewSnapshot = async (entry) => {
+    const previewSnapshot = async (entry, entries = history) => {
         if (!entry) return;
         if (selectedFilename.current === entry.filename) return;
         const request = ++previewRequest.current;
@@ -231,6 +244,8 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         comparisonFilename.current = "current";
         setPreviewEntry(entry); setPreviewContent(""); setPreviewLoading(true);
         setCompareTo("current"); setCompareContent(null); setCompareLoading(false);
+        const comparison = historyComparison(entry, entries);
+        if (comparison !== 'current') changeCompareTo(comparison);
         historyPreviewRef.current?.scrollTo({ top: 0 });
         try {
             const text = await fetchSnapshot(entry.filename);
@@ -274,7 +289,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh); setHistoryOpen(false); clearPreview();
             toast.success(t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
-            loadHistory();
+            loadHistory(true);
         } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
@@ -311,7 +326,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             setContent(fresh); setOriginal(fresh);
             if (result?.warning) toast.info(t('errors.operationWarning'), result);
             else toast.success(t("caddyfile.savedReloaded"));
-            if (historyOpen) loadHistory();
+            if (historyOpen) loadHistory(true);
         } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSaving(false); }
     };
@@ -337,7 +352,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                 const fresh = await apiFetch("/caddyfile", {}, onUnauth);
                 setContent(fresh); setOriginal(fresh);
                 toast.success(t("caddyfile.importedReloaded"));
-                if (historyOpen) loadHistory();
+                if (historyOpen) loadHistory(true);
             } catch (err) { toast.error(localizeError(err, t), err); }
         };
         reader.readAsText(file);
@@ -405,7 +420,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                     <div ref={historyHeaderRef} className="card-header">
                         <span className="section-label">{t("caddyfile.versionHistory")}</span>
                         <div className="btn-row">
-                            <button className="btn btn-ghost btn--sm" onClick={loadHistory} disabled={historyLoading}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
+                            <button className="btn btn-ghost btn--sm" onClick={() => loadHistory()} disabled={historyLoading}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
                             <button
                                 className={`btn btn--sm ${historyListOpen ? "btn-primary" : "btn-ghost"}`}
                                 onClick={() => setHistoryListOpen(open => !open)}
@@ -425,6 +440,14 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                     <div className={`history-body${historyListOpen ? " history-body--versions" : ""}`}>
                         <div className="history-detail">
                             <div ref={historyControlsRef} className="caddyfile-history-controls">
+                                {previewEntry && (
+                                    <div className="history-attribution" role="group" aria-label={t('caddyfile.versionDetails')}>
+                                        <div title={previewEntry.actor?.id}>{t('caddyfile.versionAuthor', { timestamp: formatTs(previewEntry.timestamp), actor: historyActor(previewEntry, t) })}</div>
+                                        <div>{t(Object.hasOwn(ACTION_KEYS, previewEntry.action) ? ACTION_KEYS[previewEntry.action] : 'caddyfile.actionUnknown')} · {t(previewEntry.outcome === 'applied' ? 'caddyfile.outcomeApplied' : previewEntry.outcome === 'saved-unapplied' ? 'caddyfile.outcomeUnapplied' : 'caddyfile.outcomeUnknown')}</div>
+                                        {compareTo !== 'current' && <div>{t('caddyfile.comparisonAuthor', { actor: historyActor(history.find(entry => entry.filename === compareTo), t) })}</div>}
+                                        {compareTo === 'current' && <div>{t('caddyfile.currentFileAttribution')}</div>}
+                                    </div>
+                                )}
                                 {history.length > 0 && (
                                     <div className="history-compare">
                                         <div className="history-range-picker">
@@ -474,6 +497,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                             title={entry.filename}
                                         >
                                             {formatTs(entry.timestamp)}
+                                            <span className="history-entry-actor" title={entry.actor?.id}>{historyActor(entry, t)}</span>
                                             {i === 0 && <span className="history-latest">{t("caddyfile.latest")}</span>}
                                         </button>
                                     </div>

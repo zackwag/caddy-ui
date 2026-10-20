@@ -1083,6 +1083,8 @@ export const css = `
   .history-body { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; overflow: hidden; }
   .history-body--versions { grid-template-columns: minmax(0, 1fr) fit-content(260px); }
   .history-detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 12px 16px; }
+  .history-attribution { flex-shrink: 0; color: var(--muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; margin-bottom: 10px; }
+  .history-entry-actor { display: block; font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }
   .caddyfile-history-controls { flex-shrink: 0; --pane-content-reserve: 100; }
   .history-diff-stats { flex-shrink: 0; }
   .history-version-actions { margin-left: auto; flex-shrink: 0; }
