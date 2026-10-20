@@ -49,7 +49,7 @@ export function diagnosticMiddleware(req, res, next) {
         const failed = res.statusCode >= 400 || softFailure;
         const hasWarning = !failed && Boolean(body.warning || (Array.isArray(body.warnings) && body.warnings.length));
         if (!failed && !hasWarning) return originalJson(body);
-        const code = body.code || errorCode(path, res.statusCode);
+        const code = body.code || body.warningCode || errorCode(path, res.statusCode);
         const detail = details(body);
         const appError = res.locals?.appError;
         const log = {

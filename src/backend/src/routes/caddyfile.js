@@ -194,19 +194,28 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 //   file on disk is not what Caddy is running
 // With rollback: false (the editor's force save), a failed apply leaves the
 // new file in place and resolves to { applied: false, error }.
+// Function changes run inside the queue against the latest file. Post-apply
+// history failures return warning fields rather than rejecting an applied edit.
 function saveCaddyfileChange(instance, content, options = {}) {
+    return queueCaddyfileChange(instance, save => save(content, options));
+}
+
+function queueCaddyfileChange(instance, operation) {
     const queued = (pendingChanges.get(instance.id) || Promise.resolve()).catch(() => {})
-        .then(() => applyCaddyfileChange(instance, content, options));
+        .then(() => operation((change, options) => applyCaddyfileChange(instance, change, options)));
     pendingChanges.set(instance.id, queued);
     const cleanup = () => { if (pendingChanges.get(instance.id) === queued) pendingChanges.delete(instance.id); };
     void queued.then(cleanup, cleanup);
     return queued;
 }
 
-async function applyCaddyfileChange(instance, content, { apply = () => reloadCaddy(content, instance), rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
+async function applyCaddyfileChange(instance, change, { apply, onApplied, rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
     const { configPath, containerName, id } = instance;
     const context = { instanceId: id, configPath };
     const previous = await readPreviousCaddyfile(configPath, containerName);
+    if (typeof change === 'function' && previous === null) throw new AppError('CADDYFILE_READ_FAILED', { context });
+    const content = typeof change === 'function' ? await change(previous) : change;
+    if (typeof content !== 'string') throw new TypeError('A Caddyfile change must produce text');
     try { await history.preserve(id, previous); }
     catch (cause) { throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context }); }
 
@@ -228,7 +237,8 @@ async function applyCaddyfileChange(instance, content, { apply = () => reloadCad
 
     let result;
     try {
-        await apply();
+        if (apply) await apply(content);
+        else await reloadCaddy(content, instance);
         result = { applied: true };
     } catch (err) {
         if (!rollback) result = { applied: false, error: err };
@@ -238,9 +248,19 @@ async function applyCaddyfileChange(instance, content, { apply = () => reloadCad
             throw new AppError('CADDYFILE_CHANGE_REJECTED', { cause: err, context });
         }
     }
+    if (result.applied && onApplied) await onApplied();
     try { await history.record(id, content, { actor, action, outcome: result.applied ? 'applied' : 'saved-unapplied' }); }
-    catch (cause) { throw new AppError('CADDYFILE_HISTORY_COMMIT_FAILED', { cause, context: { ...context, applied: result.applied } }); }
+    catch (cause) {
+        result.warning = 'The Caddyfile was saved, but its history version could not be recorded.';
+        result.warningCode = 'CADDYFILE_HISTORY_COMMIT_FAILED';
+        logger.warn('Could not record saved Caddyfile history', { ...context, applied: result.applied,
+            code: result.warningCode, error: cause.message });
+    }
     return result;
+}
+
+function historyWarning(result) {
+    return result?.warning ? { warning: result.warning, warningCode: result.warningCode } : {};
 }
 
 function parseSiteBlocks(content) {
@@ -357,7 +377,6 @@ router.get('/history', async (req, res) => {
     try {
         res.json(await history.list(req.instance.id, actor => getAuthentication().resolveActor(actor)));
     } catch (err) {
-        if (err.code === 'ENOENT') return res.json([]);
         sendAppError(res, asAppError(err, 'CADDYFILE_HISTORY_READ_FAILED', { instanceId: req.instance.id }));
     }
 });
@@ -433,8 +452,9 @@ router.put('/', async (req, res) => {
         return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
     }
 
-    const fmt = req.query.fmt !== 'false';
-    const sort = req.query.sort !== 'false';
+    const restoring = req.query.action === 'restore';
+    const fmt = !restoring && req.query.fmt !== 'false';
+    const sort = !restoring && req.query.sort !== 'false';
     const skipValidation = req.query.validate === 'false';
     logger.info(`Saving Caddyfile`, { bytes: content.length, fmt, sort, skipValidation });
 
@@ -473,7 +493,8 @@ router.put('/', async (req, res) => {
     let result;
     try {
         // A force save keeps the file even when Caddy rejects it
-        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: req.actor, action: 'caddyfile.save' });
+        const action = ['restore', 'import'].includes(req.query.action) ? `caddyfile.${req.query.action}` : 'caddyfile.save';
+        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: getAuthentication().getActor(req), action });
     } catch (err) {
         if (!(err instanceof AppError)) throw err;
         res.locals.appError = err;
@@ -486,13 +507,14 @@ router.put('/', async (req, res) => {
         return res.json({
             ok: true,
             message: 'Caddyfile written to disk. Caddy reload failed — changes apply on the next restart or manual reload.',
-            warning: result.error.message,
+            ...historyWarning(result),
+            warning: [result.error.message, result.warning].filter(Boolean).join(' '),
         });
     }
 
     logger.info(`Caddyfile saved`, { bytes: final.length });
-    res.json({ ok: true, message: 'Caddyfile saved and reloaded' });
+    res.json({ ok: true, message: 'Caddyfile saved and reloaded', ...historyWarning(result) });
 });
 
 export default router;
-export { migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, saveCaddyfileChange, sortCaddyfile };
+export { historyWarning, migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, queueCaddyfileChange, saveCaddyfileChange, sortCaddyfile, validateCaddyfile };

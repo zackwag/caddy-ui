@@ -6,7 +6,8 @@ import { asAppError, errorChain } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 import { ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
 import { getStatsForInstance } from '../uptimeHistory.js';
-import { saveCaddyfileChange } from './caddyfile.js';
+import { historyWarning, saveCaddyfileChange } from './caddyfile.js';
+import { getAuthentication } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -220,19 +221,14 @@ router.get('/config', async (req, res) => {
 // PUT /api/metrics/config
 router.put('/config', async (req, res) => {
     const { enabled } = req.body;
-    const { configPath, containerName } = req.instance;
     try {
-        let content = await readContainerFile(containerName, configPath);
-        if (enabled) {
-            if (/^\s*metrics\s*$/m.test(content)) return res.json({ ok: true, message: 'Metrics already enabled' });
-            content = content.replace(/^(\s*\{)/m, '$1\n    metrics');
-        } else {
-            content = content.replace(/^\s*metrics\s*\n?/m, '');
-        }
-        logger.info(`Metrics config update requested`, { enabled });
-        await saveCaddyfileChange(req.instance, content, { actor: req.actor, action: 'metrics.configure' });
-        logger.info(`Metrics config saved and reloaded`, { enabled });
-        res.json({ ok: true, enabled });
+        logger.info('Metrics config update requested', { enabled });
+        const result = await saveCaddyfileChange(req.instance, previous => {
+            if (enabled) return /^\s*metrics\s*$/m.test(previous) ? previous : previous.replace(/^(\s*\{)/m, '$1\n    metrics');
+            return previous.replace(/^\s*metrics\s*\n?/m, '');
+        }, { actor: getAuthentication().getActor(req), action: 'metrics.configure' });
+        logger.info('Metrics config saved and reloaded', { enabled });
+        res.json({ ok: true, enabled, ...historyWarning(result) });
     } catch (err) {
         sendAppError(res, asAppError(err, 'METRICS_CONFIG_FAILED', { instanceId: req.instance.id }));
     }

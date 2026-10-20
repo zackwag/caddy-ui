@@ -18,8 +18,15 @@ vi.mock('../src/docker.js', async importOriginal => ({
     getCaddyEnv: vi.fn(async () => ({})),
 }));
 vi.mock('../src/routes/caddyfile.js', () => ({
-    saveCaddyfileChange: vi.fn(async (instance, content) => { files.set(instance.configPath, content); return { applied: true }; }),
+    saveCaddyfileChange: vi.fn(async (instance, change, { onApplied } = {}) => {
+        const content = typeof change === 'function' ? await change(files.get(instance.configPath)) : change;
+        files.set(instance.configPath, content);
+        await onApplied?.();
+        return { applied: true };
+    }),
+    historyWarning: () => ({}),
 }));
+vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getActor: () => null }) }));
 vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));
 
 // Both paths are read at import time

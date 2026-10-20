@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { readContainerFile } from '../containerFs.js';
 import { execInInstance, spawnInInstance } from '../docker.js';
 import logger, { getRecentLogEntries, subscribeToLogs } from '../logger.js';
-import { asAppError } from '../AppError.js';
+import { AppError, asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
-import { saveCaddyfileChange } from './caddyfile.js';
+import { historyWarning, saveCaddyfileChange, validateCaddyfile } from './caddyfile.js';
+import { getAuthentication } from '../middleware/auth.js';
 const router = Router();
 const appLogsRouter = Router();
 const TAIL_LINES = 200;
@@ -150,36 +151,19 @@ router.put('/config', async (req, res) => {
         return res.status(400).json({ error: 'Invalid log config' });
     }
 
-    const { adminUrl, containerName, configPath } = req.instance;
-    logger.info(`Log config update requested`, { enabled: config.enabled });
-    const content = await readContainerFile(containerName, configPath);
-    const updated = updateGlobalBlock(content, config);
-
+    logger.info('Log config update requested', { enabled: config.enabled });
     try {
-        const validateRes = await fetch(`${adminUrl}/adapt?adapter=caddyfile`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
-            body: updated,
-        });
-        if (!validateRes.ok) {
-            const text = await validateRes.text();
-            const lines = text.split('\n').filter(Boolean);
-            const errors = lines.filter(l => l.toLowerCase().includes('error'));
-            logger.warn(`Log config validation failed`, { errors });
-            return res.status(422).json({ errors: errors.length ? errors : lines });
-        }
-    } catch (err) {
-        logger.error(`Log config validation error`, { error: err.message });
-        return res.status(422).json({ errors: [err.message] });
-    }
-
-    try {
-        await saveCaddyfileChange(req.instance, updated, { actor: req.actor, action: 'logs.configure' });
+        const result = await saveCaddyfileChange(req.instance, async previous => {
+            const updated = updateGlobalBlock(previous, config);
+            try { await validateCaddyfile(updated, req.instance); }
+            catch (cause) { throw new AppError('CADDYFILE_VALIDATION_FAILED', { cause }); }
+            return updated;
+        }, { actor: getAuthentication().getActor(req), action: 'logs.configure' });
+        logger.info('Log config saved and reloaded');
+        res.json({ ok: true, message: 'Log config saved and reloaded', ...historyWarning(result) });
     } catch (err) {
         return sendAppError(res, asAppError(err, 'CADDYFILE_WRITE_FAILED', { instanceId: req.instance.id }));
     }
-    logger.info(`Log config saved and reloaded`);
-    res.json({ ok: true, message: 'Log config saved and reloaded' });
 });
 
 router.get('/', async (req, res) => {
