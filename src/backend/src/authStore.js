@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -54,8 +54,10 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
     }
 
     async function loadAuth() {
+        let existing = false;
         try {
             const handle = await fs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+            existing = true;
             let parsed;
             try {
                 parsed = JSON.parse(await handle.readFile('utf8'));
@@ -64,15 +66,18 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
             }
             if (parsed?.version !== 1 || typeof parsed.username !== 'string' || !parsed.username.trim()
                 || parsed.username.length > 128 || !validHash(parsed.password) || !validHash(parsed.recovery)
+                || (parsed.accountId !== undefined && (typeof parsed.accountId !== 'string'
+                    || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(parsed.accountId)))
                 || (parsed.apiTokens !== undefined && (!Array.isArray(parsed.apiTokens) || parsed.apiTokens.length > MAX_API_TOKENS
                     || !parsed.apiTokens.every(validApiTokenRecord) || new Set(parsed.apiTokens.map(token => token.id)).size !== parsed.apiTokens.length))
                 || (parsed.passkeys !== undefined && !validPasskeyStore(parsed.passkeys))) {
                 throw new Error('Invalid credential record');
             }
             await fs.chmod(path, 0o600);
-            state = parsed;
+            if (parsed.accountId === undefined) await persist({ ...parsed, accountId: randomUUID() }, false);
+            else state = parsed;
         } catch (error) {
-            if (error.code !== 'ENOENT') throw new Error('Cannot read authentication storage. Refusing to start.', { cause: error });
+            if (existing || error.code !== 'ENOENT') throw new Error('Cannot read authentication storage. Refusing to start.', { cause: error });
             state = null;
         }
         return state !== null;
@@ -108,7 +113,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
     async function recordFor(username, password) {
         validateCredentials(username, password);
         const recoveryKey = randomBytes(32).toString('base64url');
-        const record = { version: 1, username, password: await hashSecret(password), recovery: await hashSecret(recoveryKey) };
+        const record = { version: 1, accountId: randomUUID(), username, password: await hashSecret(password), recovery: await hashSecret(recoveryKey) };
         return { record, recoveryKey };
     }
 
@@ -157,6 +162,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 return true;
             });
         },
+        getAccountId() { requireLoaded(); return state?.accountId ?? null; },
         async verifyPassword(username, password) {
             requireLoaded();
             // Derive even for an unknown username to avoid a cheap username oracle.
@@ -224,6 +230,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 requireLoaded();
                 if (!state || !await matches(recoveryKey, state.recovery)) return null;
                 const next = await recordFor(state.username, password);
+                next.record.accountId = state.accountId;
                 // Replacing the whole record deliberately revokes API tokens and passkeys.
                 await persist(next.record, false);
                 return next.recoveryKey;

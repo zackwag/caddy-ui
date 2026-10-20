@@ -53,6 +53,16 @@ export async function createAuthService({ store = createAuthStore(), env = proce
     return {
         sessions,
         passkeys,
+        getActor(req) {
+            if (req.apiToken) return { type: 'api-token', id: req.apiToken.id, name: req.apiToken.name };
+            if (sessions.readSession(req)?.permission !== 'management') return null;
+            return { type: 'user', id: store.getAccountId(), name: store.getUsername() };
+        },
+        resolveActor(actor) {
+            if (actor?.type === 'user' && actor.id === store.getAccountId()) return { type: 'user', id: actor.id, name: store.getUsername() };
+            const token = actor?.type === 'api-token' && store.listApiTokens().find(token => token.id === actor.id);
+            return token ? { type: 'api-token', id: token.id, name: token.name } : null;
+        },
         verifyApiToken(token) { return store.verifyApiToken(token); },
         // Token metadata for background monitors, which have no request to authorize.
         apiTokenMetadata() { return store.listApiTokens(); },

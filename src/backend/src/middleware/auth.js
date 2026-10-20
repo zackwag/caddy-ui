@@ -29,6 +29,7 @@ export function authMiddleware(req, res, next) {
         if (!req.apiToken && !(publicMetrics && req.method === 'GET' && req.path === '/metrics')) {
             getAuthentication().requireManagement(req, res);
         }
+        req.actor = getAuthentication().getActor(req);
         next();
     } catch (error) {
         if (!error.code) return next(error);

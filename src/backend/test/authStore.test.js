@@ -16,6 +16,37 @@ async function fixture() {
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
 
 describe('persistent administrator credentials', () => {
+    it('keeps the administrator identity across renames, password changes and recovery', async () => {
+        const { path, store } = await fixture();
+        await store.loadAuth();
+        const key = await store.initializeAuth('administrator', secret());
+        const id = store.getAccountId();
+        expect(id).toMatch(/^[a-f0-9-]{36}$/);
+        await store.updateCredentials('renamed', secret());
+        await store.replaceCredentials(key, secret());
+        const restarted = createAuthStore(path);
+        await restarted.loadAuth();
+        expect(restarted.getAccountId()).toBe(id);
+        expect(restarted.getUsername()).toBe('renamed');
+    });
+
+    it('migrates an existing account once without replacing its credentials', async () => {
+        const { path, store } = await fixture();
+        await store.loadAuth();
+        await store.initializeAuth('administrator', secret());
+        const previous = JSON.parse(await readFile(path, 'utf8'));
+        delete previous.accountId;
+        await writeFile(path, JSON.stringify(previous));
+        const restarted = createAuthStore(path);
+        await restarted.loadAuth();
+        const migrated = JSON.parse(await readFile(path, 'utf8'));
+        expect(migrated).toEqual({ ...previous, accountId: restarted.getAccountId() });
+        await restarted.loadAuth();
+        expect(restarted.getAccountId()).toBe(migrated.accountId);
+        await writeFile(path, JSON.stringify({ ...previous, accountId: 'invalid' }));
+        await expect(restarted.loadAuth()).rejects.toThrow('Refusing to start');
+    });
+
     it('preserves installation metadata and persists only restrictive credential hashes', async () => {
         const { directory, path, store } = await fixture();
         const metadata = JSON.stringify({ language: 'en', firstTimeRun: false });
