@@ -288,7 +288,8 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `es-es` for the partial Spanish (Spain) catalog). Reviewed languages (currently English, Arabic and German) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Missing translations fall back to English. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
 | `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
-| `CADDY_UI_TRUSTED_PROXIES` | — | Optional comma-separated proxy IPs/CIDRs allowed to supply client addresses for rate limiting and logs. Unset means forwarding headers are ignored. See [client addresses and rate limits](#client-addresses-and-rate-limits). |
+| `CADDY_UI_TRUSTED_PROXIES` | bundled frontend | Backend: unset discovers only `caddy-ui-frontend` by DNS; blank disables trust. An explicit comma-separated IP/CIDR list overrides discovery. See [client addresses and rate limits](#client-addresses-and-rate-limits). |
+| `CADDY_UI_TRUSTED_UPSTREAMS` | — | Frontend nginx: comma-separated upstream proxy IPs/CIDRs allowed to supply client addresses, such as the Caddy serving the UI. Unset trusts none. |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
@@ -379,13 +380,23 @@ Every write also requires `X-CSRF-Token` bound to the current cookie context, in
 
 ### Client addresses and rate limits
 
-By default, rate limits and request logs use the backend connection's peer address and ignore `X-Forwarded-For`. Direct clients cannot reset their limits by changing forwarding headers. Behind nginx or another reverse proxy, clients share that proxy's rate-limit budget until proxy trust is configured.
+Rate limits use 15 authentication writes and 200 API requests per client per minute. Request logs use the same verified client address.
 
-For separate client budgets, set `CADDY_UI_TRUSTED_PROXIES` to the proxy addresses the backend actually sees, for example `172.30.0.3` or a narrowly scoped CIDR. IPv4 and IPv6 addresses/CIDRs are supported; boolean values, hop counts and hostnames are rejected at startup. Restart after changing the setting. Prefer stable, specific proxy addresses and keep direct backend access restricted. Do not trust arbitrary clients, entire untrusted networks or a NAT gateway through which untrusted clients can reach the backend.
+With `CADDY_UI_TRUSTED_PROXIES` unset, the backend resolves only the bundled `caddy-ui-frontend` service and trusts that address as its immediate proxy. Addresses refresh every 30 seconds; lookup failures disable trust until discovery recovers. Direct connections from other peers ignore forwarding headers. The bundled nginx replaces incoming `X-Forwarded-For` with its verified client address, so direct frontend clients retain separate budgets without trusting arbitrary Docker peers.
 
-The bundled nginx replaces incoming `X-Forwarded-For` with its connection's client address. If nginx itself is behind another proxy, requests share that outer proxy's budget unless nginx is configured to establish a verified client address, such as with `set_real_ip_from` and `real_ip_header` for known proxies. Mount a custom nginx configuration for that deployment; do not simply preserve or append arbitrary client-supplied forwarding headers. Every trusted proxy must sanitize the addresses it forwards.
+Set `CADDY_UI_TRUSTED_PROXIES` to an empty value to disable proxy trust, or to explicit comma-separated IPv4/IPv6 addresses or CIDRs to override discovery. Boolean values, hop counts, hostnames, zero-length prefixes and IPv4-mapped IPv6 prefixes below /96 fail startup. Custom frontend names or non-Docker deployments need explicit proxy addresses. Restart after changing the setting. Keep the backend private where possible; avoid trusting client networks or shared NAT gateways.
 
-`CADDY_UI_TRUSTED_PROXIES` does not authenticate requests or enable CORS. Origin validation and Secure cookie selection still use `CADDY_UI_EXTERNAL_URL`; forwarding headers do not configure them.
+When Caddy or another reverse proxy serves the UI through nginx, set `CADDY_UI_TRUSTED_UPSTREAMS` **on the frontend container** to that proxy's actual source IP or a narrow, controlled CIDR. For example:
+
+```yaml
+# caddy-ui-frontend service
+    environment:
+      - CADDY_UI_TRUSTED_UPSTREAMS=172.30.0.2
+```
+
+nginx accepts `X-Forwarded-For` only from configured upstreams, resolves the last untrusted address in the chain, and sends the backend a single verified address. Untrusted direct clients cannot supply their own identity. Use stable upstream addresses; restart nginx after changing the setting. Custom nginx configurations must retain equivalent real-IP and header-sanitization rules.
+
+Without upstream trust, clients behind Caddy share Caddy's budget and its address appears in logs. If frontend discovery is unavailable, clients behind nginx share nginx's budget. No broader trust is inferred to avoid this limitation. Every trusted upstream must sanitize forwarding headers; an overly broad trust range can reintroduce spoofing.
 
 <!-- dockerhub:backend:end -->
 <!-- ANCHOR_END: authentication -->
@@ -532,7 +543,9 @@ See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoin
 <!-- dockerhub:frontend:start -->
 ## Custom Nginx Config
 
-The frontend proxies API requests to `caddy-ui-backend:3001` by default. This configuration also applies to prebuilt images. If your backend has a different hostname or port, mount a custom Nginx config:
+The frontend proxies API requests to `caddy-ui-backend:3001` by default. To preserve client addresses behind Caddy or another reverse proxy, set `CADDY_UI_TRUSTED_UPSTREAMS` on the frontend container to that proxy's specific IP/CIDR (comma-separated for multiple proxies). Unset trusts no upstream forwarding headers. See [client addresses and rate limits](#client-addresses-and-rate-limits).
+
+These settings also apply to prebuilt images. If your backend has a different hostname or port, mount a custom Nginx config:
 
 ```yaml
 volumes:
