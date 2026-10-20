@@ -1,3 +1,4 @@
+import { notifyConfigurationSave } from '../utils/caddyfileHistory.js';
 import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useRef, useState } from "react";
@@ -150,8 +151,8 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     const saveConfig = async () => {
         setSavingConfig(true);
         try {
-            await apiFetch("/logs/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logConfig) }, onUnauth);
-            toast.success(t("logs.configSaved"));
+            const result = await apiFetch("/logs/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logConfig) }, onUnauth);
+            notifyConfigurationSave(toast, t, result, t("logs.configSaved"));
             setConfigDirty(false);
         } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSavingConfig(false); }

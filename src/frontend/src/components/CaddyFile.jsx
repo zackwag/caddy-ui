@@ -7,7 +7,7 @@ import { apiFetch, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
-import { historyActor, historyComparison } from '../utils/caddyfileHistory.js';
+import { historyActor, historyComparison, notifyConfigurationSave } from '../utils/caddyfileHistory.js';
 
 // eslint-disable-next-line i18next/no-literal-string -- Caddy CLI command, not translatable UI copy
 const CADDY_FMT_LABEL = "caddy fmt";
@@ -16,6 +16,8 @@ const EDITOR_PANE_ID = "caddyfile-editor-pane";
 
 const ACTION_KEYS = {
     'caddyfile.save': 'caddyfile.actionSave',
+    'caddyfile.restore': 'caddyfile.actionRestore',
+    'caddyfile.import': 'caddyfile.actionImport',
     'route.add': 'caddyfile.actionRouteAdd',
     'route.edit': 'caddyfile.actionRouteEdit',
     'route.delete': 'caddyfile.actionRouteDelete',
@@ -285,10 +287,10 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         if (!await confirm(t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("caddyfile.restore") })) return;
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
-            await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
+            const result = await apiFetch("/caddyfile?action=restore&fmt=false&sort=false", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh); setHistoryOpen(false); clearPreview();
-            toast.success(t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
+            notifyConfigurationSave(toast, t, result, t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
             loadHistory(true);
         } catch (e) { toast.error(localizeError(e, t), e); }
     };
@@ -348,10 +350,10 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             const text = ev.target.result;
             if (!await confirm(t("caddyfile.importConfirm"), { confirmLabel: t("caddyfile.import") })) return;
             try {
-                await apiFetch("/caddyfile", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
+                const result = await apiFetch("/caddyfile?action=import", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
                 const fresh = await apiFetch("/caddyfile", {}, onUnauth);
                 setContent(fresh); setOriginal(fresh);
-                toast.success(t("caddyfile.importedReloaded"));
+                notifyConfigurationSave(toast, t, result, t("caddyfile.importedReloaded"));
                 if (historyOpen) loadHistory(true);
             } catch (err) { toast.error(localizeError(err, t), err); }
         };

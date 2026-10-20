@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { chmod, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { before, test } from 'node:test';
 import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
@@ -75,10 +75,11 @@ test('saved versions show stable attribution, preserve unknown external edits an
     assert.equal(entries[1].actor, null);
     assert.equal(entries[1].outcome, 'unknown');
     assert.equal((await stack.api('/caddyfile/history/' + entries[1].filename)).data, external);
+    const externalVersion = entries[1];
     await page.waitForFunction(() => document.querySelector('.history-attribution')?.textContent.includes('Compared version — Unknown'));
 
     await page.getByRole('button', { name: 'Show version list', exact: true }).click();
-    await page.getByTitle(first.filename, { exact: true }).click();
+    await page.getByTitle(externalVersion.filename, { exact: true }).click();
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
     await page.locator('.modal--confirm').getByRole('button', { name: 'Restore', exact: true }).click();
     await page.getByText(/^Restored from/).waitFor();
@@ -86,8 +87,8 @@ test('saved versions show stable attribution, preserve unknown external edits an
     assert.notEqual(restored[0].filename, first.filename);
     assert.equal(restored[0].actor.id, first.actor.id);
     assert.equal(restored[0].actor.name, renamed);
-    assert.equal((await stack.api('/caddyfile/history/' + restored[0].filename)).data,
-        (await stack.api('/caddyfile/history/' + first.filename)).data);
+    assert.equal(restored[0].action, 'caddyfile.restore');
+    assert.equal((await stack.api('/caddyfile/history/' + restored[0].filename)).data, external);
     assert.equal(await readFile(snapshotPath, 'utf8'), immutable);
 
     const token = await stack.api('/auth/tokens', { method: 'POST', body: {
@@ -103,4 +104,49 @@ test('saved versions show stable attribution, preserve unknown external edits an
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('.history-attribution').scrollIntoViewIfNeeded();
     assert(await page.locator('.history-attribution').isVisible());
+});
+
+test('history commit warnings keep successful saves usable and imports record their own action', { timeout: 120000 }, async t => {
+    const { stack, page, origin } = await useBrowserFixture(t);
+    const initial = (await stack.api('/caddyfile')).data;
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await page.locator('.cm-editor').waitFor();
+    const edit = async text => {
+        await page.locator('.cm-content').click();
+        await page.keyboard.press('ControlOrMeta+a');
+        await page.keyboard.insertText(text);
+    };
+    const save = async () => {
+        const response = page.waitForResponse(response => new URL(response.url()).pathname === '/api/caddyfile'
+            && response.request().method() === 'PUT');
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        return response;
+    };
+    await edit(initial.replace('Caddy UI test instance:', 'baseline-history-warning:'));
+    assert.equal((await save()).status(), 200);
+    await page.getByText('Caddyfile saved and reloaded', { exact: true }).last().waitFor();
+    const baseline = (await stack.api('/caddyfile')).data;
+    const historyPath = join(stack.directory, 'backend/history');
+    await chmod(historyPath, 0o500);
+    try {
+        await edit(baseline.replace('baseline-history-warning:', 'saved-with-history-warning:'));
+        const response = await save();
+        assert.equal(response.status(), 200);
+        assert.equal((await response.json()).warningCode, 'CADDYFILE_HISTORY_COMMIT_FAILED');
+        const warning = page.locator('.toast-info').filter({ hasText: 'The operation completed with warnings.' });
+        await warning.waitFor();
+        assert.equal(await warning.locator('code').innerText(), 'CADDYFILE_HISTORY_COMMIT_FAILED');
+        assert((await stack.api('/caddyfile')).data.includes('saved-with-history-warning:'));
+        await page.waitForFunction(() => [...document.querySelectorAll('button')]
+            .some(button => button.textContent.trim() === 'Save' && button.disabled));
+    } finally { await chmod(historyPath, 0o700); }
+
+    const text = baseline.replace('baseline-history-warning:', 'imported-history-action:');
+    await page.locator('input[type="file"]').setInputFiles({ name: 'Caddyfile.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+    await page.locator('.modal--confirm').getByRole('button', { name: 'Import', exact: true }).click();
+    await page.getByText('Caddyfile imported and reloaded', { exact: true }).waitFor();
+    const entries = (await stack.api('/caddyfile/history')).data;
+    assert.equal(entries[0].action, 'caddyfile.import');
+    assert.equal(entries[0].actor.type, 'user');
+    assert((await stack.api('/caddyfile/history/' + entries[0].filename)).data.includes('imported-history-action:'));
 });

@@ -1,3 +1,4 @@
+import { notifyConfigurationSave } from '../utils/caddyfileHistory.js';
 import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -304,8 +305,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
 
     const addRoute = async (form) => {
         try {
-            await apiFetch("/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, onUnauth);
-            toast.success(t("routes.added", { domain: form.domain }));
+            const result = await apiFetch("/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, onUnauth);
+            notifyConfigurationSave(toast, t, result, t("routes.added", { domain: form.domain }));
             setNewModal(false); load(); loadHealth();
         } catch (e) { toast.error(localizeError(e, t), e); }
     };
@@ -313,12 +314,12 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const deleteCaddyfileBlock = async (domain) => {
         if (!await confirm(t("routes.deleteCaddyfileConfirm"), { confirmLabel: t("common.delete"), danger: true })) return;
         try {
-            await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "DELETE" }, onUnauth);
+            const result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "DELETE" }, onUnauth);
             if (notes[domain]) {
                 await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "" }) }, onUnauth).catch(() => {});
                 setNotes(n => { const u = { ...n }; delete u[domain]; return u; });
             }
-            toast.success(t("routes.removed"));
+            notifyConfigurationSave(toast, t, result, t("routes.removed"));
             setEditModal(null); load(); loadHealth();
         } catch (e) { toast.error(localizeError(e, t), e); }
     };
@@ -328,13 +329,13 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         const usesCaddyfileTitles = editModal.caddyfileTitle !== null;
         try {
             if (editModal.isCaddyfileManaged && !editModal.siteBlockFailed) {
-                await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, title }) }, onUnauth);
-                toast.success(t("routes.caddyfileUpdated"));
+                const result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, title }) }, onUnauth);
+                notifyConfigurationSave(toast, t, result, t("routes.caddyfileUpdated"));
             } else if (editModal.siteBlockFailed) {
                 toast.success(t("routes.titleSaved"));
             } else {
-                await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
-                toast.success(t("routes.updated"));
+                const result = await apiFetch(`/routes/${form._id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: form.domain, upstream: form.upstream, stripPrefix: form.stripPrefix }) }, onUnauth);
+                notifyConfigurationSave(toast, t, result, t("routes.updated"));
             }
             // Without loaded notes the title field starts blank, so blank can't mean "clear the note"
             const saveNote = !(notesError && !title.trim());
@@ -349,12 +350,12 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const deleteRoute = async (id, domain) => {
         if (!await confirm(t("routes.deleteConfirm"), { confirmLabel: t("common.delete"), danger: true })) return;
         try {
-            await apiFetch(`/routes/${id}`, { method: "DELETE" }, onUnauth);
+            const result = await apiFetch(`/routes/${id}`, { method: "DELETE" }, onUnauth);
             if (domain && notes[domain]) {
                 await apiFetch(`/route-notes/${encodeURIComponent(domain)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "" }) }, onUnauth).catch(() => {});
                 setNotes(n => { const u = { ...n }; delete u[domain]; return u; });
             }
-            toast.success(t("routes.removed")); load(); loadHealth();
+            notifyConfigurationSave(toast, t, result, t("routes.removed")); load(); loadHealth();
         } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
@@ -362,12 +363,13 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         const inMaint = !!maintenance[domain];
         if (!inMaint && !await confirm(t("routes.enableMaintenanceConfirm", { domain }), { confirmLabel: t("common.enable") })) return;
         try {
+            let result;
             if (inMaint) {
-                await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "DELETE" }, onUnauth);
+                result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "DELETE" }, onUnauth);
             } else {
-                await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "POST" }, onUnauth);
+                result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: "POST" }, onUnauth);
             }
-            toast.success(inMaint
+            notifyConfigurationSave(toast, t, result, inMaint
                 ? t("routes.maintenanceDisabled", { domain })
                 : t("routes.maintenanceEnabled", { domain }));
             load(); loadHealth();

@@ -609,6 +609,8 @@ export default {
         comparisonAuthor: 'Compared version — {{actor}}',
         currentFileAttribution: 'Compared with the file currently on disk; its author is not inferred.',
         actionSave: 'Caddyfile save',
+        actionRestore: 'Version restored',
+        actionImport: 'Caddyfile imported',
         actionRouteAdd: 'Route added',
         actionRouteEdit: 'Route edited',
         actionRouteDelete: 'Route deleted',

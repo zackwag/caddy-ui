@@ -1,3 +1,4 @@
+import { notifyConfigurationSave } from '../utils/caddyfileHistory.js';
 import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
@@ -43,9 +44,9 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
     const toggleMetrics = async (enabled) => {
         setSavingMetrics(true);
         try {
-            await apiFetch("/metrics/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }, onUnauth);
+            const result = await apiFetch("/metrics/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }, onUnauth);
             setMetricsConfig({ enabled });
-            toast.success(enabled ? t("metrics.enabledToast") : t("metrics.disabledToast"));
+            notifyConfigurationSave(toast, t, result, enabled ? t("metrics.enabledToast") : t("metrics.disabledToast"));
             if (enabled) setTimeout(load, 1000);
             else setMetrics({ ok: false, error: t("metrics.disabledToast") });
         } catch (e) { toast.error(localizeError(e, t), e); }
