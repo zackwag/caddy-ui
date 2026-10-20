@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, open, readFile, readdir, rename, stat, unlink } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import logger from './logger.js';
 
 const FILENAME = /^Caddyfile-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3})Z-[a-f0-9-]+\.json)?$/;
@@ -27,14 +27,19 @@ async function atomicJson(directory, filename, value) {
 // Content and attribution are published together. Older plain Caddyfile backups
 // stay readable and are never assigned an identity retroactively.
 export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}) {
-    let actorWrites = Promise.resolve();
+    let _writeLock = Promise.resolve();
+    let identities;
+    const metadata = new Map();
     const directory = id => id && id !== 'default' ? join(root, id) : root;
     const validFilename = filename => FILENAME.test(filename);
     async function filenames(id) {
         try { return (await readdir(directory(id))).filter(validFilename).sort().reverse(); }
         catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     }
-    async function registry() {
+    function registry() {
+        return identities ??= loadRegistry();
+    }
+    async function loadRegistry() {
         try {
             const value = JSON.parse(await readFile(join(root, 'actors.json'), 'utf8'));
             if (value.version !== 1 || !value.actors || typeof value.actors !== 'object' || Array.isArray(value.actors)
@@ -42,19 +47,23 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
                     && key === `${actor.type}:${actor.id}` && typeof actor.name === 'string'
                     && actor.name.trim() && actor.name.length <= 128)) throw new Error('Invalid history identity registry');
             return value;
-        } catch (error) { if (error.code === 'ENOENT') return { version: 1, actors: {} }; throw error; }
+        } catch (error) {
+            if (error.code !== 'ENOENT') logger.warn('Could not read history identities; unresolved authors remain unknown', { code: error.code || 'INVALID_HISTORY_IDENTITIES' });
+            return { version: 1, actors: {} };
+        }
     }
     async function remember(actor) {
         if (!validActor(actor) || typeof actor.name !== 'string' || !actor.name.trim() || actor.name.length > 128) return null;
         const reference = { type: actor.type, id: actor.id };
-        const operation = actorWrites.then(async () => {
+        const operation = _writeLock.then(async () => {
             const value = await registry();
             const key = `${actor.type}:${actor.id}`;
             if (value.actors[key]?.name === actor.name) return;
-            value.actors[key] = { ...reference, name: actor.name };
-            await atomicJson(root, 'actors.json', value);
+            const next = { version: 1, actors: { ...value.actors, [key]: { ...reference, name: actor.name } } };
+            await atomicJson(root, 'actors.json', next);
+            identities = Promise.resolve(next);
         });
-        actorWrites = operation.catch(() => {});
+        _writeLock = operation.catch(() => {});
         await operation;
         return reference;
     }
@@ -73,8 +82,9 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
         return value;
     }
     async function record(id, content, { actor = null, action = null, outcome = 'unknown' } = {}) {
-        const previous = (await filenames(id))[0] || null;
-        const last = previous ? await read(id, previous) : null;
+        const latest = await latestReadable(id);
+        const previous = latest?.filename || null;
+        const last = latest?.value;
         // Keep ordering deterministic even for several saves in one millisecond
         // or a clock adjustment, without overwriting any existing version.
         const timestamp = new Date(Math.max(now(), last ? Date.parse(last.timestamp) + 1 : 0)).toISOString();
@@ -82,30 +92,66 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
         const reference = await remember(actor);
         await atomicJson(directory(id), filename, { version: 1, timestamp, parent: previous, actor: reference, action, outcome, content });
         try {
-            for (const name of (await filenames(id)).slice(limit)) await unlink(join(directory(id), name));
+            for (const name of (await filenames(id)).slice(limit)) {
+                await unlink(join(directory(id), name));
+                metadata.delete(join(directory(id), name));
+            }
         } catch (error) { logger.warn('Could not prune Caddyfile history', { instanceId: id, code: error.code }); }
         return filename;
+    }
+    function warnUnreadable(id, filename, error) {
+        if (error.code !== 'ENOENT') logger.warn('Skipping unreadable Caddyfile history version', { instanceId: id, filename, code: error.code || 'INVALID_HISTORY_VERSION' });
+    }
+    async function latestReadable(id) {
+        for (const filename of await filenames(id)) {
+            try { return { filename, value: await read(id, filename) }; }
+            catch (error) { warnUnreadable(id, filename, error); }
+        }
+        return null;
+    }
+    async function entryMetadata(id, filename) {
+        const path = join(directory(id), filename);
+        try {
+            const info = await stat(path);
+            const stamp = `${info.mtimeMs}:${info.ctimeMs}:${info.size}`;
+            if (metadata.get(path)?.stamp === stamp) return metadata.get(path).entry;
+            try {
+                const value = await read(id, filename);
+                const entry = { timestamp: value.timestamp, parent: value.parent, actor: value.actor, action: value.action, outcome: value.outcome };
+                metadata.set(path, { stamp, entry });
+                return entry;
+            } catch (error) {
+                warnUnreadable(id, filename, error);
+                metadata.set(path, { stamp, entry: null });
+                return null;
+            }
+        } catch (error) { metadata.delete(path); warnUnreadable(id, filename, error); return null; }
     }
     return {
         directory, validFilename, read, record,
         async preserve(id, content) {
             if (content === null) return;
-            const latest = (await filenames(id))[0];
-            if (!latest || (await read(id, latest)).content !== content) await record(id, content);
+            const latest = await latestReadable(id);
+            if (!latest || latest.value.content !== content) await record(id, content);
         },
         async list(id, resolve = () => null) {
             const identities = await registry();
-            return Promise.all((await filenames(id)).map(async filename => {
-                const value = await read(id, filename);
-                const entry = { timestamp: value.timestamp, parent: value.parent, actor: value.actor, action: value.action, outcome: value.outcome };
+            const names = await filenames(id);
+            const paths = new Set(names.map(filename => join(directory(id), filename)));
+            for (const path of metadata.keys()) if (dirname(path) === directory(id) && !paths.has(path)) metadata.delete(path);
+            return (await Promise.all(names.map(async filename => {
+                const value = await entryMetadata(id, filename);
+                if (!value) return null;
+                const entry = { ...value };
                 if (entry.actor) entry.actor = resolve(entry.actor)
                     || identities.actors[`${entry.actor.type}:${entry.actor.id}`] || { ...entry.actor, name: null };
                 return { filename, ...entry };
-            }));
+            }))).filter(Boolean);
         },
         async remove(id, filename) {
             if (!validFilename(filename)) throw new Error('Invalid history filename');
             await unlink(join(directory(id), filename));
+            metadata.delete(join(directory(id), filename));
         },
     };
 }

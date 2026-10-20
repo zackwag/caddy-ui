@@ -2,8 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCaddyfileHistory } from '../src/caddyfileHistory.js';
+
+const io = vi.hoisted(() => ({ readFile: vi.fn(), stat: vi.fn() }));
+vi.mock('node:fs/promises', async original => {
+    const fs = await original();
+    io.readFile.mockImplementation(fs.readFile);
+    io.stat.mockImplementation(fs.stat);
+    return { ...fs, ...io };
+});
 
 const directories = [];
 async function fixture(options = {}) {
@@ -84,10 +92,49 @@ describe('committed Caddyfile history', () => {
         expect(await history.list('default')).toEqual([]);
     });
 
-    it('does not treat corrupt metadata as a valid unknown version', async () => {
+    it('skips corrupt versions without inventing attribution or blocking future records', async () => {
         const { root, history } = await fixture();
+        const valid = await history.record('default', 'valid config');
         const filename = await history.record('default', 'config');
         await writeFile(join(root, filename), '{');
-        await expect(history.list('default')).rejects.toThrow();
+        expect((await history.list('default')).map(entry => entry.filename)).toEqual([valid]);
+        await history.preserve('default', 'external edit');
+        await history.record('default', 'new config', { actor: user(), outcome: 'applied' });
+        const entries = await history.list('default');
+        expect(entries).toHaveLength(3);
+        expect(entries[1].actor).toBeNull();
+        expect((await history.read('default', entries[1].filename)).content).toBe('external edit');
+    });
+
+    it('continues listing and recording when the identity registry is corrupt', async () => {
+        const { root, history } = await fixture();
+        const actor = user();
+        await history.record('default', 'first', { actor });
+        await writeFile(join(root, 'actors.json'), '{');
+        const restarted = createCaddyfileHistory(root);
+        expect((await restarted.list('default', ref => ({ ...ref, name: 'Current administrator' })))[0].actor.name).toBe('Current administrator');
+        await restarted.record('default', 'second', { actor });
+        expect((await restarted.list('default'))[0].actor).toEqual(actor);
+    });
+
+    it('keeps other versions when pruning removes one between directory listing and metadata lookup', async () => {
+        const { root, history } = await fixture();
+        await history.record('default', 'first');
+        const newest = await history.record('default', 'second');
+        io.stat.mockImplementationOnce(async path => { await rm(path); return { mtimeMs: 1, ctimeMs: 1, size: 1 }; });
+        const entries = await history.list('default');
+        expect(entries).toHaveLength(1);
+        expect(entries[0].filename).not.toBe(newest);
+        expect(await readdir(root)).toHaveLength(1);
+    });
+
+    it('reuses metadata and identity caches instead of rereading all snapshot contents', async () => {
+        const { history } = await fixture();
+        await history.record('default', 'first', { actor: user() });
+        await history.record('default', 'second', { actor: user() });
+        await history.list('default');
+        io.readFile.mockClear();
+        expect(await history.list('default')).toHaveLength(2);
+        expect(io.readFile).not.toHaveBeenCalled();
     });
 });
