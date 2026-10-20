@@ -12,7 +12,63 @@ let config = null;
 let checkTimer = null;
 const debounceMap = new Map(); // key -> last alert timestamp
 
+// Three failure buckets (password, passkey, recovery), independent of client IP.
+// Successes are never debounced. Delivery is best effort, with bounded concurrency.
+const authenticationFailures = new Map();
+let authenticationDeliveries = 0;
+let authenticationBusyReported = false;
+
+function clearAuthenticationFailures() {
+    for (const batch of authenticationFailures.values()) clearTimeout(batch.timer);
+    authenticationFailures.clear();
+}
+
+async function deliverAuthentication(event, additional = 0) {
+    if (!config?.enabled || !config.triggers?.authentication) return;
+    if (authenticationDeliveries >= 8) {
+        if (!authenticationBusyReported) {
+            authenticationBusyReported = true;
+            logger.warn('Authentication notification skipped: delivery capacity reached');
+        }
+        return;
+    }
+    authenticationDeliveries++;
+    try {
+        const message = additional
+            ? `${additional} additional failed ${event.method} attempts during the cooldown. Latest attempt: ${event.timestamp}. Latest source IP: ${event.sourceIp}.`
+            : `Time: ${event.timestamp}\nMethod: ${event.method}\nOutcome: ${event.outcome}\nSource IP: ${event.sourceIp}`;
+        await sendNotification(config, { title: event.title, message, priority: event.priority });
+    } finally {
+        authenticationDeliveries--;
+        authenticationBusyReported = false;
+    }
+}
+
+export function notifyAuthenticationEvent(event) {
+    if (!config?.enabled || !config.triggers?.authentication) return;
+    if (event.outcome !== 'failure') return deliverAuthentication(event);
+    const pending = authenticationFailures.get(event.method);
+    if (pending) {
+        pending.count++;
+        pending.latest = event;
+        return;
+    }
+    const batch = { count: 0, latest: event, timer: null };
+    const windowMs = Math.max(1, Math.min(1440, Number(config.debounceMinutes) || 30)) * 60_000;
+    batch.timer = setTimeout(() => {
+        authenticationFailures.delete(event.method);
+        if (batch.count) void deliverAuthentication(batch.latest, batch.count).catch(() => {
+            logger.warn('Authentication notification summary delivery failed', { method: event.method });
+        });
+    }, windowMs);
+    batch.timer.unref?.();
+    authenticationFailures.set(event.method, batch);
+    return deliverAuthentication(event);
+}
+
 export function updateMonitorConfig(newConfig) {
+    // Configuration changes must not deliver summaries accumulated for an old destination.
+    clearAuthenticationFailures();
     config = newConfig;
     for (const [stateKey, pending] of pendingRetries) {
         const trigger = pending.type === 'offline' ? 'upstreamOffline' : 'upstreamOnline';

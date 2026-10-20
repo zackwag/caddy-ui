@@ -25,6 +25,7 @@ const DEFAULT_CONFIG = {
         // Need route checks on (Metrics page), so they start off
         routeOffline: false,
         routeOnline: false,
+        authentication: false,
     },
     debounceMinutes: 30,
 };
@@ -32,7 +33,8 @@ const DEFAULT_CONFIG = {
 async function loadConfig() {
     try {
         const raw = await readFile(CONFIG_PATH, 'utf8');
-        return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+        const stored = JSON.parse(raw);
+        return { ...DEFAULT_CONFIG, ...stored, triggers: { ...DEFAULT_CONFIG.triggers, ...stored.triggers } };
     } catch {
         return { ...DEFAULT_CONFIG };
     }
@@ -51,7 +53,7 @@ router.get('/config', async (req, res) => {
 
 // PUT /api/notifications/config
 router.put('/config', async (req, res) => {
-    const config = { ...DEFAULT_CONFIG, ...req.body };
+    const config = { ...DEFAULT_CONFIG, ...req.body, triggers: { ...DEFAULT_CONFIG.triggers, ...req.body?.triggers } };
     await saveConfig(config);
     logger.info('Notifications config updated', { provider: config.provider, enabled: config.enabled });
 

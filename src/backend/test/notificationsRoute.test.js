@@ -21,6 +21,7 @@ beforeAll(async () => {
     const { default: notificationsRouter } = await import('../src/routes/notifications.js');
 
     const app = express();
+    app.use(express.json());
     app.use(diagnosticMiddleware);
     app.use('/api/notifications', notificationsRouter);
     server = app.listen(0, '127.0.0.1');
@@ -64,5 +65,21 @@ describe('POST /api/notifications/test', () => {
         expect(status).toBe(403);
         expect(body.code).toBe('WEBHOOK_DESTINATION_BLOCKED');
         expect(JSON.stringify(body)).not.toContain('127.0.0.1');
+    });
+});
+
+describe('authentication notification configuration', () => {
+    it('keeps the new trigger off when loading older configuration', async () => {
+        const response = await fetch(testUrl.replace('/test', '/config'));
+        expect((await response.json()).triggers.authentication).toBe(false);
+    });
+
+    it('persists the single trigger while retaining defaults for omitted categories', async () => {
+        const configUrl = testUrl.replace('/test', '/config');
+        const response = await fetch(configUrl, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true, provider: 'ntfy', triggers: { authentication: true } }) });
+        expect(response.status).toBe(200);
+        expect((await response.json()).triggers).toMatchObject({ authentication: true, upstreamOffline: true });
+        expect((await (await fetch(configUrl)).json()).triggers.authentication).toBe(true);
     });
 });
