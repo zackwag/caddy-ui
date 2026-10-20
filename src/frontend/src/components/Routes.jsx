@@ -8,7 +8,7 @@ import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch, getInstanceId } from "../utils/api.js";
 import { formatPercent } from "../utils/format.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
-import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
+import { getRouteCheckHost, getRouteHost, getRouteTitle, getRouteUpstreams } from "../utils/routes.js";
 
 // eslint-disable-next-line i18next/no-literal-string -- Example hostname
 const DOMAIN_PLACEHOLDER = "app.example.com";
@@ -376,6 +376,8 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
 
     const getHost = getRouteHost;
 
+    const getTitle = route => getRouteTitle(route, notes[getHost(route)]);
+
     const getUpstream = (route) => getRouteUpstreams(route).join(", ") || "—";
 
     const getStripPrefix = (route) => (route.match?.find(m => m.path)?.path?.[0] || "").replace("/*", "");
@@ -502,13 +504,13 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
     const filtered = routes.filter(r => {
         if (!search) return true;
         const q = search.toLowerCase();
-        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q) || (notes[getHost(r)] || "").toLowerCase().includes(q) || (r._server || "").toLowerCase().includes(q) || serverText(r).toLowerCase().includes(q);
+        return getHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q) || getTitle(r).toLowerCase().includes(q) || (r._server || "").toLowerCase().includes(q) || serverText(r).toLowerCase().includes(q);
     });
 
     const sorted = [...filtered].sort((a, b) => {
         let valA, valB;
         if (sortCol === "domain") { valA = getHost(a); valB = getHost(b); }
-        else if (sortCol === "title") { valA = notes[getHost(a)] || ""; valB = notes[getHost(b)] || ""; }
+        else if (sortCol === "title") { valA = getTitle(a); valB = getTitle(b); }
         else if (sortCol === "upstream") { valA = getUpstream(a); valB = getUpstream(b); }
         else if (sortCol === "uptime") {
             valA = getUptimePct(a) ?? 101;
@@ -589,6 +591,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                         const uLink = upstreamLink(upstream);
                                         const hasId = !!r["@id"];
                                         const note = notes[domain];
+                                        const title = getTitle(r);
                                         const routeStatus = getRouteStatus(r);
                                         return (
                                             <tr key={r["@id"] || i}>
@@ -596,7 +599,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                     <td
                                                         className={`col-status${routeStatus.history ? " col-status--clickable" : ""}`}
                                                         title={getHealthTitle(routeStatus)}
-                                                        onClick={() => routeStatus.history && setHistoryModal({ ...routeStatus.history, title: note || domain })}
+                                                        onClick={() => routeStatus.history && setHistoryModal({ ...routeStatus.history, title: title || domain })}
                                                     >{getHealthDot(routeStatus)}</td>
                                                 )}
                                                 <td>
@@ -614,11 +617,11 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                                 );
                                                             }) : <span className="mono">{domain}</span>}
                                                             {maintenance[domain] && <span className="badge badge-muted" style={{ marginLeft: 8, fontSize: 11 }}>{t("routes.maintenance")}</span>}
-                                                            {note && <div className="route-note route-note--mobile">{note}</div>}
+                                                            {title && <div className="route-note route-note--mobile">{title}</div>}
                                                         </div>
                                                     </div>
                                                 </td>
-                                                {columns.title && <td className="col-title cell-muted">{note || "—"}</td>}
+                                                {columns.title && <td className="col-title cell-muted">{title || "—"}</td>}
                                                 {columns.upstream && (
                                                     <td>
                                                         {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}

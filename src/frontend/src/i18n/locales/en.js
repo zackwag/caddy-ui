@@ -495,7 +495,7 @@ export default {
         title: 'Title',
         titlePlaceholder: 'e.g. Home Assistant, media server...',
         titleMigrationHint: 'Save to store this title as a comment in your Caddyfile.',
-        titleClearHint: 'Leave blank to clear the title.',
+        titleClearHint: 'Leave blank to use a default title from the hostname when available.',
         maintenanceEditHint: 'This route is in maintenance mode. Disable maintenance to edit the Caddyfile content.',
         caddyfileLoadFailed: "This route is defined in your Caddyfile but couldn't be loaded for inline editing. Use the <strong>Caddyfile</strong> tab to edit it directly.",
         caddyfile: 'Caddyfile',
