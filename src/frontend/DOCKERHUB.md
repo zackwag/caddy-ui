@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.3.0. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.4.0. Do not edit directly. -->
 
 # caddy/ui — Frontend
 
@@ -151,7 +151,9 @@ Docker mode uses the socket for container discovery and file operations. Local m
 
 ## Custom Nginx Config
 
-The frontend proxies API requests to `caddy-ui-backend:3001` by default. This configuration also applies to prebuilt images. If your backend has a different hostname or port, mount a custom Nginx config:
+The frontend proxies API requests to `caddy-ui-backend:3001` by default. To preserve client addresses behind Caddy or another reverse proxy, set `CADDY_UI_TRUSTED_UPSTREAMS` on the frontend container to that proxy's specific IP/CIDR (comma-separated for multiple proxies). Unset trusts no upstream forwarding headers. See [client addresses and rate limits](https://github.com/zackwag/caddy-ui#client-addresses-and-rate-limits).
+
+These settings also apply to prebuilt images. If your backend has a different hostname or port, mount a custom Nginx config:
 
 ```yaml
 volumes:

@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.3.0. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.4.0. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -164,12 +164,14 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `es-es` for the partial Spanish (Spain) catalog). Reviewed languages (currently English, Arabic and German) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Missing translations fall back to English. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
 | `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
+| `CADDY_UI_TRUSTED_PROXIES` | bundled frontend | Backend: unset discovers only `caddy-ui-frontend` by DNS; blank disables trust. An explicit comma-separated IP/CIDR list overrides discovery. See [client addresses and rate limits](https://github.com/zackwag/caddy-ui#client-addresses-and-rate-limits). |
+| `CADDY_UI_TRUSTED_UPSTREAMS` | — | Frontend nginx: comma-separated upstream proxy IPs/CIDRs allowed to supply client addresses, such as the Caddy serving the UI. Unset trusts none. |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
 | `CADDY_UI_UPDATE_CHECK_URL` | `https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json` | Where the update check reads published image versions from |
 | `CADDY_UI_USER` | — | Legacy username for credential enrollment; ignored after stored credentials are initialized |
-| `AUTH_PATH` | `/etc/caddy-ui/auth.json` | Persistent administrator credential/recovery hashes. Keep on a writable persistent volume, separate from UI settings. |
+| `AUTH_PATH` | `/etc/caddy-ui/auth.json` | Persistent administrator credential/recovery hashes and passkey records. Keep on a writable persistent volume, separate from UI settings. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Path to the Caddyfile snapshot directory |
 | `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://zackwag.github.io/caddy-ui/instances.html#multi-instance)) |
@@ -205,9 +207,11 @@ Passwords and recovery keys are stored as salted scrypt hashes in `AUTH_PATH`, w
 
 The browser receives a host-only, HttpOnly, SameSite=Strict cookie scoped to `/api`. It does not store authentication tokens in localStorage or URLs. Management sessions expire after 24 hours; enrollment and pre-login contexts expire after 10 minutes. Sessions are process-local: restarting the backend signs everyone out. Logout revokes the session on the server, including its live log streams.
 
-Open **Security → User** to change the administrator username or password. The current password is required; leave the new password blank to change only the username. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged. **Auth** is a disabled preview for future TOTP/passkey support.
+Open **Security → User** to change the administrator username or password. The current password is required; leave the new password blank to change only the username. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens, passkeys and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged.
 
-Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
+**Security → Auth** supports up to three passkeys. Adding or deleting any passkey always requires your current password. Passkeys need HTTPS and a matching `CADDY_UI_EXTERNAL_URL`. Records persist in `AUTH_PATH` across container rebuilds when its volume is retained. Password login remains available. See the [passkey guide](https://zackwag.github.io/caddy-ui/passkeys.html) for browser requirements and recovery. TOTP is a separate follow-up.
+
+Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session, API token and passkey. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
 
 If both password and recovery key are lost, stop the backend and restrict network access before removing only `AUTH_PATH` to repeat credential setup. Remove obsolete legacy auth variables as well, or those credentials will be required for enrollment. Do not remove the settings directory or Caddyfile. Restore normal access only after setup is complete.
 
@@ -234,6 +238,26 @@ Startup warns if Secure cookies are not enabled. This is informational; it does 
 Cross-site and same-site Fetch Metadata reject writes. Otherwise, a supplied Origin must match exactly; `Origin: null` is rejected. Without Origin, a supplied Referer must match. GET, HEAD and OPTIONS are unchanged; CORS remains disabled.
 
 Every write also requires `X-CSRF-Token` bound to the current cookie context, including login, setup, recovery and logout. Headerless scripts have no exemption. Tokens rotate with sessions. These controls do not replace network access restrictions or prevent DNS rebinding.
+
+### Client addresses and rate limits
+
+Rate limits use 15 authentication writes and 200 API requests per client per minute. Request logs use the same verified client address.
+
+With `CADDY_UI_TRUSTED_PROXIES` unset, the backend resolves only the bundled `caddy-ui-frontend` service and trusts that address as its immediate proxy. Addresses refresh every 30 seconds; lookup failures disable trust until discovery recovers. Direct connections from other peers ignore forwarding headers. The bundled nginx replaces incoming `X-Forwarded-For` with its verified client address, so direct frontend clients retain separate budgets without trusting arbitrary Docker peers.
+
+Set `CADDY_UI_TRUSTED_PROXIES` to an empty value to disable proxy trust, or to explicit comma-separated IPv4/IPv6 addresses or CIDRs to override discovery. Boolean values, hop counts, hostnames, zero-length prefixes and IPv4-mapped IPv6 prefixes below /96 fail startup. Custom frontend names or non-Docker deployments need explicit proxy addresses. Restart after changing the setting. Keep the backend private where possible; avoid trusting client networks or shared NAT gateways.
+
+When Caddy or another reverse proxy serves the UI through nginx, set `CADDY_UI_TRUSTED_UPSTREAMS` **on the frontend container** to that proxy's actual source IP or a narrow, controlled CIDR. For example:
+
+```yaml
+# caddy-ui-frontend service
+    environment:
+      - CADDY_UI_TRUSTED_UPSTREAMS=172.30.0.2
+```
+
+nginx accepts `X-Forwarded-For` only from configured upstreams, resolves the last untrusted address in the chain, and sends the backend a single verified address. Untrusted direct clients cannot supply their own identity. Use stable upstream addresses; restart nginx after changing the setting. Custom nginx configurations must retain equivalent real-IP and header-sanitization rules.
+
+Without upstream trust, clients behind Caddy share Caddy's budget and its address appears in logs. If frontend discovery is unavailable, clients behind nginx share nginx's budget. No broader trust is inferred to avoid this limitation. Every trusted upstream must sanitize forwarding headers; an overly broad trust range can reintroduce spoofing.
 
 ## Prometheus Metrics
 
