@@ -287,7 +287,8 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `es-es` for the partial Spanish (Spain) catalog). Reviewed languages (currently English, Arabic and German) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Missing translations fall back to English. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
-| `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes. An HTTPS URL is required for passkeys; never inferred from proxy headers. |
+| `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes; required when Fetch Metadata is absent, including ordinary plain HTTP. Passkeys require an HTTPS hostname rather than an IP address; never inferred from proxy headers. |
+| `CADDY_UI_DEV_HOST` | `127.0.0.1` | Development runner only: set to `0.0.0.0` to expose Vite through a Dev Container or LAN reverse proxy. Does not configure production listeners. |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
@@ -348,7 +349,7 @@ The browser receives a host-only, HttpOnly, SameSite=Strict cookie scoped to `/a
 
 Open **Security → User** to change the administrator username or password. The current password is required; leave the new password blank to change only the username. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens, passkeys and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged.
 
-**Security → Auth** supports up to three passkeys. Adding one always requires your current password; deleting the last one also requires it. Passkeys need HTTPS and a matching `CADDY_UI_EXTERNAL_URL`. Records persist in `AUTH_PATH` across container rebuilds when its volume is retained. Password login remains available. See the [passkey guide](https://zackwag.github.io/caddy-ui/passkeys.html) for browser requirements and recovery. TOTP is a separate follow-up.
+**Security → Auth** supports up to three passkeys. Adding or deleting any passkey always requires your current password. Passkeys need HTTPS and a matching `CADDY_UI_EXTERNAL_URL`. Records persist in `AUTH_PATH` across container rebuilds when its volume is retained. Password login remains available. See the [passkey guide](https://zackwag.github.io/caddy-ui/passkeys.html) for browser requirements and recovery. TOTP is a separate follow-up.
 
 Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session, API token and passkey. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
 
@@ -478,7 +479,7 @@ See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoin
 | `POST` | `/api/auth/passkeys/registration` | Verify and persist a registration response (management session + CSRF) |
 | `POST` | `/api/auth/passkeys/authentication/options` | Begin discoverable passkey sign-in (anonymous context + CSRF) |
 | `POST` | `/api/auth/passkeys/authentication` | Verify a signed assertion and issue a management session (anonymous context + CSRF) |
-| `DELETE` | `/api/auth/passkeys/:id` | Remove a passkey; `currentPassword` required for the last key; revokes old sessions and renews this one (management session + CSRF) |
+| `DELETE` | `/api/auth/passkeys/:id` | Remove a passkey; `currentPassword` required for every removal; revokes old sessions and renews this one (management session + CSRF) |
 | `POST` | `/api/auth/recovery` | Reset password using a recovery key and rotate that key (CSRF required) |
 | `GET` | `/api/auth/tokens` | List token metadata (management session only) |
 | `POST` | `/api/auth/tokens` | Create a read-only integration token (session + CSRF) |

@@ -6,7 +6,7 @@ Open **Security** in the sidebar to manage the administrator account, passkeys a
 
 Passkeys require a browser-supported, secure HTTPS connection to **Caddy UI itself**. Serving another application through HTTPS does not secure your UI connection. Put the frontend behind an HTTPS reverse proxy, trust its certificate on your devices, and reopen the UI at that HTTPS address. The TLS tab lets you inspect the managed Caddy instance's certificates; it does not automatically place the UI behind HTTPS.
 
-Set the backend's `CADDY_UI_EXTERNAL_URL` to the same browser-facing address, including its scheme and external port, for example `https://caddy-ui.example.com`. Restart the backend after changing it. The configured origin and hostname are used for WebAuthn verification; forwarded headers are not used to infer them. Keep this hostname stable: moving to another hostname can require registering passkeys again.
+Set the backend's `CADDY_UI_EXTERNAL_URL` to the same browser-facing address, including its scheme and external port, for example `https://caddy-ui.example.com`. Restart the backend after changing it. The configured origin and hostname are used for WebAuthn verification; forwarded headers are not used to infer them. IP addresses cannot be used as WebAuthn RP IDs; use a DNS hostname (or HTTPS localhost for development). Keep this hostname stable: moving to another hostname can require registering passkeys again.
 
 The Auth section distinguishes an HTTP connection, an unsupported browser and missing or mismatched backend configuration. Enrollment stays disabled until those requirements are met. Password login remains available over HTTP; passkeys are intentionally HTTPS-only, including on localhost.
 
@@ -25,7 +25,7 @@ The administrator can register **three passkeys**. A passkey synchronized by a p
 
 After registration, the login page offers **Sign in with a passkey**. No username entry is needed. On a different HTTPS origin, the button is disabled and a message identifies the configured address to open. Password sign-in remains available if the authenticator is missing, broken or unavailable.
 
-Remove a passkey under **Security → Auth**. Deleting the **last** passkey requires your current password. Any removal signs out all previous sessions and live log streams, including sessions that the removed credential may have opened, and renews the browser performing the removal. API tokens and the recovery key remain valid.
+Remove a passkey under **Security → Auth**. Deleting **any** passkey requires your current password, even if other passkeys remain. Any removal signs out all previous sessions and live log streams, including sessions that the removed credential may have opened, and renews the browser performing the removal. API tokens and the recovery key remain valid.
 
 Ordinary username and password changes preserve passkeys. A stable stored account identifier keeps them independent of the administrator's username. Authenticators may continue to display the username used when the credential was created.
 

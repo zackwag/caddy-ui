@@ -22,8 +22,9 @@ npm ci --prefix dev
 npm run dev:with-caddy
 ```
 
-Open <http://localhost:5173>. Vite listens on `0.0.0.0:5173`, including the
-container's network interface, and proxies API requests to the backend on port 3001.
+Open <http://localhost:5173>. Vite defaults to `127.0.0.1:5173` and proxies API
+requests to the backend on port 3001. Set `CADDY_UI_DEV_HOST=0.0.0.0` explicitly
+to allow access through a container network interface or LAN reverse proxy.
 Both ports must be free; the runner rejects occupied ports. The frontend's normal
 Caddyfile syntax-mode fetch runs before Vite starts and needs network access on
 first use. The default image is pinned to `caddy:2.10.2-alpine`.
@@ -142,7 +143,9 @@ Lifecycle functions accept an injected Docker command runner for automated tests
 Editor `forwardPorts` entries do not publish a Dev Container port on the VM's
 network interface. For an image/Dockerfile-based Dev Container, add
 `"appPort": ["15173:5173"]` to `.devcontainer/devcontainer.json` and rebuild the
-container. The provided example includes this mapping. For a Compose-based Dev
+container. The provided example includes this mapping and explicitly opts into
+wide binding through `CADDY_UI_DEV_HOST=0.0.0.0` in `remoteEnv`. Ordinary
+`dev:with-caddy` runs stay loopback-bound unless that variable is set. For a Compose-based Dev
 Container, add `ports: ["15173:5173"]` to its development service instead.
 
 Your reverse proxy can then target the Docker host/VM's stable LAN address on
@@ -154,7 +157,7 @@ address avoids depending on a Dev Container IP that can change after recreation.
 For HTTPS/passkey testing, start the runner with the public UI URL:
 
 ```sh
-CADDY_UI_EXTERNAL_URL=https://caddy-ui-dev.example.com npm run dev:with-caddy
+CADDY_UI_DEV_HOST=0.0.0.0 CADDY_UI_EXTERNAL_URL=https://caddy-ui-dev.example.com npm run dev:with-caddy
 ```
 
 The runner adds that hostname to Vite's allowed hosts. Keep the proxy's `Host`
