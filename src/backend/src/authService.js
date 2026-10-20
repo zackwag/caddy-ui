@@ -7,6 +7,7 @@ import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { createPasskeyService } from './passkeys.js';
 import { PasskeyValidationError } from './passkeyPolicy.js';
+import { recordAuthentication } from './authEvents.js';
 
 function sameSecret(actual, expected) {
     if (typeof actual !== 'string') return false;
@@ -122,7 +123,10 @@ export async function createAuthService({ store = createAuthStore(), env = proce
             return serialize(async () => {
                 let permission;
                 if (store.isInitialized()) {
-                    if (!await store.verifyPassword(username, password)) throw new AppError('UNAUTHORIZED');
+                    if (!await store.verifyPassword(username, password)) {
+                        recordAuthentication(req, 'password', 'failure');
+                        throw new AppError('UNAUTHORIZED');
+                    }
                     permission = 'management';
                 } else {
                     if (!legacy || !sameSecret(username, legacy.username) || !sameSecret(password, legacy.password)) {
@@ -131,6 +135,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                     permission = 'enrollment';
                 }
                 sessions.createSession(req, res, permission);
+                if (permission === 'management') recordAuthentication(req, 'password', 'success', store.listPasskeys().length > 0);
             });
         },
         completeSetup(req, res, { username, password } = {}) {
@@ -149,9 +154,13 @@ export async function createAuthService({ store = createAuthStore(), env = proce
             return serialize(async () => {
                 validate(store.getUsername() || 'administrator', password);
                 const replacement = await persist(() => store.replaceCredentials(recoveryKey, password));
-                if (!replacement) throw new AppError('UNAUTHORIZED');
+                if (!replacement) {
+                    recordAuthentication(req, 'recovery', 'failure');
+                    throw new AppError('UNAUTHORIZED');
+                }
                 sessions.revokeAllSessions();
                 sessions.revokeSession(req, res);
+                recordAuthentication(req, 'recovery', 'success');
                 return replacement;
             });
         },

@@ -2,6 +2,7 @@ import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthe
 import { isIP } from 'node:net';
 import { AppError } from './AppError.js';
 import { MAX_PASSKEYS, PASSKEY_ALGORITHMS, passkeyMetadata, validPasskeyName, validPasskeyRecord } from './passkeyPolicy.js';
+import { recordAuthentication } from './authEvents.js';
 
 const CHALLENGE_MS = 2 * 60 * 1000;
 
@@ -119,6 +120,9 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
                 // Persist replay protection before issuing a management session.
                 await persist(() => store.updatePasskeyUsage(record.id, result.authenticationInfo));
                 sessions.createSession(req, res, 'management');
+            }).then(() => recordAuthentication(req, 'passkey', 'success'), error => {
+                if (error.code === 'PASSKEY_INVALID') recordAuthentication(req, 'passkey', 'failure');
+                throw error;
             });
         },
         remove(req, res, id, input) {
