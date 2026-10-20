@@ -5,7 +5,7 @@ import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch, getInstanceId } from "../utils/api.js";
 import { formatPercent, formatPercentParts } from "../utils/format.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
-import { getRouteCheckHost, getRouteHost, getRouteUpstreams } from "../utils/routes.js";
+import { getRouteCheckHost, getRouteHost, getRouteTitle, getRouteUpstreams } from "../utils/routes.js";
 
 const STATUS = {
     online: { labelKey: "uptime.online", color: "var(--accent)" },
@@ -52,7 +52,8 @@ function buildRows(routes, uptime, routeUptime, notes, routeChecks, excludes) {
                 : routeStats.currentlyOnline ? "online" : "offline";
         rows.push({
             domain,
-            title: notes[domain] || "",
+            note: notes[domain] || "",
+            title: getRouteTitle(route, notes[domain]),
             upstreams,
             probeHost,
             excluded,
@@ -174,7 +175,7 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
                             <div className="stat-val" style={{ color: summary.lowest ? uptimeColor(summary.lowest.pct) : "var(--muted)" }}>
                                 {summary.lowest ? <PercentStat value={summary.lowest.pct} /> : "—"}
                             </div>
-                            <div className="stat-label uptime-lowest-label" title={summary.lowest?.domain}>
+                            <div className={`stat-label uptime-lowest-label${summary.lowest?.title && !summary.lowest.note ? " route-title--fallback" : ""}`} title={summary.lowest?.domain}>
                                 {summary.lowest ? summary.lowest.title || summary.lowest.domain : t("uptime.noDataYet")}
                             </div>
                         </div>
@@ -203,8 +204,8 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
                                                 className="uptime-row"
                                                 title={t("uptime.viewHistory")}
                                                 onClick={() => setHistoryModal(r.checkHost
-                                                    ? { route: r.checkHost, title: r.title || r.domain }
-                                                    : { upstream: r.upstreams[0], title: r.title || r.domain })}
+                                                    ? { route: r.checkHost, title: r.note || r.domain }
+                                                    : { upstream: r.upstreams[0], title: r.note || r.domain })}
                                             >
                                                 <td className="col-status">
                                                     <span
@@ -216,7 +217,7 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
                                                 </td>
                                                 <td>
                                                     <span className="mono">{r.domain}</span>
-                                                    {r.title && <div className="cell-muted">{r.title}</div>}
+                                                    {r.title && <div className={`cell-muted${!r.note ? " route-title--fallback" : ""}`}>{r.title}</div>}
                                                 </td>
                                                 <td className="mono" style={{ color: "var(--accent2)" }}>
                                                     {u && (
