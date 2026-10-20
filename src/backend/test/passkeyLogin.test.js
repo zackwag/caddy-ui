@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, rename, rm } from 'node:fs/promises';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAuthStore } from '../src/authStore.js';
 import { authClient, authFixture } from './fixtures/auth.mjs';
 import { authenticator } from './fixtures/webauthn.mjs';
@@ -25,6 +25,21 @@ const submit = (client, body) => client.request('/auth/passkeys/authentication',
 afterEach(async () => { for (const f of fixtures.splice(0).reverse()) await f.close(); });
 
 describe('passkey sign-in', () => {
+    it('classifies a counter rejected inside the store as invalid and does not issue a session', async () => {
+        const f = await fixture();
+        const client = authClient(f.url);
+        const update = f.store.updatePasskeyUsage.bind(f.store);
+        vi.spyOn(f.store, 'updatePasskeyUsage').mockImplementationOnce(async (id, info) => {
+            await update(id, { ...info, newCounter: 5 });
+            return update(id, info);
+        });
+        const options = await optionsFor(client);
+        const result = await submit(client, f.device.assertion(options.data));
+        expect(result.status).toBe(400);
+        expect(result.data.code).toBe('PASSKEY_INVALID');
+        expect((await client.request('/protected')).status).toBe(401);
+        expect(f.store.listPasskeys()[0].counter).toBe(5);
+    });
     it('verifies a signed assertion after reloading storage, persists counters and renews the anonymous context', async () => {
         const f = await fixture();
         const restarted = await authFixture({ env, store: createAuthStore(f.path) });

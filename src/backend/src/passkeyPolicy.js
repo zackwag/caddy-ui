@@ -1,6 +1,8 @@
 export const MAX_PASSKEYS = 3;
 export const PASSKEY_ALGORITHMS = [-7, -257];
 
+export class PasskeyValidationError extends Error {}
+
 const encoded = (value, maximum) => typeof value === 'string' && value.length > 0
     && value.length <= maximum && /^[A-Za-z0-9_-]+$/.test(value)
     && Buffer.from(value, 'base64url').toString('base64url') === value;

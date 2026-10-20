@@ -33,6 +33,7 @@ export const ERROR_REGISTRY = Object.freeze({
     AUTH_PERSISTENCE_FAILED: { status: 503, level: 'error' },
     CURRENT_PASSWORD_INVALID: { status: 403, level: 'warn' },
     PASSKEY_UNAVAILABLE: { status: 403, level: 'warn' },
+    PASSKEY_IP_UNAVAILABLE: { status: 403, level: 'warn' },
     PASSKEY_INVALID: { status: 400, level: 'warn' },
     PASSKEY_LIMIT: { status: 409, level: 'warn' },
     FORBIDDEN: { status: 403, level: 'warn' },

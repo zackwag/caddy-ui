@@ -1,22 +1,20 @@
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server';
+import { isIP } from 'node:net';
 import { AppError } from './AppError.js';
 import { MAX_PASSKEYS, PASSKEY_ALGORITHMS, passkeyMetadata, validPasskeyName, validPasskeyRecord } from './passkeyPolicy.js';
 
 const CHALLENGE_MS = 2 * 60 * 1000;
 
 // State is attached to existing, bounded sessions: no separate anonymous challenge cache.
-export function createPasskeyService({ store, sessions, env, serialize, persist, now = Date.now }) {
+export function createPasskeyService({ store, sessions, env, serialize, persist, requireManagement, now = Date.now }) {
     const configured = env.CADDY_UI_EXTERNAL_URL ? new URL(env.CADDY_UI_EXTERNAL_URL) : null;
-    const origin = configured?.protocol === 'https:' ? configured.origin : null;
+    const ipHost = !!configured && !!isIP(configured.hostname.replace(/^\[|\]$/g, ''));
+    const origin = configured?.protocol === 'https:' && !ipHost ? configured.origin : null;
     const rpID = origin ? configured.hostname : null;
 
     function requireEnabled() {
+        if (ipHost) throw new AppError('PASSKEY_IP_UNAVAILABLE');
         if (!origin || !store.isInitialized()) throw new AppError('PASSKEY_UNAVAILABLE');
-    }
-    function management(req, res) {
-        const session = sessions.readSession(req);
-        if (session?.permission !== 'management') throw new AppError('UNAUTHORIZED');
-        return { session, unwatch: sessions.watchSession(session, res) };
     }
     function takeChallenge(req, kind) {
         const session = sessions.readSession(req);
@@ -35,16 +33,18 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
 
     return {
         state() {
-            return { passkeysEnabled: !!origin, passkeyOrigin: origin,
-                passkeyLoginAvailable: !!origin && store.listPasskeys().some(key => key.rpId === rpID) };
+            return { passkeyOrigin: origin, passkeyUnavailableReason: ipHost ? 'ip-address' : null,
+                passkeyLoginAvailable: !!origin && store.hasPasskey(rpID) };
         },
         list(req, res) {
-            management(req, res);
-            return { enabled: !!origin, origin, limit: MAX_PASSKEYS, passkeys: store.listPasskeys().map(passkeyMetadata) };
+            requireManagement(req, res);
+            return { enabled: !!origin, origin, unavailableReason: ipHost ? 'ip-address' : null,
+                limit: MAX_PASSKEYS, passkeys: store.listPasskeys().map(passkeyMetadata) };
         },
         registrationOptions(req, res, input) {
             return serialize(async () => {
-                const { session } = management(req, res);
+                requireManagement(req, res);
+                const session = sessions.readSession(req);
                 // An unsuccessful new attempt must not leave an earlier password authorization usable.
                 delete session.passkeyChallenge;
                 requireEnabled();
@@ -65,7 +65,7 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
         },
         register(req, res, response) {
             return serialize(async () => {
-                management(req, res);
+                requireManagement(req, res);
                 requireEnabled();
                 const pending = takeChallenge(req, 'registration');
                 if (store.listPasskeys().length >= MAX_PASSKEYS) throw new AppError('PASSKEY_LIMIT');
@@ -78,7 +78,7 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
                 } catch { throw new AppError('PASSKEY_INVALID'); }
                 if (!result.verified || pending.userId !== store.getPasskeyUserId()) throw new AppError('PASSKEY_INVALID');
                 const { credential, credentialDeviceType, credentialBackedUp } = result.registrationInfo;
-                if (store.listPasskeys().some(key => key.id === credential.id)) throw new AppError('CONFLICT');
+                if (store.listPasskeys().some(key => key.id === credential.id)) throw new AppError('PASSKEY_INVALID');
                 const record = { id: credential.id, publicKey: Buffer.from(credential.publicKey).toString('base64url'),
                     counter: credential.counter, transports: credential.transports ?? [],
                     name: pending.name, rpId: rpID, deviceType: credentialDeviceType, backedUp: credentialBackedUp,
@@ -123,10 +123,10 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
         },
         remove(req, res, id, input) {
             return serialize(async () => {
-                const { unwatch } = management(req, res);
+                const unwatch = requireManagement(req, res);
                 const keys = store.listPasskeys();
                 if (!keys.some(key => key.id === id)) throw new AppError('NOT_FOUND');
-                if (keys.length === 1) await requirePassword(input);
+                await requirePassword(input);
                 await persist(() => store.removePasskey(id));
                 // Removing a lost credential also ends sessions it may already have opened.
                 unwatch();

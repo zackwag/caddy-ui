@@ -65,6 +65,37 @@ describe('passkey enrollment and removal', () => {
         expect(JSON.stringify(state.data)).not.toContain('ignored');
     });
 
+    it.each(['https://192.168.1.10:8443', 'https://127.0.0.1', 'https://[::1]:8443', 'https://[::ffff:192.0.2.1]'])('disables passkeys for IP-literal external URLs (%s)', async externalUrl => {
+        const f = await fixture({ env: { CADDY_UI_EXTERNAL_URL: externalUrl } });
+        const state = (await f.client.request('/auth/status')).data;
+        expect(state).toMatchObject({ passkeyOrigin: null, passkeyLoginAvailable: false, passkeyUnavailableReason: 'ip-address' });
+        expect((await f.client.request('/auth/passkeys')).data).toMatchObject({ enabled: false, unavailableReason: 'ip-address' });
+        expect((await optionsFor(f.client, f.password)).data.code).toBe('PASSKEY_IP_UNAVAILABLE');
+        const anonymous = authClient(f.url);
+        expect((await anonymous.request('/auth/passkeys/authentication/options', { method: 'POST' })).data.code).toBe('PASSKEY_IP_UNAVAILABLE');
+    });
+
+    it('checks public availability without cloning credential records', async () => {
+        const f = await fixture();
+        await register(f);
+        const list = vi.spyOn(f.store, 'listPasskeys');
+        expect((await authClient(f.url).request('/auth/status')).data.passkeyLoginAvailable).toBe(true);
+        expect(list).not.toHaveBeenCalled();
+    });
+
+    it('classifies duplicate credentials rejected inside the store as invalid rather than a storage outage', async () => {
+        const f = await fixture();
+        const add = f.store.addPasskey.bind(f.store);
+        vi.spyOn(f.store, 'addPasskey').mockImplementationOnce(async record => {
+            await add(record);
+            return add(record);
+        });
+        const { result } = await register(f);
+        expect(result.status).toBe(400);
+        expect(result.data.code).toBe('PASSKEY_INVALID');
+        expect(f.store.listPasskeys()).toHaveLength(1);
+    });
+
     it('denies scoped bearer tokens even when a valid management cookie accompanies the request', async () => {
         const f = await fixture();
         const token = await f.store.issueApiToken({ name: 'Automation', scopes: ['status:read'], instanceIds: ['default'], expiresInDays: 30 });
@@ -145,14 +176,22 @@ describe('passkey enrollment and removal', () => {
         expect(f.store.listPasskeys()).toHaveLength(3);
     });
 
-    it('requires a password for last-key removal and revokes old sessions after any removal', async () => {
+    it('requires a fresh password for every removal, including a session opened with a lost passkey', async () => {
         const f = await fixture();
-        const first = (await register(f)).result.data;
+        const { device, result: { data: first } } = await register(f);
         const second = (await register(f)).result.data;
         const other = authClient(f.url);
-        await other.request('/auth/sessions', { method: 'POST', body: { username: 'administrator', password: f.password } });
+        const options = await other.request('/auth/passkeys/authentication/options', { method: 'POST' });
+        expect((await other.request('/auth/passkeys/authentication', { method: 'POST', body: device.assertion(options.data) })).status).toBe(200);
+        const before = await readFile(f.path, 'utf8');
+        for (const currentPassword of [undefined, secret()]) {
+            expect((await other.request('/auth/passkeys/' + second.id, { method: 'DELETE', body: { currentPassword } })).data.code).toBe('CURRENT_PASSWORD_INVALID');
+        }
+        expect(await readFile(f.path, 'utf8')).toBe(before);
+        expect((await other.request('/protected')).status).toBe(200);
+        expect((await f.client.request('/protected')).status).toBe(200);
         const oldCookie = f.client.cookie;
-        expect((await f.client.request('/auth/passkeys/' + first.id, { method: 'DELETE' })).status).toBe(200);
+        expect((await f.client.request('/auth/passkeys/' + first.id, { method: 'DELETE', body: { currentPassword: f.password } })).status).toBe(200);
         expect(f.client.cookie).not.toBe(oldCookie);
         expect((await other.request('/protected')).status).toBe(401);
         expect((await f.client.request('/auth/passkeys/' + second.id, { method: 'DELETE' })).data.code).toBe('CURRENT_PASSWORD_INVALID');

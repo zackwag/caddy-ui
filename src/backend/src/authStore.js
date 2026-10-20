@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import logger from './logger.js';
 import { MAX_API_TOKENS, validApiTokenInput, validApiTokenRecord } from './apiTokenPolicy.js';
-import { MAX_PASSKEYS, validPasskeyRecord, validPasskeyStore } from './passkeyPolicy.js';
+import { MAX_PASSKEYS, PasskeyValidationError, validPasskeyRecord, validPasskeyStore } from './passkeyPolicy.js';
 
 const derive = promisify(scrypt);
 const KDF = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
@@ -118,6 +118,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         getUsername() { requireLoaded(); return state?.username ?? null; },
         getPasskeyUserId() { requireLoaded(); return state?.passkeys?.userId ?? null; },
         listPasskeys() { requireLoaded(); return structuredClone(state?.passkeys?.credentials || []); },
+        hasPasskey(rpId) { requireLoaded(); return !!state?.passkeys?.credentials.some(key => key.rpId === rpId); },
         ensurePasskeyUserId() {
             return serialize(async () => {
                 requireLoaded();
@@ -131,7 +132,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 requireLoaded();
                 const previous = state?.passkeys;
                 if (!previous || !validPasskeyRecord(record) || previous.credentials.length >= MAX_PASSKEYS
-                    || previous.credentials.some(key => key.id === record.id)) throw new Error('Invalid or duplicate passkey');
+                    || previous.credentials.some(key => key.id === record.id)) throw new PasskeyValidationError('Invalid or duplicate passkey');
                 await persist({ ...state, passkeys: { ...previous, credentials: [...previous.credentials, structuredClone(record)] } }, false);
             });
         },
@@ -140,10 +141,10 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 requireLoaded();
                 const previous = state?.passkeys;
                 const key = previous?.credentials.find(key => key.id === id);
-                if (!key) throw new Error('Passkey no longer exists');
+                if (!key) throw new PasskeyValidationError('Passkey no longer exists');
                 const updated = { ...key, counter: newCounter, deviceType: credentialDeviceType,
                     backedUp: credentialBackedUp, lastUsedAt: new Date(now()).toISOString() };
-                if (!validPasskeyRecord(updated) || (key.counter > 0 && newCounter <= key.counter)) throw new Error('Invalid passkey counter');
+                if (!validPasskeyRecord(updated) || (key.counter > 0 && newCounter <= key.counter)) throw new PasskeyValidationError('Invalid passkey counter');
                 await persist({ ...state, passkeys: { ...previous, credentials: previous.credentials.map(key => key.id === id ? updated : key) } }, false);
             });
         },
