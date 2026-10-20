@@ -23,15 +23,23 @@ async function fixture() {
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
 
 describe('persistent passkeys', () => {
-    it('loads older records and preserves passkeys and the account handle across restarts and credential changes', async () => {
+    it('migrates older identities while preserving passkeys and the account handle across restarts and credential changes', async () => {
         const { path, store, password, recoveryKey } = await fixture();
         expect(store.listPasskeys()).toEqual([]);
         const userId = await store.ensurePasskeyUserId();
         const key = record();
         await store.addPasskey(key);
         await store.updateCredentials('renamed-administrator', secret());
+        const previous = JSON.parse(await readFile(path, 'utf8'));
+        delete previous.accountId;
+        await writeFile(path, JSON.stringify(previous));
         const restarted = createAuthStore(path);
         await restarted.loadAuth();
+        const migrated = JSON.parse(await readFile(path, 'utf8'));
+        expect(migrated).toEqual({ ...previous, accountId: restarted.getAccountId() });
+        expect(restarted.getAccountId()).toMatch(/^[a-f0-9-]{36}$/);
+        await restarted.loadAuth();
+        expect(restarted.getAccountId()).toBe(migrated.accountId);
         expect(await restarted.ensurePasskeyUserId()).toBe(userId);
         expect(restarted.listPasskeys()).toEqual([key]);
         const raw = await readFile(path, 'utf8');
@@ -85,11 +93,13 @@ describe('persistent passkeys', () => {
 
     it('removes every passkey and its account handle during account recovery', async () => {
         const { store, path, recoveryKey } = await fixture();
+        const accountId = store.getAccountId();
         await store.ensurePasskeyUserId();
         await store.addPasskey(record());
         expect(await store.replaceCredentials(recoveryKey, secret())).toBeTruthy();
         const restarted = createAuthStore(path);
         await restarted.loadAuth();
+        expect(restarted.getAccountId()).toBe(accountId);
         expect(restarted.listPasskeys()).toEqual([]);
         expect(restarted.getPasskeyUserId()).toBeNull();
     });
