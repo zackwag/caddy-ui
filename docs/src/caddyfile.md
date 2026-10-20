@@ -4,8 +4,9 @@
 
 Saving commits the resulting Caddyfile as a new history version. Editing text in
 the editor alone does not create a version; a confirmed import does. Restoring a
-version saves its content as a new version attributed to the current account;
-it does not change the author of the original version.
+version saves its exact content without formatting or sorting as a new version
+attributed to the current account; it does not change the original author.
+Save, restore and import have distinct action labels.
 
 History shows the authenticated account or API-token identity, action and apply
 outcome for each version. A selected version initially compares with its recorded
@@ -28,8 +29,22 @@ Rejected changes that roll back do not create an attributed saved version.
 Force saves kept on disk despite a failed reload are marked **Saved; Caddy
 rejected the reload**. If preserving the previous file fails, the save stops
 before changing the Caddyfile. If recording history fails after a save has
-already succeeded, the API reports that the file was saved but history could not
-be recorded; it does not claim the change was rolled back.
+already succeeded, the API completes successfully with a warning that history
+could not be recorded. The UI shows a warning and operation-specific bookkeeping,
+including maintenance recovery state, still completes. The applied change may
+therefore lack a history version; it is not reported as rejected or rolled back.
+
+Malformed or unreadable versions are skipped with a log warning rather than
+blocking other history or saves. If the identity registry cannot be read, current
+identities can still resolve; unavailable historical names appear as Unknown.
+Damaged files are not automatically deleted. History caches parsed metadata for
+unchanged versions and keeps an in-memory identity registry with serialized writes.
+
+Route, maintenance, logging and metrics edits transform the latest file inside
+a per-instance queue, preventing concurrent local commands from dropping each
+other's file changes. Editor saves and imports intentionally replace the full
+file. External file/API writers do not participate in this queue; continuous
+drift detection and stronger conflict checks remain separate follow-ups.
 
 Each instance retains up to 20 versions. New versions store content and metadata
 together in atomic JSON files under `HISTORY_PATH`; older plain Caddyfile
