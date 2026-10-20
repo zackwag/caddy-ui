@@ -450,6 +450,8 @@ export default {
         updateAvailable: 'New caddy/ui release available',
         routeOffline: 'Route goes down',
         routeOnline: 'Route comes back up',
+        authentication: 'Authentication notifications',
+        authenticationHint: 'Notify about successful and failed password and passkey sign-ins, and recovery attempts. Recovery and password sign-ins while passkeys exist have high priority. Repeated failures are summarized during the cooldown. Application logging is independent of this switch.',
         routeAlertHint: "Route alerts use route checks (turn them on from the Metrics page) and fire when a site answers with a server error, times out, or has a certificate problem, even if its upstream is still reachable. Skipped routes don't alert.",
         debounce: 'Debounce',
         cooldownMinutes: 'Cooldown (minutes)',

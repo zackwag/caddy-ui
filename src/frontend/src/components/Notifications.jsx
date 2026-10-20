@@ -294,9 +294,21 @@ export default function Notifications({ toast, onUnauth }) {
                         />
                         {t("notifications.routeOnline")}
                     </label>
+                    <label className="config-checkbox-label">
+                        <input
+                            type="checkbox"
+                            className="config-checkbox"
+                            checked={config.triggers?.authentication ?? false}
+                            onChange={e => updateTriggers({ authentication: e.target.checked })}
+                        />
+                        {t("notifications.authentication")}
+                    </label>
                 </div>
                 <div className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
                     {t("notifications.routeAlertHint")}
+                </div>
+                <div className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
+                    {t("notifications.authenticationHint")}
                 </div>
             </div>
 
