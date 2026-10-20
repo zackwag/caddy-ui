@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.5.0](https://github.com/zackwag/caddy-ui/compare/v3.4.0...v3.5.0) (2026-10-20)
+
+
+### Features
+
+* add authentication event notifications ([#372](https://github.com/zackwag/caddy-ui/issues/372)) ([73d4e0f](https://github.com/zackwag/caddy-ui/commit/73d4e0fbfea688cf90d5d759e3d021b30b007457))
+
 ## [3.4.0](https://github.com/zackwag/caddy-ui/compare/v3.3.0...v3.4.0) (2026-10-20)
 
 
