@@ -32,6 +32,7 @@ import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCheck.js';
 import { startUpstreamMonitor } from './upstreamMonitor.js';
+import { createProxyTrust } from './trustedProxies.js';
 import { getAvailableFonts, getEnabledLanguages } from './languages.js';
 
 const authentication = await initializeAuthentication();
@@ -40,7 +41,8 @@ const PORT = process.env.PORT || 3001;
 const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
 const APP_VERSION = process.env.APP_VERSION || 'dev';
 
-app.set('trust proxy', 1);
+const proxyTrust = await createProxyTrust(process.env.CADDY_UI_TRUSTED_PROXIES);
+app.set('trust proxy', proxyTrust.trust);
 app.use(express.json());
 app.use(express.text({ type: 'text/plain' }));
 app.use(diagnosticMiddleware);
@@ -60,20 +62,24 @@ app.use((req, res, next) => {
     next();
 });
 
-const apiLimiter = rateLimit({
+const rateLimitOptions = {
     windowMs: 60_000,
-    limit: 200,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
+    // Untrusted forwarding headers are intentionally ignored in direct mode.
+    validate: { xForwardedForHeader: false, forwardedHeader: false },
+};
+
+const apiLimiter = rateLimit({
+    ...rateLimitOptions,
+    limit: 200,
     message: { error: 'Too many requests, please try again later' },
 });
 
 const authLimiter = rateLimit({
-    windowMs: 60_000,
+    ...rateLimitOptions,
     limit: 15,
     skip: req => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
     message: { error: 'Too many login attempts, please try again later' },
 });
 

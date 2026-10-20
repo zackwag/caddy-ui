@@ -5,7 +5,7 @@
     "scripts": {
         "test": "node --test dev-caddy/*.test.mjs integration/*.test.mjs",
         "test:playground": "vitest run playground/test/",
-        "test:integration": "node --test integration/caddy.mjs integration/examples.mjs integration/api.mjs integration/startup.mjs integration/diagnostics.mjs",
+        "test:integration": "node --test integration/caddy.mjs integration/examples.mjs integration/api.mjs integration/startup.mjs integration/diagnostics.mjs integration/rate-limits.mjs",
         "test:e2e": "node --test --test-concurrency=1 e2e/error-logging.mjs e2e/languages.mjs e2e/cross-site.mjs e2e/auth.mjs e2e/api-tokens.mjs",
         "lint": "node ../src/backend/node_modules/eslint/bin/eslint.js . --max-warnings=0",
         "prei18n:preview": "node ../src/frontend/scripts/fetch-caddyfile-mode.mjs",

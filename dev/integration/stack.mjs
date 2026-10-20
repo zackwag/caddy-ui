@@ -108,6 +108,8 @@ export function waitForBackendPort(backend, { signal, timeoutMs = 15000 } = {}) 
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => finish(reject, new Error('Backend did not report its listening port before readiness')), timeoutMs);
         const onAbort = () => finish(reject, signal.reason);
+        const onClose = (code, signal) => finish(reject, new Error(`Backend exited (${code ?? signal}) before readiness`));
+        const onError = error => finish(reject, error);
         const onMessage = message => {
             if (message?.type !== 'caddy-ui:listening') return;
             if (!Number.isInteger(message.port) || message.port < 1 || message.port > 65535) {
@@ -119,13 +121,31 @@ export function waitForBackendPort(backend, { signal, timeoutMs = 15000 } = {}) 
         function finish(settle, value) {
             clearTimeout(timer);
             backend.removeListener('message', onMessage);
+            backend.removeListener('close', onClose);
+            backend.removeListener('error', onError);
             signal?.removeEventListener('abort', onAbort);
             settle(value);
         }
         backend.on('message', onMessage);
+        backend.once('close', onClose);
+        backend.once('error', onError);
         signal?.addEventListener('abort', onAbort, { once: true });
         if (signal?.aborted) onAbort();
     });
+}
+
+export async function startBackend(scope, { env, backendEntry = 'src/backend/src/index.js' }) {
+    let output = '';
+    const backend = await scope.acquire(() => spawn(process.execPath, [resolve(root, backendEntry)],
+        { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] }), stopProcess);
+    for (const stream of [backend.stdout, backend.stderr]) stream.on('data', chunk => { output = (output + chunk).slice(-64000); });
+    try {
+        const port = await waitForBackendPort(backend, { signal: scope.signal });
+        return { backend, url: `http://127.0.0.1:${port}`, output: () => output };
+    } catch (cause) {
+        scope.signal.throwIfAborted();
+        throw new Error(`${cause?.message ?? String(cause)}\n${output}`, { cause });
+    }
 }
 
 async function stopProcess(child) {
@@ -147,7 +167,7 @@ export function useTestStack(t, options = {}) {
 // Browser fixtures pass their owner here so all services share one cleanup order.
 export async function createTestStack(scope, { project = randomBytes(8).toString('hex'), backendEntry = 'src/backend/src/index.js', additionalLanguages = 'de' } = {}) {
     const instances = new Map();
-    let output = '';
+    let output = () => '';
     const close = () => scope.close();
 
     try {
@@ -174,16 +194,14 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
             await writeFile(env.INSTANCES_PATH, JSON.stringify([{ id: 'default', ...first.instance }]));
             await writeFile(env.SETTINGS_PATH, JSON.stringify({ firstTimeRun: false, theme: 'dark', language: 'en', routeChecks: false }));
         });
-        const backend = await scope.acquire(() => spawn(process.execPath, [resolve(root, backendEntry)],
-            { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] }), stopProcess);
-        for (const stream of [backend.stdout, backend.stderr]) stream.on('data', chunk => { output = (output + chunk).slice(-64000); });
+        const started = await startBackend(scope, { env, backendEntry });
+        const { backend, url } = started;
+        output = started.output;
         const startup = new AbortController();
         backend.on('error', error => startup.abort(error));
         // close follows stdout/stderr draining, so startup diagnostics are complete.
         backend.once('close', (code, signal) => startup.abort(new Error(`Backend exited (${code ?? signal}) before readiness`)));
         const readySignal = AbortSignal.any([scope.signal, startup.signal]);
-        const port = await waitForBackendPort(backend, { signal: readySignal });
-        const url = `http://127.0.0.1:${port}`;
         await waitForHttp(url + '/api/version', {
             accept: async response => response.ok && (await response.json()).version === version,
             signal: readySignal,
@@ -229,6 +247,6 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
         };
     } catch (error) {
         try { await close(); } catch (cleanupError) { throw new AggregateError([error, cleanupError], 'Integration startup and cleanup failed', { cause: cleanupError }); }
-        throw new Error(`Integration startup failed: ${error?.message ?? String(error)}\n${output}`, { cause: error });
+        throw new Error(`Integration startup failed: ${error?.message ?? String(error)}\n${output()}`, { cause: error });
     }
 }
