@@ -13,11 +13,7 @@ An empty result means the resource is empty, not that it couldn't be read:
 - When certificate storage is readable but Caddy's config isn't, `GET /api/tls` still lists the certificates with `isManaged: null`. Without Caddy's config, caddy/ui can't tell whether a certificate is still in use, so none are marked `orphaned`.
 - `GET /api/route-notes` returns `{}` when no notes file exists yet. If the notes file can't be read or isn't a valid JSON object, it returns `500` with `{ "code": "ROUTE_NOTES_READ_FAILED" }`. `PUT /api/route-notes/:domain` fails the same way and leaves the file unchanged.
 - `GET /api/caddyfile/history` returns `[]` when there are no snapshots. If the history directory can't be read, it returns `500` with `{ "code": "CADDYFILE_HISTORY_READ_FAILED" }`.
-- `GET /api/logs` returns `200` with `{ "lines": [], "path": "..." }` for an empty readable file. A missing file returns `404` with `LOG_FILE_MISSING`; permissions, container, command or other read failures return `500` with `LOG_READ_FAILED`. Failure responses include a request ID; the application logs retain the underlying reason and instance path.
-- `GET /api/logs/stream` reports failures as SSE events on the established HTTP stream. Events include `code`, `error` and `requestId`, using `LOG_FILE_MISSING` for a missing file and `LOG_STREAM_ERROR` for other failures. The UI stops failed live mode; start it again after correcting the problem.
+- `GET /api/logs` returns `200` with `{ "lines": [], "path": "..." }` for an empty readable file. A missing file returns `404` with `LOG_FILE_MISSING`, and a Docker-mode container that can't be reached returns `503` with `LOG_SOURCE_UNAVAILABLE`. Permissions, command or other read failures return `500` with `LOG_READ_FAILED`. Failure responses include a request ID; the application logs retain the underlying reason and instance path.
+- `GET /api/logs/stream` reports failures as SSE events on the established HTTP stream. Events include `code`, `error` and `requestId`, using `LOG_FILE_MISSING` for a missing file, `LOG_SOURCE_UNAVAILABLE` for an unreachable container and `LOG_STREAM_ERROR` for other failures. The UI stops failed live mode; start it again after correcting the problem.
 
-The Caddy log source reads the selected instance's configured log file, rather
-than Docker's captured stdout/stderr. A writable directory mount alone does not
-enable file logging: Caddy must be configured to write to the selected path.
-The UI displays unavailable reads separately from an empty file. Refresh retries
-the read and clears the error after success.
+The Caddy log source reads the selected instance's configured log file, rather than Docker's captured stdout/stderr. A writable directory mount alone does not enable file logging: Caddy must be configured to write to the selected path. The UI displays unavailable reads separately from an empty file. Refresh retries the read and clears the error after success.

@@ -58,6 +58,7 @@ export default {
         notificationSendFailed: 'Could not send the notification. See the application logs for details.',
         logFileMissing: 'The Caddy log file was not found. Configure file logging or check the instance log path.',
         logReadFailed: 'Could not read the Caddy log file. Check the instance connection and file permissions. See the application logs for details.',
+        logSourceUnavailable: 'The Caddy container is unavailable, so its log cannot be read. Check that the container is running.',
         logStreamError: 'Could not stream Caddy logs. See the application logs for details.',
         rateLimited: 'Too many requests. Please try again later.',
         validationFailed: 'Validation failed. Check the configuration and application logs.',

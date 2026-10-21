@@ -7,19 +7,22 @@ vi.mock('../src/docker.js', async original => ({ ...await original(), execInInst
 import logsRouter from '../src/routes/logs.js';
 import { diagnosticMiddleware } from '../src/errorReporting.js';
 import logger from '../src/logger.js';
+import { logReadError } from '../src/logReadError.js';
 
 const instance = { id: 'test', containerName: 'caddy', logPath: '/var/log/caddy/access.log' };
 const failure = (stderr, code = 1) => Object.assign(new Error(stderr), { stderr, code });
+const failureCode = (status, fallback) => ({ 404: 'LOG_FILE_MISSING', 503: 'LOG_SOURCE_UNAVAILABLE' })[status] ?? fallback;
 const failures = [
     ['GNU missing file', `tail: cannot open '${instance.logPath}' for reading: No such file or directory`, 404],
     ['BusyBox missing file', `tail: can't open '${instance.logPath}': No such file or directory\ntail: no files`, 404],
     ['BSD missing file', `tail: ${instance.logPath}: No such file or directory`, 404],
     ['permissions', `tail: cannot open '${instance.logPath}' for reading: Permission denied`, 500],
     ['directory', `tail: error reading '${instance.logPath}': Is a directory`, 500],
-    ['missing container', 'Error response from daemon: No such container: caddy', 500],
-    ['stopped container', 'Error response from daemon: Container is not running', 500],
+    ['missing container', 'Error response from daemon: No such container: caddy', 503],
+    ['stopped container', 'Error response from daemon: Container is not running', 503],
+    ['unreachable Docker daemon', 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?', 503],
     ['missing tail binary', 'exec: "tail": executable file not found in $PATH: no such file or directory', 500],
-    ['missing Docker binary', 'spawn docker ENOENT', 500],
+    ['missing Docker binary', 'spawn docker ENOENT', 503],
     ['different missing path', 'tail: /another/path: No such file or directory', 500],
 ];
 let server;
@@ -57,14 +60,20 @@ describe('Caddy log snapshots', () => {
         execInInstance.mockRejectedValue(failure(detail));
         const response = await fetch(url);
         const body = await response.json();
-        const code = status === 404 ? 'LOG_FILE_MISSING' : 'LOG_READ_FAILED';
+        const code = failureCode(status, 'LOG_READ_FAILED');
         expect(response.status).toBe(status);
         expect(body).toEqual({ code, error: 'Operation failed', requestId: response.headers.get('X-Request-ID') });
         expect(body.requestId).toBeTruthy();
-        const diagnostic = (status === 404 ? logger.warn : logger.error).mock.calls[0][1];
+        const diagnostic = (status === 500 ? logger.error : logger.warn).mock.calls[0][1];
         expect(diagnostic).toMatchObject({ code, requestId: body.requestId, status });
         expect(diagnostic.causes[0].context).toEqual({ instanceId: 'test', containerName: 'caddy', logPath: instance.logPath });
         expect(diagnostic.causes[1].message).toBe(detail);
+    });
+
+    it('reserves unavailable sources for Docker failures', () => {
+        const local = { ...instance, containerName: '' };
+        expect(logReadError(failure('Error response from daemon: Container is not running'), local).code).toBe('LOG_READ_FAILED');
+        expect(logReadError(failure('spawn tail ENOENT'), instance).code).toBe('LOG_READ_FAILED');
     });
 });
 
@@ -88,7 +97,7 @@ describe('Caddy live log failures', () => {
         const response = await fetch(url + '/stream');
         const events = (await response.text()).trim().split('\n\n').map(event => JSON.parse(event.slice(6)));
         // SSE errors are events on an established HTTP 200 stream.
-        expect(events).toEqual([{ code: status === 404 ? 'LOG_FILE_MISSING' : 'LOG_STREAM_ERROR',
+        expect(events).toEqual([{ code: failureCode(status, 'LOG_STREAM_ERROR'),
             error: 'Operation failed', requestId: response.headers.get('X-Request-ID') }]);
     });
 
@@ -100,8 +109,8 @@ describe('Caddy live log failures', () => {
         const response = await fetch(url + '/stream');
         const body = await response.text();
         expect(body.match(/data:/g)).toHaveLength(1);
-        expect(JSON.parse(body.trim().slice(6)).code).toBe('LOG_STREAM_ERROR');
-        expect(logger.error).toHaveBeenCalledOnce();
+        expect(JSON.parse(body.trim().slice(6)).code).toBe('LOG_SOURCE_UNAVAILABLE');
+        expect(logger.warn).toHaveBeenCalledOnce();
     });
 
     it('continues delivering lines after a nonfatal truncation warning', async () => {

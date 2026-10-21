@@ -4,6 +4,7 @@ import { execInInstance, spawnInInstance } from '../docker.js';
 import logger, { getRecentLogEntries, subscribeToLogs } from '../logger.js';
 import { AppError, asAppError, errorChain, publicError } from '../AppError.js';
 import { logReadError } from '../logReadError.js';
+import { errorDefinition } from '../errorRegistry.js';
 import { sendAppError } from '../errorReporting.js';
 import { historyWarning, saveCaddyfileChange, validateCaddyfile } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
@@ -179,7 +180,7 @@ router.get('/stream', async (req, res) => {
         if (reported || disconnected || res.writableEnded) return;
         reported = true;
         const error = logReadError(cause, req.instance, 'LOG_STREAM_ERROR');
-        logger[error.code === 'LOG_FILE_MISSING' ? 'warn' : 'error']('Caddy log stream failed', {
+        logger[errorDefinition(error.code).level]('Caddy log stream failed', {
             requestId: req.diagnosticId, code: error.code, causes: errorChain(error),
         });
         res.write(`data: ${JSON.stringify({ ...publicError(error), requestId: req.diagnosticId })}\n\n`);
