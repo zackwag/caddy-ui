@@ -15,7 +15,7 @@ import { createAuthRouter } from '../../src/routes/auth.js';
 export async function authFixture({ env = {}, now, store } = {}) {
     const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-http-'));
     const path = join(directory, 'auth.json');
-    store ??= createAuthStore(path);
+    store ??= createAuthStore(path, { now });
     const service = await initializeAuthentication({ store, env, now, sessions: createAuthSessions({ now }) });
     const app = express();
     app.use(express.json());

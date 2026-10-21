@@ -12,6 +12,9 @@ describe('authentication event policy', () => {
         ['password', 'success', false, 'info', 'default'],
         ['password', 'success', true, 'warn', 'high'],
         ['password', 'failure', false, 'warn', 'default'],
+        ['password-totp', 'success', false, 'info', 'default'],
+        ['password-totp', 'success', true, 'warn', 'high'],
+        ['totp', 'failure', false, 'warn', 'default'],
         ['passkey', 'success', false, 'info', 'default'],
         ['passkey', 'failure', false, 'warn', 'default'],
         ['recovery', 'success', false, 'warn', 'high'],
@@ -24,19 +27,30 @@ describe('authentication event policy', () => {
         expect(notifyAuthenticationEvent).toHaveBeenCalledWith(expect.objectContaining({ method, outcome, priority }));
     });
 
+    it('labels failed codes and completed two-factor logins without calling them passkey events', async () => {
+        vi.spyOn(logger, 'warn').mockImplementation(() => {});
+        vi.spyOn(logger, 'info').mockImplementation(() => {});
+        recordAuthentication({}, 'totp', 'failure');
+        recordAuthentication({}, 'password-totp', 'success');
+        await Promise.resolve();
+        expect(notifyAuthenticationEvent.mock.calls.map(([event]) => event.title)).toEqual([
+            'Authenticator sign-in failed', 'Password and authenticator sign-in succeeded',
+        ]);
+    });
+
     it('copies only safe metadata and ignores raw forwarding headers and submitted fields', async () => {
         const log = vi.spyOn(logger, 'warn').mockImplementation(() => {});
         const password = randomBytes(24).toString('base64url');
         const recoveryKey = randomBytes(32).toString('base64url');
         recordAuthentication({ socket: { remoteAddress: '127.0.0.1' },
             headers: { 'x-forwarded-for': '203.0.113.10', cookie: 'private-cookie' },
-            body: { username: 'unverified-name', password, recoveryKey },
+            body: { username: 'unverified-name', password, recoveryKey, code: '123456', totpCode: '654321', secret: 'private-seed' },
         }, 'recovery', 'failure');
         await Promise.resolve();
         expect(log.mock.calls[0][1]).toEqual({ event: 'authentication', timestamp: expect.any(String),
             method: 'recovery', outcome: 'failure', sourceIp: '127.0.0.1' });
         const payload = JSON.stringify(notifyAuthenticationEvent.mock.calls);
-        for (const value of ['203.0.113.10', 'private-cookie', 'unverified-name', password, recoveryKey]) {
+        for (const value of ['203.0.113.10', 'private-cookie', 'unverified-name', password, recoveryKey, '123456', '654321', 'private-seed']) {
             expect(payload).not.toContain(value);
         }
     });
