@@ -131,8 +131,14 @@ router.put('/config', async (req, res) => {
     logger.info('Log config update requested', { enabled: config.enabled });
     try {
         const result = await saveCaddyfileChange(req.instance, async previous => {
-            const updated = updateGlobalBlock(previous, config);
-            try { await validateCaddyfile(updated, req.instance); }
+            // Format the queued, current file before editing. Unlike the editor's
+            // best-effort formatter, an execution failure must stop this write.
+            const { stdout: formatted } = await execInInstance(req.instance.containerName, 'caddy', ['fmt', '-'], previous);
+            let updated;
+            try {
+                updated = updateGlobalBlock(formatted, config);
+                await validateCaddyfile(updated, req.instance);
+            }
             catch (cause) { throw new AppError('CADDYFILE_VALIDATION_FAILED', { cause }); }
             return updated;
         }, { actor: getAuthentication().getActor(req), action: 'logs.configure' });
