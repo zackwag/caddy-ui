@@ -374,8 +374,25 @@ app.example.com {
             assertBalancedBraces(content);
             expect(parseLogConfig(content).enabled).toBe(false);
         }
-        expect(content).toContain('acme_dns cloudflare {');
-        expect(content).toContain('on_demand_tls {');
+        expect(content).toBe(NESTED_CADDYFILE);
+    });
+
+    it('removes the default logger line without leaving a blank line', () => {
+        const original = '{\r\n\tadmin off\r\n\tlog {\r\n\t\toutput stderr\r\n\t}  \r\n}\r\n';
+        expect(updateGlobalBlock(original, { enabled: false })).toBe('{\r\n\tadmin off\r\n}\r\n');
+    });
+
+    it('replaces a CRLF default logger in place', () => {
+        const original = '{\r\n\tadmin off\r\n\tlog {\r\n\t\toutput stderr\r\n\t}\r\n}\r\n';
+        const updated = updateGlobalBlock(original, LOG_CONFIG);
+        expect(updated.startsWith('{\r\n\tadmin off\r\n\tlog {\n')).toBe(true);
+        expect(updated.endsWith('\t}\r\n}\r\n')).toBe(true);
+        expect(parseLogConfig(updated)).toEqual({ ...LOG_CONFIG, enabled: true });
+    });
+
+    it('keeps a trailing comment when removing the default logger', () => {
+        const original = '{\n\tadmin off\n\tlog {\n\t\toutput stderr\n\t} # keep this comment\n}\n';
+        expect(updateGlobalBlock(original, { enabled: false })).toBe('{\n\tadmin off\n # keep this comment\n}\n');
     });
 
     it('log directive stays at global depth, not inside acme_dns', () => {

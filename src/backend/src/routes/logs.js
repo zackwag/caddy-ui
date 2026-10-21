@@ -77,7 +77,13 @@ function updateGlobalBlock(content, logConfig) {
     const log = extractDirectiveBlock(global.inner, 'log');
     if (log) {
         const start = global.start + 1 + log.start;
-        const end = global.start + 1 + log.end;
+        let end = global.start + 1 + log.end;
+        // A removed logger that owned its whole line takes the line break with
+        // it, so repeated disable/enable cycles don't accumulate blank lines.
+        const lineBreak = content.slice(end).match(/^[ \t]*\r?\n/);
+        if (!logBlock && lineBreak && (start === 0 || content[start - 1] === '\n')) {
+            end += lineBreak[0].length;
+        }
         return content.slice(0, start) + (logBlock || '') + content.slice(end);
     }
     if (!logBlock) return content;
