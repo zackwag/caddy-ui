@@ -23,10 +23,10 @@
     "devDependencies": {
         "@codemirror/view": "^6.43.14",
         "@vitejs/plugin-react": "^6.1.2",
-        "i18next": "^26.4.4",
-        "playwright": "1.64.0",
+        "i18next": "^26.5.2",
+        "playwright": "1.64.1",
         "react": "^19.3.1",
-        "react-dom": "^19.2.8",
+        "react-dom": "^19.3.1",
         "react-i18next": "^17.1.0",
         "react-router-dom": "^7.18.3",
         "vite": "^8.3.4",
