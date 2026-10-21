@@ -93,12 +93,26 @@ test('Security sections update credentials on HTTP and preserve the current brow
     const dialog = page.getByRole('dialog', { name: 'Security', exact: true });
     const user = dialog.getByRole('button', { name: 'User', exact: true });
     const tokens = dialog.getByRole('button', { name: 'API tokens', exact: true });
-    assert.equal(await user.getAttribute('aria-expanded'), 'true');
-    assert.equal(await tokens.getAttribute('aria-expanded'), 'false');
-    await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    const auth = dialog.getByRole('button', { name: 'Auth', exact: true });
+    for (const section of [user, auth, tokens]) assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    await auth.click();
+    const totp = dialog.getByRole('button', { name: 'Authenticator app (TOTP)', exact: true });
+    const passkeys = dialog.getByRole('button', { name: 'Passkeys', exact: true });
+    for (const section of [totp, passkeys]) assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    assert.equal(await dialog.getByRole('button', { name: 'Set up authenticator', exact: true }).count(), 0);
+    await totp.press('Enter');
+    await dialog.getByRole('button', { name: 'Set up authenticator', exact: true }).waitFor();
+    await passkeys.press('Enter');
     await dialog.getByText('Passkeys need HTTPS.', { exact: false }).waitFor();
     assert.equal(await dialog.getByRole('button', { name: 'Add passkey', exact: true }).isDisabled(), true);
-    await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    const top = await dialog.locator('.security-subsection').first().boundingBox();
+    const bottom = await dialog.locator('.security-subsection').last().boundingBox();
+    assert(bottom.y - (top.y + top.height) >= 16, 'authentication sections have visible spacing');
+    await auth.click();
+    await auth.click();
+    for (const section of [totp, passkeys]) assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    await auth.click();
+    await user.press('Enter');
     assert.equal(await dialog.getByLabel('Username', { exact: true }).inputValue(), 'administrator');
     await user.press('Enter');
     assert.equal(await dialog.getByLabel('Username', { exact: true }).isVisible(), false);
@@ -125,6 +139,8 @@ test('Security sections update credentials on HTTP and preserve the current brow
     await page.reload();
     await page.locator('.shell').waitFor();
     await page.getByRole('button', { name: 'Security', exact: true }).click();
+    assert.equal(await user.getAttribute('aria-expanded'), 'false');
+    await user.click();
     assert.equal(await dialog.getByLabel('Username', { exact: true }).inputValue(), 'renamed-admin');
     const replacement = secret();
     await dialog.getByLabel('Current password', { exact: true }).fill(password);
@@ -178,8 +194,8 @@ test('backend failure presents a retry screen instead of entering the applicatio
 async function openPasskeys(page) {
     await page.getByRole('button', { name: 'Security', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Security', exact: true });
-    await dialog.getByRole('button', { name: 'User', exact: true }).click();
     await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Passkeys', exact: true }).click();
     await dialog.getByText('No passkeys have been added.').or(dialog.getByRole('button', { name: /^Remove / })).first().waitFor();
     return dialog;
 }
@@ -292,6 +308,7 @@ test('HTTPS browsers distinguish missing passkey configuration from unsupported 
     await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
     await page.evaluate(() => { window.PublicKeyCredential = undefined; });
     await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Passkeys', exact: true }).click();
     await dialog.getByText('This browser does not support passkeys.', { exact: false }).waitFor();
 });
 

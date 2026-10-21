@@ -66,12 +66,11 @@ export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls,
                 : data && data.origin !== window.location.origin ? t('passkeys.originMismatch', { origin: data.origin }) : null;
 
     return <fieldset className="security-fields" disabled={disabled || busy || !authState}>
-        <h4 className="modal-section-label">{t('passkeys.title')}</h4>
         <p className="modal-hint">{t('passkeys.hint')}</p>
         {error && <p className="login-error" role="alert">{localizeError(error, t)}</p>}
         {saved && <p className="security-saved" role="status">{t('passkeys.saved')}</p>}
         {unavailable && <div className="auth-help"><p>{unavailable}</p>
-            {!support.secure && <button type="button" className="btn" disabled={disabled || busy} onClick={onOpenTls}>{t('passkeys.openTls')}</button>}
+            {!support.secure && <button type="button" className="btn btn-primary" disabled={disabled || busy} onClick={onOpenTls}>{t('passkeys.openTls')}</button>}
         </div>}
         {loading ? <p>{t('common.loading')}</p> : !data ?
             <button type="button" className="btn" onClick={() => { setError(null); setLoading(true); setAttempt(value => value + 1); }}>{t('login.retry')}</button> : <>

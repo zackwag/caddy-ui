@@ -12,7 +12,7 @@ The Auth section distinguishes an HTTP connection, an unsupported browser and mi
 
 ## Add a passkey
 
-1. Sign in and open **Security → Auth**.
+1. Sign in and open **Security → Auth → Passkeys**.
 2. Give the passkey a recognizable name, such as “Laptop” or “Phone”.
 3. Verify with an existing passkey, or your current password plus an authenticator code when TOTP is enabled. Fresh verification is required for **every** addition.
 4. Choose an authenticator in the browser prompt and complete its fingerprint, face or PIN verification.
@@ -25,7 +25,7 @@ The administrator can register **three passkeys**. A passkey synchronized by a p
 
 After registration, the login page offers **Sign in with a passkey**. No username entry is needed. On a different HTTPS origin, the button is disabled and a message identifies the configured address to open. Password sign-in remains available if the authenticator is missing, broken or unavailable.
 
-Remove a passkey under **Security → Auth**. Deleting **any** passkey requires fresh verification with a passkey, or your current password plus an authenticator code when TOTP is enabled, even if other passkeys remain. A signed-in session alone is insufficient. Any removal signs out all previous sessions and live log streams, including sessions that the removed credential may have opened, and renews the browser performing the removal. API tokens and the recovery key remain valid.
+Remove a passkey under **Security → Auth → Passkeys**. Deleting **any** passkey requires fresh verification with a passkey, or your current password plus an authenticator code when TOTP is enabled, even if other passkeys remain. A signed-in session alone is insufficient. Any removal signs out all previous sessions and live log streams, including sessions that the removed credential may have opened, and renews the browser performing the removal. API tokens and the recovery key remain valid.
 
 Ordinary username and password changes preserve passkeys. A stable stored account identifier keeps them independent of the administrator's username. Authenticators may continue to display the username used when the credential was created.
 

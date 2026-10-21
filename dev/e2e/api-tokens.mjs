@@ -10,6 +10,7 @@ test('the real UI issues, scopes and revokes read-only tokens without relaxing C
     page.on('request', request => urls.push(request.url()));
     await page.getByRole('button', { name: 'Security', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Security', exact: true });
+    await dialog.getByRole('button', { name: 'User', exact: true }).click();
     await dialog.getByLabel('Username', { exact: true }).fill('renamed-administrator');
     await dialog.getByLabel('Current password', { exact: true }).fill(stack.credentials.password);
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();

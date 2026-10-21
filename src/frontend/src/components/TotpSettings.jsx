@@ -62,7 +62,6 @@ export default function TotpSettings({ authState, onChange, onUnauth, busy, setB
         } finally { setVerification({}); setCode(''); setBusy(false); }
     }
     return <fieldset className="security-fields" disabled={disabled || busy || !authState}>
-        <h4 className="modal-section-label">{t('totp.title')}</h4>
         <p className="modal-hint">{t('totp.hint')}</p>
         {window.location.protocol !== 'https:' && <p className="auth-help">{t('totp.httpWarning')}</p>}
         <p>{t(authState?.totpEnabled ? 'totp.enabled' : 'totp.disabled')}</p>
@@ -88,7 +87,7 @@ export default function TotpSettings({ authState, onChange, onUnauth, busy, setB
                 <button className="btn" type="button" onClick={cancel}>{t('common.cancel')}</button>
             </div>
         </form> : <div className="btn-row">
-            <button type="button" className="btn" onClick={() => { setMode('setup'); setError(null); setSaved(false); }}>{t(authState?.totpEnabled ? 'totp.replace' : 'totp.setup')}</button>
+            <button type="button" className="btn btn-primary" onClick={() => { setMode('setup'); setError(null); setSaved(false); }}>{t(authState?.totpEnabled ? 'totp.replace' : 'totp.setup')}</button>
             {authState?.totpEnabled && <button type="button" className="btn btn-danger" onClick={() => { setMode('disable'); setError(null); setSaved(false); }}>{t('totp.disable')}</button>}
         </div>}
     </fieldset>;

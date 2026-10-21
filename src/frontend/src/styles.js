@@ -1437,6 +1437,12 @@ export const css = `
   .security-toggle[aria-expanded="true"] > svg { transform: rotate(180deg); }
   .security-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .security-section-body { padding-bottom: 20px; }
+  .security-auth-sections { padding-inline-start: 16px; }
+  .security-subsection { border-top: 1px solid var(--border); }
+  .security-subsection + .security-subsection { margin-top: 16px; }
+  .security-subsection h4 { margin: 0; font-size: 12px; }
+  .security-subsection .security-toggle { padding: 12px 0; }
+  .security-subsection-body { padding: 4px 0 12px; }
   .security-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
   .security-fields:disabled { opacity: .65; }
   .security-planned { padding-bottom: 12px; }

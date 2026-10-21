@@ -38,8 +38,8 @@ async function setup(page) {
 async function authPanel(page) {
     await page.getByRole('button', { name: 'Security', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Security', exact: true });
-    await dialog.getByRole('button', { name: 'User', exact: true }).click();
     await dialog.getByRole('button', { name: 'Auth', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Authenticator app (TOTP)', exact: true }).click();
     return dialog;
 }
 async function enroll(dialog, password) {
@@ -102,10 +102,12 @@ test('HTTPS uses fresh passkey proof for TOTP changes and keeps passkey sign-in 
         isUserVerified: true, automaticPresenceSimulation: true,
     } });
     let dialog = await authPanel(page);
+    await dialog.getByRole('button', { name: 'Passkeys', exact: true }).click();
     await dialog.getByLabel('Passkey name', { exact: true }).fill('Laptop');
     await dialog.getByLabel('Confirm your password', { exact: true }).fill(password);
     await dialog.getByRole('button', { name: 'Add passkey', exact: true }).click();
     await dialog.getByRole('status').filter({ hasText: 'Passkey added.' }).waitFor();
+    await dialog.getByRole('button', { name: 'Passkeys', exact: true }).click();
     await enroll(dialog);
     assert.equal(await dialog.getByText('This connection uses HTTP.', { exact: false }).count(), 0);
     await page.setViewportSize({ width: 390, height: 700 });

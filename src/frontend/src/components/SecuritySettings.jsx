@@ -16,9 +16,11 @@ export default function SecuritySettings({ onClose, onUnauth }) {
     const [authState, setAuthState] = useState(null);
     const [error, setError] = useState(null);
     const [attempt, setAttempt] = useState(0);
-    const [userOpen, setUserOpen] = useState(true);
+    const [userOpen, setUserOpen] = useState(false);
     const [tokensOpen, setTokensOpen] = useState(false);
     const [authOpen, setAuthOpen] = useState(false);
+    const [totpOpen, setTotpOpen] = useState(false);
+    const [passkeysOpen, setPasskeysOpen] = useState(false);
     const [authBusy, setAuthBusy] = useState(false);
     const [userBusy, setUserBusy] = useState(false);
     const [tokenBusy, setTokenBusy] = useState(false);
@@ -58,14 +60,31 @@ export default function SecuritySettings({ onClose, onUnauth }) {
         </section>
         <section className="security-section">
             <h3><button type="button" className="security-toggle" disabled={locked} aria-expanded={authOpen} aria-controls="security-auth"
-                onClick={() => setAuthOpen(value => !value)}>
+                onClick={() => { setAuthOpen(value => !value); setTotpOpen(false); setPasskeysOpen(false); }}>
                 <span>{t('security.auth')}</span><UtilityIcon name="chevronDown" />
             </button></h3>
-            <div id="security-auth" className="security-section-body" hidden={!authOpen}>
-                {authOpen && <>
-                    <TotpSettings authState={authState} onChange={refreshAuth} onUnauth={onUnauth} busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued} />
-                    <Passkeys authState={authState} onChange={refreshAuth} onUnauth={onUnauth} busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued}
-                    onOpenTls={() => { onClose(); navigate('/tls'); }} /></>}
+            <div id="security-auth" className="security-section-body security-auth-sections" hidden={!authOpen}>
+                <section className="security-subsection">
+                    <h4><button type="button" className="security-toggle" disabled={locked} aria-expanded={totpOpen} aria-controls="security-totp"
+                        onClick={() => setTotpOpen(value => !value)}>
+                        <span>{t('totp.title')}</span><UtilityIcon name="chevronDown" />
+                    </button></h4>
+                    <div id="security-totp" className="security-subsection-body" hidden={!totpOpen}>
+                        {authOpen && totpOpen && <TotpSettings authState={authState} onChange={refreshAuth} onUnauth={onUnauth}
+                            busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued} />}
+                    </div>
+                </section>
+                <section className="security-subsection">
+                    <h4><button type="button" className="security-toggle" disabled={locked} aria-expanded={passkeysOpen} aria-controls="security-passkeys"
+                        onClick={() => setPasskeysOpen(value => !value)}>
+                        <span>{t('passkeys.title')}</span><UtilityIcon name="chevronDown" />
+                    </button></h4>
+                    <div id="security-passkeys" className="security-subsection-body" hidden={!passkeysOpen}>
+                        {authOpen && passkeysOpen && <Passkeys authState={authState} onChange={refreshAuth} onUnauth={onUnauth}
+                            busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued}
+                            onOpenTls={() => { onClose(); navigate('/tls'); }} />}
+                    </div>
+                </section>
             </div>
         </section>
         <section className="security-section">

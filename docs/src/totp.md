@@ -1,6 +1,6 @@
 # Authenticator codes (TOTP)
 
-Open **Security → Auth → Set up authenticator**. TOTP adds a six-digit authenticator code to password sign-in. A passkey remains sufficient on its own; it does not also require TOTP.
+Open **Security → Auth → Authenticator app (TOTP)** and choose **Set up authenticator**. Security sections start collapsed. TOTP adds a six-digit authenticator code to password sign-in. A passkey remains sufficient on its own; it does not also require TOTP.
 
 ## Set up or replace an authenticator
 
