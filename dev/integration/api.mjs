@@ -190,3 +190,40 @@ format json
     assert.deepEqual(after.logging.logs.audit, before.logging.logs.audit);
     assert.equal(await (await fetch(httpUrl + '/literal')).text(), literal);
 });
+
+test('logging edits preserve LF/CRLF styles and replace bare default loggers with real Caddy', { timeout: 60000 }, async t => {
+    const stack = await useTestStack(t);
+    const { instance, httpUrl } = stack.instances.get('alpha');
+    const original = (await stack.api('/caddyfile')).data;
+    const baseSite = original.slice(original.indexOf(':80 {')).replace('    respond /health', '    import literal-response\n    respond /health');
+    const live = async () => (await fetch(instance.adminUrl + '/config/')).json();
+    for (const [unit, eol] of [['  ', '\n'], ['    ', '\r\n'], ['\t', '\r\n']]) {
+        const literal = '{\n"message": "a literal log { and }"\n}';
+        const snippet = `(literal-response) {\n${unit}respond /literal <<BODY\n${literal}\nBODY\n}\n`.replaceAll('\n', eol);
+        const global = `{\n${unit}admin 0.0.0.0:2019\n${unit}auto_https off\n${unit}log audit {\n${unit.repeat(2)}output stderr\n${unit}}\n${unit}log default\n}\n\n`.replaceAll('\n', eol);
+        const site = baseSite.replaceAll('\n', eol);
+        const source = snippet + global + site;
+        const saved = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: source, plain: true });
+        assert.equal(saved.status, 200, JSON.stringify(saved.data));
+        assert.equal((await stack.api('/logs/config')).data.enabled, true, 'Bare log default is recognized');
+        const before = await live();
+        const settings = { enabled: true, path: '/data/dev-caddy/logs/styled.log', rollSize: '10MiB', rollKeep: 2, format: 'json', level: 'INFO' };
+        const configured = await stack.api('/logs/config', { method: 'PUT', body: settings });
+        assert.equal(configured.status, 200, JSON.stringify(configured.data));
+        const edited = (await stack.api('/caddyfile')).data;
+        assert.ok(edited.startsWith(snippet + global.slice(0, global.indexOf(unit + 'log default'))));
+        assert.ok(edited.endsWith(eol + '}' + eol + eol + site));
+        assert.ok(edited.includes(unit + 'log {' + eol + unit.repeat(2) + 'output file'));
+        if (eol === '\r\n') assert.ok(!edited.replaceAll('\r\n', '').includes('\n'), 'No LF-only lines are introduced');
+        const after = await live();
+        assert.deepEqual(after.apps, before.apps);
+        assert.deepEqual(after.logging.logs.audit, before.logging.logs.audit);
+        assert.equal(await (await fetch(httpUrl + '/literal')).text(), literal);
+        const injection = await stack.api('/logs/config', { method: 'PUT', body: { ...settings, format: 'json\nlevel DEBUG' } });
+        assert.equal(injection.status, 400);
+        assert.equal((await stack.api('/caddyfile')).data, edited);
+        assert.deepEqual(await live(), after);
+        assert.equal((await stack.api('/logs/config', { method: 'PUT', body: { enabled: false } })).status, 200);
+        assert.equal((await stack.api('/caddyfile')).data, source.replace(unit + 'log default' + eol, ''));
+    }
+});

@@ -45,10 +45,11 @@ export function scanCaddyfile(source) {
                 }
                 value += source[i++];
             }
-            if (!escapedHeredoc && value.startsWith('<<') && source[i] === '\n') {
+            const newlineLength = source[i] === '\n' ? 1 : source.slice(i, i + 2) === '\r\n' ? 2 : 0;
+            if (!escapedHeredoc && value.startsWith('<<') && newlineLength) {
                 const marker = value.slice(2);
                 if (!/^[A-Za-z0-9_-]+$/.test(marker)) throw new SyntaxError('Invalid Caddyfile heredoc marker');
-                const body = i + 1;
+                const body = i + newlineLength;
                 const closing = source.indexOf(marker, body);
                 if (closing === -1) throw new SyntaxError('Unclosed Caddyfile heredoc');
                 const line = source.lastIndexOf('\n', closing - 1) + 1;
@@ -120,5 +121,5 @@ export function extractDirective(source, directive, predicate = child => child.a
     if (!child) return null;
     const line = source.lastIndexOf('\n', child.start - 1) + 1;
     const start = /^\s*$/.test(source.slice(line, child.start)) ? line : child.start;
-    return { start, end: child.end, block: child.block, inner: child.block?.inner || '', fullMatch: source.slice(start, child.end) };
+    return { start, headerStart: child.start, end: child.end, block: child.block, inner: child.block?.inner || '', fullMatch: source.slice(start, child.end) };
 }

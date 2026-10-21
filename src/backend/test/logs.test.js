@@ -385,7 +385,7 @@ app.example.com {
     it('replaces a CRLF default logger in place', () => {
         const original = '{\r\n\tadmin off\r\n\tlog {\r\n\t\toutput stderr\r\n\t}\r\n}\r\n';
         const updated = updateGlobalBlock(original, LOG_CONFIG);
-        expect(updated.startsWith('{\r\n\tadmin off\r\n\tlog {\n')).toBe(true);
+        expect(updated.startsWith('{\r\n\tadmin off\r\n\tlog {\r\n')).toBe(true);
         expect(updated.endsWith('\t}\r\n}\r\n')).toBe(true);
         expect(parseLogConfig(updated)).toEqual({ ...LOG_CONFIG, enabled: true });
     });
@@ -409,6 +409,36 @@ app.example.com {
 describe('logging edits preserve unrelated Caddyfile content', () => {
     const settings = { enabled: true, path: '/tmp/new.log', rollSize: '25mb', rollKeep: 3, format: 'console', level: 'WARN' };
     const site = '\n\n:8080 {\n respond <<BODY\n{\n"log": "literal } text"\n}\nBODY\n}\n';
+
+    it.each([
+        ['two spaces', '  ', '\n'], ['four spaces', '    ', '\n'], ['tabs', '\t', '\n'],
+        ['CRLF spaces', '    ', '\r\n'], ['CRLF tabs', '\t', '\r\n'], ['unindented', '', '\r\n'],
+    ])('inserts a logger using %s and round-trips without changing surrounding bytes', (_name, unit, eol) => {
+        const prefix = '{ # options' + eol + unit + 'admin off' + eol;
+        const suffix = '}' + site.replaceAll('\n', eol);
+        const original = prefix + suffix;
+        const updated = updateGlobalBlock(original, settings);
+        expect(updated.startsWith(prefix + unit + 'log {' + eol + unit.repeat(2) + 'output file')).toBe(true);
+        expect(updated.endsWith(suffix)).toBe(true);
+        expect(parseLogConfig(updated)).toEqual(settings);
+        if (eol === '\r\n') expect(updated.replaceAll('\r\n', '')).not.toContain('\n');
+        expect(updateGlobalBlock(updated, { enabled: false })).toBe(original);
+    });
+
+    it('preserves an existing logger indentation even when its siblings use another width', () => {
+        const original = '{\n  admin off\n    log {\n        output stderr\n    }\n}' + site;
+        const updated = updateGlobalBlock(original, settings);
+        expect(updated).toContain('\n    log {\n        output file /tmp/new.log {\n            roll_size 25mb\n');
+        expect(updated.startsWith('{\n  admin off\n')).toBe(true);
+        expect(updated.endsWith('}' + site)).toBe(true);
+    });
+
+    it('infers a new global block style from a site and retains the leading BOM', () => {
+        const original = '\ufeff:8080 {\r\n  respond "unchanged"\r\n}\r\n';
+        const updated = updateGlobalBlock(original, settings);
+        expect(updated.startsWith('\ufeff{\r\n  log {\r\n    output file')).toBe(true);
+        expect(updated.endsWith(original.slice(1))).toBe(true);
+    });
 
     it.each(['log', 'log default'])('replaces or disables a bare %s without adding a duplicate', directive => {
         const audit = '\tlog audit {\n\t\toutput stderr\n\t}\n';

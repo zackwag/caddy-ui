@@ -66,6 +66,7 @@ function validateLogConfig(config) {
     // Disabling emits no option values; only enabled settings need serialization.
     if (!config.enabled) return;
     const valid = {
+        // eslint-disable-next-line no-control-regex -- Paths must not contain control characters or Caddyfile line breaks.
         path: typeof config.path === 'string' && config.path.trim().length > 0 && !/[\x00-\x1f\x7f]/.test(config.path),
         rollSize: typeof config.rollSize === 'string' && /^\d+(?:\.\d+)?(?:[kmgtpe]i?b?|b)?$/i.test(config.rollSize),
         rollKeep: Number.isSafeInteger(config.rollKeep) && config.rollKeep >= 0,
@@ -76,29 +77,58 @@ function validateLogConfig(config) {
     if (field) throw new AppError('VALIDATION_FAILED', { context: { field } });
 }
 
-function buildLogBlock(config) {
-    if (!config.enabled) return null;
+function lineIndent(content, offset) {
+    const line = content.lastIndexOf('\n', offset - 1) + 1;
+    const prefix = content.slice(line, offset);
+    return /^[ \t]*$/.test(prefix) ? prefix : null;
+}
 
-    return `\tlog {
-\t\toutput file ${quoteLogPath(config.path)} {
-\t\t\troll_size ${config.rollSize}
-\t\t\troll_keep ${config.rollKeep}
-\t\t}
-\t\tformat ${config.format}
-\t\tlevel ${config.level}
-\t}`;
+function loggingStyle(content, global, log) {
+    const base = global ? global.start + 1 : 0;
+    const logIndent = log ? lineIndent(content, base + log.headerStart) : null;
+    const globalIndent = global ? lineIndent(content, global.start) || '' : '';
+    const globalChildren = global ? caddyfileChildren(global.inner) : [];
+    const siblingIndent = globalChildren.map(child => lineIndent(content, base + child.start)).find(indent => indent !== null);
+    const blocks = [];
+    if (log?.block) blocks.push({ block: { ...log.block, start: base + log.block.start }, header: base + log.headerStart });
+    if (global) blocks.push({ block: global, header: global.start });
+    // When adding the first global block, use the indentation of an existing
+    // site/snippet. Literal/comment/heredoc lines are not indentation evidence.
+    blocks.push(...caddyfileChildren(content).filter(child => child.block).map(child => ({ block: child.block, header: child.start })));
+    let unit;
+    for (const { block, header } of blocks) {
+        const parent = lineIndent(content, header) || '';
+        const indent = caddyfileChildren(block.inner).map(child => lineIndent(content, block.start + 1 + child.start))
+            .find(indent => indent !== null && indent.startsWith(parent));
+        if (indent !== undefined) { unit = indent.slice(parent.length); break; }
+    }
+    unit ??= '\t';
+    const newline = content.indexOf('\n', log?.block ? base + log.block.start : global?.start ?? 0);
+    const eol = newline > 0 && content[newline - 1] === '\r' ? '\r\n' : '\n';
+    return { indent: logIndent ?? siblingIndent ?? globalIndent + unit, unit, eol, inline: Boolean(log && logIndent === null) };
+}
+
+function buildLogBlock(config, { indent = '\t', unit = '\t', eol = '\n', inline = false } = {}) {
+    if (!config.enabled) return null;
+    return [
+        [0, 'log {'], [1, `output file ${quoteLogPath(config.path)} {`],
+        [2, `roll_size ${config.rollSize}`], [2, `roll_keep ${config.rollKeep}`],
+        [1, '}'], [1, `format ${config.format}`], [1, `level ${config.level}`], [0, '}'],
+    ].map(([depth, line], index) => (inline && index === 0 ? '' : indent) + unit.repeat(depth) + line).join(eol);
 }
 
 function updateGlobalBlock(content, logConfig) {
-    const logBlock = buildLogBlock(logConfig);
     const global = extractGlobalBlock(content);
+    const log = global ? defaultLogger(global.inner) : null;
+    const style = logConfig.enabled ? loggingStyle(content, global, log) : null;
+    const logBlock = logConfig.enabled ? buildLogBlock(logConfig, style) : null;
 
     if (!global) {
         if (!logBlock) return content;
-        return `{\n${logBlock}\n}\n\n${content}`;
+        const bom = content.startsWith('\ufeff') ? 1 : 0;
+        return content.slice(0, bom) + `{${style.eol}${logBlock}${style.eol}}${style.eol}${style.eol}` + content.slice(bom);
     }
 
-    const log = defaultLogger(global.inner);
     if (log) {
         const start = global.start + 1 + log.start;
         let end = global.start + 1 + log.end;
@@ -115,8 +145,8 @@ function updateGlobalBlock(content, logConfig) {
     const line = content.lastIndexOf('\n', global.close - 1) + 1;
     const start = /^\s*$/.test(content.slice(line, global.close)) ? line : global.close;
     const before = content.slice(0, start);
-    const separator = before.endsWith('\n') ? '' : '\n';
-    return before + separator + logBlock + '\n' + content.slice(start);
+    const separator = before.endsWith('\n') ? '' : style.eol;
+    return before + separator + logBlock + style.eol + content.slice(start);
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────

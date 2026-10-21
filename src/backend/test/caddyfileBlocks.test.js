@@ -46,6 +46,14 @@ describe('Caddyfile structural scanning', () => {
         expect(extractGlobalBlock(source).inner).toBe('\r\n\tadmin off\r\n');
     });
 
+    it('recognizes CRLF heredocs without counting literal braces as structure', () => {
+        const source = ':8080 {\r\n respond <<BODY\r\n{\r\nlog {\r\n}\r\nBODY\r\n}\r\n';
+        expect(extractGlobalBlock(source)).toBeNull();
+        const literal = scanCaddyfile(source).find(token => token.value.startsWith('{\nlog'));
+        expect(literal.kind).toBe('word');
+        expect(source.slice(literal.start, literal.end)).toBe('<<BODY\r\n{\r\nlog {\r\n}\r\nBODY');
+    });
+
     it('selects only direct children using a caller-owned predicate', () => {
         const nested = 'custom {\n handler {\n output stderr\n }\n}\nhandler other {\n output stderr\n}\n';
         expect(extractDirective(nested, 'handler')).toBeNull();
