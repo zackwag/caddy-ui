@@ -4,7 +4,7 @@ const { authRequest, startRegistration, startAuthentication } = vi.hoisted(() =>
 }));
 vi.mock('../src/utils/api.js', async importOriginal => ({ ...await importOriginal(), authRequest }));
 vi.mock('@simplewebauthn/browser', () => ({ startRegistration, startAuthentication, browserSupportsWebAuthn: vi.fn() }));
-import { registerPasskey, signInWithPasskey } from '../src/utils/passkeys.js';
+import { reauthenticateWithPasskey, registerPasskey, signInWithPasskey } from '../src/utils/passkeys.js';
 
 beforeEach(() => vi.resetAllMocks());
 describe('passkey browser request failures', () => {
@@ -31,4 +31,12 @@ describe('passkey browser request failures', () => {
         await expect(signInWithPasskey()).rejects.toMatchObject({ code: 'PASSKEY_INVALID' });
         expect(authRequest).toHaveBeenCalledTimes(2);
     });
+    it('does not issue a reauthentication grant after a cancelled device prompt', async () => {
+        authRequest.mockResolvedValueOnce({ challenge: 'challenge' });
+        startAuthentication.mockRejectedValueOnce({ name: 'NotAllowedError' });
+        await expect(reauthenticateWithPasskey('password.change')).rejects.toMatchObject({ code: 'PASSKEY_CANCELLED' });
+        expect(authRequest).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(authRequest.mock.calls[0][1].body)).toEqual({ action: 'password.change' });
+    });
+
 });
