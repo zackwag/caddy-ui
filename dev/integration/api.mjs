@@ -120,3 +120,68 @@ test('real backend: container lifecycle and UI registration are independent', { 
     assert.deepEqual(await stack.harness.names(), []);
     assert.deepEqual(await stack.harness.names('volume'), []);
 });
+
+test('logging changes preserve literal content, nested globals and named loggers with real Caddy', { timeout: 60000 }, async t => {
+    const stack = await useTestStack(t);
+    const { instance, httpUrl } = stack.instances.get('alpha');
+    const original = (await stack.api('/caddyfile')).data;
+    const literal = '{\n"example": "log { is response text"\n}';
+    const snippet = '(literal-response) {\nrespond /literal <<BODY\n' + literal + '\nBODY\n}\n';
+    const global = `{ # preserve this brace in a comment: {
+admin 0.0.0.0:2019
+auto_https off
+servers {
+timeouts {
+read_body 10s
+}
+}
+storage file_system {
+root "/data/dev-caddy/caddy{state"
+}
+log audit {
+output file /data/dev-caddy/logs/audit.log
+format json
+}
+}\n\n`;
+    // This is a known fixture boundary, not application-side Caddyfile parsing.
+    const site = original.slice(original.indexOf(':80 {')).replace('    respond /health', '    import literal-response\n    respond /health');
+    const saved = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: snippet + global + site, plain: true });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    const live = async () => (await fetch(instance.adminUrl + '/config/')).json();
+    const before = await live();
+    const runtimePath = '/data/dev-caddy/logs/runtime.log';
+    assert.equal((await stack.api('/instances/default', { method: 'PUT', body: { logPath: runtimePath } })).status, 200);
+    const settings = { enabled: true, path: runtimePath, rollSize: '25mb', rollKeep: 3, format: 'json', level: 'INFO' };
+
+    for (const format of ['json', 'console']) {
+        const response = await stack.api('/logs/config', { method: 'PUT', body: { ...settings, format } });
+        assert.equal(response.status, 200, JSON.stringify(response.data));
+        assert.deepEqual((await stack.api('/logs/config')).data, { ...settings, format });
+        const editedFile = (await stack.api('/caddyfile')).data;
+        assert.ok(editedFile.startsWith(snippet + global.slice(0, global.lastIndexOf('}'))), 'Existing global directives and snippet formatting remain byte-for-byte unchanged');
+        assert.ok(editedFile.endsWith(site), 'Site formatting remains byte-for-byte unchanged');
+        const after = await live();
+        assert.deepEqual(after.apps, before.apps, 'Logging edits preserve sites and their handlers');
+        assert.deepEqual(after.storage, before.storage, 'Quoted literal braces survive editing');
+        assert.deepEqual(after.logging.logs.audit, before.logging.logs.audit, 'Named loggers remain unchanged');
+        assert.equal(await (await fetch(httpUrl + '/literal')).text(), literal, 'Heredoc bytes remain unchanged');
+        assert.ok((await stack.api('/logs')).data.lines.length > 0, 'The runtime file writer is active');
+    }
+
+    const currentFile = (await stack.api('/caddyfile')).data;
+    const currentConfig = await live();
+    const invalid = await stack.api('/logs/config', { method: 'PUT', body: { ...settings, format: 'missing-encoder' } });
+    assert.equal(invalid.status, 422);
+    assert.equal(invalid.data.code, 'CADDYFILE_VALIDATION_FAILED');
+    assert.equal((await stack.api('/caddyfile')).data, currentFile);
+    assert.deepEqual(await live(), currentConfig);
+
+    const disabled = await stack.api('/logs/config', { method: 'PUT', body: { enabled: false } });
+    assert.equal(disabled.status, 200);
+    assert.equal((await stack.api('/logs/config')).data.enabled, false);
+    assert.ok((await stack.api('/caddyfile')).data.endsWith(site), 'Disabling logging preserves site formatting');
+    const after = await live();
+    assert.deepEqual(after.apps, before.apps);
+    assert.deepEqual(after.logging.logs.audit, before.logging.logs.audit);
+    assert.equal(await (await fetch(httpUrl + '/literal')).text(), literal);
+});

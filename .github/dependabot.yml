@@ -20,6 +20,12 @@ updates:
       prefix: "chore"
       prefix-development: "build"
       include: "scope"
+    groups:
+      # react-dom refuses to mount unless react is the exact same version.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
 
   - package-ecosystem: "npm"
     directory: "/dev"
@@ -28,6 +34,12 @@ updates:
     commit-message:
       prefix: "build"
       include: "scope"
+    groups:
+      # react-dom refuses to mount unless react is the exact same version.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
 
   - package-ecosystem: "npm"
     directory: "/docs"

@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.6.1](https://github.com/zackwag/caddy-ui/compare/v3.6.0...v3.6.1) (2026-10-21)
+
+
+### Miscellaneous Chores
+
+* **deps:** bump i18next from 26.4.4 to 26.5.2 in /src/frontend ([#395](https://github.com/zackwag/caddy-ui/issues/395)) ([e3ef92c](https://github.com/zackwag/caddy-ui/commit/e3ef92c95b6a82eccdaa3b7b28c77100e931c673))
+* **deps:** bump ipaddr.js from 1.9.1 to 2.5.0 in /src/backend ([#390](https://github.com/zackwag/caddy-ui/issues/390)) ([6d826d1](https://github.com/zackwag/caddy-ui/commit/6d826d17563c8184ccf23aa6e25c6e2d26d62876))
+* **deps:** bump react from 19.3.0 to 19.3.1 in /src/frontend ([#384](https://github.com/zackwag/caddy-ui/issues/384)) ([573d660](https://github.com/zackwag/caddy-ui/commit/573d660f10ede3057043ace5942d9d73644b73e2))
+* **deps:** bump react-i18next from 17.0.16 to 17.1.0 in /src/frontend ([#392](https://github.com/zackwag/caddy-ui/issues/392)) ([e69e530](https://github.com/zackwag/caddy-ui/commit/e69e530338cd8eab05e34832e2166d32af257141))
+
 ## [3.6.0](https://github.com/zackwag/caddy-ui/compare/v3.5.0...v3.6.0) (2026-10-20)
 
 

@@ -7,6 +7,7 @@ import { logReadError } from '../logReadError.js';
 import { sendAppError } from '../errorReporting.js';
 import { historyWarning, saveCaddyfileChange, validateCaddyfile } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
+import { caddyfileChildren, extractDirectiveBlock, extractGlobalBlock } from '../caddyfileBlocks.js';
 const router = Router();
 const appLogsRouter = Router();
 const TAIL_LINES = 200;
@@ -23,65 +24,40 @@ function parseLogConfig(content) {
         level: 'INFO',
     };
 
-    const lines = content.split('\n');
-    let globalLines = [];
-    let inGlobal = false;
-    let depth = 0;
-    let globalDone = false;
+    const global = extractGlobalBlock(content);
+    if (!global) return defaultConfig;
 
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!globalDone && !inGlobal && trimmed === '{') {
-            inGlobal = true;
-            depth = 1;
-            globalLines.push(line);
-            continue;
-        }
-        if (inGlobal) {
-            globalLines.push(line);
-            for (const ch of line) {
-                if (ch === '{') depth++;
-                if (ch === '}') depth--;
-            }
-            if (depth === 0) {
-                inGlobal = false;
-                globalDone = true;
-            }
-        }
-    }
+    const log = extractDirectiveBlock(global.inner, 'log');
+    if (!log) return defaultConfig;
 
-    if (!globalLines.length) return defaultConfig;
-    const globalBlock = globalLines.join('\n');
-
-    const logMatch = globalBlock.match(/\blog\s*\{([\s\S]*?)\n\t?\}/m);
-    if (!logMatch) return defaultConfig;
-
-    const logBlock = logMatch[1];
+    const children = caddyfileChildren(log.inner);
     const config = { ...defaultConfig, enabled: true };
-
-    const fileMatch = logBlock.match(/output\s+file\s+(\S+)/);
-    if (fileMatch) config.path = fileMatch[1];
-
-    const rollSizeMatch = logBlock.match(/roll_size\s+(\S+)/);
-    if (rollSizeMatch) config.rollSize = rollSizeMatch[1];
-
-    const rollKeepMatch = logBlock.match(/roll_keep\s+(\d+)/);
-    if (rollKeepMatch) config.rollKeep = parseInt(rollKeepMatch[1]);
-
-    const formatMatch = logBlock.match(/format\s+(\S+)/);
-    if (formatMatch) config.format = formatMatch[1];
-
-    const levelMatch = logBlock.match(/level\s+(\S+)/);
-    if (levelMatch) config.level = levelMatch[1].toUpperCase();
+    const output = children.find(child => child.name === 'output');
+    if (output?.args[0] === 'file' && output.args[1]) {
+        config.path = output.args[1];
+        const rolling = caddyfileChildren(output.block?.inner || '');
+        config.rollSize = rolling.find(child => child.name === 'roll_size')?.args[0] ?? config.rollSize;
+        const keep = rolling.find(child => child.name === 'roll_keep')?.args[0];
+        if (keep !== undefined) config.rollKeep = Number.parseInt(keep, 10);
+    }
+    config.format = children.find(child => child.name === 'format')?.args[0] ?? config.format;
+    config.level = (children.find(child => child.name === 'level')?.args[0] ?? config.level).toUpperCase();
 
     return config;
+}
+
+function quoteLogPath(path) {
+    if (!/[\s"`]/.test(path) && !path.startsWith('#')) return path;
+    if (!path.includes('`')) return '`' + path + '`';
+    if (path.endsWith('\\')) throw new SyntaxError('Cannot quote the log path');
+    return '"' + path.replaceAll('"', '\\"') + '"';
 }
 
 function buildLogBlock(config) {
     if (!config.enabled) return null;
 
     return `\tlog {
-\t\toutput file ${config.path} {
+\t\toutput file ${quoteLogPath(config.path)} {
 \t\t\troll_size ${config.rollSize}
 \t\t\troll_keep ${config.rollKeep}
 \t\t}
@@ -92,25 +68,32 @@ function buildLogBlock(config) {
 
 function updateGlobalBlock(content, logConfig) {
     const logBlock = buildLogBlock(logConfig);
+    const global = extractGlobalBlock(content);
 
-    const globalMatch = content.match(/^\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/ms);
-
-    if (!globalMatch) {
+    if (!global) {
         if (!logBlock) return content;
-        return `{\n${logBlock}\n}\n\n${content.trim()}\n`;
+        return `{\n${logBlock}\n}\n\n${content}`;
     }
 
-    const fullGlobal = globalMatch[0];
-    const innerGlobal = globalMatch[1];
+    const log = extractDirectiveBlock(global.inner, 'log');
+    if (log) {
+        const start = global.start + 1 + log.start;
+        let end = global.start + 1 + log.end;
+        // A removed logger that owned its whole line takes the line break with
+        // it, so repeated disable/enable cycles don't accumulate blank lines.
+        const lineBreak = content.slice(end).match(/^[ \t]*\r?\n/);
+        if (!logBlock && lineBreak && (start === 0 || content[start - 1] === '\n')) {
+            end += lineBreak[0].length;
+        }
+        return content.slice(0, start) + (logBlock || '') + content.slice(end);
+    }
+    if (!logBlock) return content;
 
-    const withoutLog = innerGlobal.replace(/\n?\s*log\s*\{[^}]*(?:\{[^}]*\}[^}]*)*\}/ms, '');
-
-    const newInner = logBlock
-        ? `${withoutLog.trimEnd()}\n${logBlock}\n`
-        : withoutLog;
-
-    const newGlobal = `{${newInner}}`;
-    return content.replace(fullGlobal, newGlobal);
+    const line = content.lastIndexOf('\n', global.close - 1) + 1;
+    const start = /^\s*$/.test(content.slice(line, global.close)) ? line : global.close;
+    const before = content.slice(0, start);
+    const separator = before.endsWith('\n') ? '' : '\n';
+    return before + separator + logBlock + '\n' + content.slice(start);
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -155,8 +138,11 @@ router.put('/config', async (req, res) => {
     logger.info('Log config update requested', { enabled: config.enabled });
     try {
         const result = await saveCaddyfileChange(req.instance, async previous => {
-            const updated = updateGlobalBlock(previous, config);
-            try { await validateCaddyfile(updated, req.instance); }
+            let updated;
+            try {
+                updated = updateGlobalBlock(previous, config);
+                await validateCaddyfile(updated, req.instance);
+            }
             catch (cause) { throw new AppError('CADDYFILE_VALIDATION_FAILED', { cause }); }
             return updated;
         }, { actor: getAuthentication().getActor(req), action: 'logs.configure' });
@@ -225,4 +211,4 @@ router.get('/stream', async (req, res) => {
 });
 
 export default router;
-export { appLogsRouter, parseLogConfig, buildLogBlock, updateGlobalBlock };
+export { appLogsRouter, parseLogConfig, buildLogBlock, updateGlobalBlock, extractGlobalBlock, extractDirectiveBlock };
