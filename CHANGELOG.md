@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.2](https://github.com/zackwag/caddy-ui/compare/v3.6.1...v3.6.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* respect Caddyfile syntax when reading and updating logging ([#398](https://github.com/zackwag/caddy-ui/issues/398)) ([9b45336](https://github.com/zackwag/caddy-ui/commit/9b453366a3e747f8b47cd4f7f31421febae3fe18))
+
 ## [3.6.1](https://github.com/zackwag/caddy-ui/compare/v3.6.0...v3.6.1) (2026-10-21)
 
 
