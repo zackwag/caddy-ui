@@ -17,3 +17,27 @@ An empty result means the resource is empty, not that it couldn't be read:
 - `GET /api/logs/stream` reports failures as SSE events on the established HTTP stream. Events include `code`, `error` and `requestId`, using `LOG_FILE_MISSING` for a missing file, `LOG_SOURCE_UNAVAILABLE` for an unreachable container and `LOG_STREAM_ERROR` for other failures. The UI stops failed live mode; start it again after correcting the problem.
 
 The Caddy log source reads the selected instance's configured log file, rather than Docker's captured stdout/stderr. A writable directory mount alone does not enable file logging: Caddy must be configured to write to the selected path. The UI displays unavailable reads separately from an empty file. Refresh retries the read and clears the error after success.
+
+## Logging configuration
+
+`GET /api/logs/config` returns defaults when the Caddyfile has no default logger.
+A Caddyfile read failure returns `500` with `CADDYFILE_READ_FAILED`; a configuration
+the structural scanner cannot interpret returns `500` with
+`LOG_CONFIG_PARSE_FAILED`. Both include a request ID and retain the cause in the
+application logs. Parsing failures never masquerade as disabled logging. The
+configuration panel shows a localized error instead of loading indefinitely.
+
+`PUT /api/logs/config` requires a boolean `enabled`. When enabling logging, provide
+a nonempty string `path` without control characters, a single size token such as
+`50mb` or `1.5GiB` for `rollSize`, a non-negative safe integer for `rollKeep`,
+`json` or `console` for `format`, and `DEBUG`, `INFO`, `WARN` or `ERROR` for `level`.
+Paths containing spaces are supported. Invalid request values return `400` with
+`VALIDATION_FAILED` before a write is prepared. Disabling requires only
+`{ "enabled": false }`; unused option values are not serialized.
+
+Caddy still validates the edited configuration before it is written and applied.
+A semantic rejection returns `422` with `CADDYFILE_VALIDATION_FAILED`, leaving the
+file and live configuration unchanged. Logging edits replace the existing default
+logger, including a bare `log` or `log default`, and preserve named loggers and
+unrelated source bytes. New logger text follows the local indentation and line
+endings; the whole file is not formatted.

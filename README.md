@@ -535,8 +535,8 @@ See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoin
 | `GET` | `/api/tls/ca` | Download Caddy's root CA certificate |
 | `GET` | `/api/logs` | Last 200 lines of the configured Caddy log; 404 if missing, 503 if the container is unreachable, 500 if reading fails |
 | `GET` | `/api/logs/stream` | SSE stream of live log output; failures include an error code and request ID |
-| `GET` | `/api/logs/config` | Read log configuration |
-| `PUT` | `/api/logs/config` | Update log configuration |
+| `GET` | `/api/logs/config` | Read log configuration; coded read/parse failures |
+| `PUT` | `/api/logs/config` | Update validated log configuration |
 | `GET` | `/api/server-names` | Read server labels for the selected instance |
 | `GET` | `/api/server-names/all` | Read server labels for every instance |
 | `PUT` | `/api/server-names/:id` | Set a server label |
