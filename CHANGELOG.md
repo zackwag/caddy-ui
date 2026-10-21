@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.6](https://github.com/zackwag/caddy-ui/compare/v3.6.5...v3.6.6) (2026-10-21)
+
+
+### Bug Fixes
+
+* add Docker healthchecks to backend and frontend images ([#410](https://github.com/zackwag/caddy-ui/issues/410)) ([21b14ab](https://github.com/zackwag/caddy-ui/commit/21b14abbbe253c2d109b00f34b0d09f8203aeafc))
+
 ## [3.6.5](https://github.com/zackwag/caddy-ui/compare/v3.6.4...v3.6.5) (2026-10-21)
 
 
