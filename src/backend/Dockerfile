@@ -18,4 +18,7 @@ COPY src/ ./src/
 
 EXPOSE 3001
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -qO /dev/null http://localhost:3001/api/version || exit 1
+
 CMD ["node", "src/index.js"]
