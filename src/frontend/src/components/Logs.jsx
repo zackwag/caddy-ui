@@ -6,12 +6,13 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { API, apiFetch, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
-import { resolveLogSource } from "../utils/logSource.js";
+import { readLogResponse, resolveLogSource } from "../utils/logSource.js";
 
 export default function Logs({ toast, onUnauth,  noInstances }) {
     const { t } = useTranslation();
     const location = useLocation();
     const [lines, setLines] = useState([]);
+    const [loadError, setLoadError] = useState(null);
     // Manual tab selection lasts only for this navigation. A new link to /logs
     // must apply its destination even when the component is already mounted.
     const [selection, setSelection] = useState(null);
@@ -21,6 +22,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
     const [logConfig, setLogConfig] = useState(null);
+    const [configError, setConfigError] = useState(null);
     const [configDirty, setConfigDirty] = useState(false);
     const [savingConfig, setSavingConfig] = useState(false);
     // eslint-disable-next-line i18next/no-literal-string -- URL query parameter, not translatable UI text
@@ -37,26 +39,34 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         let ignore = false;
         loadIdRef.current += 1;
         setLines([]);
+        setLoadError(null);
         setRefreshing(false);
         const path = source === "caddy" ? "/logs" : "/logs/app";
         // App's first /status response can arrive after the initial log request.
         const loadKey = stateNotificationKey('logs.load.' + source, getInstanceId());
         const configKey = stateNotificationKey('logs.config', getInstanceId());
         const reportError = (e, key) => {
-            if (!ignore && e.code !== 'NO_INSTANCES') toast.error(localizeError(e, t), e, { mode: 'state', key });
+            if (!ignore && e.code !== 'NO_INSTANCES') {
+                if (key === loadKey) setLoadError(e);
+                if (key === configKey) setConfigError(e);
+                toast.error(localizeError(e, t), e, { mode: 'state', key });
+            }
         };
         apiFetch(path, {}, onUnauth)
             .then(data => {
                 if (!ignore) {
+                    const entries = readLogResponse(data, source);
                     toast.recover(loadKey);
-                    setLines(source === "caddy" ? (data.lines || []) : (data.entries || []).map(entry => JSON.stringify(entry)));
+                    setLoadError(null);
+                    setLines(entries);
                 }
             })
             .catch(e => reportError(e, loadKey));
 
         if (source === "caddy" && !logConfig) {
+            setConfigError(null);
             apiFetch("/logs/config", {}, onUnauth)
-                .then(data => { if (!ignore) { toast.recover(configKey); setLogConfig(data); } })
+                .then(data => { if (!ignore) { toast.recover(configKey); setConfigError(null); setLogConfig(data); } })
                 .catch(e => reportError(e, configKey));
         }
 
@@ -80,17 +90,42 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         const url = `${API}${streamPath}`;
         const es = new EventSource(url);
         const streamKey = stateNotificationKey('logs.stream.' + source, getInstanceId());
+        const loadKey = stateNotificationKey('logs.load.' + source, getInstanceId());
+        const failStream = error => {
+            setLoadError(error);
+            toast.error(localizeError(error, t), error, { mode: 'state', key: streamKey });
+            es.close();
+            esRef.current = null;
+            setLive(false);
+        };
         es.onmessage = e => {
             if (esRef.current !== es) return;
-            const data = JSON.parse(e.data);
-            if (data.error && data.code !== 'LOG_FILE_MISSING') {
-                toast.error(localizeError(data, t), data, { mode: 'state', key: streamKey });
+            let data;
+            try { data = JSON.parse(e.data); }
+            catch {
+                // eslint-disable-next-line i18next/no-literal-string -- Protocol code; displayed through localizeError.
+                failStream({ code: 'CLIENT_PARSE_FAILED' });
+                return;
+            }
+            if (data.error) {
+                // eslint-disable-next-line i18next/no-literal-string -- Protocol code; displayed through localizeError.
+                failStream({ code: data.code || 'LOG_STREAM_ERROR', requestId: data.requestId });
+                return;
             }
             const line = data.line || (data.entry ? JSON.stringify(data.entry) : null);
             if (line) {
                 toast.recover(streamKey);
+                toast.recover(loadKey);
+                setLoadError(null);
                 setLines(l => [...l.slice(-500), line]);
             }
+        };
+        // The browser retries dropped connections itself; a closed source means
+        // the stream was refused (e.g. an expired session) and will not recover.
+        es.onerror = () => {
+            if (esRef.current !== es || es.readyState !== EventSource.CLOSED) return;
+            // eslint-disable-next-line i18next/no-literal-string -- Protocol code; displayed through localizeError.
+            failStream({ code: 'LOG_STREAM_ERROR' });
         };
         esRef.current = es;
         setLive(true);
@@ -116,7 +151,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
 
     const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
 
-    const lineCountText = logSearch || levelFilter !== "all"
+    const lineCountText = loadError && lines.length === 0 ? t("logs.unavailable") : logSearch || levelFilter !== "all"
         ? t("logs.lineCountFiltered", { filtered: filteredLines.length, total: lines.length })
         : t("logs.lineCount", { count: filteredLines.length });
 
@@ -134,15 +169,23 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     const refreshLogs = () => {
         setRefreshing(true);
         const loadId = loadIdRef.current;
+        const loadKey = stateNotificationKey('logs.load.' + source, getInstanceId());
         const path = source === "caddy" ? "/logs" : "/logs/app";
         apiFetch(path, {}, onUnauth)
             .then(d => {
                 if (loadId === loadIdRef.current) {
-                    toast.recover(stateNotificationKey('logs.load.' + source, getInstanceId()));
-                    setLines(source === "caddy" ? (d.lines || []) : (d.entries || []).map(entry => JSON.stringify(entry)));
+                    const entries = readLogResponse(d, source);
+                    toast.recover(loadKey);
+                    setLoadError(null);
+                    setLines(entries);
                 }
             })
-            .catch(e => { if (loadId === loadIdRef.current) toast.error(localizeError(e, t), e); })
+            .catch(e => {
+                if (loadId === loadIdRef.current && e.code !== 'NO_INSTANCES') {
+                    setLoadError(e);
+                    toast.error(localizeError(e, t), e, { mode: 'state', key: loadKey });
+                }
+            })
             .finally(() => { if (loadId === loadIdRef.current) setRefreshing(false); });
     };
 
@@ -185,7 +228,8 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                     </div>
                 </div>
                 {configOpen && !logConfig && (
-                    <div className="card-body loading">{t("common.loading")}</div>
+                    configError ? <div className="card-body" role="alert">{localizeError(configError, t)}</div>
+                        : <div className="card-body loading">{t("common.loading")}</div>
                 )}
                 {configOpen && logConfig && (
                     <div className="card-body">
@@ -263,8 +307,9 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                 </div>
             </div>
             <div className="log-wrap">
+                {loadError && <div className="log-empty" role="alert">{localizeError(loadError, t)}</div>}
                 {filteredLines.length === 0 ? (
-                    <div className="log-empty">{logSearch || levelFilter !== "all" ? t("logs.noMatchingLines") : t("logs.noLinesLoaded")}</div>
+                    !loadError && <div className="log-empty">{logSearch || levelFilter !== "all" ? t("logs.noMatchingLines") : t("logs.noLinesLoaded")}</div>
                 ) : (
                     filteredLines.map((line, i) => (
                         <div key={i} className={`log-line ${classify(line)} ${logSearch && line.toLowerCase().includes(logSearch.toLowerCase()) ? "highlight" : ""}`}>{line}</div>

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.3](https://github.com/zackwag/caddy-ui/compare/v3.6.2...v3.6.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* distinguish unavailable Caddy logs from empty files ([#400](https://github.com/zackwag/caddy-ui/issues/400)) ([5a6abae](https://github.com/zackwag/caddy-ui/commit/5a6abaedc01c715ec47ca92316fc0ff7c52cefa5))
+
 ## [3.6.2](https://github.com/zackwag/caddy-ui/compare/v3.6.1...v3.6.2) (2026-10-21)
 
 

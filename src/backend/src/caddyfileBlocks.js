@@ -45,10 +45,11 @@ export function scanCaddyfile(source) {
                 }
                 value += source[i++];
             }
-            if (!escapedHeredoc && value.startsWith('<<') && source[i] === '\n') {
+            const newlineLength = source[i] === '\n' ? 1 : source.slice(i, i + 2) === '\r\n' ? 2 : 0;
+            if (!escapedHeredoc && value.startsWith('<<') && newlineLength) {
                 const marker = value.slice(2);
                 if (!/^[A-Za-z0-9_-]+$/.test(marker)) throw new SyntaxError('Invalid Caddyfile heredoc marker');
-                const body = i + 1;
+                const body = i + newlineLength;
                 const closing = source.indexOf(marker, body);
                 if (closing === -1) throw new SyntaxError('Unclosed Caddyfile heredoc');
                 const line = source.lastIndexOf('\n', closing - 1) + 1;
@@ -143,13 +144,12 @@ export function extractGlobalBlock(source) {
     return global ? { ...global, text: source.slice(global.start, global.end) } : null;
 }
 
-export function extractDirectiveBlock(source, directive) {
-    const matches = caddyfileChildren(source).filter(child => child.name === directive && child.block
-        && (child.args.length === 0 || (directive === 'log' && child.args.length === 1 && child.args[0] === 'default')));
-    if (matches.length > 1) throw new SyntaxError(`Multiple default ${directive} blocks`);
+export function extractDirective(source, directive, predicate = child => child.args.length === 0) {
+    const matches = caddyfileChildren(source).filter(child => child.name === directive && predicate(child));
+    if (matches.length > 1) throw new SyntaxError(`Multiple ${directive} directives`);
     const child = matches[0];
     if (!child) return null;
     const line = source.lastIndexOf('\n', child.start - 1) + 1;
     const start = /^\s*$/.test(source.slice(line, child.start)) ? line : child.start;
-    return { start, end: child.end, inner: child.block.inner, fullMatch: source.slice(start, child.end) };
+    return { start, headerStart: child.start, end: child.end, block: child.block, inner: child.block?.inner || '', fullMatch: source.slice(start, child.end) };
 }

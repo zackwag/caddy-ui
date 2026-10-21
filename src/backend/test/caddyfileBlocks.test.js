@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { caddyfileChildren, caddyfileEntries, extractDirectiveBlock, extractGlobalBlock, matchesSiteAddress, scanCaddyfile, trailingComments } from '../src/caddyfileBlocks.js';
+import { caddyfileChildren, caddyfileEntries, extractDirective, extractGlobalBlock, matchesSiteAddress, scanCaddyfile, trailingComments } from '../src/caddyfileBlocks.js';
 
 describe('Caddyfile structural scanning', () => {
     it.each([
@@ -46,18 +46,36 @@ describe('Caddyfile structural scanning', () => {
         expect(extractGlobalBlock(source).inner).toBe('\r\n\tadmin off\r\n');
     });
 
-    it('finds only the direct-child default logger', () => {
-        const nested = 'custom {\n log {\n output stderr\n }\n}\nlog audit {\n output stderr\n}\n';
-        expect(extractDirectiveBlock(nested, 'log')).toBeNull();
-        expect(extractDirectiveBlock(nested + 'log default {\n output stdout\n}', 'log').inner).toContain('output stdout');
+    it('recognizes CRLF heredocs without counting literal braces as structure', () => {
+        const source = ':8080 {\r\n respond <<BODY\r\n{\r\nlog {\r\n}\r\nBODY\r\n}\r\n';
+        expect(extractGlobalBlock(source)).toBeNull();
+        const literal = scanCaddyfile(source).find(token => token.value.startsWith('{\nlog'));
+        expect(literal.kind).toBe('word');
+        expect(source.slice(literal.start, literal.end)).toBe('<<BODY\r\n{\r\nlog {\r\n}\r\nBODY');
+    });
+
+    it('selects only direct children using a caller-owned predicate', () => {
+        const nested = 'custom {\n handler {\n output stderr\n }\n}\nhandler other {\n output stderr\n}\n';
+        expect(extractDirective(nested, 'handler')).toBeNull();
+        const chosen = extractDirective(nested + 'handler chosen {\n output file /tmp/a {\n option value\n }\n}', 'handler', child => child.args[0] === 'chosen');
+        expect(chosen.inner).toContain('option value');
+        expect(chosen.fullMatch).toContain('handler chosen');
+    });
+
+    it('returns a directive without a block and preserves its source offsets', () => {
+        const source = '\toption value # keep\r\n';
+        const child = extractDirective(source, 'option', child => child.args[0] === 'value');
+        expect(child.inner).toBe('');
+        expect(child.block).toBeNull();
+        expect(source.slice(child.start, child.end)).toBe('\toption value');
     });
 
     it.each(['{\n admin off', '{\n value "unclosed', '{\n value <<BODY\n unclosed'])('rejects incomplete input instead of inventing boundaries', source => {
         expect(() => extractGlobalBlock(source)).toThrow(SyntaxError);
     });
 
-    it('rejects ambiguous default loggers', () => {
-        expect(() => extractDirectiveBlock('log {\n}\nlog default {\n}', 'log')).toThrow('Multiple default log blocks');
+    it('rejects ambiguous directives without embedding caller policy', () => {
+        expect(() => extractDirective('option\noption {\n}', 'option')).toThrow('Multiple option directives');
     });
 
     it('widens entries to whole lines with their leading comments', () => {
