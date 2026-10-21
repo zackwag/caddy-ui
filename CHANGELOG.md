@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.5](https://github.com/zackwag/caddy-ui/compare/v3.6.4...v3.6.5) (2026-10-21)
+
+
+### Bug Fixes
+
+* use the Caddyfile scanner for site blocks, sorting and titles ([#405](https://github.com/zackwag/caddy-ui/issues/405)) ([8e6cb17](https://github.com/zackwag/caddy-ui/commit/8e6cb172d9d4ca4d83c30fa2c267800a8a5a3057))
+
 ## [3.6.4](https://github.com/zackwag/caddy-ui/compare/v3.6.3...v3.6.4) (2026-10-21)
 
 
