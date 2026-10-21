@@ -9,6 +9,34 @@ const options = { timeout: 120000 };
 
 before(prepareBrowserTests, { timeout: 35000 });
 
+test('unreadable logging configuration has a useful coded error and recovers after correction', options, async t => {
+    const { page, stack, origin } = await useBrowserFixture(t);
+    const { instance } = stack.instances.get('alpha');
+    const original = (await stack.api('/caddyfile')).data;
+    const writeConfig = text => stack.harness.run(['exec', instance.containerName, 'sh', '-c',
+        'printf "%s" "$1" > "$2"', 'sh', text, instance.configPath]);
+    await writeConfig('{\nlog {\n');
+    const pending = page.waitForResponse(response => new URL(response.url()).pathname === '/api/logs/config');
+    await page.goto(origin + '/logs?dist=caddy', { waitUntil: 'domcontentloaded' });
+    const response = await pending;
+    assert.equal(response.status(), 500);
+    const failure = await response.json();
+    assert.equal(failure.code, 'LOG_CONFIG_PARSE_FAILED');
+    assert.ok(failure.requestId);
+    await page.locator('.card-header--clickable').filter({ hasText: en.logs.configuration }).click();
+    const alert = page.locator('.card-body[role="alert"]');
+    await alert.waitFor();
+    assert.equal(await alert.textContent(), en.errors.logConfigParseFailed);
+    assert(!(await page.locator('body').textContent()).includes('Unclosed Caddyfile block'));
+    await writeConfig(original);
+    await page.getByRole('button', { name: 'caddy/ui', exact: true }).click();
+    const corrected = page.waitForResponse(response => new URL(response.url()).pathname === '/api/logs/config');
+    await page.getByRole('button', { name: en.logs.caddySource, exact: true }).click();
+    assert.equal((await corrected).status(), 200);
+    await page.locator('.config-grid').waitFor();
+    assert.equal(await alert.count(), 0);
+});
+
 // Keep UI actions next to their assertions; service lifecycle lives in fixture.mjs.
 async function scenario(t) {
     const fixture = await useBrowserFixture(t);

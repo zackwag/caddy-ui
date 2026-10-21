@@ -22,6 +22,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
     const [logConfig, setLogConfig] = useState(null);
+    const [configError, setConfigError] = useState(null);
     const [configDirty, setConfigDirty] = useState(false);
     const [savingConfig, setSavingConfig] = useState(false);
     // eslint-disable-next-line i18next/no-literal-string -- URL query parameter, not translatable UI text
@@ -47,6 +48,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         const reportError = (e, key) => {
             if (!ignore && e.code !== 'NO_INSTANCES') {
                 if (key === loadKey) setLoadError(e);
+                if (key === configKey) setConfigError(e);
                 toast.error(localizeError(e, t), e, { mode: 'state', key });
             }
         };
@@ -62,8 +64,9 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
             .catch(e => reportError(e, loadKey));
 
         if (source === "caddy" && !logConfig) {
+            setConfigError(null);
             apiFetch("/logs/config", {}, onUnauth)
-                .then(data => { if (!ignore) { toast.recover(configKey); setLogConfig(data); } })
+                .then(data => { if (!ignore) { toast.recover(configKey); setConfigError(null); setLogConfig(data); } })
                 .catch(e => reportError(e, configKey));
         }
 
@@ -225,7 +228,8 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                     </div>
                 </div>
                 {configOpen && !logConfig && (
-                    <div className="card-body loading">{t("common.loading")}</div>
+                    configError ? <div className="card-body" role="alert">{localizeError(configError, t)}</div>
+                        : <div className="card-body loading">{t("common.loading")}</div>
                 )}
                 {configOpen && logConfig && (
                     <div className="card-body">

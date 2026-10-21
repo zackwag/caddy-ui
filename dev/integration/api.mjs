@@ -170,11 +170,16 @@ format json
 
     const currentFile = (await stack.api('/caddyfile')).data;
     const currentConfig = await live();
-    const invalid = await stack.api('/logs/config', { method: 'PUT', body: { ...settings, format: 'missing-encoder' } });
-    assert.equal(invalid.status, 422);
-    assert.equal(invalid.data.code, 'CADDYFILE_VALIDATION_FAILED');
-    assert.equal((await stack.api('/caddyfile')).data, currentFile);
-    assert.deepEqual(await live(), currentConfig);
+    for (const [updates, status, code] of [
+        [{ format: 'missing-encoder' }, 400, 'VALIDATION_FAILED'],
+        [{ rollSize: '999999999999999999999999999999999mb' }, 422, 'CADDYFILE_VALIDATION_FAILED'],
+    ]) {
+        const invalid = await stack.api('/logs/config', { method: 'PUT', body: { ...settings, ...updates } });
+        assert.equal(invalid.status, status);
+        assert.equal(invalid.data.code, code);
+        assert.equal((await stack.api('/caddyfile')).data, currentFile);
+        assert.deepEqual(await live(), currentConfig);
+    }
 
     const disabled = await stack.api('/logs/config', { method: 'PUT', body: { enabled: false } });
     assert.equal(disabled.status, 200);

@@ -54,6 +54,23 @@ function quoteLogPath(path) {
     return '"' + path.replaceAll('"', '\\"') + '"';
 }
 
+function validateLogConfig(config) {
+    if (!config || typeof config !== 'object' || Array.isArray(config) || typeof config.enabled !== 'boolean') {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'enabled' } });
+    }
+    // Disabling emits no option values; only enabled settings need serialization.
+    if (!config.enabled) return;
+    const valid = {
+        path: typeof config.path === 'string' && config.path.trim().length > 0 && !/[\x00-\x1f\x7f]/.test(config.path),
+        rollSize: typeof config.rollSize === 'string' && /^\d+(?:\.\d+)?(?:[kmgtpe]i?b?|b)?$/i.test(config.rollSize),
+        rollKeep: Number.isSafeInteger(config.rollKeep) && config.rollKeep >= 0,
+        format: ['json', 'console'].includes(config.format),
+        level: ['DEBUG', 'INFO', 'WARN', 'ERROR'].includes(config.level),
+    };
+    const field = Object.keys(valid).find(field => !valid[field]);
+    if (field) throw new AppError('VALIDATION_FAILED', { context: { field } });
+}
+
 function buildLogBlock(config) {
     if (!config.enabled) return null;
 
@@ -125,19 +142,21 @@ appLogsRouter.get('/stream', (req, res) => {
 
 
 router.get('/config', async (req, res) => {
-    const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
-    const config = parseLogConfig(content);
-    res.json(config);
+    const context = { instanceId: req.instance.id, configPath: req.instance.configPath };
+    try {
+        const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
+        try { res.json(parseLogConfig(content)); }
+        catch (cause) { throw new AppError('LOG_CONFIG_PARSE_FAILED', { cause, context }); }
+    } catch (cause) {
+        return sendAppError(res, asAppError(cause, 'CADDYFILE_READ_FAILED', context));
+    }
 });
 
 router.put('/config', async (req, res) => {
     const config = req.body;
-    if (!config || typeof config !== 'object') {
-        return res.status(400).json({ error: 'Invalid log config' });
-    }
-
-    logger.info('Log config update requested', { enabled: config.enabled });
     try {
+        validateLogConfig(config);
+        logger.info('Log config update requested', { enabled: config.enabled });
         const result = await saveCaddyfileChange(req.instance, async previous => {
             let updated;
             try {
