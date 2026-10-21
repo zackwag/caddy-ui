@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { readContainerFile } from '../containerFs.js';
 import { execInInstance, spawnInInstance } from '../docker.js';
 import logger, { getRecentLogEntries, subscribeToLogs } from '../logger.js';
-import { AppError, asAppError } from '../AppError.js';
+import { AppError, asAppError, errorChain, publicError } from '../AppError.js';
+import { logReadError } from '../logReadError.js';
 import { sendAppError } from '../errorReporting.js';
 import { historyWarning, saveCaddyfileChange, validateCaddyfile } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
@@ -169,11 +170,11 @@ router.put('/config', async (req, res) => {
 router.get('/', async (req, res) => {
     const { logPath, containerName } = req.instance;
     try {
-        const { stdout } = await execInInstance(containerName, 'tail', ['-n', String(TAIL_LINES), logPath]);
+        const { stdout } = await execInInstance(containerName, 'tail', ['-n', String(TAIL_LINES), '--', logPath]);
         const lines = stdout.split('\n').filter(Boolean);
         res.json({ lines, path: logPath });
-    } catch {
-        res.json({ lines: [], error: `Log file not found at ${logPath}` });
+    } catch (cause) {
+        return sendAppError(res, logReadError(cause, req.instance));
     }
 });
 
@@ -184,10 +185,26 @@ router.get('/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const proc = spawnInInstance(containerName, 'tail', ['-n', '0', '-f', logPath]);
     let buffer = '';
+    let stderr = '';
+    let disconnected = false;
+    let reported = false;
+    const reportFailure = cause => {
+        if (reported || disconnected || res.writableEnded) return;
+        reported = true;
+        const error = logReadError(cause, req.instance, 'LOG_STREAM_ERROR');
+        logger[error.code === 'LOG_FILE_MISSING' ? 'warn' : 'error']('Caddy log stream failed', {
+            requestId: req.diagnosticId, code: error.code, causes: errorChain(error),
+        });
+        res.write(`data: ${JSON.stringify({ ...publicError(error), requestId: req.diagnosticId })}\n\n`);
+        res.end();
+    };
+    let proc;
+    try { proc = spawnInInstance(containerName, 'tail', ['-n', '0', '-f', '--', logPath]); }
+    catch (cause) { reportFailure(cause); return; }
 
     proc.stdout.on('data', (chunk) => {
+        if (disconnected || res.writableEnded) return;
         buffer += chunk.toString();
         const parts = buffer.split('\n');
         buffer = parts.pop();
@@ -196,23 +213,15 @@ router.get('/stream', async (req, res) => {
         }
     });
 
-    proc.stderr.on('data', (chunk) => {
-        const msg = chunk.toString().trim();
-        if (msg) {
-            const missing = /no such file|not found/i.test(msg);
-            const code = missing ? 'LOG_FILE_MISSING' : 'LOG_STREAM_ERROR';
-            if (!missing) logger.error('Caddy log stream failed', { requestId: req.diagnosticId, code, detail: msg });
-            res.write(`data: ${JSON.stringify({ error: msg, code, requestId: req.diagnosticId })}\n\n`);
-        }
+    proc.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-8192); });
+    proc.on('error', reportFailure);
+    proc.on('close', (code, signal) => {
+        // A truncation warning on stderr is not a failed live stream. Wait for
+        // close so a genuine failure includes all stderr, and report it once.
+        if (code !== 0) reportFailure(Object.assign(new Error(stderr.trim() || `tail exited (${code ?? signal})`), { stderr, code }));
+        if (!res.writableEnded) res.end();
     });
-
-    proc.on('error', () => {
-        res.write(`data: ${JSON.stringify({ error: `Log file not found at ${logPath}`, code: 'LOG_FILE_MISSING', requestId: req.diagnosticId })}\n\n`);
-        res.end();
-    });
-
-    proc.on('close', () => { if (!res.writableEnded) res.end(); });
-    req.on('close', () => { proc.kill(); });
+    req.on('close', () => { disconnected = true; proc.kill(); });
 });
 
 export default router;

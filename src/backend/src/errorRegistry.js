@@ -29,6 +29,7 @@ export const ERROR_REGISTRY = Object.freeze({
     CADDY_STATUS_UNAVAILABLE: { status: 503, level: 'warn' },
     CADDY_CONFIG_UNAVAILABLE: { status: 503, level: 'warn' },
     LOG_FILE_MISSING: { status: 404, level: 'warn' },
+    LOG_READ_FAILED: { status: 500, level: 'error' },
     LOG_STREAM_ERROR: { status: 500, level: 'error' },
     UNAUTHORIZED: { status: 401, level: 'warn' },
     CSRF_INVALID: { status: 403, level: 'warn' },
