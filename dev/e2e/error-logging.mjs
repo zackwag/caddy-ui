@@ -111,6 +111,80 @@ test('Caddy log streams deliver real HTTP errors', options, async t => {
     await page.getByRole('button', { name: /Stop/ }).click();
 });
 
+test('Caddy logs distinguish failed reads from empty files and recover after refresh', options, async t => {
+    const { page, stack, go } = await scenario(t);
+    const { instance } = stack.instances.get('alpha');
+    const changePath = logPath => stack.api('/instances/default', { method: 'PUT', body: { logPath } });
+    const refresh = async () => {
+        const pending = page.waitForResponse(response => new URL(response.url()).pathname === '/api/logs');
+        await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+        return pending;
+    };
+    await page.addInitScript(() => {
+        const NativeEventSource = window.EventSource;
+        window.logTestStreams = [];
+        window.EventSource = class extends NativeEventSource {
+            constructor(...args) { super(...args); window.logTestStreams.push(this); }
+        };
+    });
+    await changePath('/data/dev-caddy/logs/not-created.log');
+    const initial = page.waitForResponse(response => new URL(response.url()).pathname === '/api/logs');
+    await go('/logs?dist=caddy');
+    assert.equal((await initial).status(), 404);
+    const alert = page.locator('.log-wrap [role="alert"]');
+    await alert.waitFor();
+    assert.equal(await alert.textContent(), en.errors.logFileMissing);
+    assert.equal(await page.locator('.log-line-count--desktop').textContent(), en.logs.unavailable);
+    assert.equal((await refresh()).status(), 404);
+    assert.equal(await page.locator('.toast-error').count(), 1, 'Repeated snapshot failures deduplicate');
+
+    await page.getByRole('button', { name: 'Live', exact: true }).click();
+    await page.waitForFunction(() => window.logTestStreams.at(-1)?.readyState === EventSource.CLOSED);
+    await page.getByRole('button', { name: 'Live', exact: true }).waitFor();
+    assert.equal(await alert.textContent(), en.errors.logFileMissing, 'Missing-file SSE errors are visible');
+
+    await changePath('/data/dev-caddy/logs');
+    const failed = await refresh();
+    assert.equal(failed.status(), 500);
+    const failure = await failed.json();
+    assert.equal(failure.code, 'LOG_READ_FAILED');
+    await page.waitForFunction(message => document.querySelector('.log-wrap [role="alert"]')?.textContent === message, en.errors.logReadFailed);
+    const diagnostics = (await stack.api('/logs/app')).data.entries.find(entry => entry.requestId === failure.requestId && entry.causes);
+    assert.equal(diagnostics.causes[0].context.logPath, '/data/dev-caddy/logs');
+    assert.match(diagnostics.causes[1].message, /directory/i);
+
+    await changePath(instance.logPath);
+    assert.equal((await refresh()).status(), 200);
+    await page.locator('.log-line').first().waitFor();
+    assert.equal(await alert.count(), 0, 'Successful refresh clears the failed-read state');
+    await stack.harness.run(['exec', instance.containerName, 'touch', '/data/dev-caddy/logs/empty.log']);
+    await changePath('/data/dev-caddy/logs/empty.log');
+    const empty = await refresh();
+    assert.equal(empty.status(), 200);
+    assert.deepEqual((await empty.json()).lines, []);
+    await page.waitForFunction(message => document.querySelector('.log-wrap')?.textContent === message, en.logs.noLinesLoaded);
+    assert.equal(await alert.count(), 0);
+    assert.equal(await page.locator('.log-line-count--desktop').textContent(), '0 lines');
+});
+
+test('Caddy logs surface legacy HTTP 200 read errors without exposing raw server details', options, async t => {
+    const { page, go } = await scenario(t);
+    const endpoint = '**/api/logs';
+    await page.route(endpoint, route => route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ lines: [], error: 'private legacy container failure' }),
+    }));
+    await go('/logs?dist=caddy');
+    const alert = page.locator('.log-wrap [role="alert"]');
+    await alert.waitFor();
+    assert.equal(await alert.textContent(), en.errors.logReadFailed);
+    assert.equal(await page.locator('.log-line-count--desktop').textContent(), en.logs.unavailable);
+    assert(!(await page.locator('body').textContent()).includes('private legacy container failure'));
+    await page.unroute(endpoint);
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await page.locator('.log-line').first().waitFor();
+    assert.equal(await alert.count(), 0);
+});
+
 test('state errors deduplicate and recovery rearms them', options, async t => {
     const { page, stack, go } = await scenario(t);
     const configPath = stack.instances.get('alpha').instance.configPath;
