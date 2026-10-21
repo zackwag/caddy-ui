@@ -56,7 +56,8 @@ export default {
         currentPasswordInvalid: 'The current password is incorrect.',
         webhookDestinationBlocked: 'Notifications cannot be sent to loopback or link-local addresses. Use an address the backend reaches over the network, such as a LAN IP or Docker service name.',
         notificationSendFailed: 'Could not send the notification. See the application logs for details.',
-        logFileMissing: 'The log file was not found.',
+        logFileMissing: 'The Caddy log file was not found. Configure file logging or check the instance log path.',
+        logReadFailed: 'Could not read the Caddy log file. Check the instance connection and file permissions. See the application logs for details.',
         logStreamError: 'Could not stream Caddy logs. See the application logs for details.',
         rateLimited: 'Too many requests. Please try again later.',
         validationFailed: 'Validation failed. Check the configuration and application logs.',
@@ -394,6 +395,7 @@ export default {
         live: 'Live',
         noMatchingLines: 'No lines match the current filter',
         noLinesLoaded: 'No log lines loaded',
+        unavailable: 'Logs unavailable',
     },
 
     metrics: {

@@ -17,6 +17,7 @@ export const ERROR_MESSAGES = Object.freeze({
     ROUTE_NOTES_READ_FAILED: 'errors.routeNotesReadFailed',
     ROUTE_NOTES_SAVE_FAILED: 'errors.routeNotesSaveFailed',
     LOG_FILE_MISSING: 'errors.logFileMissing',
+    LOG_READ_FAILED: 'errors.logReadFailed',
     LOG_STREAM_ERROR: 'errors.logStreamError',
     RATE_LIMITED: 'errors.rateLimited',
     VALIDATION_FAILED: 'errors.validationFailed',

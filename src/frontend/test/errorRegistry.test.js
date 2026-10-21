@@ -19,6 +19,7 @@ describe('semantic error presentation registry', () => {
     it.each([
         ['FORBIDDEN', 'errors.forbidden'],
         ['LOG_FILE_MISSING', 'errors.logFileMissing'],
+        ['LOG_READ_FAILED', 'errors.logReadFailed'],
         ['LOG_STREAM_ERROR', 'errors.logStreamError'],
     ])('localizes the reviewed backend code %s', (code, key) => {
         expect(localizeError({ code, error: 'private backend detail' }, t)).toBe(key);
