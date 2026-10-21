@@ -83,29 +83,78 @@ function lineIndent(content, offset) {
     return /^[ \t]*$/.test(prefix) ? prefix : null;
 }
 
-function loggingStyle(content, global, log) {
-    const base = global ? global.start + 1 : 0;
-    const logIndent = log ? lineIndent(content, base + log.headerStart) : null;
-    const globalIndent = global ? lineIndent(content, global.start) || '' : '';
-    const globalChildren = global ? caddyfileChildren(global.inner) : [];
-    const siblingIndent = globalChildren.map(child => lineIndent(content, base + child.start)).find(indent => indent !== null);
-    const blocks = [];
-    if (log?.block) blocks.push({ block: { ...log.block, start: base + log.block.start }, header: base + log.headerStart });
-    if (global) blocks.push({ block: global, header: global.start });
-    // When adding the first global block, use the indentation of an existing
-    // site/snippet. Literal/comment/heredoc lines are not indentation evidence.
-    blocks.push(...caddyfileChildren(content).filter(child => child.block).map(child => ({ block: child.block, header: child.start })));
-    let unit;
-    for (const { block, header } of blocks) {
-        const parent = lineIndent(content, header) || '';
-        const indent = caddyfileChildren(block.inner).map(child => lineIndent(content, block.start + 1 + child.start))
-            .find(indent => indent !== null && indent.startsWith(parent));
-        if (indent !== undefined) { unit = indent.slice(parent.length); break; }
+function indentUnitInBlock(content, block, headerStart, sourceOffset = 0) {
+    // Logger offsets are relative to the global body; other blocks already use
+    // whole-file offsets. Translate them before looking at line indentation.
+    const parentIndent = lineIndent(content, sourceOffset + headerStart) ?? '';
+    for (const child of caddyfileChildren(block.inner)) {
+        const childIndent = lineIndent(content, sourceOffset + block.start + 1 + child.start);
+        if (childIndent !== null && childIndent.startsWith(parentIndent)) {
+            return childIndent.slice(parentIndent.length);
+        }
     }
-    unit ??= '\t';
-    const newline = content.indexOf('\n', log?.block ? base + log.block.start : global?.start ?? 0);
-    const eol = newline > 0 && content[newline - 1] === '\r' ? '\r\n' : '\n';
-    return { indent: logIndent ?? siblingIndent ?? globalIndent + unit, unit, eol, inline: Boolean(log && logIndent === null) };
+    return undefined;
+}
+
+function loggingIndentUnit(content, global, log) {
+    // Prefer the existing logger, then its global block, then other top-level
+    // blocks in source order. Only structural children supply evidence, so
+    // comments and heredoc contents cannot select the indentation style.
+    if (log?.block) {
+        const unit = indentUnitInBlock(content, log.block, log.headerStart, global.start + 1);
+        if (unit !== undefined) return unit;
+    }
+    if (global) {
+        const unit = indentUnitInBlock(content, global, global.start);
+        if (unit !== undefined) return unit;
+    }
+    for (const entry of caddyfileChildren(content)) {
+        if (!entry.block) continue;
+        const unit = indentUnitInBlock(content, entry.block, entry.start);
+        if (unit !== undefined) return unit;
+    }
+    // An empty string is a valid unindented style. Use tabs only when no block
+    // supplied evidence, rather than treating empty indentation as missing.
+    return '\t';
+}
+
+function loggingLineEnding(content, global, log) {
+    let start = 0;
+    if (log?.block) start = global.start + 1 + log.block.start;
+    else if (global) start = global.start;
+    const newline = content.indexOf('\n', start);
+    return newline > 0 && content[newline - 1] === '\r' ? '\r\n' : '\n';
+}
+
+function loggingStyle(content, global, log) {
+    const unit = loggingIndentUnit(content, global, log);
+    const globalBodyStart = global ? global.start + 1 : 0;
+    const logIndent = log ? lineIndent(content, globalBodyStart + log.headerStart) : null;
+    let indent = logIndent;
+
+    // Keep the logger's existing column. If absent or inline, use the first
+    // global sibling on its own line, then the global column plus one step.
+    if (indent === null && global) {
+        for (const child of caddyfileChildren(global.inner)) {
+            const siblingIndent = lineIndent(content, globalBodyStart + child.start);
+            if (siblingIndent !== null) {
+                indent = siblingIndent;
+                break;
+            }
+        }
+    }
+    if (indent === null) {
+        const globalIndent = global ? lineIndent(content, global.start) ?? '' : '';
+        indent = globalIndent + unit;
+    }
+
+    return {
+        indent,
+        unit,
+        eol: loggingLineEnding(content, global, log),
+        // An inline logger keeps the prefix already present before its header.
+        inline: Boolean(log && logIndent === null),
+    };
 }
 
 function buildLogBlock(config, { indent = '\t', unit = '\t', eol = '\n', inline = false } = {}) {
