@@ -1,4 +1,5 @@
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import { AppError } from './AppError.js';
 import { MAX_PASSKEYS, PASSKEY_ALGORITHMS, passkeyMetadata, validPasskeyName, validPasskeyRecord } from './passkeyPolicy.js';
@@ -7,7 +8,7 @@ import { recordAuthentication } from './authEvents.js';
 const CHALLENGE_MS = 2 * 60 * 1000;
 
 // State is attached to existing, bounded sessions: no separate anonymous challenge cache.
-export function createPasskeyService({ store, sessions, env, serialize, persist, requireManagement, now = Date.now }) {
+export function createPasskeyService({ store, sessions, env, serialize, persist, requireManagement, authorizeChange, now = Date.now }) {
     const configured = env.CADDY_UI_EXTERNAL_URL ? new URL(env.CADDY_UI_EXTERNAL_URL) : null;
     const ipHost = !!configured && !!isIP(configured.hostname.replace(/^\[|\]$/g, ''));
     const origin = configured?.protocol === 'https:' && !ipHost ? configured.origin : null;
@@ -24,12 +25,29 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
         if (!pending || pending.kind !== kind || pending.expires <= now()) throw new AppError('PASSKEY_INVALID');
         return pending;
     }
-    async function requirePassword(input) {
-        if (!await store.verifyPassword(store.getUsername(), input?.currentPassword)) throw new AppError('CURRENT_PASSWORD_INVALID');
-    }
     function rejectEmbeddedResponse(response) {
         const client = JSON.parse(Buffer.from(response.response.clientDataJSON, 'base64url').toString('utf8'));
         if (client.crossOrigin || client.topOrigin) throw new Error('Embedded passkey ceremony is not supported');
+    }
+
+    function validAction(action) {
+        return ['password.change', 'totp.setup', 'totp.disable', 'passkey.add'].includes(action)
+            || (typeof action === 'string' && store.listPasskeys().some(key => action === `passkey.remove:${key.id}`));
+    }
+    async function verifyAssertion(response, pending) {
+        const record = store.listPasskeys().find(key => key.id === response?.id && key.rpId === rpID);
+        if (!record || response?.response?.userHandle !== store.getPasskeyUserId()) throw new AppError('PASSKEY_INVALID');
+        let result;
+        try {
+            rejectEmbeddedResponse(response);
+            result = await verifyAuthenticationResponse({ response, expectedChallenge: pending.challenge,
+                expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true,
+                credential: { id: record.id, publicKey: Buffer.from(record.publicKey, 'base64url'),
+                    counter: record.counter, transports: record.transports } });
+        } catch { throw new AppError('PASSKEY_INVALID'); }
+        if (!result.verified) throw new AppError('PASSKEY_INVALID');
+        // Persist replay protection before issuing either a session or a change authorization.
+        await persist(() => store.updatePasskeyUsage(record.id, result.authenticationInfo));
     }
 
     return {
@@ -50,7 +68,7 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
                 delete session.passkeyChallenge;
                 requireEnabled();
                 if (!validPasskeyName(input?.name)) throw new AppError('VALIDATION_FAILED');
-                await requirePassword(input);
+                await authorizeChange(req, input, 'passkey.add');
                 if (store.listPasskeys().length >= MAX_PASSKEYS) throw new AppError('PASSKEY_LIMIT');
                 const userId = await persist(() => store.ensurePasskeyUserId());
                 const options = await generateRegistrationOptions({ rpName: 'Caddy UI', rpID,
@@ -106,31 +124,55 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
                 requireEnabled();
                 if (sessions.readSession(req)?.permission !== 'anonymous') throw new AppError('PASSKEY_INVALID');
                 const pending = takeChallenge(req, 'authentication');
-                const record = store.listPasskeys().find(key => key.id === response?.id && key.rpId === rpID);
-                if (!record || response?.response?.userHandle !== store.getPasskeyUserId()) throw new AppError('PASSKEY_INVALID');
-                let result;
-                try {
-                    rejectEmbeddedResponse(response);
-                    result = await verifyAuthenticationResponse({ response, expectedChallenge: pending.challenge,
-                        expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true,
-                        credential: { id: record.id, publicKey: Buffer.from(record.publicKey, 'base64url'),
-                            counter: record.counter, transports: record.transports } });
-                } catch { throw new AppError('PASSKEY_INVALID'); }
-                if (!result.verified) throw new AppError('PASSKEY_INVALID');
-                // Persist replay protection before issuing a management session.
-                await persist(() => store.updatePasskeyUsage(record.id, result.authenticationInfo));
+                await verifyAssertion(response, pending);
                 sessions.createSession(req, res, 'management');
             }).then(() => recordAuthentication(req, 'passkey', 'success'), error => {
                 if (error.code === 'PASSKEY_INVALID') recordAuthentication(req, 'passkey', 'failure');
                 throw error;
             });
         },
+        reauthenticationOptions(req, res, input) {
+            return serialize(async () => {
+                requireManagement(req, res);
+                const session = sessions.readSession(req);
+                delete session.passkeyChallenge;
+                delete session.reauthAuthorization;
+                requireEnabled();
+                if (!validAction(input?.action)) throw new AppError('VALIDATION_FAILED');
+                const options = await generateAuthenticationOptions({ rpID, timeout: CHALLENGE_MS, userVerification: 'required' });
+                session.passkeyChallenge = { kind: 'reauthentication', action: input.action,
+                    challenge: options.challenge, expires: now() + CHALLENGE_MS };
+                return options;
+            });
+        },
+        reauthenticate(req, res, response) {
+            return serialize(async () => {
+                requireManagement(req, res);
+                requireEnabled();
+                const pending = takeChallenge(req, 'reauthentication');
+                await verifyAssertion(response, pending);
+                const token = randomBytes(32).toString('base64url');
+                sessions.readSession(req).reauthAuthorization = { action: pending.action,
+                    hash: createHash('sha256').update(token).digest(), expires: now() + CHALLENGE_MS };
+                return { reauthToken: token };
+            });
+        },
+        // A grant belongs to one session, one action (including the target key),
+        // and one attempt. Failed/misdirected use consumes it too.
+        consumeAuthorization(req, token, action) {
+            const session = sessions.readSession(req);
+            const grant = session?.reauthAuthorization;
+            if (session) delete session.reauthAuthorization;
+            if (!grant || grant.action !== action || grant.expires <= now()
+                || typeof token !== 'string' || token.length !== 43
+                || !timingSafeEqual(grant.hash, createHash('sha256').update(token).digest())) throw new AppError('REAUTH_INVALID');
+        },
         remove(req, res, id, input) {
             return serialize(async () => {
                 const unwatch = requireManagement(req, res);
                 const keys = store.listPasskeys();
                 if (!keys.some(key => key.id === id)) throw new AppError('NOT_FOUND');
-                await requirePassword(input);
+                await authorizeChange(req, input, `passkey.remove:${id}`);
                 await persist(() => store.removePasskey(id));
                 // Removing a lost credential also ends sessions it may already have opened.
                 unwatch();

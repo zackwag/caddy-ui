@@ -22,11 +22,30 @@ export function createAuthRouter(getService = getAuthentication) {
         };
     }
     router.post('/sessions', operation(async (req, res, service) => {
-        await service.login(req, res, req.body);
+        const result = await service.login(req, res, req.body);
+        res.json({ ok: true, ...result });
+    }));
+    router.post('/sessions/totp', operation(async (req, res, service) => {
+        await service.totp.completeLogin(req, res, req.body);
+        res.json({ ok: true });
+    }));
+    router.post('/totp/setup', operation(async (req, res, service) => res.json(await service.totp.setup(req, res, req.body))));
+    router.post('/totp/confirm', operation(async (req, res, service) => {
+        await service.totp.confirm(req, res, req.body);
+        res.json({ ok: true });
+    }));
+    router.delete('/totp/setup', operation(async (req, res, service) => {
+        await service.totp.cancel(req, res);
+        res.json({ ok: true });
+    }));
+    router.delete('/totp', operation(async (req, res, service) => {
+        await service.totp.disable(req, res, req.body);
         res.json({ ok: true });
     }));
     router.get('/credentials', operation(async (req, res, service) => res.json(service.getCredentials(req, res))));
     router.patch('/credentials', operation(async (req, res, service) => res.json(await service.updateCredentials(req, res, req.body))));
+    router.post('/passkeys/reauthentication/options', operation(async (req, res, service) => res.json(await service.passkeys.reauthenticationOptions(req, res, req.body))));
+    router.post('/passkeys/reauthentication', operation(async (req, res, service) => res.json(await service.passkeys.reauthenticate(req, res, req.body))));
     router.get('/passkeys', operation(async (req, res, service) => res.json(service.passkeys.list(req, res))));
     router.post('/passkeys/authentication/options', operation(async (req, res, service) => res.json(await service.passkeys.authenticationOptions(req))));
     router.post('/passkeys/authentication', operation(async (req, res, service) => {

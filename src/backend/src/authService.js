@@ -8,6 +8,7 @@ import logger from './logger.js';
 import { createPasskeyService } from './passkeys.js';
 import { PasskeyValidationError } from './passkeyPolicy.js';
 import { recordAuthentication } from './authEvents.js';
+import { createTotpService } from './totp.js';
 
 function sameSecret(actual, expected) {
     if (typeof actual !== 'string') return false;
@@ -27,7 +28,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         }
         if (provided.length) legacy = { username: env.CADDY_UI_USER, password: env.CADDY_UI_PASSWORD };
     }
-    sessions ??= createAuthSessions({ secure: Boolean(env.CADDY_UI_EXTERNAL_URL && new URL(env.CADDY_UI_EXTERNAL_URL).protocol === 'https:') });
+    sessions ??= createAuthSessions({ now, secure: Boolean(env.CADDY_UI_EXTERNAL_URL && new URL(env.CADDY_UI_EXTERNAL_URL).protocol === 'https:') });
     let operations = Promise.resolve();
     function serialize(operation) {
         const result = operations.then(operation);
@@ -49,11 +50,21 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         if (session?.permission !== 'management') throw new AppError('UNAUTHORIZED');
         return sessions.watchSession(session, res);
     }
-    const passkeys = createPasskeyService({ store, sessions, env, serialize, persist, requireManagement, now });
+    async function authorizeChange(req, input, action) {
+        if (input?.reauthToken !== undefined) {
+            passkeys.consumeAuthorization(req, input.reauthToken, action);
+            return;
+        }
+        if (!await store.verifyPassword(store.getUsername(), input?.currentPassword)) throw new AppError('CURRENT_PASSWORD_INVALID');
+        if (store.isTotpEnabled() && !await persist(() => store.consumeTotp(input?.totpCode))) throw new AppError('TOTP_INVALID');
+    }
+    const passkeys = createPasskeyService({ store, sessions, env, serialize, persist, requireManagement, authorizeChange, now });
+    const totp = createTotpService({ store, sessions, serialize, persist, requireManagement, authorizeChange, now });
 
     return {
         sessions,
         passkeys,
+        totp,
         getActor(req) {
             if (req.apiToken) return { type: 'api-token', id: req.apiToken.id, name: req.apiToken.name };
             if (sessions.readSession(req)?.permission !== 'management') return null;
@@ -75,14 +86,13 @@ export async function createAuthService({ store = createAuthStore(), env = proce
             return serialize(async () => {
                 const unwatch = this.requireManagement(req, res);
                 if (!input || typeof input !== 'object' || Array.isArray(input)
-                    || typeof input.currentPassword !== 'string'
+                    || (typeof input.currentPassword !== 'string' && typeof input.reauthToken !== 'string')
                     || (input.username === undefined && input.password === undefined)) {
                     throw new AppError('VALIDATION_FAILED');
                 }
                 const currentUsername = store.getUsername();
-                if (!await store.verifyPassword(currentUsername, input.currentPassword)) {
-                    throw new AppError('CURRENT_PASSWORD_INVALID');
-                }
+                if (input.password !== undefined) await authorizeChange(req, input, 'password.change');
+                else if (!await store.verifyPassword(currentUsername, input.currentPassword)) throw new AppError('CURRENT_PASSWORD_INVALID');
                 const username = input.username === undefined ? currentUsername : input.username;
                 validate(username, input.password === undefined ? input.currentPassword : input.password);
                 await persist(() => store.updateCredentials(username, input.password));
@@ -124,6 +134,8 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                 setupRequired: !store.isInitialized(),
                 enrollmentRequired: !store.isInitialized() && legacy !== null,
                 enrollmentAuthenticated: session?.permission === 'enrollment',
+                totpEnabled: store.isTotpEnabled(),
+                totpPending: totp.loginPending(req),
                 publicMetrics: env.CADDY_UI_PUBLIC_METRICS === 'true',
                 ...passkeys.state(),
             };
@@ -137,6 +149,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                         recordAuthentication(req, 'password', 'failure');
                         throw new AppError('UNAUTHORIZED');
                     }
+                    if (store.isTotpEnabled()) return totp.beginLogin(req, res);
                     permission = 'management';
                 } else {
                     if (!legacy || !sameSecret(username, legacy.username) || !sameSecret(password, legacy.password)) {

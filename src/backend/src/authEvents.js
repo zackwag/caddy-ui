@@ -6,14 +6,16 @@ import { notifyAuthenticationEvent } from './notifications.js';
 // submitted usernames, challenges, credential IDs or exception details through.
 export function recordAuthentication(req, method, outcome, passkeysConfigured = false) {
     const recovery = method === 'recovery';
-    const fallback = method === 'password' && outcome === 'success' && passkeysConfigured;
+    const password = method === 'password' || method === 'password-totp';
+    const fallback = password && outcome === 'success' && passkeysConfigured;
     const severity = recovery || fallback || outcome === 'failure' ? 'warn' : 'info';
     const address = req.ip || req.socket?.remoteAddress;
     const event = { event: 'authentication', timestamp: new Date().toISOString(), method, outcome,
         sourceIp: isIP(address || '') ? address : 'unknown',
-        ...(method === 'password' && outcome === 'success' ? { passkeysConfigured } : {}) };
+        ...(password && outcome === 'success' ? { passkeysConfigured } : {}) };
     logger[severity]('Authentication event', event);
-    const name = recovery ? 'Account recovery' : method === 'password' ? 'Password sign-in' : 'Passkey sign-in';
+    const name = recovery ? 'Account recovery' : method === 'totp' ? 'Authenticator sign-in'
+        : method === 'password-totp' ? 'Password and authenticator sign-in' : password ? 'Password sign-in' : 'Passkey sign-in';
     const title = fallback ? 'Password sign-in while passkeys are configured'
         : `${name} ${outcome === 'success' ? 'succeeded' : 'failed'}`;
     // Both synchronous transport failures and rejected promises are detached from
