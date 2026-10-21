@@ -104,6 +104,36 @@ export function caddyfileChildren(source) {
     return children;
 }
 
+// Top-level entries widened to whole lines, so callers can move or remove them
+// with their indentation and any trailing comment. `leading` holds the comment
+// lines directly between the previous entry and this one.
+export function caddyfileEntries(source) {
+    const children = caddyfileChildren(source);
+    let previousEnd = 0;
+    return children.map((child, index) => {
+        const lineStart = Math.max(previousEnd, source.lastIndexOf('\n', child.start - 1) + 1);
+        const newline = source.indexOf('\n', child.end);
+        const nextStart = children[index + 1]?.start ?? source.length;
+        const lineEnd = Math.min(newline === -1 ? source.length : newline, nextStart);
+        const leading = source.slice(previousEnd, lineStart).split('\n')
+            .filter(line => line.trim().startsWith('#'));
+        previousEnd = lineEnd;
+        return { ...child, lineStart, lineEnd, leading, text: source.slice(lineStart, lineEnd) };
+    });
+}
+
+// Comment lines after the last top-level entry.
+export function trailingComments(source, entries) {
+    return source.slice(entries.at(-1)?.lineEnd ?? 0).split('\n').filter(line => line.trim().startsWith('#'));
+}
+
+// Site addresses may be written with an http:// or https:// scheme and
+// {$VAR} placeholders; `resolve` substitutes the instance environment.
+export function matchesSiteAddress(entry, domain, resolve = address => address) {
+    if (!entry.block || !entry.name || entry.args.length) return false;
+    return resolve(entry.name).replace(/^https?:\/\//, '') === domain;
+}
+
 export function extractGlobalBlock(source) {
     // Snippet definitions may precede a global block. Their braces belong to
     // their own child; a heredoc containing "{" never becomes a block token.

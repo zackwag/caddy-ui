@@ -1,3 +1,4 @@
+import { caddyfileEntries } from './caddyfileBlocks.js';
 import { getCaddyEnv, resolveEnvVars } from './docker.js';
 import logger from './logger.js';
 import { hasStoredNotes } from './routeNotes.js';
@@ -68,40 +69,19 @@ export function injectTitleComment(blockContent, title) {
 export async function parseCaddyfileTitles(caddyfileContent, containerName) {
     const env = await getCaddyEnv(containerName);
     const titles = {};
-    const lines = caddyfileContent.split('\n');
-    let i = 0;
 
-    while (i < lines.length) {
-        const trimmed = lines[i].trim();
-        const blockMatch = trimmed.match(/^(\S+)\s*\{$/);
-        if (!blockMatch) { i++; continue; }
-
-        const rawAddr = blockMatch[1];
-        const resolved = resolveEnvVars(rawAddr, env);
-        const domain = resolved.replace(/^https?:\/\//, '');
-        let depth = 1;
-        i++;
-
-        for (; i < lines.length && depth > 0; i++) {
-            const lt = lines[i].trim();
-            if (depth === 1 && lt.startsWith('#') && !titles[domain]) {
-                titles[domain] = lt.replace(/^#\s*/, '');
-            } else if (lt !== '' && !lt.startsWith('#')) {
+    for (const entry of caddyfileEntries(caddyfileContent)) {
+        if (!entry.block || !entry.name || entry.args.length) continue;
+        const domain = resolveEnvVars(entry.name, env).replace(/^https?:\/\//, '');
+        // The title is the first comment before the block's first directive.
+        // Skip the remainder of the opening `{` line, as the header did before.
+        for (const line of entry.block.inner.split('\n').slice(1)) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('#')) {
+                if (!titles[domain]) titles[domain] = trimmed.replace(/^#\s*/, '');
                 break;
             }
-            for (const ch of lines[i]) {
-                if (ch === '{') depth++;
-                if (ch === '}') depth--;
-            }
-        }
-
-        while (i < lines.length) {
-            for (const ch of lines[i]) {
-                if (ch === '{') depth++;
-                if (ch === '}') depth--;
-            }
-            i++;
-            if (depth === 0) break;
+            if (trimmed !== '') break;
         }
     }
 

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { AppError, asAppError } from '../AppError.js';
 import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
+import { caddyfileEntries, matchesSiteAddress } from '../caddyfileBlocks.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
 import { getCaddyEnv, resolveEnvVars } from '../docker.js';
@@ -59,50 +60,22 @@ function buildCaddyfileBlock({ domain, upstream, stripPrefix }) {
     return lines.join('\n');
 }
 
-function matchesSiteAddress(trimmedLine, domain, env) {
-    if (!trimmedLine.endsWith('{')) return false;
-    const addr = trimmedLine.slice(0, -1).trim();
-    const resolved = env ? resolveEnvVars(addr, env) : addr;
-    const bare = resolved.replace(/^https?:\/\//, '');
-    return bare === domain;
+function siteEntries(caddyfile, domain, env) {
+    const resolve = env ? address => resolveEnvVars(address, env) : undefined;
+    return caddyfileEntries(caddyfile).filter(entry => matchesSiteAddress(entry, domain, resolve));
 }
 
+// Removes every top-level block for the domain and leaves the rest of the file
+// as written, collapsing only the blank lines left where a block used to be.
 function removeSiteBlock(caddyfile, domain, env) {
-    const lines = caddyfile.split('\n');
-    const result = [];
-    let skip = false;
-    let depth = 0;
-    let pendingBlank = false;
-
-    for (const line of lines) {
-        const trimmed = line.trim();
-
-        if (!skip) {
-            if (matchesSiteAddress(trimmed, domain, env)) {
-                skip = true;
-                depth = 1;
-                pendingBlank = false;
-                continue;
-            }
-            if (trimmed === '') {
-                pendingBlank = true;
-                continue;
-            }
-            if (pendingBlank) {
-                result.push('');
-                pendingBlank = false;
-            }
-            result.push(line);
-        } else {
-            for (const ch of line) {
-                if (ch === '{') depth++;
-                if (ch === '}') depth--;
-            }
-            if (depth === 0) skip = false;
-        }
+    let result = caddyfile;
+    for (const entry of siteEntries(caddyfile, domain, env).reverse()) {
+        const before = result.slice(0, entry.lineStart);
+        let after = result.slice(entry.lineEnd).replace(/^\r?\n/, '');
+        if (!before.trim() || /\n[ \t]*\r?\n$/.test(before)) after = after.replace(/^(?:[ \t]*\r?\n)+/, '');
+        result = before + after;
     }
-
-    return result.join('\n').trimEnd() + '\n';
+    return result.trimEnd() + '\n';
 }
 
 function replaceSiteBlock(caddyfile, oldDomain, newBlock, env) {
@@ -111,31 +84,7 @@ function replaceSiteBlock(caddyfile, oldDomain, newBlock, env) {
 }
 
 function extractSiteBlock(caddyfile, domain, env) {
-    const lines = caddyfile.split('\n');
-    const result = [];
-    let found = false;
-    let depth = 0;
-
-    for (const line of lines) {
-        const trimmed = line.trim();
-
-        if (!found) {
-            if (matchesSiteAddress(trimmed, domain, env)) {
-                found = true;
-                depth = 1;
-                result.push(line);
-            }
-        } else {
-            result.push(line);
-            for (const ch of line) {
-                if (ch === '{') depth++;
-                if (ch === '}') depth--;
-            }
-            if (depth === 0) break;
-        }
-    }
-
-    return found ? result.join('\n') : null;
+    return siteEntries(caddyfile, domain, env)[0]?.text ?? null;
 }
 
 function isSimpleReverseProxy(route) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { caddyfileChildren, extractDirectiveBlock, extractGlobalBlock, scanCaddyfile } from '../src/caddyfileBlocks.js';
+import { caddyfileChildren, caddyfileEntries, extractDirectiveBlock, extractGlobalBlock, matchesSiteAddress, scanCaddyfile, trailingComments } from '../src/caddyfileBlocks.js';
 
 describe('Caddyfile structural scanning', () => {
     it.each([
@@ -58,5 +58,19 @@ describe('Caddyfile structural scanning', () => {
 
     it('rejects ambiguous default loggers', () => {
         expect(() => extractDirectiveBlock('log {\n}\nlog default {\n}', 'log')).toThrow('Multiple default log blocks');
+    });
+
+    it('widens entries to whole lines with their leading comments', () => {
+        const source = '# header\n\n  a.example.com { # inline\n  }  # after\nimport common\n# trailing\n';
+        const entries = caddyfileEntries(source);
+        expect(entries.map(entry => entry.text)).toEqual(['  a.example.com { # inline\n  }  # after', 'import common']);
+        expect(entries.map(entry => entry.leading)).toEqual([['# header'], []]);
+        expect(trailingComments(source, entries)).toEqual(['# trailing']);
+    });
+
+    it('matches only single-address top-level sites', () => {
+        const [site, multi] = caddyfileEntries('https://{$HOST} {\n}\na.example.com b.example.com {\n}\n');
+        expect(matchesSiteAddress(site, 'app.example.com', address => address.replace('{$HOST}', 'app.example.com'))).toBe(true);
+        expect(matchesSiteAddress(multi, 'a.example.com')).toBe(false);
     });
 });

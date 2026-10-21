@@ -3,6 +3,7 @@ import {
     buildCaddyfileBlock,
     buildReverseProxyRoute,
     checkPrimaryServer,
+    extractSiteBlock,
     isSimpleReverseProxy,
     removeSiteBlock,
     replaceSiteBlock,
@@ -169,6 +170,38 @@ other.example.com {
         expect(result).toContain('reverse_proxy localhost:3000');
         expect(result).not.toContain('reverse_proxy localhost:8080');
         expect(result).toContain('other.example.com');
+    });
+});
+
+describe('site block edits with literal braces', () => {
+    const heredoc = 'app.example.com {\n    respond <<BODY\n}\nother.example.com {\nBODY\n}';
+    const other = 'other.example.com {\n    respond "}" # closing brace\n}';
+
+    it('extracts a block whose heredoc contains braces and a site address', () => {
+        const caddyfile = heredoc + '\n\n' + other + '\n';
+        expect(extractSiteBlock(caddyfile, 'app.example.com')).toBe(heredoc);
+        expect(extractSiteBlock(caddyfile, 'other.example.com')).toBe(other);
+    });
+
+    it('removes only the requested block and leaves the rest byte-for-byte', () => {
+        const first = '{\n\tadmin off\n}\n\n\n# keep spacing\n';
+        const caddyfile = first + heredoc + '\n\n' + other + '\n';
+        // A comment above a removed block stays, still separated from the next block.
+        expect(removeSiteBlock(caddyfile, 'app.example.com')).toBe(first + '\n' + other + '\n');
+        expect(removeSiteBlock(caddyfile, 'other.example.com')).toBe(first + heredoc + '\n');
+    });
+
+    it('matches environment placeholders and keeps CRLF line endings', () => {
+        const caddyfile = '{$APP_DOMAIN} {\r\n\trespond "app"\r\n}\r\n\r\nother.example.com {\r\n\trespond "other"\r\n}\r\n';
+        const env = { APP_DOMAIN: 'app.example.com' };
+        expect(extractSiteBlock(caddyfile, 'app.example.com', env)).toBe('{$APP_DOMAIN} {\r\n\trespond "app"\r\n}\r');
+        expect(removeSiteBlock(caddyfile, 'app.example.com', env)).toBe('other.example.com {\r\n\trespond "other"\r\n}\n');
+    });
+
+    it('does not match a site address that is only a directive argument', () => {
+        const caddyfile = 'proxy.example.com {\n    reverse_proxy app.example.com {\n        header_up Host {host}\n    }\n}\n';
+        expect(extractSiteBlock(caddyfile, 'app.example.com')).toBeNull();
+        expect(removeSiteBlock(caddyfile, 'app.example.com')).toBe(caddyfile);
     });
 });
 

@@ -10,6 +10,7 @@ import { AppError, asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 import { createCaddyfileHistory } from '../caddyfileHistory.js';
 import { getAuthentication } from '../middleware/auth.js';
+import { caddyfileEntries, trailingComments } from '../caddyfileBlocks.js';
 
 const router = Router();
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
@@ -264,76 +265,40 @@ function historyWarning(result) {
 }
 
 function parseSiteBlocks(content) {
-    const lines = content.split('\n');
+    const entries = caddyfileEntries(content);
     const blocks = [];
     const loose = [];
-    let current = null;
-    let depth = 0;
 
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (current === null) {
-            if (trimmed === '' || trimmed.startsWith('#')) continue;
-            if (trimmed.endsWith('{')) {
-                current = { header: trimmed, lines: [line] };
-                depth = 1;
-            } else {
-                // Top-level line that is not a site block, e.g. `import
-                // conf.d/*.caddy`. Keep it verbatim instead of dropping it.
-                loose.push(line);
-            }
+    for (const entry of entries) {
+        // Comments directly above an entry move with it.
+        const lines = [...entry.leading, ...entry.text.split('\n')];
+        if (entry.block) {
+            blocks.push({ header: content.slice(entry.lineStart, entry.block.start + 1).trim(), lines });
         } else {
-            current.lines.push(line);
-            for (const ch of line) {
-                if (ch === '{') depth++;
-                if (ch === '}') depth--;
-            }
-            if (depth === 0) {
-                blocks.push({ ...current });
-                current = null;
-            }
+            // Top-level line that is not a site block, e.g. `import
+            // conf.d/*.caddy`. Keep it verbatim instead of dropping it.
+            loose.push(lines.join('\n'));
         }
     }
 
-    return { blocks, loose };
+    return { blocks, loose, trailing: trailingComments(content, entries) };
 }
 
 function sortCaddyfile(content) {
-    const lines = content.split('\n');
-    let globalBlock = [];
-    let rest = [];
-    let inGlobal = false;
-    let depth = 0;
-    let globalDone = false;
-
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!globalDone && !inGlobal && trimmed === '{') {
-            inGlobal = true;
-            depth = 1;
-            globalBlock.push(line);
-            continue;
-        }
-        if (inGlobal) {
-            globalBlock.push(line);
-            for (const ch of line) {
-                if (ch === '{') depth++;
-                if (ch === '}') depth--;
-            }
-            if (depth === 0) { inGlobal = false; globalDone = true; }
-            continue;
-        }
-        rest.push(line);
-    }
-
-    const { blocks, loose } = parseSiteBlocks(rest.join('\n'));
+    const bom = content.startsWith('\ufeff') ? '\ufeff' : '';
+    const { blocks, loose, trailing } = parseSiteBlocks(content.slice(bom.length));
+    const globalBlocks = [];
+    const snippetBlocks = [];
     const httpBlocks = [];
     const internalBlocks = [];
     const publicBlocks = [];
 
     for (const block of blocks) {
         const h = block.header.toLowerCase();
-        if (h.startsWith('http://')) httpBlocks.push(block);
+        if (h === '{') globalBlocks.push(block);
+        // Snippets must be defined before a site imports them.
+        else if (h.startsWith('(')) snippetBlocks.push(block);
+        else if (h.startsWith('http://')) httpBlocks.push(block);
         else if (h.includes('.internal')) internalBlocks.push(block);
         else publicBlocks.push(block);
     }
@@ -343,13 +308,13 @@ function sortCaddyfile(content) {
     internalBlocks.sort(sortByHeader);
     httpBlocks.sort(sortByHeader);
 
-    const sorted = [...publicBlocks, ...internalBlocks, ...httpBlocks];
-    const parts = [];
-    if (globalBlock.length) parts.push(globalBlock.join('\n'));
+    const sorted = [...snippetBlocks, ...publicBlocks, ...internalBlocks, ...httpBlocks];
+    const parts = globalBlocks.map(block => block.lines.join('\n'));
     if (loose.length) parts.push(loose.join('\n'));
     for (const block of sorted) parts.push(block.lines.join('\n'));
+    if (trailing.length) parts.push(trailing.join('\n'));
 
-    return parts.join('\n\n').trimEnd() + '\n';
+    return bom + parts.join('\n\n').trimEnd() + '\n';
 }
 
 // GET /api/caddyfile
@@ -486,8 +451,15 @@ router.put('/', async (req, res) => {
         }
     }
     if (sort) {
-        final = sortCaddyfile(final);
-        logger.info(`Caddyfile sorted`);
+        // Sorting is cosmetic: a file Caddy accepted but the scanner can't
+        // structure is saved as written rather than rejected.
+        try {
+            final = sortCaddyfile(final);
+            logger.info(`Caddyfile sorted`);
+        } catch (err) {
+            if (!(err instanceof SyntaxError)) throw err;
+            logger.warn(`Caddyfile sort skipped`, { error: err.message });
+        }
     }
 
     let result;

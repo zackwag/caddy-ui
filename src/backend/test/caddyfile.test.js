@@ -166,6 +166,41 @@ alpha.example.com {
     });
 });
 
+describe('sortCaddyfile with literal braces and comments', () => {
+    const heredocSite = 'b.example.com {\n    respond <<BODY\n}\n{\nBODY\n}';
+
+    it('keeps a heredoc containing braces inside its site block', () => {
+        const result = sortCaddyfile(heredocSite + '\n\na.example.com {\n    respond "a"\n}\n');
+        expect(result).toBe('a.example.com {\n    respond "a"\n}\n\n' + heredocSite + '\n');
+    });
+
+    it('does not count braces in quoted values or comments', () => {
+        const quoted = 'b.example.com {\n    respond "}"\n    # stray {\n}';
+        const result = sortCaddyfile(quoted + '\n\na.example.com {\n    respond "a"\n}\n');
+        expect(result).toBe('a.example.com {\n    respond "a"\n}\n\n' + quoted + '\n');
+    });
+
+    it('moves top-level comments with the block below them and keeps trailing comments', () => {
+        const content = '# Beta service\nb.example.com {\n    respond "b"\n}\n\n# Alpha service\na.example.com {\n    respond "a"\n}\n\n# end of file\n';
+        expect(sortCaddyfile(content)).toBe('# Alpha service\na.example.com {\n    respond "a"\n}\n\n# Beta service\nb.example.com {\n    respond "b"\n}\n\n# end of file\n');
+    });
+
+    it('keeps a global block with a trailing comment first and snippets before sites', () => {
+        const content = '﻿z.example.com {\n    import common\n}\n\n{ # options\n    admin off\n}\n\n(common) {\n    respond "ok"\n}\n';
+        expect(sortCaddyfile(content)).toBe('﻿{ # options\n    admin off\n}\n\n(common) {\n    respond "ok"\n}\n\nz.example.com {\n    import common\n}\n');
+    });
+
+    it('recognizes a site header followed by a comment', () => {
+        const { blocks, loose } = parseSiteBlocks('app.example.com { # main site\n    respond "ok"\n}\n');
+        expect(loose).toEqual([]);
+        expect(blocks[0].header).toBe('app.example.com {');
+    });
+
+    it('rejects input it cannot structure instead of reordering it', () => {
+        expect(() => sortCaddyfile('a.example.com {\n    respond <<BODY\n}\n')).toThrow(SyntaxError);
+    });
+});
+
 describe('planLegacyHistoryMigration', () => {
     const caddy = { id: 'caddy' };
     const root = ['caddy', 'Caddyfile-2026-08-04T15-49-09', 'Caddyfile-2026-09-21T15-24-01'];
