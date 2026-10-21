@@ -185,6 +185,23 @@ test('Caddy logs surface legacy HTTP 200 read errors without exposing raw server
     assert.equal(await alert.count(), 0);
 });
 
+test('Caddy live logs report refused streams and keep loaded lines', options, async t => {
+    const { page, go } = await scenario(t);
+    await page.route('**/api/logs/stream', route => route.fulfill({ status: 503, contentType: 'application/json',
+        body: JSON.stringify({ code: 'LOG_SOURCE_UNAVAILABLE', error: 'Operation failed' }),
+    }));
+    await go('/logs?dist=caddy');
+    await page.locator('.log-line').first().waitFor();
+    const lineCount = await page.locator('.log-line-count--desktop').textContent();
+    await page.getByRole('button', { name: 'Live', exact: true }).click();
+    const alert = page.locator('.log-wrap [role="alert"]');
+    await alert.waitFor();
+    assert.equal(await alert.textContent(), en.errors.logStreamError, 'A refused EventSource stops Live mode visibly');
+    await page.getByRole('button', { name: 'Live', exact: true }).waitFor();
+    assert.equal(await page.locator('.log-line-count--desktop').textContent(), lineCount, 'Loaded lines keep their count');
+    assert.ok(await page.locator('.log-line').count() > 0);
+});
+
 test('state errors deduplicate and recovery rearms them', options, async t => {
     const { page, stack, go } = await scenario(t);
     const configPath = stack.instances.get('alpha').instance.configPath;

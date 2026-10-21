@@ -117,6 +117,13 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                 setLines(l => [...l.slice(-500), line]);
             }
         };
+        // The browser retries dropped connections itself; a closed source means
+        // the stream was refused (e.g. an expired session) and will not recover.
+        es.onerror = () => {
+            if (esRef.current !== es || es.readyState !== EventSource.CLOSED) return;
+            // eslint-disable-next-line i18next/no-literal-string -- Protocol code; displayed through localizeError.
+            failStream({ code: 'LOG_STREAM_ERROR' });
+        };
         esRef.current = es;
         setLive(true);
     };
@@ -141,7 +148,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
 
     const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
 
-    const lineCountText = loadError ? t("logs.unavailable") : logSearch || levelFilter !== "all"
+    const lineCountText = loadError && lines.length === 0 ? t("logs.unavailable") : logSearch || levelFilter !== "all"
         ? t("logs.lineCountFiltered", { filtered: filteredLines.length, total: lines.length })
         : t("logs.lineCount", { count: filteredLines.length });
 
