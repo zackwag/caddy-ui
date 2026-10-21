@@ -533,8 +533,8 @@ See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoin
 | `GET` | `/api/tls` | List all certificates with expiry and status |
 | `DELETE` | `/api/tls/:domain` | Delete an orphaned, superseded, or expired internal cert |
 | `GET` | `/api/tls/ca` | Download Caddy's root CA certificate |
-| `GET` | `/api/logs` | Last 200 lines of the access log |
-| `GET` | `/api/logs/stream` | SSE stream of live log output |
+| `GET` | `/api/logs` | Last 200 lines of the configured Caddy log; 404 if missing, 500 if reading fails |
+| `GET` | `/api/logs/stream` | SSE stream of live log output; failures include an error code and request ID |
 | `GET` | `/api/logs/config` | Read log configuration |
 | `PUT` | `/api/logs/config` | Update log configuration |
 | `GET` | `/api/server-names` | Read server labels for the selected instance |
