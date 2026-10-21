@@ -4,6 +4,7 @@ import * as fs from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import logger from './logger.js';
+import { totpStep, validTotpRecord } from './totpPolicy.js';
 import { MAX_API_TOKENS, validApiTokenInput, validApiTokenRecord } from './apiTokenPolicy.js';
 import { MAX_PASSKEYS, PasskeyValidationError, validPasskeyRecord, validPasskeyStore } from './passkeyPolicy.js';
 
@@ -64,13 +65,14 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
             } finally {
                 await handle.close();
             }
-            if (parsed?.version !== 1 || typeof parsed.username !== 'string' || !parsed.username.trim()
+            if (![1, 2].includes(parsed?.version) || typeof parsed.username !== 'string' || !parsed.username.trim()
                 || parsed.username.length > 128 || !validHash(parsed.password) || !validHash(parsed.recovery)
                 || (parsed.accountId !== undefined && (typeof parsed.accountId !== 'string'
                     || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(parsed.accountId)))
                 || (parsed.apiTokens !== undefined && (!Array.isArray(parsed.apiTokens) || parsed.apiTokens.length > MAX_API_TOKENS
                     || !parsed.apiTokens.every(validApiTokenRecord) || new Set(parsed.apiTokens.map(token => token.id)).size !== parsed.apiTokens.length))
-                || (parsed.passkeys !== undefined && !validPasskeyStore(parsed.passkeys))) {
+                || (parsed.passkeys !== undefined && !validPasskeyStore(parsed.passkeys))
+                || (parsed.version === 2 ? !validTotpRecord(parsed.totp) : parsed.totp !== undefined)) {
                 throw new Error('Invalid credential record');
             }
             await fs.chmod(path, 0o600);
@@ -121,6 +123,28 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         loadAuth,
         isInitialized() { requireLoaded(); return state !== null; },
         getUsername() { requireLoaded(); return state?.username ?? null; },
+        isTotpEnabled() { requireLoaded(); return !!state?.totp; },
+        setTotp(record) {
+            return serialize(async () => {
+                requireLoaded();
+                if (!state || (record !== null && !validTotpRecord(record))) throw new Error('Invalid TOTP record');
+                // Older backends reject version 2 instead of ignoring the second factor.
+                const next = { ...state, version: record === null ? 1 : 2 };
+                if (record === null) delete next.totp;
+                else next.totp = structuredClone(record);
+                await persist(next, false);
+            });
+        },
+        consumeTotp(code) {
+            return serialize(async () => {
+                requireLoaded();
+                if (!state?.totp) return false;
+                const step = totpStep(state.totp.secret, code, now(), state.totp.lastAcceptedStep);
+                if (step === null) return false;
+                await persist({ ...state, totp: { ...state.totp, lastAcceptedStep: step } }, false);
+                return true;
+            });
+        },
         getPasskeyUserId() { requireLoaded(); return state?.passkeys?.userId ?? null; },
         listPasskeys() { requireLoaded(); return structuredClone(state?.passkeys?.credentials || []); },
         hasPasskey(rpId) { requireLoaded(); return !!state?.passkeys?.credentials.some(key => key.rpId === rpId); },
@@ -231,7 +255,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 if (!state || !await matches(recoveryKey, state.recovery)) return null;
                 const next = await recordFor(state.username, password);
                 next.record.accountId = state.accountId;
-                // Replacing the whole record deliberately revokes API tokens and passkeys.
+                // Replacing the whole record deliberately revokes API tokens, passkeys and TOTP.
                 await persist(next.record, false);
                 return next.recoveryKey;
             });
