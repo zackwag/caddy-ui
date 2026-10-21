@@ -157,9 +157,12 @@ format json
         const response = await stack.api('/logs/config', { method: 'PUT', body: { ...settings, format } });
         assert.equal(response.status, 200, JSON.stringify(response.data));
         assert.deepEqual((await stack.api('/logs/config')).data, { ...settings, format });
+        const editedFile = (await stack.api('/caddyfile')).data;
+        assert.ok(editedFile.startsWith(snippet + global.slice(0, global.lastIndexOf('}'))), 'Existing global directives and snippet formatting remain byte-for-byte unchanged');
+        assert.ok(editedFile.endsWith(site), 'Site formatting remains byte-for-byte unchanged');
         const after = await live();
         assert.deepEqual(after.apps, before.apps, 'Logging edits preserve sites and their handlers');
-        assert.deepEqual(after.storage, before.storage, 'Quoted literal braces survive formatting and editing');
+        assert.deepEqual(after.storage, before.storage, 'Quoted literal braces survive editing');
         assert.deepEqual(after.logging.logs.audit, before.logging.logs.audit, 'Named loggers remain unchanged');
         assert.equal(await (await fetch(httpUrl + '/literal')).text(), literal, 'Heredoc bytes remain unchanged');
         assert.ok((await stack.api('/logs')).data.lines.length > 0, 'The runtime file writer is active');
@@ -176,6 +179,7 @@ format json
     const disabled = await stack.api('/logs/config', { method: 'PUT', body: { enabled: false } });
     assert.equal(disabled.status, 200);
     assert.equal((await stack.api('/logs/config')).data.enabled, false);
+    assert.ok((await stack.api('/caddyfile')).data.endsWith(site), 'Disabling logging preserves site formatting');
     const after = await live();
     assert.deepEqual(after.apps, before.apps);
     assert.deepEqual(after.logging.logs.audit, before.logging.logs.audit);

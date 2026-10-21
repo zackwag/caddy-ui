@@ -31,13 +31,7 @@ vi.mock('../src/containerFs.js', async importOriginal => ({
     removeContainerPath: vi.fn(async (container, path) => { files.delete(path); }),
 }));
 vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyLoad, caddyGet, caddyPost }));
-vi.mock('../src/docker.js', async importOriginal => {
-    const original = await importOriginal();
-    return { ...original, getCaddyEnv: vi.fn(async () => ({})),
-        execInInstance: vi.fn((container, command, args, input) => command === 'caddy' && args[0] === 'fmt'
-            ? Promise.resolve({ stdout: input }) : original.execInInstance(container, command, args, input)),
-    };
-});
+vi.mock('../src/docker.js', async importOriginal => ({ ...await importOriginal(), getCaddyEnv: vi.fn(async () => ({})) }));
 vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getActor: req => req.actor, resolveActor: () => null }) }));
 
 // HISTORY_PATH is read at import time, so set it before importing the module

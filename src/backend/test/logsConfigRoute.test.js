@@ -4,20 +4,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { execInInstance, validateCaddyfile, saveCaddyfileChange, state } = vi.hoisted(() => ({
     execInInstance: vi.fn(), validateCaddyfile: vi.fn(), saveCaddyfileChange: vi.fn(),
-    state: { original: '{\nadmin off\n}', applied: null },
+    state: { original: '', applied: null, adapted: null, containerName: 'test-caddy' },
 }));
 vi.mock('../src/docker.js', async original => ({ ...await original(), execInInstance }));
 vi.mock('../src/routes/caddyfile.js', () => ({ historyWarning: () => ({}), validateCaddyfile, saveCaddyfileChange }));
 vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getActor: () => null }) }));
 import logsRouter from '../src/routes/logs.js';
+const { validateCaddyfile: validateViaAdminApi } = await vi.importActual('../src/routes/caddyfile.js');
+
+const site = '# Keep the site formatting\nexample.com {\n       respond "unchanged"   # keep spacing\n}\n';
 
 describe('logging configuration preparation', () => {
     let server;
     let url;
     beforeEach(async () => {
         vi.resetAllMocks();
+        state.original = '{ # global options\n  admin off\n}\n\n' + site;
         state.applied = null;
-        execInInstance.mockResolvedValue({ stdout: '{\n\tadmin off\n}\n' });
+        state.adapted = null;
+        state.containerName = 'test-caddy';
+        execInInstance.mockRejectedValue(Object.assign(new Error('Executable unavailable'), { code: 'ENOENT' }));
         saveCaddyfileChange.mockImplementation(async (_instance, change) => {
             const candidate = await change(state.original);
             state.applied = candidate;
@@ -25,7 +31,16 @@ describe('logging configuration preparation', () => {
         });
         const app = express();
         app.use(express.json());
-        app.use('/api/logs', (req, _res, next) => { req.instance = { id: 'default', containerName: 'test-caddy' }; next(); }, logsRouter);
+        app.post('/adapt', express.text({ type: 'text/caddyfile' }), (req, res) => {
+            expect(state.applied).toBeNull();
+            state.adapted = req.body;
+            res.json({});
+        });
+        app.use('/api/logs', (req, _res, next) => {
+            req.instance = { id: 'default', containerName: state.containerName, configPath: '/etc/caddy/Caddyfile',
+                adminUrl: `http://127.0.0.1:${server.address().port}` };
+            next();
+        }, logsRouter);
         server = app.listen(0, '127.0.0.1');
         await once(server, 'listening');
         url = `http://127.0.0.1:${server.address().port}/api/logs/config`;
@@ -40,25 +55,27 @@ describe('logging configuration preparation', () => {
         return { status: response.status, body: await response.json() };
     }
 
-    it('edits the formatted current file and validates before applying', async () => {
+    it('preserves the current file formatting and validates before applying', async () => {
         validateCaddyfile.mockImplementation(async candidate => {
             expect(state.applied).toBeNull();
-            expect(candidate).toContain('\tadmin off\n');
+            expect(candidate.startsWith('{ # global options\n  admin off\n')).toBe(true);
+            expect(candidate.endsWith(site)).toBe(true);
             expect(candidate).toContain('output file /tmp/test.log');
         });
         expect((await configure()).status).toBe(200);
-        expect(execInInstance).toHaveBeenCalledWith('test-caddy', 'caddy', ['fmt', '-'], state.original);
+        expect(execInInstance).not.toHaveBeenCalled();
         expect(validateCaddyfile).toHaveBeenCalledOnce();
         expect(state.applied).toContain('log {');
     });
 
-    it('does not apply or validate when formatting fails', async () => {
-        execInInstance.mockRejectedValue(new Error('formatter unavailable'));
+    it.each(['', 'test-caddy'])('saves through admin API validation without a binary (container: "%s")', async containerName => {
+        state.containerName = containerName;
+        validateCaddyfile.mockImplementation(validateViaAdminApi);
         const response = await configure();
-        expect(response.status).toBe(500);
-        expect(response.body.code).toBe('CADDYFILE_WRITE_FAILED');
-        expect(validateCaddyfile).not.toHaveBeenCalled();
-        expect(state.applied).toBeNull();
+        expect(response.status).toBe(200);
+        expect(state.adapted).toBe(state.applied);
+        expect(state.adapted).toContain('output file /tmp/test.log');
+        expect(execInInstance).not.toHaveBeenCalled();
     });
 
     it('does not apply when Caddy rejects the edited candidate', async () => {
