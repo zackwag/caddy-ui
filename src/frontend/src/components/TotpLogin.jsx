@@ -29,7 +29,7 @@ export default function TotpLogin({ onLogin, onCancel }) {
         <h2>{t('totp.loginTitle')}</h2>
         <p className="auth-help">{t('totp.loginHint')}</p>
         {error && <p className="login-error" role="alert">{localizeError(error, t)}</p>}
-        <fieldset className="security-fields" disabled={busy || error?.code === 'TOTP_CHALLENGE_EXPIRED'}>
+        <fieldset className="security-fields" disabled={busy || error?.code === 'TOTP_CHALLENGE_EXPIRED' || error?.code === 'TOTP_RATE_LIMITED'}>
             <AuthenticatorCode id="login-totp" value={code} onChange={setCode} autoFocus />
             <button className="btn btn-primary btn--full" disabled={!/^\d{6}$/.test(code)}>{t(busy ? 'login.signingIn' : 'totp.verify')}</button>
         </fieldset>

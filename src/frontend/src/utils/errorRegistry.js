@@ -4,6 +4,7 @@ export const ERROR_MESSAGES = Object.freeze({
     UNAUTHORIZED: 'errors.unauthorized',
     CSRF_INVALID: 'errors.csrfInvalid',
     AUTH_PERSISTENCE_FAILED: 'errors.authPersistenceFailed',
+    TOTP_RATE_LIMITED: 'errors.totpRateLimited',
     TOTP_INVALID: 'errors.totpInvalid',
     TOTP_CHALLENGE_EXPIRED: 'errors.totpChallengeExpired',
     TOTP_SETUP_EXPIRED: 'errors.totpSetupExpired',

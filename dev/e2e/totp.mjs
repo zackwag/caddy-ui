@@ -135,3 +135,42 @@ test('HTTPS uses fresh passkey proof for TOTP changes and keeps passkey sign-in 
     catch (cause) { throw new Error(await dialog.innerText(), { cause }); }
     await cdp.detach();
 });
+
+test('the UI preserves the account cooldown across reauthentication and fresh password sign-in', { timeout: 60000 }, async t => {
+    const f = await fixture(t);
+    const { page } = f;
+    const { password } = await setup(page);
+    const dialog = await authPanel(page);
+    const seed = await enroll(dialog, password);
+    const { totp } = JSON.parse(await readFile(f.env.AUTH_PATH, 'utf8'));
+    const usedCode = code(seed, totp.lastAcceptedStep);
+    await dialog.getByRole('button', { name: 'Disable authenticator', exact: true }).click();
+    for (let i = 0; i < 4; i++) {
+        await dialog.locator('#totp-current-password').fill(password);
+        await dialog.locator('#totp-current-password-totp').fill(usedCode);
+        const rejected = page.waitForResponse(response => response.url().endsWith('/api/auth/totp') && response.request().method() === 'DELETE');
+        await dialog.getByRole('button', { name: 'Disable authenticator', exact: true }).click();
+        assert.equal((await rejected).status(), 403);
+        await page.waitForFunction(() => document.querySelector('#totp-current-password').value === '');
+    }
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.getByLabel('Username', { exact: true }).fill('administrator');
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    for (const status of [403, 429]) {
+        await page.getByLabel('Authenticator code', { exact: true }).fill(usedCode);
+        const rejected = page.waitForResponse(response => response.url().endsWith('/api/auth/sessions/totp'));
+        await page.getByRole('button', { name: 'Verify code', exact: true }).click();
+        assert.equal((await rejected).status(), status);
+        await page.waitForFunction(() => document.querySelector('#login-totp').value === '');
+    }
+    await page.getByRole('alert').filter({ hasText: 'Too many incorrect authenticator codes.' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Verify code', exact: true }).isDisabled(), true);
+    await page.getByRole('button', { name: 'Back to sign-in', exact: true }).click();
+    await page.getByLabel('Username', { exact: true }).fill('administrator');
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Too many incorrect authenticator codes.' }).waitFor();
+    assert.equal(await page.locator('.shell').count(), 0);
+});

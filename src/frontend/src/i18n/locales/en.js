@@ -39,6 +39,7 @@ export default {
     },
 
     errors: {
+        totpRateLimited: 'Too many incorrect authenticator codes. Wait up to five minutes, or use a passkey or recovery key.',
         totpInvalid: 'That code is invalid or has already been used. Wait for a new code and try again.',
         totpChallengeExpired: 'This sign-in attempt has expired. Go back and sign in again.',
         totpSetupExpired: 'Authenticator setup has expired. Start setup again.',

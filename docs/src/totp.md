@@ -25,6 +25,14 @@ A username-only change still requires the current password, without an authentic
 
 Disabling TOTP removes the stored seed and returns password sign-in to password-only. It requires the same fresh verification and revokes previous sessions, while keeping the verified caller signed in. Normal credential changes preserve API tokens and the recovery key.
 
+## Account-wide cooldown
+
+Active TOTP verification shares one persistent failure budget across password sign-in and password-plus-TOTP credential changes. Five consecutive failed checks trigger a five-minute cooldown. Starting another password sign-in, changing the username or restarting the backend does not clear it. Requests during the cooldown return `TOTP_RATE_LIMITED` (HTTP 429) with a `Retry-After` header and do not extend the deadline. A successful TOTP check resets the consecutive-failure count, and an expired cooldown starts a fresh budget.
+
+Only requests that have already verified the password and have the required pending or management session can consume this budget. Anonymous requests and wrong passwords cannot trigger the TOTP cooldown. The existing per-IP auth write limiter remains in place as an additional control. Confirmation of a proposed enrollment retains its separate five-attempt limit.
+
+Existing management sessions remain usable during cooldown. Passkey sign-in, fresh passkey verification and recovery remain available; recovery removes the TOTP seed and its failure state. Someone who knows the password can trigger another temporary cooldown after the previous one expires, so passkeys and the recovery key remain useful alternatives. No permanent suspension or manual unlock is introduced.
+
 ## Persistence, backups and recovery
 
 The TOTP seed and last accepted time step are stored in `AUTH_PATH` (default `/etc/caddy-ui/auth.json`), alongside the password/recovery hashes and passkey records. The seed must be recoverable by the backend to verify codes; **it is not a password hash and is not encrypted by Caddy UI**. The file is owner-only (`0600`), and replacements use the existing atomic credential writes. Failed writes do not grant access or replace the active enrollment.
@@ -48,4 +56,4 @@ All endpoints below require the existing session-bound CSRF header and use the a
 - Password proof: `{ currentPassword, totpCode }` (omit `totpCode` when disabled). Passkey proof: `{ reauthToken }`, obtained with a fresh assertion through `POST /api/auth/passkeys/reauthentication/options` and `POST /api/auth/passkeys/reauthentication`.
 - The reauthentication options body is `{ action }`: `password.change`, `totp.setup`, `totp.disable`, `passkey.add`, or `passkey.remove:<credential-id>`. Submit the browser assertion as the reauthentication body; its response supplies the one-use `reauthToken` for the corresponding operation.
 
-Invalid/replayed codes use `TOTP_INVALID`; expired/exhausted login and setup attempts use `TOTP_CHALLENGE_EXPIRED` and `TOTP_SETUP_EXPIRED`. Expired, mismatched or reused passkey authorizations use `REAUTH_INVALID`. Storage failures remain `AUTH_PERSISTENCE_FAILED`. Seeds and codes are never deliberately logged or included in authentication notifications; password sign-in succeeds only after both checks finish.
+Invalid/replayed codes use `TOTP_INVALID`; the shared cooldown uses `TOTP_RATE_LIMITED`; expired/exhausted login and setup attempts use `TOTP_CHALLENGE_EXPIRED` and `TOTP_SETUP_EXPIRED`. Expired, mismatched or reused passkey authorizations use `REAUTH_INVALID`. Storage failures remain `AUTH_PERSISTENCE_FAILED`. Seeds and codes are never deliberately logged or included in authentication notifications; password sign-in succeeds only after both checks finish.
