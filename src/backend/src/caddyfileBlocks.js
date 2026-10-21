@@ -32,7 +32,8 @@ export function scanCaddyfile(source) {
         } else {
             let escapedHeredoc = false;
             while (i < source.length) {
-                if (source[i] === '\r') { i++; continue; }
+                // A CRLF ends the token; folding its \r in would shift edit offsets.
+                if (source[i] === '\r' && source[i + 1] !== '\n') { i++; continue; }
                 if (/\s/.test(source[i])) break;
                 if (source[i] === '\\' && /^(?:\r?\n)/.test(source.slice(i + 1, i + 3))) {
                     i += source[i + 1] === '\r' ? 3 : 2;

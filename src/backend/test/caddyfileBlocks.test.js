@@ -39,6 +39,13 @@ describe('Caddyfile structural scanning', () => {
         expect(extractGlobalBlock('\ufeff# header\r\n\r\n{ # options\r\n admin off\r\n}\r\n').inner).toContain('admin off');
     });
 
+    it('ends tokens before a CRLF so offsets stay on the token', () => {
+        const source = '{\r\n\tadmin off\r\n}\r\n';
+        const tokens = scanCaddyfile(source);
+        expect(tokens.map(token => source.slice(token.start, token.end))).toEqual(['{', '\n', 'admin', 'off', '\n', '}', '\n']);
+        expect(extractGlobalBlock(source).inner).toBe('\r\n\tadmin off\r\n');
+    });
+
     it('finds only the direct-child default logger', () => {
         const nested = 'custom {\n log {\n output stderr\n }\n}\nlog audit {\n output stderr\n}\n';
         expect(extractDirectiveBlock(nested, 'log')).toBeNull();
