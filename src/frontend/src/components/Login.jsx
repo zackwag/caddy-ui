@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { authRequest } from "../utils/api.js";
 
+import TotpLogin from './TotpLogin.jsx';
 import AuthSetup from './AuthSetup.jsx';
 import AuthRecovery from './AuthRecovery.jsx';
 import { localizeError } from '../utils/errorMessages.js';
@@ -9,6 +10,7 @@ import { passkeySupport, signInWithPasskey } from '../utils/passkeys.js';
 
 export default function Login({ authState, onLogin, sessionExpired }) {
     const { t } = useTranslation();
+    const [totpPending, setTotpPending] = useState(!!authState?.totpPending);
     const [recovering, setRecovering] = useState(false);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -34,13 +36,14 @@ export default function Login({ authState, onLogin, sessionExpired }) {
         setLoading(true);
         setError("");
         try {
-            await authRequest('/sessions', {
+            const result = await authRequest('/sessions', {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),
             });
             setPassword('');
-            await onLogin();
+            if (result.totpRequired) setTotpPending(true);
+            else await onLogin();
         } catch (error) {
             setError(error.code === 'UNAUTHORIZED' ? t('login.failed') : localizeError(error, t));
         } finally {
@@ -48,6 +51,7 @@ export default function Login({ authState, onLogin, sessionExpired }) {
         }
     };
 
+    if (totpPending) return <TotpLogin onLogin={onLogin} onCancel={() => setTotpPending(false)} />;
     if (recovering) return <AuthRecovery onCancel={() => setRecovering(false)} onComplete={async () => { setRecovering(false); await onLogin(); }} />;
     if (authState?.setupRequired && (!authState.enrollmentRequired || authState.enrollmentAuthenticated)) {
         return <AuthSetup enrollment={authState.enrollmentRequired} onComplete={onLogin} />;

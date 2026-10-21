@@ -23,6 +23,9 @@ export default {
             '^col$',
             // Catalog key for <Trans>.
             '^i18nKey$',
+            // Credential verification takes a DOM ID and a catalog key.
+            '^passwordId$',
+            '^passwordLabel$',
         ],
     },
 

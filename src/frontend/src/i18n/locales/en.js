@@ -39,6 +39,10 @@ export default {
     },
 
     errors: {
+        totpInvalid: 'That code is invalid or has already been used. Wait for a new code and try again.',
+        totpChallengeExpired: 'This sign-in attempt has expired. Go back and sign in again.',
+        totpSetupExpired: 'Authenticator setup has expired. Start setup again.',
+        reauthInvalid: 'This verification has expired or was already used. Verify again to continue.',
         passkeyBrowserError: 'Your device could not complete the passkey request. Try another device or use your password.',
         passkeyCancelled: 'The passkey request was cancelled or timed out. You can try again or use your password.',
         passkeyLimit: 'You can register up to three passkeys. Remove one before adding another.',
@@ -134,9 +138,40 @@ export default {
         saved: 'Administrator credentials updated.',
     },
 
+    reauth: {
+        passkey: 'Passkey (recommended)',
+        password: 'Password',
+        passwordTotp: 'Password and authenticator code',
+        passkeyHint: 'Your device will ask you to verify this change when you continue.',
+    },
+
+    totp: {
+        title: 'Authenticator app (TOTP)',
+        hint: 'Use a six-digit code from your authenticator app with password sign-in. Passkeys still work on their own.',
+        httpWarning: 'This connection uses HTTP. Passwords, setup keys and codes can be intercepted. Use HTTPS to protect them in transit.',
+        enabled: 'An authenticator is enabled.',
+        disabled: 'No authenticator is enabled.',
+        setup: 'Set up authenticator',
+        replace: 'Replace authenticator',
+        disable: 'Disable authenticator',
+        disableHint: 'Disabling the authenticator lets you sign in with your password alone.',
+        sessionsHint: 'Enabling, replacing or disabling an authenticator signs out other browsers and renews this session.',
+        scan: 'Scan this QR code in your authenticator app, or enter the setup key manually. Then enter a code to finish setup.',
+        qrAlt: 'Authenticator setup QR code',
+        manualKey: 'Authenticator setup key',
+        expires: 'Finish setup before {{time}}. Keep this key private.',
+        code: 'Authenticator code',
+        confirm: 'Confirm authenticator',
+        saved: 'Authenticator settings updated.',
+        loginTitle: 'Verify your sign-in',
+        loginHint: 'Enter the current six-digit code from your authenticator app.',
+        verify: 'Verify code',
+        backToLogin: 'Back to sign-in',
+    },
+
     passkeys: {
         title: 'Passkeys',
-        hint: 'Sign in with your device, security key or password manager. Confirm your password each time you add or remove a passkey. Password login and account recovery remain available.',
+        hint: 'Sign in with your device, security key or password manager. Verify each addition or removal with an existing passkey, or your password and an authenticator code when enabled. Password sign-in and account recovery remain available.',
         httpsRequired: 'Passkeys need HTTPS. Set up a secure connection for Caddy UI, then reopen it using its HTTPS address.',
         unsupported: 'This browser does not support passkeys. Try an up-to-date browser or sign in with your password.',
         originMismatch: 'Passkeys are configured for a different address. Open Caddy UI at {{origin}} to use passkeys.',

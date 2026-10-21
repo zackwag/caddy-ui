@@ -17,9 +17,9 @@ async function ceremony(start, optionsJSON) {
     }
 }
 
-export async function registerPasskey(name, currentPassword, onUnauth) {
+export async function registerPasskey(name, proof, onUnauth) {
     const options = await authRequest('/passkeys/registration/options', { method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, currentPassword }) }, onUnauth);
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, ...(typeof proof === 'string' ? { currentPassword: proof } : proof) }) }, onUnauth);
     const response = await ceremony(startRegistration, options);
     return authRequest('/passkeys/registration', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(response) }, onUnauth);
@@ -30,4 +30,12 @@ export async function signInWithPasskey() {
     const response = await ceremony(startAuthentication, options);
     return authRequest('/passkeys/authentication', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(response) });
+}
+
+export async function reauthenticateWithPasskey(action, onUnauth) {
+    const options = await authRequest('/passkeys/reauthentication/options', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) }, onUnauth);
+    const response = await ceremony(startAuthentication, options);
+    return authRequest('/passkeys/reauthentication', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(response) }, onUnauth);
 }
