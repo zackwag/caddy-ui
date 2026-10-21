@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildLogBlock, parseLogConfig, updateGlobalBlock, extractGlobalBlock, extractDirectiveBlock } from '../src/routes/logs.js';
+import { buildLogBlock, parseLogConfig, updateGlobalBlock } from '../src/routes/logs.js';
 
 describe('parseLogConfig', () => {
     it('returns defaults when no global block exists', () => {
@@ -406,46 +406,25 @@ app.example.com {
     });
 });
 
-describe('extractGlobalBlock', () => {
-    it('returns null when no global block exists', () => {
-        expect(extractGlobalBlock('app.example.com {\n}')).toBeNull();
-    });
-
-    it('extracts a global block with nested directives', () => {
-        const content = `{
-\tacme_dns cloudflare {
-\t\tapi_token {env.CF_API_TOKEN}
-\t}
-}`;
-        const result = extractGlobalBlock(content);
-        expect(result).not.toBeNull();
-        expect(result.text).toBe(content);
-        expect(result.inner).toContain('acme_dns');
-    });
-});
-
-describe('extractDirectiveBlock', () => {
-    it('returns null when directive is absent', () => {
-        expect(extractDirectiveBlock('\temail admin@example.com', 'log')).toBeNull();
-    });
-
-    it('extracts a nested directive block', () => {
-        const inner = `\tlog {
-\t\toutput file /tmp/x.log {
-\t\t\troll_size 50mb
-\t\t}
-\t\tformat json
-\t}`;
-        const result = extractDirectiveBlock(inner, 'log');
-        expect(result).not.toBeNull();
-        expect(result.inner).toContain('format json');
-        expect(result.inner).toContain('roll_size 50mb');
-    });
-});
-
 describe('logging edits preserve unrelated Caddyfile content', () => {
     const settings = { enabled: true, path: '/tmp/new.log', rollSize: '25mb', rollKeep: 3, format: 'console', level: 'WARN' };
     const site = '\n\n:8080 {\n respond <<BODY\n{\n"log": "literal } text"\n}\nBODY\n}\n';
+
+    it.each(['log', 'log default'])('replaces or disables a bare %s without adding a duplicate', directive => {
+        const audit = '\tlog audit {\n\t\toutput stderr\n\t}\n';
+        const original = '{\n' + audit + '\t' + directive + ' # keep comment\n}' + site;
+        expect(parseLogConfig(original).enabled).toBe(true);
+        const updated = updateGlobalBlock(original, settings);
+        expect(parseLogConfig(updated)).toEqual(settings);
+        expect(updated).toContain(audit);
+        expect(updated).not.toContain('log default');
+        expect(updated).toContain('} # keep comment');
+        expect(updateGlobalBlock(original, { enabled: false })).toBe('{\n' + audit + ' # keep comment\n}' + site);
+    });
+
+    it('rejects a duplicate default logger even when one has no block', () => {
+        expect(() => parseLogConfig('{\nlog default\nlog {\n}\n}')).toThrow('Multiple log directives');
+    });
 
     it('adds logging to a commented global opening with literal braces', () => {
         const prefix = '# Keep this header and its brace: {\n';

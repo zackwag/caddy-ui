@@ -113,13 +113,12 @@ export function extractGlobalBlock(source) {
     return global ? { ...global, text: source.slice(global.start, global.end) } : null;
 }
 
-export function extractDirectiveBlock(source, directive) {
-    const matches = caddyfileChildren(source).filter(child => child.name === directive && child.block
-        && (child.args.length === 0 || (directive === 'log' && child.args.length === 1 && child.args[0] === 'default')));
-    if (matches.length > 1) throw new SyntaxError(`Multiple default ${directive} blocks`);
+export function extractDirective(source, directive, predicate = child => child.args.length === 0) {
+    const matches = caddyfileChildren(source).filter(child => child.name === directive && predicate(child));
+    if (matches.length > 1) throw new SyntaxError(`Multiple ${directive} directives`);
     const child = matches[0];
     if (!child) return null;
     const line = source.lastIndexOf('\n', child.start - 1) + 1;
     const start = /^\s*$/.test(source.slice(line, child.start)) ? line : child.start;
-    return { start, end: child.end, inner: child.block.inner, fullMatch: source.slice(start, child.end) };
+    return { start, end: child.end, block: child.block, inner: child.block?.inner || '', fullMatch: source.slice(start, child.end) };
 }

@@ -8,12 +8,17 @@ import { errorDefinition } from '../errorRegistry.js';
 import { sendAppError } from '../errorReporting.js';
 import { historyWarning, saveCaddyfileChange, validateCaddyfile } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
-import { caddyfileChildren, extractDirectiveBlock, extractGlobalBlock } from '../caddyfileBlocks.js';
+import { caddyfileChildren, extractDirective, extractGlobalBlock } from '../caddyfileBlocks.js';
 const router = Router();
 const appLogsRouter = Router();
 const TAIL_LINES = 200;
 
 // ── Log config parsing ────────────────────────────────────────────────────────
+
+function defaultLogger(source) {
+    return extractDirective(source, 'log', child => child.args.length === 0
+        || (child.args.length === 1 && child.args[0] === 'default'));
+}
 
 function parseLogConfig(content) {
     const defaultConfig = {
@@ -28,7 +33,7 @@ function parseLogConfig(content) {
     const global = extractGlobalBlock(content);
     if (!global) return defaultConfig;
 
-    const log = extractDirectiveBlock(global.inner, 'log');
+    const log = defaultLogger(global.inner);
     if (!log) return defaultConfig;
 
     const children = caddyfileChildren(log.inner);
@@ -93,7 +98,7 @@ function updateGlobalBlock(content, logConfig) {
         return `{\n${logBlock}\n}\n\n${content}`;
     }
 
-    const log = extractDirectiveBlock(global.inner, 'log');
+    const log = defaultLogger(global.inner);
     if (log) {
         const start = global.start + 1 + log.start;
         let end = global.start + 1 + log.end;
@@ -231,4 +236,4 @@ router.get('/stream', async (req, res) => {
 });
 
 export default router;
-export { appLogsRouter, parseLogConfig, buildLogBlock, updateGlobalBlock, extractGlobalBlock, extractDirectiveBlock };
+export { appLogsRouter, parseLogConfig, buildLogBlock, updateGlobalBlock };
