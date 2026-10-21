@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.4](https://github.com/zackwag/caddy-ui/compare/v3.6.3...v3.6.4) (2026-10-21)
+
+
+### Bug Fixes
+
+* harden logging configuration validation and preserve file style ([#406](https://github.com/zackwag/caddy-ui/issues/406)) ([0e41570](https://github.com/zackwag/caddy-ui/commit/0e41570b62c83f450a97e739ddac6a1550dc85a7))
+
 ## [3.6.3](https://github.com/zackwag/caddy-ui/compare/v3.6.2...v3.6.3) (2026-10-21)
 
 
