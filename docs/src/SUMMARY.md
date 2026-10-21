@@ -7,6 +7,7 @@
 - [Quickstart](setup.md)
 - [Configuration](configuration.md)
     - [Security and passkeys](passkeys.md)
+    - [Authenticator codes (TOTP)](totp.md)
     - [Instances](instances.md)
     - [Custom themes](themes.md)
     - [Caddyfile behavior](caddyfile.md)

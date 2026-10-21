@@ -1,6 +1,6 @@
 # Security and passkeys
 
-Open **Security** in the sidebar to manage the administrator account, passkeys and API tokens. TOTP support will follow separately.
+Open **Security** in the sidebar to manage the administrator account, passkeys, [authenticator codes (TOTP)](totp.md) and API tokens.
 
 ## Set up HTTPS first
 
@@ -14,7 +14,7 @@ The Auth section distinguishes an HTTP connection, an unsupported browser and mi
 
 1. Sign in and open **Security → Auth**.
 2. Give the passkey a recognizable name, such as “Laptop” or “Phone”.
-3. Confirm your current password. This is required for **every** addition.
+3. Verify with an existing passkey, or your current password plus an authenticator code when TOTP is enabled. Fresh verification is required for **every** addition.
 4. Choose an authenticator in the browser prompt and complete its fingerprint, face or PIN verification.
 
 Use an up-to-date browser and an authenticator supporting discoverable FIDO2 credentials and user verification. The browser and operating system control the available device, security key and password manager choices; Caddy UI does not force a particular provider.
@@ -25,7 +25,7 @@ The administrator can register **three passkeys**. A passkey synchronized by a p
 
 After registration, the login page offers **Sign in with a passkey**. No username entry is needed. On a different HTTPS origin, the button is disabled and a message identifies the configured address to open. Password sign-in remains available if the authenticator is missing, broken or unavailable.
 
-Remove a passkey under **Security → Auth**. Deleting **any** passkey requires your current password, even if other passkeys remain. Any removal signs out all previous sessions and live log streams, including sessions that the removed credential may have opened, and renews the browser performing the removal. API tokens and the recovery key remain valid.
+Remove a passkey under **Security → Auth**. Deleting **any** passkey requires fresh verification with a passkey, or your current password plus an authenticator code when TOTP is enabled, even if other passkeys remain. A signed-in session alone is insufficient. Any removal signs out all previous sessions and live log streams, including sessions that the removed credential may have opened, and renews the browser performing the removal. API tokens and the recovery key remain valid.
 
 Ordinary username and password changes preserve passkeys. A stable stored account identifier keeps them independent of the administrator's username. Authenticators may continue to display the username used when the credential was created.
 
@@ -33,9 +33,9 @@ Ordinary username and password changes preserve passkeys. A stable stored accoun
 
 Public keys, credential identifiers, the account identifier and verification metadata are saved atomically alongside credential hashes in `AUTH_PATH` (default `/etc/caddy-ui/auth.json`). Preserve the backend's `/etc/caddy-ui` volume, or your custom auth file's persistent mount, across image upgrades, rebuilds and container replacements. There is no separate database. The private key remains with the authenticator or its passkey provider.
 
-A backend restart signs out browser sessions and discards pending challenges, but preserves registered passkeys. Failed credential writes leave the prior auth record intact; a failed registration must be started again, including password confirmation. If the authenticator retained a credential from that failed attempt, remove that unused entry through its provider before retrying if necessary.
+A backend restart signs out browser sessions and discards pending challenges, but preserves registered passkeys. Failed credential writes leave the prior auth record intact; a failed registration must be started again, including fresh credential verification. If the authenticator retained a credential from that failed attempt, remove that unused entry through its provider before retrying if necessary.
 
-Keep your password and recovery key available. Account recovery rotates the recovery key and removes **all passkeys, API tokens and sessions** so a lost or compromised credential cannot regain access. Sign in using the replacement password and register your trusted authenticators again.
+Keep your password and recovery key available. Account recovery rotates the recovery key, disables TOTP and removes **all passkeys, API tokens and sessions** so a lost or compromised credential cannot regain access. Sign in using the replacement password and register your trusted authenticators again.
 
 ## Verification and testing
 

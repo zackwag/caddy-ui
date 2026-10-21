@@ -348,11 +348,11 @@ Passwords and recovery keys are stored as salted scrypt hashes in `AUTH_PATH`, w
 
 The browser receives a host-only, HttpOnly, SameSite=Strict cookie scoped to `/api`. It does not store authentication tokens in localStorage or URLs. Management sessions expire after 24 hours; enrollment and pre-login contexts expire after 10 minutes. Sessions are process-local: restarting the backend signs everyone out. Logout revokes the session on the server, including its live log streams.
 
-Open **Security → User** to change the administrator username or password. The current password is required; leave the new password blank to change only the username. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens, passkeys and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged.
+Open **Security → User** to change the administrator username or password. A username-only change requires the current password; password changes require fresh passkey verification or the password plus TOTP when enabled. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens, passkeys and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged.
 
-**Security → Auth** supports up to three passkeys. Adding or deleting any passkey always requires your current password. Passkeys need HTTPS and a matching `CADDY_UI_EXTERNAL_URL`. Records persist in `AUTH_PATH` across container rebuilds when its volume is retained. Password login remains available. See the [passkey guide](https://zackwag.github.io/caddy-ui/passkeys.html) for browser requirements and recovery. TOTP is a separate follow-up.
+**Security → Auth** supports three passkeys and one [TOTP authenticator](https://zackwag.github.io/caddy-ui/totp.html). Password sign-in requires a code when TOTP is enabled; passkeys work independently. Credential changes require fresh verification. Passkeys need HTTPS and a matching `CADDY_UI_EXTERNAL_URL`; TOTP also works over HTTP but cannot protect that connection from interception. Records persist in `AUTH_PATH` when its volume is retained. Auth backups contain the recoverable TOTP seed; protect them and consider host/dataset encryption. See the [passkey guide](https://zackwag.github.io/caddy-ui/passkeys.html).
 
-Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session, API token and passkey. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
+Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, disables TOTP and revokes every session, API token and passkey. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
 
 If both password and recovery key are lost, stop the backend and restrict network access before removing only `AUTH_PATH` to repeat credential setup. Remove obsolete legacy auth variables as well, or those credentials will be required for enrollment. Do not remove the settings directory or Caddyfile. Restore normal access only after setup is complete.
 
@@ -489,18 +489,25 @@ See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoin
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/auth/sessions` | Authenticate and set a session cookie (CSRF required) |
+| `POST` | `/api/auth/sessions` | Check password; return `totpRequired` when a code is needed (CSRF required) |
+| `POST` | `/api/auth/sessions/totp` | Complete password sign-in with `{ code }` (pending session + CSRF) |
+| `POST` | `/api/auth/totp/setup` | Propose a seed using fresh credential proof (management + CSRF) |
+| `POST` | `/api/auth/totp/confirm` | Activate the proposed seed using `{ code }` (management + CSRF) |
+| `DELETE` | `/api/auth/totp/setup` | Cancel proposed enrollment (management + CSRF) |
+| `DELETE` | `/api/auth/totp` | Disable TOTP using fresh credential proof (management + CSRF) |
+| `POST` | `/api/auth/passkeys/reauthentication/options` | Begin action-bound passkey verification (management + CSRF) |
+| `POST` | `/api/auth/passkeys/reauthentication` | Verify assertion; return one-use credential proof (management + CSRF) |
 | `DELETE` | `/api/auth/sessions/current` | Revoke the current session (CSRF required) |
 | `GET` | `/api/auth/csrf` | Obtain the CSRF token for the current or a new pre-login context |
 | `POST` | `/api/auth/setup` | Initialize stored credentials once and return a recovery key (CSRF required) |
 | `GET` | `/api/auth/credentials` | Read the administrator username (management session required) |
-| `PATCH` | `/api/auth/credentials` | Update `username` and/or `password`, requiring `currentPassword`, a management session and CSRF; renews this session and revokes old sessions, preserving API tokens, passkeys and recovery |
+| `PATCH` | `/api/auth/credentials` | Update username (current password) or password (fresh credential proof); renew session and revoke old sessions (management + CSRF) |
 | `GET` | `/api/auth/passkeys` | List passkey metadata and HTTPS configuration (management session required) |
-| `POST` | `/api/auth/passkeys/registration/options` | Begin registration with `name` and `currentPassword` (management session + CSRF) |
+| `POST` | `/api/auth/passkeys/registration/options` | Begin registration with `name` and fresh credential proof (management + CSRF) |
 | `POST` | `/api/auth/passkeys/registration` | Verify and persist a registration response (management session + CSRF) |
 | `POST` | `/api/auth/passkeys/authentication/options` | Begin discoverable passkey sign-in (anonymous context + CSRF) |
 | `POST` | `/api/auth/passkeys/authentication` | Verify a signed assertion and issue a management session (anonymous context + CSRF) |
-| `DELETE` | `/api/auth/passkeys/:id` | Remove a passkey; `currentPassword` required for every removal; revokes old sessions and renews this one (management session + CSRF) |
+| `DELETE` | `/api/auth/passkeys/:id` | Remove with fresh credential proof; revoke old sessions and renew this one (management + CSRF) |
 | `POST` | `/api/auth/recovery` | Reset password using a recovery key and rotate that key (CSRF required) |
 | `GET` | `/api/auth/tokens` | List token metadata (management session only) |
 | `POST` | `/api/auth/tokens` | Create a read-only integration token (session + CSRF) |
