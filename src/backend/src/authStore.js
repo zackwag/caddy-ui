@@ -4,7 +4,7 @@ import * as fs from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import logger from './logger.js';
-import { totpStep, validTotpRecord } from './totpPolicy.js';
+import { TotpCooldownError, TOTP_ATTEMPTS, TOTP_COOLDOWN_MS, totpStep, validTotpRecord } from './totpPolicy.js';
 import { MAX_API_TOKENS, validApiTokenInput, validApiTokenRecord } from './apiTokenPolicy.js';
 import { MAX_PASSKEYS, PasskeyValidationError, validPasskeyRecord, validPasskeyStore } from './passkeyPolicy.js';
 
@@ -112,6 +112,12 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         if (state === undefined) throw new Error('Authentication storage has not been loaded');
     }
 
+    function assertTotpAvailable(timestamp = now()) {
+        requireLoaded();
+        const until = state?.totp?.failures?.blockedUntil ?? 0;
+        if (until > timestamp) throw new TotpCooldownError(until - timestamp);
+    }
+
     async function recordFor(username, password) {
         validateCredentials(username, password);
         const recoveryKey = randomBytes(32).toString('base64url');
@@ -135,13 +141,26 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 await persist(next, false);
             });
         },
+        assertTotpAvailable,
         consumeTotp(code) {
             return serialize(async () => {
                 requireLoaded();
                 if (!state?.totp) return false;
-                const step = totpStep(state.totp.secret, code, now(), state.totp.lastAcceptedStep);
-                if (step === null) return false;
-                await persist({ ...state, totp: { ...state.totp, lastAcceptedStep: step } }, false);
+                const timestamp = now();
+                assertTotpAvailable(timestamp);
+                const previous = state.totp;
+                const step = totpStep(previous.secret, code, timestamp, previous.lastAcceptedStep);
+                // One durable budget for this account, across sessions and reauthentication.
+                // Expired cooldowns reset the budget; blocked requests never extend them.
+                if (step === null) {
+                    const expiredCooldown = previous.failures?.blockedUntil > 0;
+                    const previousCount = expiredCooldown ? 0 : previous.failures?.count ?? 0;
+                    const count = previousCount + 1;
+                    const failures = { count, blockedUntil: count === TOTP_ATTEMPTS ? timestamp + TOTP_COOLDOWN_MS : 0 };
+                    await persist({ ...state, totp: { ...previous, failures } }, false);
+                    return false;
+                }
+                await persist({ ...state, totp: { ...previous, lastAcceptedStep: step, failures: { count: 0, blockedUntil: 0 } } }, false);
                 return true;
             });
         },

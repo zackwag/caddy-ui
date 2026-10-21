@@ -9,6 +9,7 @@ import { createPasskeyService } from './passkeys.js';
 import { PasskeyValidationError } from './passkeyPolicy.js';
 import { recordAuthentication } from './authEvents.js';
 import { createTotpService } from './totp.js';
+import { TotpCooldownError } from './totpPolicy.js';
 
 function sameSecret(actual, expected) {
     if (typeof actual !== 'string') return false;
@@ -42,6 +43,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
     async function persist(operation) {
         try { return await operation(); }
         catch (cause) {
+            if (cause instanceof TotpCooldownError) throw new AppError('TOTP_RATE_LIMITED', { cause, context: { retryAfter: cause.retryAfter } });
             throw new AppError(cause instanceof PasskeyValidationError ? 'PASSKEY_INVALID' : 'AUTH_PERSISTENCE_FAILED', { cause });
         }
     }

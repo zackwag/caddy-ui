@@ -36,6 +36,7 @@ export const ERROR_REGISTRY = Object.freeze({
     UNAUTHORIZED: { status: 401, level: 'warn' },
     CSRF_INVALID: { status: 403, level: 'warn' },
     AUTH_PERSISTENCE_FAILED: { status: 503, level: 'error' },
+    TOTP_RATE_LIMITED: { status: 429, level: 'warn' },
     TOTP_INVALID: { status: 403, level: 'warn' },
     TOTP_CHALLENGE_EXPIRED: { status: 401, level: 'warn' },
     TOTP_SETUP_EXPIRED: { status: 400, level: 'warn' },

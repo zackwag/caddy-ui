@@ -12,7 +12,8 @@ export function createTotpService({ store, sessions, serialize, persist, require
     }
     return {
         loginPending(req) { return sessions.readSession(req)?.permission === 'totp' && !!pending(req, 'totpLogin'); },
-        beginLogin(req, res) {
+        async beginLogin(req, res) {
+            await persist(() => store.assertTotpAvailable());
             const session = sessions.createSession(req, res, 'totp');
             session.totpLogin = { expires: now() + TOTP_CHALLENGE_MS, attempts: 0 };
             return { totpRequired: true };

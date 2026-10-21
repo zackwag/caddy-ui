@@ -12,7 +12,7 @@ async function fixture() {
     fixtures.push(f);
     const client = authClient(f.url);
     const account = { username: 'admin', password: randomBytes(24).toString('base64url') };
-    await request(client, '/setup', account);
+    const setup = await request(client, '/setup', account);
     const device = authenticator();
     const options = await request(client, '/passkeys/registration/options', { name: 'Laptop', currentPassword: account.password });
     const key = await request(client, '/passkeys/registration', device.registration(options.data));
@@ -23,7 +23,7 @@ async function fixture() {
         expect(options.status).toBe(200);
         return request(target, '/passkeys/reauthentication', device.assertion(options.data, { counter: ++counter, ...mutation }));
     }
-    return { ...f, client, account, device, key: key.data, grant, advance: ms => { time += ms; } };
+    return { ...f, client, account, device, recoveryKey: setup.data.recoveryKey, key: key.data, grant, advance: ms => { time += ms; } };
 }
 afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); });
 
@@ -74,6 +74,25 @@ describe('fresh passkey authorization for credential changes', () => {
         const removal = (await f.grant('passkey.remove:' + second.data.id, f.client, { counter: 5 })).data;
         expect((await request(f.client, '/passkeys/' + second.data.id, removal, 'DELETE')).status).toBe(200);
         expect(f.store.listPasskeys()).toHaveLength(1);
+    });
+    it('keeps passkey sign-in, fresh passkey proof and recovery available during a TOTP cooldown', async () => {
+        const f = await fixture();
+        const seed = await request(f.client, '/totp/setup', (await f.grant()).data);
+        const code = new TOTP({ secret: Secret.fromBase32(seed.data.secret) }).generate();
+        expect((await request(f.client, '/totp/confirm', { code })).status).toBe(200);
+        for (let i = 0; i < 5; i++) expect((await request(f.client, '/totp', { currentPassword: f.account.password, totpCode: 'bad' }, 'DELETE')).data.code).toBe('TOTP_INVALID');
+        const other = authClient(f.url);
+        expect((await request(other, '/sessions', f.account)).data.code).toBe('TOTP_RATE_LIMITED');
+        const options = await request(other, '/passkeys/authentication/options');
+        expect((await request(other, '/passkeys/authentication', f.device.assertion(options.data, { counter: 2 }))).status).toBe(200);
+        const password = randomBytes(24).toString('base64url');
+        const proof = (await f.grant('password.change', f.client, { counter: 3 })).data;
+        expect((await request(f.client, '/credentials', { ...proof, password }, 'PATCH')).status).toBe(200);
+        expect((await request(authClient(f.url), '/sessions', { ...f.account, password })).data.code).toBe('TOTP_RATE_LIMITED');
+        const replacement = randomBytes(24).toString('base64url');
+        expect((await request(authClient(f.url), '/recovery', { recoveryKey: f.recoveryKey, password: replacement })).status).toBe(200);
+        expect(f.store.isTotpEnabled()).toBe(false);
+        expect((await request(authClient(f.url), '/sessions', { ...f.account, password: replacement })).data).toEqual({ ok: true });
     });
     it('does not let a grant to remove one passkey remove a different one', async () => {
         const f = await fixture();

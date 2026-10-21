@@ -55,11 +55,26 @@ describe('TOTP policy and durable replay protection', () => {
         f.advance(30000);
         expect(await f.store.consumeTotp(token(89000))).toBe(true);
     });
+    it('clears consecutive failures on success and restarts the budget after a cooldown', async () => {
+        const f = await fixture();
+        await f.store.setTotp({ secret, lastAcceptedStep: 0, createdAt: new Date(0).toISOString() });
+        for (let i = 0; i < 4; i++) expect(await f.store.consumeTotp('bad')).toBe(false);
+        expect(await f.store.consumeTotp(token(59000))).toBe(true);
+        for (let i = 0; i < 5; i++) expect(await f.store.consumeTotp('bad')).toBe(false);
+        await expect(f.store.consumeTotp(token(89000))).rejects.toMatchObject({ retryAfter: 300 });
+        f.advance(300000);
+        expect(await f.store.consumeTotp('bad')).toBe(false);
+        expect(JSON.parse(await readFile(f.path, 'utf8')).totp.failures.count).toBe(1);
+        expect(await f.store.consumeTotp(token(359000))).toBe(true);
+    });
     it('fails closed on malformed stored TOTP and cannot enable a partial record', async () => {
         const f = await fixture();
         await expect(f.store.setTotp({ secret })).rejects.toThrow();
         const record = JSON.parse(await readFile(f.path, 'utf8'));
-        for (const invalid of [{ ...record, version: 2 }, { ...record, version: 2, totp: { secret } },
+        const validTotp = { secret, lastAcceptedStep: 0, createdAt: new Date(0).toISOString() };
+        for (const invalid of [{ ...record, version: 2, totp: { ...validTotp, failures: { count: 0, blockedUntil: 300000 } } },
+            { ...record, version: 2, totp: { ...validTotp, failures: { count: 5, blockedUntil: 0 } } },
+            { ...record, version: 2 }, { ...record, version: 2, totp: { secret } },
             { ...record, totp: { secret, lastAcceptedStep: 0, createdAt: new Date(0).toISOString() } }]) {
             await writeFile(f.path, JSON.stringify(invalid));
             await expect(createAuthStore(f.path).loadAuth()).rejects.toThrow('Refusing to start');

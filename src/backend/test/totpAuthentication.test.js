@@ -27,7 +27,7 @@ async function fixture(env = {}) {
         time += 30000;
         return setup.data.secret;
     }
-    return { ...f, client, account, recoveryKey: setup.data.recoveryKey, start, code, enable, advance: ms => { time += ms; } };
+    return { ...f, client, account, now: () => time, recoveryKey: setup.data.recoveryKey, start, code, enable, advance: ms => { time += ms; } };
 }
 afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); vi.clearAllMocks(); });
 
@@ -80,7 +80,11 @@ describe('TOTP enrollment and password sign-in', () => {
         for (let i = 0; i < 5; i++) expect((await request(client, '/sessions/totp', { code: 'bad' })).data.code)
             .toBe(i === 4 ? 'TOTP_CHALLENGE_EXPIRED' : 'TOTP_INVALID');
         expect((await request(client, '/sessions/totp', { code: f.code(seed) })).status).toBe(401);
-        await request(client, '/sessions', f.account);
+        const blocked = await request(client, '/sessions', f.account);
+        expect(blocked.status).toBe(429);
+        expect(blocked.data.code).toBe('TOTP_RATE_LIMITED');
+        f.advance(300000);
+        expect((await request(client, '/sessions', f.account)).status).toBe(200);
         f.advance(300001);
         expect((await request(client, '/sessions/totp', { code: f.code(seed) })).data.code).toBe('TOTP_CHALLENGE_EXPIRED');
         await request(client, '/sessions', f.account);
@@ -88,6 +92,86 @@ describe('TOTP enrollment and password sign-in', () => {
         await request(client, '/sessions', f.account);
         expect((await request(client, '/sessions/totp', { code: f.code(seed) })).data.code).toBe('TOTP_INVALID');
         expect((await client.request('/protected')).status).toBe(401);
+    });
+    it('shares a bounded cooldown across fresh challenges, without extending it on blocked requests', async () => {
+        const f = await fixture();
+        const seed = await f.enable();
+        for (let i = 0; i < 5; i++) {
+            const client = authClient(f.url);
+            expect((await request(client, '/sessions', f.account)).data.totpRequired).toBe(true);
+            expect((await request(client, '/sessions/totp', { code: 'bad' })).data.code).toBe('TOTP_INVALID');
+        }
+        const other = authClient(f.url);
+        const blocked = await request(other, '/sessions', f.account);
+        expect(blocked.status).toBe(429);
+        expect(blocked.data.code).toBe('TOTP_RATE_LIMITED');
+        expect(blocked.headers.get('retry-after')).toBe('300');
+        const before = await readFile(f.path, 'utf8');
+        f.advance(60000);
+        for (let i = 0; i < 3; i++) {
+            const repeated = await request(authClient(f.url), '/sessions', f.account);
+            expect(repeated.headers.get('retry-after')).toBe('240');
+        }
+        expect(await readFile(f.path, 'utf8')).toBe(before);
+        expect((await f.client.request('/protected')).status).toBe(200);
+        f.advance(240000);
+        expect((await request(other, '/sessions', f.account)).status).toBe(200);
+        expect((await request(other, '/sessions/totp', { code: f.code(seed) })).status).toBe(200);
+        expect(JSON.parse(await readFile(f.path, 'utf8')).totp.failures.count).toBe(0);
+    });
+    it('caps concurrent guesses across independent pending sessions, including already-created challenges', async () => {
+        const f = await fixture();
+        const seed = await f.enable();
+        const clients = Array.from({ length: 7 }, () => authClient(f.url));
+        await Promise.all(clients.map(client => request(client, '/sessions', f.account)));
+        const results = await Promise.all(clients.map(client => request(client, '/sessions/totp', { code: 'bad' })));
+        expect(results.filter(result => result.data.code === 'TOTP_INVALID')).toHaveLength(5);
+        expect(results.filter(result => result.data.code === 'TOTP_RATE_LIMITED')).toHaveLength(2);
+        expect(JSON.parse(await readFile(f.path, 'utf8')).totp.failures.count).toBe(5);
+        expect((await request(clients[0], '/sessions/totp', { code: f.code(seed) })).data.code).toBe('TOTP_RATE_LIMITED');
+        expect((await clients[0].request('/protected')).status).toBe(401);
+    });
+    it('shares the budget with credential reauthentication and preserves it through username changes', async () => {
+        const f = await fixture();
+        const seed = await f.enable();
+        const proof = { currentPassword: f.account.password, totpCode: 'bad' };
+        expect((await request(f.client, '/totp/setup', proof)).data.code).toBe('TOTP_INVALID');
+        expect((await request(f.client, '/totp', proof, 'DELETE')).data.code).toBe('TOTP_INVALID');
+        const client = authClient(f.url);
+        await request(client, '/sessions', f.account);
+        for (let i = 0; i < 3; i++) expect((await request(client, '/sessions/totp', { code: 'bad' })).data.code).toBe('TOTP_INVALID');
+        const change = { currentPassword: f.account.password, password: credentials().password, totpCode: f.code(seed) };
+        expect((await request(f.client, '/credentials', change, 'PATCH')).data.code).toBe('TOTP_RATE_LIMITED');
+        expect((await request(f.client, '/credentials', { currentPassword: f.account.password, username: 'renamed' }, 'PATCH')).status).toBe(200);
+        expect((await request(f.client, '/credentials', change, 'PATCH')).data.code).toBe('TOTP_RATE_LIMITED');
+        expect(JSON.parse(await readFile(f.path, 'utf8')).totp.failures.count).toBe(5);
+    });
+    it('retains the account cooldown across backend/store restarts', async () => {
+        const f = await fixture();
+        const seed = await f.enable();
+        const client = authClient(f.url);
+        await request(client, '/sessions', f.account);
+        for (let i = 0; i < 5; i++) await request(client, '/sessions/totp', { code: 'bad' });
+        const restarted = await authFixture({ store: createAuthStore(f.path, { now: f.now }), now: f.now });
+        fixtures.push(restarted);
+        const other = authClient(restarted.url);
+        expect((await request(other, '/sessions', f.account)).data.code).toBe('TOTP_RATE_LIMITED');
+        f.advance(300000);
+        expect((await request(other, '/sessions', f.account)).status).toBe(200);
+        expect((await request(other, '/sessions/totp', { code: f.code(seed) })).status).toBe(200);
+    });
+    it('does not let anonymous requests or wrong passwords consume the TOTP budget', async () => {
+        const f = await fixture();
+        const seed = await f.enable();
+        const client = authClient(f.url);
+        for (let i = 0; i < 6; i++) {
+            expect((await request(client, '/sessions/totp', { code: 'bad' })).status).toBe(401);
+            expect((await request(client, '/sessions', { ...f.account, password: 'wrong' })).status).toBe(401);
+            expect((await request(f.client, '/credentials', { currentPassword: 'wrong', password: credentials().password }, 'PATCH')).data.code).toBe('CURRENT_PASSWORD_INVALID');
+        }
+        expect(JSON.parse(await readFile(f.path, 'utf8')).totp.failures).toBeUndefined();
+        await request(client, '/sessions', f.account);
+        expect((await request(client, '/sessions/totp', { code: f.code(seed) })).status).toBe(200);
     });
     it('expires/cancels proposed seeds and keeps the old enrollment active during replacement', async () => {
         const f = await fixture();

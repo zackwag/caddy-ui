@@ -2,13 +2,29 @@ import { Secret, TOTP } from 'otpauth';
 
 export const TOTP_CHALLENGE_MS = 5 * 60 * 1000;
 export const TOTP_ATTEMPTS = 5;
+export const TOTP_COOLDOWN_MS = 5 * 60 * 1000;
 export const TOTP_PERIOD_MS = 30000;
+
+export class TotpCooldownError extends Error {
+    constructor(remainingMs) {
+        super('Authenticator verification is cooling down');
+        this.retryAfter = Math.max(1, Math.ceil(remainingMs / 1000));
+    }
+}
+
+function validFailures(value) {
+    return value === undefined || (value && typeof value === 'object'
+        && Number.isSafeInteger(value.count) && value.count >= 0 && value.count <= TOTP_ATTEMPTS
+        && Number.isSafeInteger(value.blockedUntil) && value.blockedUntil >= 0
+        && (value.count < TOTP_ATTEMPTS ? value.blockedUntil === 0 : value.blockedUntil > 0));
+}
 
 export function validTotpRecord(record) {
     return record && typeof record === 'object' && typeof record.secret === 'string'
         && record.secret.length === 32 && /^[A-Z2-7]{32}$/.test(record.secret)
         && Number.isSafeInteger(record.lastAcceptedStep) && record.lastAcceptedStep >= 0
-        && typeof record.createdAt === 'string' && Number.isFinite(Date.parse(record.createdAt));
+        && typeof record.createdAt === 'string' && Number.isFinite(Date.parse(record.createdAt))
+        && validFailures(record.failures);
 }
 
 function authenticator(secret, label = '') {
