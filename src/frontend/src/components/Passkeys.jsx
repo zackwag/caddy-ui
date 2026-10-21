@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, authRequest } from '../utils/api.js';
 import { localizeError } from '../utils/errorMessages.js';
+import CredentialVerification from './CredentialVerification.jsx';
+import { credentialProof, verificationReady } from '../utils/credentialVerification.js';
 import { passkeySupport, registerPasskey } from '../utils/passkeys.js';
 
-export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls }) {
+export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls, authState, onChange }) {
     const { t } = useTranslation();
     const [data, setData] = useState(null);
     const [attempt, setAttempt] = useState(0);
     const [loading, setLoading] = useState(true);
     const [name, setName] = useState('');
-    const [password, setPassword] = useState('');
+    const [verification, setVerification] = useState({});
     const [removing, setRemoving] = useState(null);
-    const [removePassword, setRemovePassword] = useState('');
+
     const [error, setError] = useState(null);
     const [saved, setSaved] = useState(false);
     const support = passkeySupport();
@@ -31,12 +33,15 @@ export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls 
         setError(null);
         setSaved(false);
         try {
-            const key = await registerPasskey(name, password, onUnauth);
+            // eslint-disable-next-line i18next/no-literal-string -- Backend credential-action identifier.
+            const proof = await credentialProof(verification, authState, 'passkey.add', onUnauth);
+            const key = await registerPasskey(name, proof, onUnauth);
             setData(previous => ({ ...previous, passkeys: [...previous.passkeys, key] }));
             setName('');
             setSaved(true);
+            await onChange();
         } catch (error) { setError(error); }
-        finally { setPassword(''); setBusy(false); }
+        finally { setVerification({}); setBusy(false); }
     }
 
     async function remove(event) {
@@ -45,12 +50,14 @@ export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls 
         setError(null);
         setSaved(false);
         try {
+            const proof = await credentialProof(verification, authState, `passkey.remove:${removing.id}`, onUnauth);
             await authRequest(`/passkeys/${encodeURIComponent(removing.id)}`, { method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: removePassword }) }, onUnauth);
+                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proof) }, onUnauth);
             setData(previous => ({ ...previous, passkeys: previous.passkeys.filter(key => key.id !== removing.id) }));
             setRemoving(null);
+            await onChange();
         } catch (error) { setError(error); }
-        finally { setRemovePassword(''); setBusy(false); }
+        finally { setVerification({}); setBusy(false); }
     }
 
     const unavailable = !support.secure ? t('passkeys.httpsRequired') : !support.supported ? t('passkeys.unsupported')
@@ -58,7 +65,7 @@ export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls 
             : data && !data.enabled ? t('errors.passkeyUnavailable')
                 : data && data.origin !== window.location.origin ? t('passkeys.originMismatch', { origin: data.origin }) : null;
 
-    return <fieldset className="security-fields" disabled={disabled || busy}>
+    return <fieldset className="security-fields" disabled={disabled || busy || !authState}>
         <h4 className="modal-section-label">{t('passkeys.title')}</h4>
         <p className="modal-hint">{t('passkeys.hint')}</p>
         {error && <p className="login-error" role="alert">{localizeError(error, t)}</p>}
@@ -74,28 +81,25 @@ export default function Passkeys({ onUnauth, busy, setBusy, disabled, onOpenTls 
                 <strong>{key.name}</strong>
                 <div className="cell-muted">{t('passkeys.created', { date: new Date(key.createdAt).toLocaleDateString() })}</div>
                 <button type="button" className="btn btn-danger" disabled={!!removing} aria-label={t('passkeys.removeNamed', { name: key.name })}
-                    onClick={() => { setRemoving(key); setRemovePassword(''); setError(null); }}>{t('common.delete')}</button>
+                    onClick={() => { setRemoving(key); setVerification({}); setError(null); }}>{t('common.delete')}</button>
             </li>)}</ul>
             {removing ? <form onSubmit={remove} className="passkey-remove-form">
                 <p>{t('passkeys.removeConfirm', { name: removing.name })}</p>
                 <p className="modal-hint">{t('passkeys.removeSessions')}</p>
-                <div className="field"><label htmlFor="passkey-remove-password">{t('passkeys.removePassword')}</label>
-                    <input id="passkey-remove-password" type="password" required autoComplete="current-password" maxLength={1024}
-                        value={removePassword} onChange={event => setRemovePassword(event.target.value)} /></div>
-                <div className="btn-row"><button className="btn btn-danger" disabled={!removePassword}>{t('passkeys.confirmRemove')}</button>
-                    <button type="button" className="btn" onClick={() => { setRemoving(null); setRemovePassword(''); }}>{t('common.cancel')}</button></div>
+                <CredentialVerification value={verification} setValue={setVerification} authState={authState}
+                    passwordId="passkey-remove-password" passwordLabel="passkeys.removePassword" />
+                <div className="btn-row"><button className="btn btn-danger" disabled={!verificationReady(verification, authState)}>{t('passkeys.confirmRemove')}</button>
+                    <button type="button" className="btn" onClick={() => { setRemoving(null); setVerification({}); }}>{t('common.cancel')}</button></div>
             </form> : data.passkeys.length >= data.limit ? <p className="modal-hint">{t('errors.passkeyLimit')}</p> :
                 <form onSubmit={add}>
                     <fieldset className="security-fields" disabled={!!unavailable}>
                         <div className="field"><label htmlFor="passkey-name">{t('passkeys.name')}</label>
                             <input id="passkey-name" required maxLength={80} value={name} onChange={event => setName(event.target.value)} /></div>
-                        <div className="field"><label htmlFor="passkey-password">{t('passkeys.password')}</label>
-                            <input id="passkey-password" type="password" required autoComplete="current-password" maxLength={1024}
-                                value={password} onChange={event => setPassword(event.target.value)} /></div>
-                        <button className="btn btn-primary" disabled={!name.trim() || !password}>{t(busy ? 'passkeys.waiting' : 'passkeys.add')}</button>
+                        <CredentialVerification value={verification} setValue={setVerification} authState={authState}
+                            passwordId="passkey-password" passwordLabel="passkeys.password" />
+                        <button className="btn btn-primary" disabled={!name.trim() || !verificationReady(verification, authState)}>{t(busy ? 'passkeys.waiting' : 'passkeys.add')}</button>
                     </fieldset>
                 </form>}
         </>}
-        <p className="modal-hint security-planned passkey-planned">{t('passkeys.totpLater')}</p>
     </fieldset>;
 }
