@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.0](https://github.com/zackwag/caddy-ui/compare/v3.6.10...v3.7.0) (2026-10-22)
+
+
+### Features
+
+* add TOTP authentication and strengthen credential verification ([#412](https://github.com/zackwag/caddy-ui/issues/412)) ([94d9d10](https://github.com/zackwag/caddy-ui/commit/94d9d109b79b1c2105ced576c5254f060772ee1c))
+
 ## [3.6.10](https://github.com/zackwag/caddy-ui/compare/v3.6.9...v3.6.10) (2026-10-22)
 
 
