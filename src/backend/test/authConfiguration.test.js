@@ -66,6 +66,43 @@ describe('authentication startup warnings', () => {
         expect(warn).toHaveBeenCalledTimes(messages.length);
     });
 
+    it.each([
+        ['https://a.example,https://b.example', false],
+        ['https://a.example,', false],
+        ['https://a.example,,https://b.example', false],
+        ['https://a.example,http://192.168.4.87:9877', true],
+        ['http://ui.example', true],
+    ])('cookie warning matches actual cookie policy for %s (warns=%s)', async (externalUrl, expectsWarning) => {
+        const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+        const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
+        directories.push(directory);
+        const store = createAuthStore(join(directory, 'auth.json'));
+        await initializeAuthentication({ store, env: { CADDY_UI_EXTERNAL_URL: externalUrl } });
+        const warnings = warn.mock.calls.map(([m]) => m);
+        expect(warnings.some(m => m.includes('Secure session cookies are not enabled'))).toBe(expectsWarning);
+    });
+
+    it.each([
+        ['https://a.example,https://b.example', true],
+        ['https://a.example,', true],
+        ['https://a.example,,https://b.example', true],
+        ['https://a.example,http://192.168.4.87:9877', false],
+        ['http://ui.example', false],
+        [undefined, false],
+    ])('session cookies reflect CADDY_UI_EXTERNAL_URL=%s (secure=%s)', async (externalUrl, expectedSecure) => {
+        const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
+        directories.push(directory);
+        const store = createAuthStore(join(directory, 'auth.json'));
+        const env = { CADDY_UI_EXTERNAL_URL: externalUrl };
+        vi.spyOn(logger, 'warn').mockImplementation(() => {});
+        const service = await createAuthService({ store, env });
+        await store.initializeAuth('administrator', 'Test-Password-1!');
+        const cookies = [];
+        const res = { cookie: (name, value, opts) => cookies.push({ name, ...opts }) };
+        service.sessions.createSession({ headers: {} }, res, 'management');
+        expect(cookies[0].secure).toBe(expectedSecure);
+    });
+
     it('emits each warning once to production container stdout', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
         directories.push(directory);
