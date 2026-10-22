@@ -57,7 +57,8 @@ export async function loadMaintenance() {
             }
         }
     } catch { }
-    await getMaintenancePage();
+    try { await getMaintenancePage(); }
+    catch (e) { logger.warn('Could not initialize maintenance page; the endpoint fallback will be used', { error: e.message }); }
     return _state;
 }
 
