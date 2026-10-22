@@ -38,6 +38,7 @@ vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getAct
 process.env.HISTORY_PATH = mkdtempSync(join(tmpdir(), 'caddy-ui-history-'));
 process.env.MAINTENANCE_PATH = process.env.HISTORY_PATH + '-maintenance.json';
 process.env.WWW_PATH = process.env.HISTORY_PATH + '-www';
+process.env.CADDY_UI_URL = 'caddy-ui-backend:3001';
 const { saveCaddyfileChange, default: caddyfileRouter } = await import('../src/routes/caddyfile.js');
 const { default: metricsRouter } = await import('../src/routes/metrics.js');
 const { default: logsRouter } = await import('../src/routes/logs.js');
@@ -255,7 +256,7 @@ describe('API save paths', () => {
             expect(getMaintenanceState('default')['old.example.com'].originalContent).toContain('old.example.com {');
         } finally { await rm(root, { force: true }); await rename(backup, root); }
         expect((await send('DELETE', '/routes/caddyfile/old.example.com/maintenance')).status).toBe(200);
-        expect(files.get(instance.configPath)).not.toContain('CADDY_UI_MAINTENANCE');
+        expect(files.get(instance.configPath)).not.toContain('/public/responses/maintenance');
         expect(getMaintenanceState('default')['old.example.com']).toBeUndefined();
     });
 

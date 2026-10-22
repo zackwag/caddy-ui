@@ -38,7 +38,7 @@ describe('isCrossSiteWrite', () => {
         [{ origin: 'https://attacker.example', host: 'attacker.example',
             'x-forwarded-host': 'attacker.example', 'x-forwarded-proto': 'https' }, true],
     ])('validates browser origin headers %j (blocked=%s)', (headers, blocked) => {
-        expect(isCrossSiteWrite('POST', headers, 'https://ui.example:8443')).toBe(blocked);
+        expect(isCrossSiteWrite('POST', headers, new Set(['https://ui.example:8443']))).toBe(blocked);
     });
 
     it('rejects a Referer disguising an attacker host with the UI origin as userinfo', () => {
@@ -48,7 +48,7 @@ describe('isCrossSiteWrite', () => {
         // that secret scanners can mistake for a real credential-bearing URL.
         referer.username = expected.hostname;
         referer.password = expected.port;
-        expect(isCrossSiteWrite('POST', { referer: referer.href }, expected.origin)).toBe(true);
+        expect(isCrossSiteWrite('POST', { referer: referer.href }, new Set([expected.origin]))).toBe(true);
     });
 
     it('requires configuration for browser-origin writes without trustworthy Fetch Metadata', () => {
@@ -154,5 +154,22 @@ describe('external origin configuration', () => {
         let passed = false;
         middleware({ method: 'POST', headers: { origin: 'https://ui.example' } }, {}, () => { passed = true; });
         expect(passed).toBe(true);
+    });
+
+    it('accepts comma-separated origins and allows any of them', () => {
+        const multi = 'https://caddy.internal, http://192.168.4.87:9877';
+        expect(() => createCrossSiteMiddleware(multi)).not.toThrow();
+        expect(isCrossSiteWrite('POST', { origin: 'https://caddy.internal' }, new Set(['https://caddy.internal', 'http://192.168.4.87:9877']))).toBe(false);
+        expect(isCrossSiteWrite('POST', { origin: 'http://192.168.4.87:9877' }, new Set(['https://caddy.internal', 'http://192.168.4.87:9877']))).toBe(false);
+        expect(isCrossSiteWrite('POST', { origin: 'https://attacker.example' }, new Set(['https://caddy.internal', 'http://192.168.4.87:9877']))).toBe(true);
+    });
+
+    it('rejects the whole setting when any entry is invalid', () => {
+        expect(() => createCrossSiteMiddleware('https://ok.example,not-a-url')).toThrow('CADDY_UI_EXTERNAL_URL');
+        expect(() => createCrossSiteMiddleware('https://ok.example,ftp://bad.example')).toThrow('CADDY_UI_EXTERNAL_URL');
+    });
+
+    it('ignores empty entries from trailing or doubled commas', () => {
+        expect(() => createCrossSiteMiddleware('https://ui.example,,https://alt.example,')).not.toThrow();
     });
 });

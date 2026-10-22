@@ -12,8 +12,10 @@ export async function initializeAuthentication(options) {
         logger.warn('Administrator enrollment is open: no stored or legacy credentials exist. The first person reaching the setup page can claim administrator access. Restrict access until enrollment is complete.');
     }
     const externalUrl = (options?.env ?? process.env).CADDY_UI_EXTERNAL_URL;
-    if (!externalUrl || new URL(externalUrl).protocol !== 'https:') {
-        logger.warn('Secure session cookies are not enabled. For HTTPS deployments, set CADDY_UI_EXTERNAL_URL=https://your-public-hostname to enable them. TLS setup can help you with that.');
+    const configuredUrls = externalUrl ? externalUrl.split(',').map(u => u.trim()).filter(Boolean) : [];
+    const allHttps = configuredUrls.length > 0 && configuredUrls.every(u => { try { return new URL(u).protocol === 'https:'; } catch { return false; } });
+    if (!allHttps) {
+        logger.warn('Secure session cookies are not enabled. For HTTPS deployments, set CADDY_UI_EXTERNAL_URL=https://your-public-hostname to enable them. Adding any HTTP origin disables Secure cookies for all origins. TLS setup can help you with that.');
     }
     return authentication;
 }

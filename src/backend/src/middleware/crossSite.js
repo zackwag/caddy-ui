@@ -6,7 +6,8 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 // Fetch Metadata is absent on some plain HTTP destinations. Origin takes
 // precedence over Referer, including an opaque "null" origin. Never infer the
 // expected origin from Host or forwarded headers: proxies can change both.
-export function isCrossSiteWrite(method, headers, expectedOrigin) {
+// expectedOrigins: null (unconfigured) or a Set of allowed origin strings.
+export function isCrossSiteWrite(method, headers, expectedOrigins) {
     if (SAFE_METHODS.has(method)) return false;
     const site = headers['sec-fetch-site'];
     if (site === 'cross-site' || site === 'same-site') return true;
@@ -15,16 +16,16 @@ export function isCrossSiteWrite(method, headers, expectedOrigin) {
     const referer = headers.referer;
     if (origin === 'null') return true;
     const hasBrowserOrigin = origin !== undefined || referer !== undefined;
-    if (!expectedOrigin) {
+    if (!expectedOrigins) {
         // Preserve trustworthy same-origin browser requests and headerless
         // scripts. Other browser-origin writes require explicit configuration.
         return hasBrowserOrigin && site !== 'same-origin';
     }
-    if (origin !== undefined) return origin !== expectedOrigin;
+    if (origin !== undefined) return !expectedOrigins.has(origin);
     if (referer !== undefined) {
         if (typeof referer !== 'string') return true;
         try {
-            return new URL(referer).origin !== expectedOrigin;
+            return !expectedOrigins.has(new URL(referer).origin);
         } catch {
             return true;
         }
@@ -35,29 +36,34 @@ export function isCrossSiteWrite(method, headers, expectedOrigin) {
 }
 
 export function createCrossSiteMiddleware(publicUrl) {
-    let expectedOrigin;
+    const expectedOrigins = new Set();
     if (publicUrl !== undefined && publicUrl !== '') {
-        let configured;
-        try {
-            configured = new URL(publicUrl);
-        } catch {
-            throw new TypeError('CADDY_UI_EXTERNAL_URL must be an HTTP(S) URL without credentials');
+        for (const entry of publicUrl.split(',')) {
+            const trimmed = entry.trim();
+            if (!trimmed) continue;
+            let configured;
+            try {
+                configured = new URL(trimmed);
+            } catch {
+                throw new TypeError('CADDY_UI_EXTERNAL_URL must be comma-separated HTTP(S) URLs without credentials');
+            }
+            if (!['http:', 'https:'].includes(configured.protocol) || configured.username || configured.password) {
+                throw new TypeError('CADDY_UI_EXTERNAL_URL must be comma-separated HTTP(S) URLs without credentials');
+            }
+            expectedOrigins.add(configured.origin);
         }
-        if (!['http:', 'https:'].includes(configured.protocol) || configured.username || configured.password) {
-            throw new TypeError('CADDY_UI_EXTERNAL_URL must be an HTTP(S) URL without credentials');
-        }
-        expectedOrigin = configured.origin;
     }
+    const hasExpected = expectedOrigins.size > 0;
 
     return (req, res, next) => {
-        if (!isCrossSiteWrite(req.method, req.headers, expectedOrigin)) return next();
+        if (!isCrossSiteWrite(req.method, req.headers, hasExpected ? expectedOrigins : null)) return next();
         return sendAppError(res, new AppError('FORBIDDEN', {
-            message: expectedOrigin ? 'Rejected cross-site request'
+            message: hasExpected ? 'Rejected cross-site request'
                 : 'Browser-origin writes without same-origin Fetch Metadata require CADDY_UI_EXTERNAL_URL',
             context: {
                 origin: req.headers.origin ?? null,
                 site: req.headers['sec-fetch-site'] ?? null,
-                expectedOrigin: expectedOrigin ?? null,
+                expectedOrigins: hasExpected ? [...expectedOrigins] : null,
             },
         }));
     };

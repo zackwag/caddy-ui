@@ -50,6 +50,28 @@ function findContainerIP(container, targetNetworks) {
     return null;
 }
 
+let _backendContainerName = null;
+
+export function getBackendUrl() {
+    if (process.env.CADDY_UI_URL) return process.env.CADDY_UI_URL;
+    const port = process.env.PORT || 3001;
+    if (_backendContainerName) return `${_backendContainerName}:${port}`;
+    return null;
+}
+
+export async function detectBackendIdentity() {
+    const hostname = process.env.HOSTNAME;
+    if (!hostname || _backendContainerName) return;
+    try {
+        const detail = await dockerGet(`/containers/${hostname}/json`);
+        const name = detail.Name?.replace(/^\//, '');
+        if (name) {
+            _backendContainerName = name;
+            logger.info('Detected backend container name', { name });
+        }
+    } catch { }
+}
+
 export async function discoverCaddyContainers() {
     let containers;
     try {
@@ -65,6 +87,7 @@ export async function discoverCaddyContainers() {
         for (const c of containers) {
             const names = (c.Names || []).map(n => n.replace(/^\//, ''));
             if (names.includes('caddy-ui-backend') || c.Id?.startsWith(hostname)) {
+                _backendContainerName = names.includes('caddy-ui-backend') ? 'caddy-ui-backend' : names[0];
                 const nets = c.NetworkSettings?.Networks || {};
                 for (const name of Object.keys(nets)) backendNetworks.add(name);
             }

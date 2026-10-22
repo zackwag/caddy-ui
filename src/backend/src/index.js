@@ -11,6 +11,7 @@ import { createApiTokenMiddleware } from './middleware/apiToken.js';
 import { instanceMiddleware } from './middleware/instance.js';
 import { initMonitor } from './notifications.js';
 import authRouter from './routes/auth.js';
+import pagesRouter from './routes/pages.js';
 import caddyfileRouter, { migrateLegacyHistory } from './routes/caddyfile.js';
 import customThemesRouter from './routes/customThemes.js';
 import healthRouter from './routes/health.js';
@@ -26,6 +27,7 @@ import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
 import { startRouteMonitor } from './routeMonitor.js';
+import { detectBackendIdentity } from './dockerDiscovery.js';
 import { loadMaintenance } from './maintenance.js';
 import { loadServerNames } from './serverNames.js';
 import { loadSettings } from './settings.js';
@@ -83,6 +85,16 @@ const authLimiter = rateLimit({
     message: { error: 'Too many login attempts, please try again later' },
 });
 
+const publicLimiter = rateLimit({
+    ...rateLimitOptions,
+    limit: 200,
+    message: { error: 'Too many requests, please try again later' },
+});
+
+// Public responses served to end-users via Caddy's reverse_proxy (no auth).
+// Separate limiter so public traffic cannot exhaust the management API budget.
+app.use('/public/responses', publicLimiter, pagesRouter);
+
 app.use('/api', apiLimiter);
 app.use('/api', createCrossSiteMiddleware(process.env.CADDY_UI_EXTERNAL_URL));
 app.use('/api', createApiTokenMiddleware(authentication));
@@ -138,6 +150,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
+await detectBackendIdentity();
 await loadInstances();
 await migrateLegacyHistory();
 await loadServerNames(getInstances().map(i => i.id));

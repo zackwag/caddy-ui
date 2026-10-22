@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
+import { caddyfileChildren } from './caddyfileBlocks.js';
 import logger from './logger.js';
 
 const MAINTENANCE_PATH = process.env.MAINTENANCE_PATH || '/etc/caddy-ui/maintenance.json';
@@ -56,6 +57,8 @@ export async function loadMaintenance() {
             }
         }
     } catch { }
+    try { await getMaintenancePage(); }
+    catch (e) { logger.warn('Could not initialize maintenance page; the endpoint fallback will be used', { error: e.message }); }
     return _state;
 }
 
@@ -150,25 +153,44 @@ export async function getMaintenancePage() {
     }
 }
 
-// Recognizes a site block written by buildMaintenanceBlock.
+// Recognizes a site block written by buildMaintenanceBlock (current or legacy).
 export function isMaintenanceBlock(block) {
-    return typeof block === 'string' && /^\s*respond <<CADDY_UI_MAINTENANCE_*\s*$/m.test(block);
+    if (typeof block !== 'string') return false;
+    if (/^\s*rewrite \* \/public\/responses\/maintenance\s*$/m.test(block)) return true;
+    // Legacy: inlined heredoc from before the responses endpoint
+    if (/^\s*respond <<CADDY_UI_MAINTENANCE_*\s*$/m.test(block)) return true;
+    return false;
 }
 
-// Caddyfile backtick strings have no escape sequences, so a page containing a
-// backtick would end the token early. A heredoc takes the page verbatim; its
-// marker only has to not appear in the page. Caddy strips the closing marker's
-// indentation from every line, so the page can be indented to fit the block.
-export function buildMaintenanceBlock(domain, html) {
-    let marker = 'CADDY_UI_MAINTENANCE';
-    while (html.includes(marker)) marker += '_';
-    const indent = ' '.repeat(8);
-    const lines = [];
-    lines.push(`${domain} {`);
-    lines.push(`    header Content-Type text/html`);
-    lines.push(`    respond <<${marker}`);
-    for (const line of html.split(/\r?\n/)) lines.push(line ? indent + line : '');
-    lines.push(`${indent}${marker} 503`);
-    lines.push(`}`);
-    return lines.join('\n');
+const INFRA_DIRECTIVES = new Set([
+    'tls', 'encode', 'header', 'log', 'bind', 'skip_log',
+]);
+
+export function buildMaintenanceBlock(originalBlock, backendUrl) {
+    let entry;
+    try { [entry] = caddyfileChildren(originalBlock); } catch { /* fallback below */ }
+    if (!entry?.block) {
+        const addr = originalBlock.trim().replace(/\s*\{[\s\S]*/, '');
+        return `${addr} {\n    rewrite * /public/responses/maintenance\n    reverse_proxy ${backendUrl}\n}`;
+    }
+    const header = originalBlock.slice(0, entry.block.start + 1);
+    const inner = entry.block.inner;
+
+    let kept = inner;
+    try {
+        const children = caddyfileChildren(inner);
+        const ranges = children
+            .filter(child => !INFRA_DIRECTIVES.has(child.name) && !child.name?.startsWith('@'))
+            .map(child => {
+                const lineStart = inner.lastIndexOf('\n', child.start - 1) + 1;
+                const nl = inner.indexOf('\n', child.end);
+                return { start: lineStart, end: nl === -1 ? inner.length : nl + 1 };
+            });
+        for (const r of ranges.reverse()) kept = kept.slice(0, r.start) + kept.slice(r.end);
+    } catch { /* parse failure: keep inner as-is, maintenance directives still get appended */ }
+
+    kept = kept.replace(/\n{3,}/g, '\n\n').trim();
+    return kept
+        ? `${header.trimEnd()}\n${kept}\n    rewrite * /public/responses/maintenance\n    reverse_proxy ${backendUrl}\n}`
+        : `${header.trimEnd()}\n    rewrite * /public/responses/maintenance\n    reverse_proxy ${backendUrl}\n}`;
 }

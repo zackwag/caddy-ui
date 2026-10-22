@@ -10,9 +10,10 @@ import { sendAppError } from '../errorReporting.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
 import {
-    buildMaintenanceBlock, claimUnassignedMaintenance, clearMaintenance, getMaintenancePage, getMaintenanceState,
+    buildMaintenanceBlock, claimUnassignedMaintenance, clearMaintenance, getMaintenanceState,
     hasUnassignedMaintenance, isInMaintenance, isMaintenanceBlock, setMaintenance,
 } from '../maintenance.js';
+import { getBackendUrl } from '../dockerDiscovery.js';
 import { getServers } from '../observations.js';
 import { validateContainerName, validatePath } from '../validation.js';
 import { historyWarning, queueCaddyfileChange, saveCaddyfileChange } from './caddyfile.js';
@@ -341,7 +342,9 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
             block = extractSiteBlock(previous || '', domain, env);
             if (!block) throw new AppError('NOT_FOUND');
             if (isMaintenanceBlock(block)) throw new AppError('CONFLICT');
-            const maintBlock = buildMaintenanceBlock(domain, await getMaintenancePage());
+            const backendUrl = getBackendUrl();
+            if (!backendUrl) throw new AppError('BACKEND_URL_UNKNOWN');
+            const maintBlock = buildMaintenanceBlock(block, backendUrl);
             const cleaned = removeSiteBlock(previous, domain, env);
             return `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
         }, { actor: getAuthentication().getActor(req), action: 'maintenance.enable',
