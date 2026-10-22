@@ -55,6 +55,28 @@ describe('buildMaintenanceBlock', () => {
         const block = buildMaintenanceBlock(original, 'localhost:3001');
         expect(block).toMatch(/^http:\/\/local\.dev \{/);
     });
+
+    it('handles env-variable addresses without matching their braces', () => {
+        const original = '{$DOMAIN} {\n    reverse_proxy app:8080\n}';
+        const block = buildMaintenanceBlock(original, 'caddy-ui-backend:3001');
+        expect(block).toMatch(/^\{\$DOMAIN\} \{/);
+        expect(block).toContain('rewrite * /public/responses/maintenance');
+        expect(block).not.toContain('app:8080');
+    });
+
+    it('strips import directives that could bypass maintenance', () => {
+        const original = [
+            'example.com {',
+            '    tls internal',
+            '    import app_handlers',
+            '    reverse_proxy backend:8080',
+            '}',
+        ].join('\n');
+        const block = buildMaintenanceBlock(original, 'caddy-ui-backend:3001');
+        expect(block).toContain('tls internal');
+        expect(block).not.toContain('import');
+        expect(block).not.toContain('app_handlers');
+    });
 });
 
 describe('isMaintenanceBlock', () => {

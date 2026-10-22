@@ -162,24 +162,25 @@ export function isMaintenanceBlock(block) {
     return false;
 }
 
-const ROUTING_DIRECTIVES = new Set([
-    'reverse_proxy', 'handle', 'handle_path', 'respond', 'redir',
-    'rewrite', 'route', 'file_server', 'php_fastcgi', 'templates',
-    'abort', 'error',
+const INFRA_DIRECTIVES = new Set([
+    'tls', 'encode', 'header', 'log', 'bind', 'skip_log',
 ]);
 
 export function buildMaintenanceBlock(originalBlock, backendUrl) {
-    const openBrace = originalBlock.indexOf('{');
-    if (openBrace === -1) return `${originalBlock.trim()} {\n    rewrite * /public/responses/maintenance\n    reverse_proxy ${backendUrl}\n}`;
-    const header = originalBlock.slice(0, openBrace + 1);
-    const closeBrace = originalBlock.lastIndexOf('}');
-    const inner = originalBlock.slice(openBrace + 1, closeBrace);
+    let entry;
+    try { [entry] = caddyfileChildren(originalBlock); } catch { /* fallback below */ }
+    if (!entry?.block) {
+        const addr = originalBlock.trim().replace(/\s*\{[\s\S]*/, '');
+        return `${addr} {\n    rewrite * /public/responses/maintenance\n    reverse_proxy ${backendUrl}\n}`;
+    }
+    const header = originalBlock.slice(0, entry.block.start + 1);
+    const inner = entry.block.inner;
 
     let kept = inner;
     try {
         const children = caddyfileChildren(inner);
         const ranges = children
-            .filter(child => ROUTING_DIRECTIVES.has(child.name))
+            .filter(child => !INFRA_DIRECTIVES.has(child.name) && !child.name?.startsWith('@'))
             .map(child => {
                 const lineStart = inner.lastIndexOf('\n', child.start - 1) + 1;
                 const nl = inner.indexOf('\n', child.end);
