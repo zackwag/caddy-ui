@@ -18,7 +18,7 @@ COPY src/ ./src/
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO /dev/null http://localhost:${PORT:-3001}/api/version || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget -q -Y off -T 3 -O /dev/null http://127.0.0.1:80/ || exit 1
 
 CMD ["node", "src/index.js"]
