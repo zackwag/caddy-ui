@@ -154,8 +154,8 @@ export async function getMaintenancePage() {
 // Recognizes a site block written by buildMaintenanceBlock (current or legacy).
 export function isMaintenanceBlock(block) {
     if (typeof block !== 'string') return false;
-    if (/^\s*rewrite \* \/pages\/maintenance\.html\s*$/m.test(block)) return true;
-    // Legacy: inlined heredoc from before the pages endpoint
+    if (/^\s*reverse_proxy [^\s]+\/public\/responses\/maintenance\s*$/m.test(block)) return true;
+    // Legacy: inlined heredoc from before the responses endpoint
     if (/^\s*respond <<CADDY_UI_MAINTENANCE_*\s*$/m.test(block)) return true;
     return false;
 }
@@ -163,8 +163,7 @@ export function isMaintenanceBlock(block) {
 export function buildMaintenanceBlock(domain, backendUrl) {
     const lines = [];
     lines.push(`${domain} {`);
-    lines.push(`    rewrite * /pages/maintenance.html`);
-    lines.push(`    reverse_proxy ${backendUrl}`);
+    lines.push(`    reverse_proxy ${backendUrl}/public/responses/maintenance`);
     lines.push(`}`);
     return lines.join('\n');
 }

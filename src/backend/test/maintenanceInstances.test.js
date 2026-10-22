@@ -132,7 +132,7 @@ describe('maintenance routes across instances', () => {
 
     it("disabling on one instance can't restore another instance's saved block", async () => {
         expect((await toggle('POST', 'alpha')).status).toBe(200);
-        expect(files.get(alpha.configPath)).toContain('rewrite * /pages/maintenance.html');
+        expect(files.get(alpha.configPath)).toContain('/public/responses/maintenance');
 
         expect((await toggle('DELETE', 'beta')).status).toBe(404);
         expect(files.get(beta.configPath)).toBe(site('beta-app:3000'));
@@ -140,7 +140,7 @@ describe('maintenance routes across instances', () => {
 
         expect((await toggle('DELETE', 'alpha')).status).toBe(200);
         expect(files.get(alpha.configPath)).toContain('reverse_proxy alpha-app:3000');
-        expect(files.get(alpha.configPath)).not.toContain('rewrite * /pages/maintenance.html');
+        expect(files.get(alpha.configPath)).not.toContain('/public/responses/maintenance');
     });
 
     it('enables maintenance for the same hostname on both instances independently', async () => {
@@ -148,7 +148,7 @@ describe('maintenance routes across instances', () => {
         expect((await toggle('POST', 'beta')).status).toBe(200);
         expect((await toggle('DELETE', 'beta')).status).toBe(200);
         expect(files.get(beta.configPath)).toContain('reverse_proxy beta-app:3000');
-        expect(files.get(alpha.configPath)).toContain('rewrite * /pages/maintenance.html');
+        expect(files.get(alpha.configPath)).toContain('/public/responses/maintenance');
     });
 
     it('lets the instance serving the page disable maintenance saved before the upgrade', async () => {

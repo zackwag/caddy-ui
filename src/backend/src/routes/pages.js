@@ -1,27 +1,14 @@
 import { Router } from 'express';
-import { readFile } from 'fs/promises';
-import { join, basename } from 'path';
-
-const WWW_PATH = process.env.WWW_PATH || '/etc/caddy-ui/www';
-
-const STATUS_OVERRIDES = { 'maintenance.html': 503 };
+import { getMaintenancePage } from '../maintenance.js';
 
 const router = Router();
 
-// GET /pages/:name -- serves HTML files from WWW_PATH without authentication.
-// Caddy's reverse_proxy points here so maintenance (and future) pages are
-// served from a single endpoint instead of inlined in the Caddyfile.
-router.get('/:name', async (req, res) => {
-    const name = basename(req.params.name);
-    if (name !== req.params.name || !name.endsWith('.html')) {
-        return res.status(404).end();
-    }
+router.get('/maintenance', async (req, res) => {
     try {
-        const html = await readFile(join(WWW_PATH, name), 'utf8');
-        const status = STATUS_OVERRIDES[name] || 200;
-        res.status(status).type('html').send(html);
+        const html = await getMaintenancePage();
+        res.status(503).type('html').send(html);
     } catch {
-        res.status(404).end();
+        res.status(503).type('html').send('<html><body><h1>Maintenance</h1></body></html>');
     }
 });
 
