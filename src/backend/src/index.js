@@ -27,6 +27,7 @@ import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
 import { startRouteMonitor } from './routeMonitor.js';
+import { detectBackendIdentity } from './dockerDiscovery.js';
 import { loadMaintenance } from './maintenance.js';
 import { loadServerNames } from './serverNames.js';
 import { loadSettings } from './settings.js';
@@ -142,6 +143,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
+await detectBackendIdentity();
 await loadInstances();
 await migrateLegacyHistory();
 await loadServerNames(getInstances().map(i => i.id));

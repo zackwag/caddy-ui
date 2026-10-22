@@ -59,6 +59,19 @@ export function getBackendUrl() {
     return `localhost:${port}`;
 }
 
+export async function detectBackendIdentity() {
+    const hostname = process.env.HOSTNAME;
+    if (!hostname || _backendContainerName) return;
+    try {
+        const detail = await dockerGet(`/containers/${hostname}/json`);
+        const name = detail.Name?.replace(/^\//, '');
+        if (name) {
+            _backendContainerName = name;
+            logger.info('Detected backend container name', { name });
+        }
+    } catch { }
+}
+
 export async function discoverCaddyContainers() {
     let containers;
     try {
