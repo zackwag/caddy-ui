@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.6.8](https://github.com/zackwag/caddy-ui/compare/v3.6.7...v3.6.8) (2026-10-22)
+
+
+### Bug Fixes
+
+* correct healthcheck endpoints for both images ([#420](https://github.com/zackwag/caddy-ui/issues/420)) ([4d75e57](https://github.com/zackwag/caddy-ui/commit/4d75e576b5093bdddaa9f4c984cc8e32c90c7642))
+
+## [3.6.7](https://github.com/zackwag/caddy-ui/compare/v3.6.6...v3.6.7) (2026-10-22)
+
+
+### Bug Fixes
+
+* explicit backend healthcheck through IPv4 ([#414](https://github.com/zackwag/caddy-ui/issues/414)) ([61b534e](https://github.com/zackwag/caddy-ui/commit/61b534e1da8ce4c1ae4c9e0b4888cf47e2984d0a))
+
+## [3.6.6](https://github.com/zackwag/caddy-ui/compare/v3.6.5...v3.6.6) (2026-10-21)
+
+
+### Bug Fixes
+
+* add Docker healthchecks to backend and frontend images ([#410](https://github.com/zackwag/caddy-ui/issues/410)) ([21b14ab](https://github.com/zackwag/caddy-ui/commit/21b14abbbe253c2d109b00f34b0d09f8203aeafc))
+
 ## [3.6.5](https://github.com/zackwag/caddy-ui/compare/v3.6.4...v3.6.5) (2026-10-21)
 
 
