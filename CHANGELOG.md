@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.9](https://github.com/zackwag/caddy-ui/compare/v3.6.8...v3.6.9) (2026-10-22)
+
+
+### Bug Fixes
+
+* serve maintenance pages from a backend endpoint instead of inlining HTML ([#417](https://github.com/zackwag/caddy-ui/issues/417)) ([ea94f3c](https://github.com/zackwag/caddy-ui/commit/ea94f3c214bf1d6739d7f983bfdcc908201996d0))
+
 ## [3.6.8](https://github.com/zackwag/caddy-ui/compare/v3.6.7...v3.6.8) (2026-10-22)
 
 
