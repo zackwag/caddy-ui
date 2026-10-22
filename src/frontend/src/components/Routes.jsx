@@ -626,7 +626,9 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                                                 {columns.title && <td className={`col-title cell-muted${title && !note ? " route-title--fallback" : ""}`}>{title || "—"}</td>}
                                                 {columns.upstream && (
                                                     <td>
-                                                        {uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
+                                                        {maintenance[domain]
+                                                            ? <span className="cell-muted">{t("routes.maintenanceMode")}</span>
+                                                            : uLink ? <a href={uLink} target="_blank" rel="noopener noreferrer" className="mono route-link upstream">{upstream}</a> : <span className="mono" style={{ color: "var(--accent2)" }}>{upstream}</span>}
                                                     </td>
                                                 )}
                                                 {columns.server && (
