@@ -72,6 +72,10 @@ Before submitting, build the book:
 mdbook build docs
 ```
 
+The published site adds version navigation to the generated books. To work on
+that navigation, the release crawler or the Pages workflow, follow the
+[versioned documentation maintainer guide](https://github.com/zackwag/caddy-ui/blob/main/docs/history/README.md).
+
 If you changed a marked README block, also validate the existing Docker Hub
 generator from the repository root (this requires Node.js and the documentation
 dependencies installed above):

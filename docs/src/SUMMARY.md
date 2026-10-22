@@ -17,6 +17,7 @@
 - [Building from source](building.md)
     - [Project structure](project-structure.md)
 - [Images and releases](releases.md)
+    - [Documentation versions](documentation-versions.md)
 - [Contributing](contributing.md)
     - [Codebase](contributing-codebase.md)
         - [Disposable Caddy integration environment](development-caddy.md)

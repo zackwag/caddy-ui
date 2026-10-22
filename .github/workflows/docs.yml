@@ -4,24 +4,40 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  schedule:
+    - cron: '17 4 * * *'
   workflow_dispatch:
+    inputs:
+      retry_failed:
+        description: Retry unavailable historical books (successful snapshots stay unchanged)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: documentation-${{ github.ref }}
-  cancel-in-progress: true
+  group: documentation-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'published' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     name: Build mdBook
+    # workflow_run always checks out trusted main, never the triggering run's
+    # code or artifacts. Release completion refreshes independent image records.
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion != 'cancelled')
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.ref }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -56,6 +72,46 @@ jobs:
       - name: Install Chromium
         run: npm exec --prefix dev -- playwright install --with-deps chromium
 
+      - name: Discover released documentation and image publications
+        id: inventory
+        env:
+          INVENTORY_FILE: ${{ runner.temp }}/documentation-releases.json
+        run: |
+          git fetch https://github.com/zackwag/caddy-ui.git --tags refs/heads/main:refs/remotes/upstream/main refs/heads/versions:refs/remotes/upstream/versions
+          node docs/scripts/history-inventory.mjs --to refs/remotes/upstream/main --output "$INVENTORY_FILE"
+          node --input-type=module <<'JS'
+          import { createHash } from 'node:crypto';
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const { releases } = JSON.parse(readFileSync(process.env.INVENTORY_FILE, 'utf8'));
+          const fingerprint = createHash('sha256').update(JSON.stringify(releases)).digest('hex');
+          appendFileSync(process.env.GITHUB_OUTPUT, `fingerprint=${fingerprint}\n`);
+          JS
+
+      - name: Restore verified release books
+        id: archive
+        uses: actions/cache/restore@v5
+        with:
+          path: .docs-history
+          key: documentation-history-v1-${{ runner.os }}-${{ steps.inventory.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            documentation-history-v1-${{ runner.os }}-${{ steps.inventory.outputs.fingerprint }}-
+            documentation-history-v1-${{ runner.os }}-
+
+      - name: Crawl new releases
+        env:
+          INVENTORY_FILE: ${{ runner.temp }}/documentation-releases.json
+          RETRY_FAILED: ${{ inputs.retry_failed || false }}
+        run: node docs/scripts/history-crawl.mjs --inventory "$INVENTORY_FILE" --retry-failed "$RETRY_FAILED"
+
+      # Do not create another large cache for development-only pushes. A fresh
+      # generation after a manual retry becomes the next restored archive.
+      - name: Preserve the updated release archive
+        if: steps.archive.outputs.cache-matched-key == '' || !startsWith(steps.archive.outputs.cache-matched-key, format('documentation-history-v1-{0}-{1}-', runner.os, steps.inventory.outputs.fingerprint)) || inputs.retry_failed
+        uses: actions/cache/save@v5
+        with:
+          path: .docs-history
+          key: ${{ steps.archive.outputs.cache-primary-key }}
+
       - name: Generate screenshots
         run: npm run docs:screenshots
 
@@ -66,15 +122,17 @@ jobs:
         run: npm test --prefix docs
 
       - name: Build documentation
-        env:
-          REPOSITORY_NAME: ${{ github.event.repository.name }}
         run: |
-          if [[ "$REPOSITORY_NAME" == *.github.io ]]; then
-            export MDBOOK_OUTPUT__HTML__SITE_URL="/"
-          else
-            export MDBOOK_OUTPUT__HTML__SITE_URL="/$REPOSITORY_NAME/"
-          fi
-          mdbook build docs
+          MDBOOK_OUTPUT__HTML__SITE_URL=/ mdbook build docs
+          case "${GITHUB_REPOSITORY#*/}" in
+            *.github.io) DOCS_BASE=/ ;;
+            *) DOCS_BASE="/${GITHUB_REPOSITORY#*/}/" ;;
+          esac
+          echo "DOCS_BASE=$DOCS_BASE" >> "$GITHUB_ENV"
+          node docs/scripts/history-site.mjs --base "$DOCS_BASE"
+
+      - name: Check versioned documentation in Chromium
+        run: npm run test:history:browser --prefix docs -- --site "$PWD/.docs-site" --base "$DOCS_BASE"
 
       - name: Validate unchanged Docker Hub routing
         run: |
@@ -85,13 +143,26 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: documentation-preview
-          path: docs/book
+          path: .docs-site
+          include-hidden-files: true
+
+      - name: Retain crawl diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: documentation-history-report
+          include-hidden-files: true
+          path: |
+            .docs-history/backfill.json
+            .docs-history/report.md
+            .docs-history/groups.json
+            .docs-history/logs
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: docs/book
+          path: .docs-site
 
   deploy:
     name: Deploy documentation

@@ -4,6 +4,9 @@ The mdBook site is authored as individual Markdown pages in `docs/src/`.
 `SUMMARY.md` defines their sidebar order and nesting. New contributors should
 start with [documentation onboarding](src/contributing-documentation.md).
 
+Historical release collection and backfill commands are documented in
+[historical documentation collection](history/README.md).
+
 The root README remains canonical for environment variables, API endpoints, the
 Compose example, and all content selected for Docker Hub. Book reference pages
 use mdBook's built-in `{{#include}}` syntax with named `ANCHOR` / `ANCHOR_END`
