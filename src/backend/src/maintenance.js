@@ -160,9 +160,10 @@ export function isMaintenanceBlock(block) {
     return false;
 }
 
-export function buildMaintenanceBlock(domain, backendUrl) {
+export function buildMaintenanceBlock(domain, backendUrl, titleComment) {
     const lines = [];
     lines.push(`${domain} {`);
+    if (titleComment) lines.push(`    # ${titleComment}`);
     lines.push(`    reverse_proxy ${backendUrl}/public/responses/maintenance`);
     lines.push(`}`);
     return lines.join('\n');

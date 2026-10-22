@@ -343,7 +343,8 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
             if (!block) throw new AppError('NOT_FOUND');
             if (isMaintenanceBlock(block)) throw new AppError('CONFLICT');
             const originalAddress = block.match(/^(.+?)\s*\{/)?.[1]?.trim() || domain;
-            const maintBlock = buildMaintenanceBlock(originalAddress, getBackendUrl());
+            const { title } = extractTitleComment(block);
+            const maintBlock = buildMaintenanceBlock(originalAddress, getBackendUrl(), title);
             const cleaned = removeSiteBlock(previous, domain, env);
             return `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
         }, { actor: getAuthentication().getActor(req), action: 'maintenance.enable',
