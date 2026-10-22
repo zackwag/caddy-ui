@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.6.8. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.6.9. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -186,7 +186,8 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `THEMES_PATH` | `/etc/caddy-ui/themes` | Path to the custom themes directory (see [Custom Themes](https://zackwag.github.io/caddy-ui/themes.html#custom-themes)) |
 | `UPTIME_HISTORY_PATH` | `/etc/caddy-ui/uptime-history.json` | Path to the persisted upstream and route uptime history file |
 | `UPTIME_HISTORY_RETENTION_DAYS` | `7` | How many days of upstream and route health checks to retain |
-| `WWW_PATH` | `/etc/caddy-ui/www` | Directory for the maintenance page HTML file (created on first use) |
+| `CADDY_UI_URL` | — | Override the backend address that Caddy uses to fetch maintenance pages (e.g. `caddy-ui-backend:3001`). Auto-detected from the Docker socket when available |
+| `WWW_PATH` | `/etc/caddy-ui/www` | Directory for HTML pages served at `/public/responses/` (maintenance page created on first use, inline fallback if the directory is unwritable) |
 | `NODE_EXTRA_CA_CERTS` | — | Path to a PEM bundle of extra CAs for route checks and notification webhooks to trust, for sites with certificates from a private CA other than Caddy's local one (standard Node.js variable) |
 
 ## Authentication
