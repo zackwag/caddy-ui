@@ -344,9 +344,7 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
             if (isMaintenanceBlock(block)) throw new AppError('CONFLICT');
             const backendUrl = getBackendUrl();
             if (!backendUrl) throw new AppError('BACKEND_URL_UNKNOWN');
-            const originalAddress = block.split('\n')[0].replace(/\s*\{\s*$/, '').trim() || domain;
-            const { title } = extractTitleComment(block);
-            const maintBlock = buildMaintenanceBlock(originalAddress, backendUrl, title);
+            const maintBlock = buildMaintenanceBlock(block, backendUrl);
             const cleaned = removeSiteBlock(previous, domain, env);
             return `${cleaned.trimEnd()}\n\n${maintBlock}\n`;
         }, { actor: getAuthentication().getActor(req), action: 'maintenance.enable',

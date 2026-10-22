@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
+import { caddyfileChildren } from './caddyfileBlocks.js';
 import logger from './logger.js';
 
 const MAINTENANCE_PATH = process.env.MAINTENANCE_PATH || '/etc/caddy-ui/maintenance.json';
@@ -160,12 +161,34 @@ export function isMaintenanceBlock(block) {
     return false;
 }
 
-export function buildMaintenanceBlock(domain, backendUrl, titleComment) {
-    const lines = [];
-    lines.push(`${domain} {`);
-    if (titleComment) lines.push(`    # ${titleComment}`);
-    lines.push(`    rewrite * /public/responses/maintenance`);
-    lines.push(`    reverse_proxy ${backendUrl}`);
-    lines.push(`}`);
-    return lines.join('\n');
+const ROUTING_DIRECTIVES = new Set([
+    'reverse_proxy', 'handle', 'handle_path', 'respond', 'redir',
+    'rewrite', 'route', 'file_server', 'php_fastcgi', 'templates',
+    'abort', 'error',
+]);
+
+export function buildMaintenanceBlock(originalBlock, backendUrl) {
+    const openBrace = originalBlock.indexOf('{');
+    if (openBrace === -1) return `${originalBlock.trim()} {\n    rewrite * /public/responses/maintenance\n    reverse_proxy ${backendUrl}\n}`;
+    const header = originalBlock.slice(0, openBrace + 1);
+    const closeBrace = originalBlock.lastIndexOf('}');
+    const inner = originalBlock.slice(openBrace + 1, closeBrace);
+
+    let kept = inner;
+    try {
+        const children = caddyfileChildren(inner);
+        const ranges = children
+            .filter(child => ROUTING_DIRECTIVES.has(child.name))
+            .map(child => {
+                const lineStart = inner.lastIndexOf('\n', child.start - 1) + 1;
+                const nl = inner.indexOf('\n', child.end);
+                return { start: lineStart, end: nl === -1 ? inner.length : nl + 1 };
+            });
+        for (const r of ranges.reverse()) kept = kept.slice(0, r.start) + kept.slice(r.end);
+    } catch { /* parse failure: keep inner as-is, maintenance directives still get appended */ }
+
+    kept = kept.replace(/\n{3,}/g, '\n\n').trim();
+    return kept
+        ? `${header.trimEnd()}\n${kept}\n    rewrite * /public/responses/maintenance\n    reverse_proxy ${backendUrl}\n}`
+        : `${header.trimEnd()}\n    rewrite * /public/responses/maintenance\n    reverse_proxy ${backendUrl}\n}`;
 }
