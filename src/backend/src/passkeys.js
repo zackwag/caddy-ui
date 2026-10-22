@@ -8,10 +8,13 @@ const CHALLENGE_MS = 2 * 60 * 1000;
 
 // State is attached to existing, bounded sessions: no separate anonymous challenge cache.
 export function createPasskeyService({ store, sessions, env, serialize, persist, requireManagement, now = Date.now }) {
-    const configured = env.CADDY_UI_EXTERNAL_URL ? new URL(env.CADDY_UI_EXTERNAL_URL) : null;
-    const ipHost = !!configured && !!isIP(configured.hostname.replace(/^\[|\]$/g, ''));
-    const origin = configured?.protocol === 'https:' && !ipHost ? configured.origin : null;
-    const rpID = origin ? configured.hostname : null;
+    const configured = env.CADDY_UI_EXTERNAL_URL
+        ? env.CADDY_UI_EXTERNAL_URL.split(',').map(u => { try { return new URL(u.trim()); } catch { return null; } }).filter(Boolean)
+        : [];
+    const passkeyUrl = configured.find(u => u.protocol === 'https:' && !isIP(u.hostname.replace(/^\[|\]$/g, ''))) ?? null;
+    const ipHost = configured.length > 0 && !passkeyUrl && configured.every(u => isIP(u.hostname.replace(/^\[|\]$/g, '')));
+    const origin = passkeyUrl?.origin ?? null;
+    const rpID = passkeyUrl?.hostname ?? null;
 
     function requireEnabled() {
         if (ipHost) throw new AppError('PASSKEY_IP_UNAVAILABLE');
