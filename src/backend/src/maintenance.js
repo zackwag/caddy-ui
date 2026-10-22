@@ -56,6 +56,7 @@ export async function loadMaintenance() {
             }
         }
     } catch { }
+    await getMaintenancePage();
     return _state;
 }
 
@@ -150,25 +151,20 @@ export async function getMaintenancePage() {
     }
 }
 
-// Recognizes a site block written by buildMaintenanceBlock.
+// Recognizes a site block written by buildMaintenanceBlock (current or legacy).
 export function isMaintenanceBlock(block) {
-    return typeof block === 'string' && /^\s*respond <<CADDY_UI_MAINTENANCE_*\s*$/m.test(block);
+    if (typeof block !== 'string') return false;
+    if (/^\s*rewrite \* \/pages\/maintenance\.html\s*$/m.test(block)) return true;
+    // Legacy: inlined heredoc from before the pages endpoint
+    if (/^\s*respond <<CADDY_UI_MAINTENANCE_*\s*$/m.test(block)) return true;
+    return false;
 }
 
-// Caddyfile backtick strings have no escape sequences, so a page containing a
-// backtick would end the token early. A heredoc takes the page verbatim; its
-// marker only has to not appear in the page. Caddy strips the closing marker's
-// indentation from every line, so the page can be indented to fit the block.
-export function buildMaintenanceBlock(domain, html) {
-    let marker = 'CADDY_UI_MAINTENANCE';
-    while (html.includes(marker)) marker += '_';
-    const indent = ' '.repeat(8);
+export function buildMaintenanceBlock(domain, backendUrl) {
     const lines = [];
     lines.push(`${domain} {`);
-    lines.push(`    header Content-Type text/html`);
-    lines.push(`    respond <<${marker}`);
-    for (const line of html.split(/\r?\n/)) lines.push(line ? indent + line : '');
-    lines.push(`${indent}${marker} 503`);
+    lines.push(`    rewrite * /pages/maintenance.html`);
+    lines.push(`    reverse_proxy ${backendUrl}`);
     lines.push(`}`);
     return lines.join('\n');
 }

@@ -255,7 +255,7 @@ describe('API save paths', () => {
             expect(getMaintenanceState('default')['old.example.com'].originalContent).toContain('old.example.com {');
         } finally { await rm(root, { force: true }); await rename(backup, root); }
         expect((await send('DELETE', '/routes/caddyfile/old.example.com/maintenance')).status).toBe(200);
-        expect(files.get(instance.configPath)).not.toContain('CADDY_UI_MAINTENANCE');
+        expect(files.get(instance.configPath)).not.toContain('rewrite * /pages/maintenance.html');
         expect(getMaintenanceState('default')['old.example.com']).toBeUndefined();
     });
 

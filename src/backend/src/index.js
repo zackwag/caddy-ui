@@ -11,6 +11,7 @@ import { createApiTokenMiddleware } from './middleware/apiToken.js';
 import { instanceMiddleware } from './middleware/instance.js';
 import { initMonitor } from './notifications.js';
 import authRouter from './routes/auth.js';
+import pagesRouter from './routes/pages.js';
 import caddyfileRouter, { migrateLegacyHistory } from './routes/caddyfile.js';
 import customThemesRouter from './routes/customThemes.js';
 import healthRouter from './routes/health.js';
@@ -82,6 +83,9 @@ const authLimiter = rateLimit({
     skip: req => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
     message: { error: 'Too many login attempts, please try again later' },
 });
+
+// Public HTML pages served to end-users via Caddy's reverse_proxy (no auth, no rate limit)
+app.use('/pages', pagesRouter);
 
 app.use('/api', apiLimiter);
 app.use('/api', createCrossSiteMiddleware(process.env.CADDY_UI_EXTERNAL_URL));
