@@ -6,7 +6,8 @@ describe('buildMaintenanceBlock', () => {
         const block = buildMaintenanceBlock('app.example.com', 'caddy-ui-backend:3001');
         expect(block).toEqual([
             'app.example.com {',
-            '    reverse_proxy caddy-ui-backend:3001/public/responses/maintenance',
+            '    rewrite * /public/responses/maintenance',
+            '    reverse_proxy caddy-ui-backend:3001',
             '}',
         ].join('\n'));
     });
