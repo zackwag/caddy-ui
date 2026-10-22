@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.6.9. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.6.10. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -163,7 +163,7 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_LOG_PATH` | `/var/log/caddy/access.log` | Path to Caddy's access log inside the container (only used with `CADDY_ADMIN_URL`) |
 | `CADDY_SERVER_NAME` | `srv0` | Server ID of the Caddy HTTP server new routes are added to, usually `srv0` (only used with `CADDY_ADMIN_URL`). Server IDs come from Caddy; set your own with the `name` option of the Caddyfile's global `servers` block |
 | `CADDY_UI_ADDITIONAL_LANGUAGES` | — | Comma-separated preview UI language codes to opt into (for example `es-es` for the partial Spanish (Spain) catalog). Reviewed languages (currently English, Arabic and German) are enabled by default. Only installed frontend catalogs are shown; this setting controls availability, not build contents. Missing translations fall back to English. Bundled fonts (e.g. Noto Sans Arabic) load automatically when their language is selected. |
-| `CADDY_UI_EXTERNAL_URL` | — | Browser-facing UI URL, including scheme and external port (e.g. `http://caddy-ui.lan:9877`). Its origin validates browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. |
+| `CADDY_UI_EXTERNAL_URL` | — | Comma-separated browser-facing UI URLs, including scheme and external port (e.g. `https://caddy.internal,http://192.168.4.87:9877`). Their origins validate browser writes when Fetch Metadata is absent, as on plain HTTP. Required for those writes; never inferred from proxy headers. Passkeys use the first HTTPS non-IP URL. |
 | `CADDY_UI_TRUSTED_PROXIES` | bundled frontend | Backend: unset discovers only `caddy-ui-frontend` by DNS; blank disables trust. An explicit comma-separated IP/CIDR list overrides discovery. See [client addresses and rate limits](https://github.com/zackwag/caddy-ui#client-addresses-and-rate-limits). |
 | `CADDY_UI_TRUSTED_UPSTREAMS` | — | Frontend nginx: comma-separated upstream proxy IPs/CIDRs allowed to supply client addresses, such as the Caddy serving the UI. Unset trusts none. |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
@@ -230,7 +230,7 @@ For a cookie-aware client, first fetch `/api/auth/csrf`, preserve its cookie and
 
 ### Browser request origins
 
-Set `CADDY_UI_EXTERNAL_URL` to the browser-facing URL, including scheme and external port, such as `http://caddy-ui.lan:9877` or `https://caddy-ui.example.com`. Its origin validates browser writes; any path is ignored. Invalid URLs, non-HTTP(S) schemes and embedded credentials fail startup. Restart after changing it.
+Set `CADDY_UI_EXTERNAL_URL` to one or more browser-facing URLs (comma-separated), including scheme and external port, such as `https://caddy.internal,http://192.168.4.87:9877`. Each origin validates browser writes; paths are ignored. Invalid URLs, non-HTTP(S) schemes and embedded credentials fail startup. Restart after changing it.
 
 Ordinary HTTP browser writes require this setting because Fetch Metadata may be absent. Trustworthy localhost requests with same-origin Fetch Metadata work without it. For HTTPS, configure the external HTTPS URL so cookies are marked Secure, even when the reverse proxy reaches nginx/backend over HTTP. Origin is never inferred from `Host`, `Forwarded` or `X-Forwarded-*`. Alternate hostnames, schemes and ports are different origins. This setting does not enable TLS. HTTP is supported with a non-Secure HttpOnly cookie, but network interception can expose passwords and sessions.
 
