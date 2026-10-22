@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.8](https://github.com/zackwag/caddy-ui/compare/v3.6.7...v3.6.8) (2026-10-22)
+
+
+### Bug Fixes
+
+* correct healthcheck endpoints for both images ([#420](https://github.com/zackwag/caddy-ui/issues/420)) ([4d75e57](https://github.com/zackwag/caddy-ui/commit/4d75e576b5093bdddaa9f4c984cc8e32c90c7642))
+
 ## [3.6.7](https://github.com/zackwag/caddy-ui/compare/v3.6.6...v3.6.7) (2026-10-22)
 
 
