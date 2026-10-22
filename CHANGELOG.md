@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.7](https://github.com/zackwag/caddy-ui/compare/v3.6.6...v3.6.7) (2026-10-22)
+
+
+### Bug Fixes
+
+* explicit backend healthcheck through IPv4 ([#414](https://github.com/zackwag/caddy-ui/issues/414)) ([61b534e](https://github.com/zackwag/caddy-ui/commit/61b534e1da8ce4c1ae4c9e0b4888cf47e2984d0a))
+
 ## [3.6.6](https://github.com/zackwag/caddy-ui/compare/v3.6.5...v3.6.6) (2026-10-21)
 
 
