@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.10](https://github.com/zackwag/caddy-ui/compare/v3.6.9...v3.6.10) (2026-10-22)
+
+
+### Bug Fixes
+
+* support comma-separated origins in CADDY_UI_EXTERNAL_URL ([#419](https://github.com/zackwag/caddy-ui/issues/419)) ([d356427](https://github.com/zackwag/caddy-ui/commit/d3564277728ab975fdf87435e574a435d7d98ce7))
+
 ## [3.6.9](https://github.com/zackwag/caddy-ui/compare/v3.6.8...v3.6.9) (2026-10-22)
 
 
