@@ -19,7 +19,7 @@ async function ceremony(start, optionsJSON) {
 
 export async function registerPasskey(name, proof, onUnauth) {
     const options = await authRequest('/passkeys/registration/options', { method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, ...(typeof proof === 'string' ? { currentPassword: proof } : proof) }) }, onUnauth);
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, ...proof }) }, onUnauth);
     const response = await ceremony(startRegistration, options);
     return authRequest('/passkeys/registration', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(response) }, onUnauth);
