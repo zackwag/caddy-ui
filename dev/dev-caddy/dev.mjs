@@ -94,8 +94,8 @@ try {
     if (!stopping) {
         // Allow the configured reverse-proxy hostname without disabling Vite's host checks.
         if (env.CADDY_UI_EXTERNAL_URL) {
-            env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS = [env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS,
-                new URL(env.CADDY_UI_EXTERNAL_URL).hostname].filter(Boolean).join(',');
+            const hostnames = env.CADDY_UI_EXTERNAL_URL.split(',').map(u => { try { return new URL(u.trim()).hostname; } catch { return null; } }).filter(Boolean);
+            env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS = [env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS, ...hostnames].filter(Boolean).join(',');
         }
         start(process.execPath, ['src/frontend/node_modules/vite/bin/vite.js', 'src/frontend', '--host', frontendHost, '--port', '5173', '--strictPort'], env);
         await waitFor('http://127.0.0.1:5173');

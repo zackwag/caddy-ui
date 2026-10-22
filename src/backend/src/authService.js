@@ -27,7 +27,9 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         }
         if (provided.length) legacy = { username: env.CADDY_UI_USER, password: env.CADDY_UI_PASSWORD };
     }
-    sessions ??= createAuthSessions({ secure: Boolean(env.CADDY_UI_EXTERNAL_URL && env.CADDY_UI_EXTERNAL_URL.split(',').every(u => { try { return new URL(u.trim()).protocol === 'https:'; } catch { return false; } })) });
+    const configuredUrls = env.CADDY_UI_EXTERNAL_URL ? env.CADDY_UI_EXTERNAL_URL.split(',').map(u => u.trim()).filter(Boolean) : [];
+    const allHttps = configuredUrls.length > 0 && configuredUrls.every(u => { try { return new URL(u).protocol === 'https:'; } catch { return false; } });
+    sessions ??= createAuthSessions({ secure: allHttps });
     let operations = Promise.resolve();
     function serialize(operation) {
         const result = operations.then(operation);
