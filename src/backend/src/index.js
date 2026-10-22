@@ -84,8 +84,8 @@ const authLimiter = rateLimit({
     message: { error: 'Too many login attempts, please try again later' },
 });
 
-// Public HTML pages served to end-users via Caddy's reverse_proxy (no auth, no rate limit)
-app.use('/pages', pagesRouter);
+// Public HTML pages served to end-users via Caddy's reverse_proxy (no auth)
+app.use('/pages', apiLimiter, pagesRouter);
 
 app.use('/api', apiLimiter);
 app.use('/api', createCrossSiteMiddleware(process.env.CADDY_UI_EXTERNAL_URL));
