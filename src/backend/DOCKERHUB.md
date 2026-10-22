@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.6.10. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.7.0. Do not edit directly. -->
 
 # caddy/ui — Backend
 
@@ -208,11 +208,11 @@ Passwords and recovery keys are stored as salted scrypt hashes in `AUTH_PATH`, w
 
 The browser receives a host-only, HttpOnly, SameSite=Strict cookie scoped to `/api`. It does not store authentication tokens in localStorage or URLs. Management sessions expire after 24 hours; enrollment and pre-login contexts expire after 10 minutes. Sessions are process-local: restarting the backend signs everyone out. Logout revokes the session on the server, including its live log streams.
 
-Open **Security → User** to change the administrator username or password. The current password is required; leave the new password blank to change only the username. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens, passkeys and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged.
+Open **Security → User** to change the administrator username or password. A username-only change requires the current password; password changes require fresh passkey verification or the password plus TOTP when enabled. Successful changes renew this browser's session and revoke every old session and live log stream. API tokens, passkeys and the recovery key remain valid. Failed saves leave the existing credentials and sessions unchanged.
 
-**Security → Auth** supports up to three passkeys. Adding or deleting any passkey always requires your current password. Passkeys need HTTPS and a matching `CADDY_UI_EXTERNAL_URL`. Records persist in `AUTH_PATH` across container rebuilds when its volume is retained. Password login remains available. See the [passkey guide](https://zackwag.github.io/caddy-ui/passkeys.html) for browser requirements and recovery. TOTP is a separate follow-up.
+**Security → Auth** supports three passkeys and one [TOTP authenticator](https://zackwag.github.io/caddy-ui/totp.html). Password sign-in requires a code when TOTP is enabled; passkeys work independently. Failed TOTP checks share a persistent account cooldown across sessions. Credential changes require fresh verification. Passkeys need HTTPS and a matching `CADDY_UI_EXTERNAL_URL`; TOTP also works over HTTP but cannot protect that connection from interception. Records persist in `AUTH_PATH` when its volume is retained. Auth backups contain the recoverable TOTP seed; protect them and consider host/dataset encryption. See the [passkey guide](https://zackwag.github.io/caddy-ui/passkeys.html).
 
-Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, and revokes every session, API token and passkey. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
+Save the recovery key shown after setup. The recovery form accepts that key and a new password, rotates the recovery key, disables TOTP and revokes every session, API token and passkey. Save the replacement key, then sign in normally. Recovery does not grant an unrestricted bypass session. Key responses are marked `Cache-Control: no-store` and keys are never deliberately logged.
 
 If both password and recovery key are lost, stop the backend and restrict network access before removing only `AUTH_PATH` to repeat credential setup. Remove obsolete legacy auth variables as well, or those credentials will be required for enrollment. Do not remove the settings directory or Caddyfile. Restore normal access only after setup is complete.
 
