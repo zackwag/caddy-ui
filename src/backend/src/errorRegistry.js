@@ -48,6 +48,7 @@ export const ERROR_REGISTRY = Object.freeze({
     NOT_FOUND: { status: 404, level: 'warn' },
     CONFLICT: { status: 409, level: 'warn' },
     UPSTREAM_UNAVAILABLE: { status: 502, level: 'error' },
+    BACKEND_URL_UNKNOWN: { status: 503, level: 'error' },
     NO_INSTANCES: { status: 503, level: 'warn' },
 });
 

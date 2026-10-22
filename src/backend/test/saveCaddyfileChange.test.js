@@ -38,6 +38,7 @@ vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getAct
 process.env.HISTORY_PATH = mkdtempSync(join(tmpdir(), 'caddy-ui-history-'));
 process.env.MAINTENANCE_PATH = process.env.HISTORY_PATH + '-maintenance.json';
 process.env.WWW_PATH = process.env.HISTORY_PATH + '-www';
+process.env.CADDY_UI_URL = 'caddy-ui-backend:3001';
 const { saveCaddyfileChange, default: caddyfileRouter } = await import('../src/routes/caddyfile.js');
 const { default: metricsRouter } = await import('../src/routes/metrics.js');
 const { default: logsRouter } = await import('../src/routes/logs.js');

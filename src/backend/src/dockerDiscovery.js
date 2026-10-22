@@ -56,7 +56,7 @@ export function getBackendUrl() {
     if (process.env.CADDY_UI_URL) return process.env.CADDY_UI_URL;
     const port = process.env.PORT || 3001;
     if (_backendContainerName) return `${_backendContainerName}:${port}`;
-    return `localhost:${port}`;
+    return null;
 }
 
 export async function detectBackendIdentity() {

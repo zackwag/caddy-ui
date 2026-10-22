@@ -33,6 +33,7 @@ vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));
 const dir = mkdtempSync(join(tmpdir(), 'caddy-ui-maintenance-'));
 process.env.MAINTENANCE_PATH = join(dir, 'maintenance.json');
 process.env.WWW_PATH = join(dir, 'www');
+process.env.CADDY_UI_URL = 'caddy-ui-backend:3001';
 const maintenance = await import('../src/maintenance.js');
 const { default: routesRouter } = await import('../src/routes/routes.js');
 

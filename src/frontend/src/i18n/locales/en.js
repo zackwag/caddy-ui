@@ -91,6 +91,7 @@ export default {
         certificateReadFailed: 'Could not read certificates.',
         certificateCaUnavailable: 'The root CA certificate is unavailable.',
         metricsConfigFailed: 'Could not update metrics configuration.',
+        backendUrlUnknown: 'Cannot determine the backend URL. Set CADDY_UI_URL so Caddy can reach the backend.',
         noInstances: 'No Caddy instances are configured.',
         clientParseFailed: 'Could not process the server response.',
         invalidLocalState: 'The local application state is invalid.',

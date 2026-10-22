@@ -50,6 +50,7 @@ export const ERROR_MESSAGES = Object.freeze({
     CONFLICT: 'errors.conflict',
     UPSTREAM_UNAVAILABLE: 'errors.upstreamUnavailable',
     NETWORK_ERROR: 'errors.network',
+    BACKEND_URL_UNKNOWN: 'errors.backendUrlUnknown',
     NO_INSTANCES: 'errors.noInstances',
     CLIENT_PARSE_FAILED: 'errors.clientParseFailed',
     INVALID_LOCAL_STATE: 'errors.invalidLocalState',
