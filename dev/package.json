@@ -4,6 +4,7 @@
     "type": "module",
     "scripts": {
         "test": "node --test dev-caddy/*.test.mjs integration/*.test.mjs",
+        "test:workflows": "node --test workflows/*.test.mjs",
         "test:playground": "vitest run playground/test/",
         "test:integration": "node --test integration/caddy.mjs integration/examples.mjs integration/api.mjs integration/startup.mjs integration/diagnostics.mjs integration/rate-limits.mjs",
         "test:e2e": "node --test --test-concurrency=1 e2e/error-logging.mjs e2e/languages.mjs e2e/cross-site.mjs e2e/auth.mjs e2e/totp.mjs e2e/api-tokens.mjs e2e/history.mjs",
@@ -30,6 +31,7 @@
         "react-i18next": "^17.1.0",
         "react-router-dom": "^7.18.3",
         "vite": "^8.3.4",
-        "vitest": "^5.0.5"
+        "vitest": "^5.0.5",
+        "yaml": "2.9.1"
     }
 }

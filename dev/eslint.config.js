@@ -13,7 +13,7 @@ export default [
             'i18next/no-literal-string': 'off',
         },
     },
-    { ...nodeToolConfig, files: ['eslint.config.js', 'playground/**/*.mjs', 'playground/vite.config.js'] },
+    { ...nodeToolConfig, files: ['eslint.config.js', 'playground/**/*.mjs', 'playground/vite.config.js', 'workflows/**/*.mjs'] },
     {
         ...nodeToolConfig,
         files: ['e2e/**/*.mjs'],

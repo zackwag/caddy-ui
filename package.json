@@ -6,6 +6,7 @@
         "dev:with-caddy": "node dev/dev-caddy/dev.mjs",
         "dev:instances": "node dev/dev-caddy/cli.mjs",
         "test:dev-caddy": "npm test --prefix dev --",
+        "test:workflows": "npm run test:workflows --prefix dev --",
         "test:dev-caddy:integration": "npm run test:integration --prefix dev --",
         "test:dev-caddy:e2e": "npm run test:e2e --prefix dev --",
         "lint:dev-caddy": "npm run lint --prefix dev --",
