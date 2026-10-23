@@ -69,6 +69,7 @@ npm test --prefix src/frontend
 npm run lint --prefix src/frontend -- --max-warnings=0
 npm run lint:dev-caddy
 npm run test:dev-caddy
+npm run test:workflows
 ```
 
 Backend tests use Vitest for helpers and HTTP contracts. Frontend tests cover
@@ -79,6 +80,10 @@ package; moving them to their owning module is a separate follow-up.
 Shared dev lint borrows backend ESLint and frontend rule configuration, so both
 application packages must be installed. It covers harness, integration, browser
 and playground code. Lifecycle/readiness unit tests need no Docker Engine.
+
+Publication-channel tests parse the beta/edge workflows and exercise version
+recording with temporary files. They need only the dev dependencies and do not
+build or publish images. Run `npm run test:workflows` when changing those workflows.
 
 Real-Caddy integration and Chromium checks use the same root commands locally and
 in CI. Follow the [integration testing guide](development-caddy.md#automated-integration-and-browser-checks)

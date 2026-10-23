@@ -79,6 +79,9 @@ jobs:
       - name: Test development lifecycle safety
         run: npm run test:dev-caddy
 
+      - name: Test publication channel isolation
+        run: npm run test:workflows
+
       - name: Prepare real Caddy and Chromium
         run: |
           docker info
