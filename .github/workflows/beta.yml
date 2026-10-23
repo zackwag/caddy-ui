@@ -57,7 +57,6 @@ jobs:
           images: zackwag/caddy-ui-backend
           tags: |
             type=raw,value=beta
-            type=raw,value=edge
 
       - uses: docker/build-push-action@v7
         with:
@@ -105,7 +104,6 @@ jobs:
           images: zackwag/caddy-ui-frontend
           tags: |
             type=raw,value=beta
-            type=raw,value=edge
 
       - uses: docker/build-push-action@v7
         with:
@@ -142,4 +140,3 @@ jobs:
             exit 0
           fi
           .github/scripts/publish-versions.sh beta "${ARGS[@]}"
-          .github/scripts/publish-versions.sh edge "${ARGS[@]}"
