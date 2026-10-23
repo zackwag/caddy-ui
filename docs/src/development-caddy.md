@@ -228,6 +228,13 @@ npm exec --prefix dev -- playwright install chromium
 npm run test:dev-caddy:e2e
 ```
 
+CI runs tooling, integration, documentation capture and browser checks as
+independent jobs. Browser files are divided between authentication and
+configuration runners, with serial execution within each group. To run one group
+locally, use `npm run test:dev-caddy:e2e:auth` (no Docker) or
+`npm run test:dev-caddy:e2e:configuration` (real Caddy required). The full command
+above retains every browser scenario.
+
 Integration checks also exercise the real backend's registration API: creating or
 removing a Docker container does not create or remove its UI registration. The
 tests cover reload, retained configuration, instance isolation and cleanup after
@@ -236,9 +243,9 @@ codes, sanitized read failures, warning severity and request-ID correlation.
 Browser checks cover localized errors, links to correlated logs,
 live log streams, incident recovery, network loss and the empty-instance state.
 
-The Test workflow runs lifecycle and browser checks against Docker and Chromium.
-Its required Test check includes the integration job, so container or browser
-failures cannot be hidden by passing unit tests.
+The required Test check waits for all application, tooling, integration, capture
+and browser jobs, so service or browser failures cannot be hidden by passing
+unit tests. Independent jobs do not wait for one another.
 
 Each fixture uses a fresh labeled Docker namespace, temporary backend state and
 dynamic service ports. It does not read or change `.dev-caddy`. Readiness waits

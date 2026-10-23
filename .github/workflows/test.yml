@@ -44,10 +44,10 @@ jobs:
       - name: Run tests
         run: npm test
 
-  integration:
+  tooling:
+    name: Development tooling
     runs-on: ubuntu-latest
-    name: Real Caddy integration
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -79,37 +79,141 @@ jobs:
       - name: Test development lifecycle safety
         run: npm run test:dev-caddy
 
+      - name: Test workflow contracts
+        run: npm run test:workflows
+
+  integration:
+    runs-on: ubuntu-latest
+    name: Real Caddy integration
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            src/backend/package-lock.json
+            dev/package-lock.json
+
+      - name: Install backend and test dependencies
+        run: |
+          npm ci --prefix src/backend
+          npm ci --prefix dev
+
+      - name: Prepare real Caddy
+        run: |
+          docker info
+          docker pull "$(node -e "import('./dev/dev-caddy/harness.mjs').then(m => process.stdout.write(m.IMAGE))")"
+
+      - name: Test lifecycle, registration and instance isolation
+        run: npm run test:dev-caddy:integration
+
+  capture:
+    name: Documentation capture and replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            src/backend/package-lock.json
+            src/frontend/package-lock.json
+            dev/package-lock.json
+
+      - name: Install application and test dependencies
+        run: |
+          npm ci --prefix src/backend
+          npm ci --prefix src/frontend
+          npm ci --prefix dev
+
       - name: Prepare real Caddy and Chromium
         run: |
           docker info
           docker pull "$(node -e "import('./dev/dev-caddy/harness.mjs').then(m => process.stdout.write(m.IMAGE))")"
           npm exec --prefix dev -- playwright install --with-deps chromium
 
-      - name: Test lifecycle, registration and instance isolation
-        run: npm run test:dev-caddy:integration
-
       - name: Test authenticated documentation capture and replay
         run: npm run test:screenshots --prefix docs
 
-      - name: Test error handling and live logs in Chromium
-        run: npm run test:dev-caddy:e2e
+  browser:
+    name: Browser (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: authentication
+            command: npm run test:dev-caddy:e2e:auth
+            docker: false
+          - suite: configuration
+            command: npm run test:dev-caddy:e2e:configuration
+            docker: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            src/backend/package-lock.json
+            src/frontend/package-lock.json
+            dev/package-lock.json
+
+      - name: Install application and test dependencies
+        run: |
+          npm ci --prefix src/backend
+          npm ci --prefix src/frontend
+          npm ci --prefix dev
+
+      - name: Prepare real Caddy
+        if: matrix.docker
+        run: |
+          docker info
+          docker pull "$(node -e "import('./dev/dev-caddy/harness.mjs').then(m => process.stdout.write(m.IMAGE))")"
+
+      - name: Install Chromium
+        run: npm exec --prefix dev -- playwright install --with-deps chromium
+
+      - name: Test browser scenarios
+        run: ${{ matrix.command }}
 
   test-required:
     name: Test
     runs-on: ubuntu-latest
-    needs: [test, integration]
+    needs: [test, lint, tooling, integration, capture, browser]
     if: always()
     steps:
       - name: Verify test matrix
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
         run: |
-          if [[ "${{ needs.test.result }}" != "success" ]]; then
-            echo "Test matrix did not complete successfully: ${{ needs.test.result }}"
-            exit 1
-          fi
-          if [[ "${{ needs.integration.result }}" != "success" ]]; then
-            echo "Real Caddy integration did not complete successfully: ${{ needs.integration.result }}"
-            exit 1
-          fi
+          node <<'JS'
+          const jobs = JSON.parse(process.env.JOB_RESULTS);
+          for (const [name, { result }] of Object.entries(jobs)) {
+            console.log(`${name}: ${result}`);
+            if (result !== 'success') process.exitCode = 1;
+          }
+          JS
 
   lint:
     runs-on: ubuntu-latest

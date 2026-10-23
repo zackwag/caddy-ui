@@ -69,6 +69,7 @@ npm test --prefix src/frontend
 npm run lint --prefix src/frontend -- --max-warnings=0
 npm run lint:dev-caddy
 npm run test:dev-caddy
+npm run test:workflows
 ```
 
 Backend tests use Vitest for helpers and HTTP contracts. Frontend tests cover
@@ -83,7 +84,27 @@ and playground code. Lifecycle/readiness unit tests need no Docker Engine.
 Real-Caddy integration and Chromium checks use the same root commands locally and
 in CI. Follow the [integration testing guide](development-caddy.md#automated-integration-and-browser-checks)
 for browser installation, fixture ownership and cleanup. The required `Test` check
-includes both application tests and the real-service/browser integration job.
+waits for application tests/lint, development tooling, real-Caddy integration,
+documentation capture, and both browser groups. These jobs run independently;
+failures, cancellations and skipped required groups cannot produce a passing
+aggregate result. Existing application test/lint check names remain unchanged.
+
+The browser suite is split into authentication and configuration groups on
+separate CI runners. Each group still runs its files serially. The full local
+command remains available, or run a focused group:
+
+```sh
+npm run test:dev-caddy:e2e:auth
+npm run test:dev-caddy:e2e:configuration
+```
+
+Authentication uses local backend/browser fixtures without Docker. Configuration
+scenarios and documentation capture use isolated real-Caddy fixtures. Integration
+tests need Docker but do not install Chromium; tooling checks need neither.
+Workflow contract tests require only dev dependencies and run no services.
+
+See the [CI timing baseline and comparison guide](https://github.com/zackwag/caddy-ui/blob/main/dev/ci/README.md)
+for the measured bottleneck, runner-cost tradeoff and hosted follow-up measurements.
 
 ## Verifying UI changes
 
@@ -128,7 +149,8 @@ npm exec --prefix dev -- playwright install chromium
 npm run test:cross-site:browser
 ```
 
-The same cases run through `npm run test:dev-caddy:e2e` in CI. They use the real
+The same cases run in CI's authentication group and the full local
+`npm run test:dev-caddy:e2e` command. They use the real
 backend middleware and local HTTP servers, with no request interception or
 injected browser headers. An IPv4-mapped loopback URL reproduces Chromium's
 untrustworthy HTTP destination behavior without an external LAN. Assertions check
