@@ -36,7 +36,8 @@ vi.mock('../src/containerFs.js', async importOriginal => ({
     removeContainerPath: vi.fn(async (container, path) => { files.delete(path); }),
 }));
 // Readback shares the fake admin API with every other read
-vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyAdapt, caddyLoad, caddyGet, caddyReadJson: caddyGet, caddyPost, caddyPut }));
+vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyAdapt, caddyLoad, caddyGet, caddyReadJson: caddyGet, caddyPost, caddyPut,
+    caddyGetConfig: async () => ({ config: live.config, fingerprint: JSON.stringify([live.config, [...live.objects.keys()]]) }) }));
 // `caddy reload` and `caddy adapt` in a Docker-mode instance, against the fake
 // files and admin API
 const execInInstance = vi.hoisted(() => vi.fn());
@@ -57,6 +58,7 @@ const { readContainerFile } = await import('../src/containerFs.js');
 const { default: logger } = await import('../src/logger.js');
 const { firstDifference } = await import('../src/configVerification.js');
 const { CaddyTimeoutError } = await import('../src/caddy.js');
+const { checkInstance, getConfigDriftState, resetConfigDrift } = await import('../src/configDrift.js');
 afterAll(async () => {
     await rm(process.env.HISTORY_PATH, { recursive: true, force: true });
     await rm(process.env.MAINTENANCE_PATH, { force: true });
@@ -610,6 +612,28 @@ describe('API save paths', () => {
             const { body } = await reloading;
             expect(caddyLoad).toHaveBeenCalledWith('queued.example.com {\n}\n', instance.adminUrl);
             expect(body.verification).toEqual({ file: 'unchanged', live: 'verified' });
+        });
+
+        it('lets drift detection tell its own saves from external edits', async () => {
+            resetConfigDrift();
+            await checkInstance(instance);
+            await editorSave('local.example.com {\n}\n');
+            await checkInstance(instance);
+            expect(getConfigDriftState(instance.id).changes).toEqual([]);
+
+            files.set(instance.configPath, 'external.example.com {\n}\n');
+            await checkInstance(instance);
+            expect(getConfigDriftState(instance.id).changes.map(change => change.representations)).toEqual([['file']]);
+        });
+
+        it('confirms a timed-out save once Caddy applies it late', async () => {
+            resetConfigDrift();
+            await checkInstance(instance);
+            caddyLoad.mockRejectedValueOnce(new CaddyTimeoutError('POST /load', 10000));
+            await editorSave('late.example.com {\n}\n');
+            await load('late.example.com {\n}\n');
+            await checkInstance(instance);
+            expect(getConfigDriftState(instance.id).changes).toEqual([]);
         });
 
         it('never logs configuration text when a readback differs or fails', async () => {
