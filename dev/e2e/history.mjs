@@ -133,7 +133,7 @@ test('history commit warnings keep successful saves usable and imports record th
         const response = await save();
         assert.equal(response.status(), 200);
         assert.equal((await response.json()).warningCode, 'CADDYFILE_HISTORY_COMMIT_FAILED');
-        const warning = page.locator('.toast-info').filter({ hasText: 'The operation completed with warnings.' });
+        const warning = page.locator('.toast-info').filter({ hasText: 'The Caddyfile was saved, but its history version could not be recorded.' });
         await warning.waitFor();
         assert.equal(await warning.locator('code').innerText(), 'CADDYFILE_HISTORY_COMMIT_FAILED');
         assert((await stack.api('/caddyfile')).data.includes('saved-with-history-warning:'));
