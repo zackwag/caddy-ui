@@ -47,6 +47,8 @@ export const ERROR_REGISTRY = Object.freeze({
     PASSKEY_INVALID: { status: 400, level: 'warn' },
     PASSKEY_LIMIT: { status: 409, level: 'warn' },
     FORBIDDEN: { status: 403, level: 'warn' },
+    EXTERNAL_URL_REQUIRED: { status: 403, level: 'warn' },
+    EXTERNAL_URL_MISMATCH: { status: 403, level: 'warn' },
     WEBHOOK_DESTINATION_BLOCKED: { status: 403, level: 'warn' },
     NOTIFICATION_SEND_FAILED: { status: 502, level: 'error' },
     RATE_LIMITED: { status: 429, level: 'warn' },

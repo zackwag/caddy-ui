@@ -18,6 +18,8 @@ describe('semantic error presentation registry', () => {
     });
     it.each([
         ['FORBIDDEN', 'errors.forbidden'],
+        ['EXTERNAL_URL_REQUIRED', 'errors.externalUrlRequired'],
+        ['EXTERNAL_URL_MISMATCH', 'errors.externalUrlMismatch'],
         ['LOG_FILE_MISSING', 'errors.logFileMissing'],
         ['LOG_READ_FAILED', 'errors.logReadFailed'],
         ['LOG_CONFIG_PARSE_FAILED', 'errors.logConfigParseFailed'],

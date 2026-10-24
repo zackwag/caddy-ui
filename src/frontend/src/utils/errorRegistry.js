@@ -17,6 +17,8 @@ export const ERROR_MESSAGES = Object.freeze({
     PASSKEY_CANCELLED: 'errors.passkeyCancelled',
     PASSKEY_BROWSER_ERROR: 'errors.passkeyBrowserError',
     FORBIDDEN: 'errors.forbidden',
+    EXTERNAL_URL_REQUIRED: 'errors.externalUrlRequired',
+    EXTERNAL_URL_MISMATCH: 'errors.externalUrlMismatch',
     WEBHOOK_DESTINATION_BLOCKED: 'errors.webhookDestinationBlocked',
     NOTIFICATION_SEND_FAILED: 'errors.notificationSendFailed',
     ROUTE_NOTES_READ_FAILED: 'errors.routeNotesReadFailed',

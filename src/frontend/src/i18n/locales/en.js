@@ -56,6 +56,8 @@ export default {
         network: 'Cannot reach the server. Check your connection.',
         unauthorized: 'Your session has expired. Please sign in again.',
         forbidden: 'You do not have permission to perform this operation.',
+        externalUrlRequired: 'The backend rejected this request because CADDY_UI_EXTERNAL_URL is not set. Set it to {{origin}} and restart the backend.',
+        externalUrlMismatch: 'The backend rejected this request because {{origin}} is not listed in CADDY_UI_EXTERNAL_URL. Add it (comma-separated) and restart the backend.',
         csrfInvalid: 'Your request context expired or changed. Retry the action, or reload and sign in again.',
         authPersistenceFailed: 'Credentials could not be saved. Check the authentication storage permissions and available disk space before retrying.',
         currentPasswordInvalid: 'The current password is incorrect.',

@@ -2,6 +2,8 @@ import { AppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+// Plausible misspellings of CADDY_UI_EXTERNAL_URL, which otherwise fail silently.
+const MISNAMED_EXTERNAL_URL_VARS = ['CADDY_EXTERNAL_URL', 'CADDY_UI_EXTERNAL_URLS'];
 
 // Fetch Metadata is absent on some plain HTTP destinations. Origin takes
 // precedence over Referer, including an opaque "null" origin. Never infer the
@@ -35,6 +37,23 @@ export function isCrossSiteWrite(method, headers, expectedOrigins) {
     return false;
 }
 
+// Only origin-based rejections can be fixed by configuration. Fetch Metadata
+// and opaque origins describe the requesting page, so they stay generic.
+export function crossSiteRejectionCode(headers, configured) {
+    const site = headers['sec-fetch-site'];
+    if (site === 'cross-site' || site === 'same-site' || headers.origin === 'null') {
+        return 'FORBIDDEN';
+    }
+    return configured ? 'EXTERNAL_URL_MISMATCH' : 'EXTERNAL_URL_REQUIRED';
+}
+
+export function misnamedExternalUrlVariables(env) {
+    if (env.CADDY_UI_EXTERNAL_URL) {
+        return [];
+    }
+    return MISNAMED_EXTERNAL_URL_VARS.filter(name => env[name]);
+}
+
 export function createCrossSiteMiddleware(publicUrl) {
     const expectedOrigins = new Set();
     if (publicUrl !== undefined && publicUrl !== '') {
@@ -57,7 +76,7 @@ export function createCrossSiteMiddleware(publicUrl) {
 
     return (req, res, next) => {
         if (!isCrossSiteWrite(req.method, req.headers, hasExpected ? expectedOrigins : null)) return next();
-        return sendAppError(res, new AppError('FORBIDDEN', {
+        return sendAppError(res, new AppError(crossSiteRejectionCode(req.headers, hasExpected), {
             message: hasExpected ? 'Rejected cross-site request'
                 : 'Browser-origin writes without same-origin Fetch Metadata require CADDY_UI_EXTERNAL_URL',
             context: {

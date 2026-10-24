@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { diagnosticMiddleware } from '../src/errorReporting.js';
-import { createCrossSiteMiddleware, isCrossSiteWrite } from '../src/middleware/crossSite.js';
+import { createCrossSiteMiddleware, crossSiteRejectionCode, isCrossSiteWrite, misnamedExternalUrlVariables } from '../src/middleware/crossSite.js';
 
 describe('isCrossSiteWrite', () => {
     it.each(['POST', 'PUT', 'PATCH', 'DELETE'])('rejects cross-site and same-site %s', method => {
@@ -104,22 +104,24 @@ describe('crossSiteMiddleware', () => {
     });
 
     it.each([
-        [{ Origin: 'https://attacker.example' }, 403],
-        [{ Origin: 'null', Referer: 'https://ui.example:8443/' }, 403],
-        [{ Referer: 'https://attacker.example/' }, 403],
-        [{ Referer: 'broken' }, 403],
+        [{ Origin: 'https://attacker.example' }, 403, 'EXTERNAL_URL_MISMATCH'],
+        [{ Origin: 'null', Referer: 'https://ui.example:8443/' }, 403, 'FORBIDDEN'],
+        [{ Referer: 'https://attacker.example/' }, 403, 'EXTERNAL_URL_MISMATCH'],
+        [{ Referer: 'broken' }, 403, 'EXTERNAL_URL_MISMATCH'],
         [{ Origin: 'https://ui.example:8443', 'X-Forwarded-Host': 'backend:3001', 'X-Forwarded-Proto': 'http' }, 200],
         [{ Referer: 'https://ui.example:8443/settings' }, 200],
-        [{ Origin: 'http://ui.example:8443' }, 403],
-        [{ Origin: 'https://ui.example' }, 403],
-    ])('checks origin before reaching the route (%j)', async (headers, status) => {
+        [{ Origin: 'http://ui.example:8443' }, 403, 'EXTERNAL_URL_MISMATCH'],
+        [{ Origin: 'https://ui.example' }, 403, 'EXTERNAL_URL_MISMATCH'],
+        [{ Origin: 'https://ui.example', 'Sec-Fetch-Site': 'same-origin' }, 403, 'EXTERNAL_URL_MISMATCH'],
+        [{ Origin: 'https://ui.example:8443', 'Sec-Fetch-Site': 'same-site' }, 403, 'FORBIDDEN'],
+    ])('checks origin before reaching the route (%j)', async (headers, status, code) => {
         writes = 0;
         const response = await fetch(`${baseUrl}/api/caddyfile/reloads`, { method: 'POST', headers });
         expect(response.status).toBe(status);
         expect(writes).toBe(status === 200 ? 1 : 0);
         if (status === 403) {
             const body = await response.json();
-            expect(body.code).toBe('FORBIDDEN');
+            expect(body.code).toBe(code);
             expect(body.requestId).toBe(response.headers.get('x-request-id'));
         }
     });
@@ -130,6 +132,40 @@ describe('crossSiteMiddleware', () => {
         });
         expect(response.status).toBe(200);
         expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    });
+});
+
+describe('crossSiteRejectionCode', () => {
+    it.each([
+        [{ 'sec-fetch-site': 'cross-site', origin: 'https://attacker.example' }, false, 'FORBIDDEN'],
+        [{ 'sec-fetch-site': 'same-site', origin: 'https://ui.example' }, true, 'FORBIDDEN'],
+        [{ origin: 'null' }, false, 'FORBIDDEN'],
+        [{ origin: 'http://192.168.4.87:9877' }, false, 'EXTERNAL_URL_REQUIRED'],
+        [{ referer: 'http://192.168.4.87:9877/' }, false, 'EXTERNAL_URL_REQUIRED'],
+        [{ origin: 'http://192.168.4.87:9877' }, true, 'EXTERNAL_URL_MISMATCH'],
+        [{ origin: 'https://caddy.internal', 'sec-fetch-site': 'same-origin' }, true, 'EXTERNAL_URL_MISMATCH'],
+    ])('classifies %j (configured=%s) as %s', (headers, configured, code) => {
+        expect(crossSiteRejectionCode(headers, configured)).toBe(code);
+    });
+
+    it('tells an unconfigured backend apart from an unlisted origin', async () => {
+        const response = {};
+        const res = { locals: {}, status: status => { response.status = status; return res; }, json: body => { response.body = body; return res; } };
+        createCrossSiteMiddleware(undefined)({ method: 'POST', headers: { origin: 'http://192.168.4.87:9877' } }, res, () => {});
+        expect(response).toEqual({ status: 403, body: expect.objectContaining({ code: 'EXTERNAL_URL_REQUIRED' }) });
+    });
+});
+
+describe('misnamedExternalUrlVariables', () => {
+    it.each([
+        [{ CADDY_EXTERNAL_URL: 'http://192.168.4.87' }, ['CADDY_EXTERNAL_URL']],
+        [{ CADDY_UI_EXTERNAL_URLS: 'https://caddy.internal' }, ['CADDY_UI_EXTERNAL_URLS']],
+        [{ CADDY_EXTERNAL_URL: 'http://a', CADDY_UI_EXTERNAL_URLS: 'http://b' }, ['CADDY_EXTERNAL_URL', 'CADDY_UI_EXTERNAL_URLS']],
+        [{ CADDY_EXTERNAL_URL: 'http://a', CADDY_UI_EXTERNAL_URL: 'http://b' }, []],
+        [{ CADDY_EXTERNAL_URL: '' }, []],
+        [{}, []],
+    ])('reports ignored variables in %j', (env, expected) => {
+        expect(misnamedExternalUrlVariables(env)).toEqual(expected);
     });
 });
 
