@@ -133,6 +133,35 @@ layout.
    both after squash-merging.
 6. Open the PR against `main`; the Test workflow runs automatically.
 
+## Releases
+
+Stable releases are cut by release-please. Every push to `main` updates one open
+release PR (`chore(main): release X.Y.Z`) with the changelog and version so far.
+Merging that PR tags the release, and the Release workflow publishes both images
+with that version.
+
+Merging a feature or fix doesn't mean releasing it right away. Changes reach the
+`edge` images as soon as they land on `main` and accumulate in the release PR
+until it's worth shipping:
+
+- **Cadence:** leave the release PR open until it has enough changes to justify a
+  release. Both maintainers approve it before it's merged. This is a convention,
+  not a branch protection rule.
+- **Before approving:** CI is green on `main` and the changes have been running
+  on `edge`.
+- **Urgent fixes:** `main` is always releasable. If a fix for a security
+  vulnerability, configuration loss or a major regression can't wait, merge the
+  release PR early. It ships everything already on `main`; there are no
+  maintenance branches or backports, so only merge changes that are ready to
+  ship.
+- **What triggers a release:** `feat:`, `fix:`, `perf:`, `refactor:`, `revert:`
+  and `chore:` commits, and any breaking change marked with `!`. `docs:`,
+  `build:`, `ci:`, `test:` and `style:` don't, so use them for changes that
+  don't affect a published image.
+- **Versions:** release-please picks the major, minor or patch bump from the
+  commit types. Every release tags the backend and frontend images with the same
+  version; see [published release images](building.md#published-release-images).
+
 ## Browser-origin security checks
 
 The focused Chromium suite needs backend and dev dependencies plus a Playwright
