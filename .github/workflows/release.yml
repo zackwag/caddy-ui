@@ -101,6 +101,7 @@ jobs:
         with:
           context: ${{ steps.context.outputs.path }}
           push: true
+          pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -148,6 +149,7 @@ jobs:
         with:
           context: ${{ steps.context.outputs.path }}
           push: true
+          pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
