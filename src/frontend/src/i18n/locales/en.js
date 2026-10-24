@@ -78,6 +78,7 @@ export default {
         operationWarning: 'The operation completed with warnings. See the application logs.',
         configVerificationMismatch: 'Reading the configuration back after this change found differences. Another process may have changed it, so review the Caddyfile before saving again.',
         configVerificationUnavailable: 'The configuration could not be read back to confirm this change. See the application logs.',
+        caddyApplyUncertain: 'Caddy didn\'t confirm this change in time, so it may still apply. The Caddyfile was saved; check the running configuration before trying again.',
         viewLogs: 'View logs',
         caddyfileReadFailed: 'Could not read the Caddyfile.',
         caddyfileWriteFailed: 'Could not write the Caddyfile. Nothing was changed.',

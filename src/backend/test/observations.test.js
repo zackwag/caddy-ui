@@ -3,7 +3,7 @@ import { createServer as createHttpServer } from 'node:http';
 import { createServer as createTcpServer } from 'node:net';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { caddyLoad } from '../src/caddy.js';
+import { CaddyTimeoutError, caddyLoad, configGeneration, setRequestTimeout } from '../src/caddy.js';
 import { clearObservations, getServers, OBSERVATION_MAX_AGE_MS } from '../src/observations.js';
 import healthRouter from '../src/routes/health.js';
 import statusRouter from '../src/routes/status.js';
@@ -47,10 +47,29 @@ async function fakeCaddy(upstream) {
             res.writeHead(400).end('invalid configuration');
             return;
         }
+        if (req.url === '/load' && caddy.nextLoad) {
+            const hold = caddy.nextLoad;
+            caddy.nextLoad = null;
+            hold(status => res.writeHead(status).end());
+            return;
+        }
         res.writeHead(req.url === '/load' ? 200 : 404).end();
     });
     caddy.adminUrl = `http://127.0.0.1:${await listen(caddy.server)}`;
     return caddy;
+}
+
+// Hold the next /load until released with a status, so it can outlast the
+// request timeout and then succeed or fail.
+function holdNextLoad(caddy) {
+    let respond;
+    let markStarted;
+    const started = new Promise(resolve => { markStarted = resolve; });
+    caddy.nextLoad = finish => {
+        respond = finish;
+        markStarted();
+    };
+    return { started, release: status => respond?.(status) };
 }
 
 // Hold a response after its snapshot is captured, without timing-based sleeps.
@@ -237,5 +256,66 @@ describe('shared configuration and upstream observations', () => {
         await Promise.all([get('/status', 0), get('/status', 1)]);
         expect(caddies.map(c => c.configReads)).toEqual([1, 1]);
         expect(dials).toBe(2);
+    });
+});
+
+describe('configuration writes that outlast their timeout', () => {
+    beforeEach(() => setRequestTimeout(50));
+    afterEach(() => setRequestTimeout(10000));
+
+    // Releases a held write and resolves once its settlement has invalidated
+    // observations, which happens in the background after the caller timed out.
+    const settle = async (held, status) => {
+        const before = configGeneration(caddy.adminUrl);
+        held.release(status);
+        for (let attempt = 0; attempt < 100 && configGeneration(caddy.adminUrl) === before; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 5));
+        }
+        expect(configGeneration(caddy.adminUrl)).toBeGreaterThan(before);
+    };
+
+    it.each([
+        { outcome: 'succeeds', status: 200 },
+        { outcome: 'fails', status: 500 },
+    ])('reads fresh config once a timed-out write later $outcome', async ({ status }) => {
+        await getServers(caddy.adminUrl);
+        const held = holdNextLoad(caddy);
+        const load = caddyLoad('example.com {\n}\n', caddy.adminUrl);
+        await held.started;
+        await expect(load).rejects.toBeInstanceOf(CaddyTimeoutError);
+
+        // A read between the timeout and settlement sees the old config, and
+        // is reused until the write settles.
+        const between = await getServers(caddy.adminUrl);
+        expect(between.srv0.routes).toHaveLength(1);
+        const readsBefore = caddy.configReads;
+        expect(await getServers(caddy.adminUrl)).toBe(between);
+        expect(caddy.configReads).toBe(readsBefore);
+
+        // Caddy applies (or partly applies) the write after the timeout.
+        caddy.hasRoute = false;
+        await settle(held, status);
+        expect((await getServers(caddy.adminUrl)).srv0.routes).toEqual([]);
+    });
+
+    it('never lets a read from before the late settlement replace a newer one', async () => {
+        const held = holdNextLoad(caddy);
+        const load = caddyLoad('example.com {\n}\n', caddy.adminUrl);
+        await held.started;
+        await expect(load).rejects.toBeInstanceOf(CaddyTimeoutError);
+        // Only the write should time out; this read stays held on purpose.
+        setRequestTimeout(10000);
+
+        const heldRead = holdNextConfigRead(caddy);
+        const older = getServers(caddy.adminUrl);
+        await heldRead.started;
+        caddy.hasRoute = false;
+        await settle(held, 200);
+        const newer = await getServers(caddy.adminUrl);
+        expect(newer.srv0.routes).toEqual([]);
+
+        heldRead.release();
+        expect((await older).srv0.routes).toHaveLength(1);
+        expect(await getServers(caddy.adminUrl)).toBe(newer);
     });
 });

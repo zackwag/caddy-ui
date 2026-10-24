@@ -10,6 +10,8 @@ import logger from './logger.js';
 // - unavailable: the readback couldn't be made or interpreted
 // - not-applied: the change deliberately wasn't applied (force save)
 // - unchanged: the operation didn't touch this representation
+// - uncertain: applying timed out and the readback didn't show it applied yet;
+//   Caddy may still apply or reject it
 // A failed check is reported, never retried or repaired: the difference may be
 // someone else's change.
 export const VERIFIED = 'verified';
@@ -17,6 +19,7 @@ export const MISMATCH = 'mismatch';
 export const UNAVAILABLE = 'unavailable';
 export const NOT_APPLIED = 'not-applied';
 export const UNCHANGED = 'unchanged';
+export const UNCERTAIN = 'uncertain';
 
 // Names a failure without its message, which can quote configuration.
 function describeError(error) {
@@ -109,8 +112,21 @@ export function verifyLiveObjectRemoved({ id, adminUrl }, objectId) {
     }));
 }
 
+// The readback after applying timed out: it only settles the question when
+// the config already matches. Anything else stays uncertain, since the write
+// may still complete.
+export async function verifyAfterTimeout(verify) {
+    return await verify() === VERIFIED ? VERIFIED : UNCERTAIN;
+}
+
 // The most significant warning for a verification result, if any.
 export function verificationWarning({ file, live }) {
+    if (live === UNCERTAIN) {
+        return {
+            warning: 'Caddy didn\'t confirm the change in time. It may still apply.',
+            warningCode: 'CADDY_APPLY_UNCERTAIN',
+        };
+    }
     if (file === MISMATCH || live === MISMATCH) {
         return {
             warning: 'Reading the configuration back after this change found differences. Another process may have changed it.',

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { AppError, asAppError } from '../AppError.js';
-import { caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
+import { CaddyTimeoutError, caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 import { caddyfileEntries, matchesSiteAddress } from '../caddyfileBlocks.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
@@ -16,7 +16,7 @@ import {
 import { getBackendUrl } from '../dockerDiscovery.js';
 import { getServers } from '../observations.js';
 import { validateContainerName, validatePath } from '../validation.js';
-import { UNCHANGED, verificationWarning, verifyLiveObject, verifyLiveObjectRemoved } from '../configVerification.js';
+import { UNCHANGED, verificationWarning, verifyAfterTimeout, verifyLiveObject, verifyLiveObjectRemoved } from '../configVerification.js';
 import { changeResultFields, queueCaddyfileChange, saveCaddyfileChange } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
 
@@ -250,6 +250,18 @@ router.delete('/caddyfile/:domain', async (req, res) => {
     }
 });
 
+// An admin API change with no Caddyfile counterpart, read back afterwards. A
+// timeout isn't retried: the change may still apply.
+async function applyAdminOnly(apply, verify) {
+    try {
+        await apply();
+    } catch (error) {
+        if (error instanceof CaddyTimeoutError) return verifyAfterTimeout(verify);
+        throw error;
+    }
+    return verify();
+}
+
 // PATCH /api/routes/:id -- update a UI-managed route (@id exists)
 router.patch('/:id', async (req, res) => {
     const { id } = req.params;
@@ -269,8 +281,7 @@ router.patch('/:id', async (req, res) => {
             catch { logger.warn('Could not fetch old route for update', { id }); }
             const verify = () => verifyLiveObject(req.instance, id, route);
             if (!oldDomain) {
-                await patchLive();
-                const verification = { file: UNCHANGED, live: await verify() };
+                const verification = { file: UNCHANGED, live: await applyAdminOnly(patchLive, verify) };
                 return { applied: true, verification, ...verificationWarning(verification) };
             }
             return save(async previous => {
@@ -301,8 +312,7 @@ router.delete('/:id', async (req, res) => {
             catch { logger.warn('Could not fetch route for deletion', { id }); }
             const verify = () => verifyLiveObjectRemoved(req.instance, id);
             if (!domain) {
-                await deleteLive();
-                const verification = { file: UNCHANGED, live: await verify() };
+                const verification = { file: UNCHANGED, live: await applyAdminOnly(deleteLive, verify) };
                 return { applied: true, verification, ...verificationWarning(verification) };
             }
             return save(async previous => removeSiteBlock(previous || '', domain, await getCaddyEnv(req.instance.containerName)),

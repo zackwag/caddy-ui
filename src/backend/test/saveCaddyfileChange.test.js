@@ -56,6 +56,7 @@ const { getMaintenanceState } = await import('../src/maintenance.js');
 const { readContainerFile } = await import('../src/containerFs.js');
 const { default: logger } = await import('../src/logger.js');
 const { firstDifference } = await import('../src/configVerification.js');
+const { CaddyTimeoutError } = await import('../src/caddy.js');
 afterAll(async () => {
     await rm(process.env.HISTORY_PATH, { recursive: true, force: true });
     await rm(process.env.MAINTENANCE_PATH, { force: true });
@@ -451,6 +452,63 @@ describe('API save paths', () => {
             expect(result.verification).toEqual(verified);
             expect(execInInstance.mock.calls.map(([, , args]) => args[0])).toEqual(['reload', 'adapt']);
             expect(caddyAdapt).not.toHaveBeenCalled();
+        });
+
+        describe('when applying times out', () => {
+            const timeout = () => new CaddyTimeoutError('POST /load', 10000);
+            const latestHistory = async () => (await createCaddyfileHistory(process.env.HISTORY_PATH).list('default'))[0];
+
+            it('keeps the new file, reports an uncertain outcome and records it as unknown', async () => {
+                caddyLoad.mockRejectedValueOnce(timeout());
+                const { status, body } = await editorSave('slow.example.com {\n}\n');
+                expect(status).toBe(200);
+                expect(body).toMatchObject({ ok: true, warningCode: 'CADDY_APPLY_UNCERTAIN',
+                    verification: { file: 'verified', live: 'uncertain' } });
+                expect(files.get(instance.configPath)).toBe('slow.example.com {\n}\n');
+                expect(caddyLoad).toHaveBeenCalledTimes(1);
+                expect((await latestHistory()).outcome).toBe('unknown');
+            });
+
+            it('confirms the change when the readback already shows it applied', async () => {
+                caddyLoad.mockImplementationOnce(async content => { await load(content); throw timeout(); });
+                const { body } = await editorSave('slow.example.com {\n}\n');
+                expect(body.verification).toEqual(verified);
+                expect(body.warningCode).toBeUndefined();
+            });
+
+            it('keeps the file even when rollback was requested, and never falls back to caddy reload', async () => {
+                const docker = { ...instance, id: 'docker-mode', containerName: 'caddy' };
+                caddyLoad.mockRejectedValueOnce(timeout());
+                const result = await saveCaddyfileChange(docker, 'slow.example.com {\n}\n');
+                expect(result).toMatchObject({ applied: false, uncertain: true, verification: { live: 'uncertain' } });
+                expect(execInInstance).not.toHaveBeenCalledWith('caddy', 'caddy', expect.arrayContaining(['reload']));
+                expect(files.get(instance.configPath)).toBe('slow.example.com {\n}\n');
+            });
+
+            it('keeps a route whose admin API change timed out', async () => {
+                live.servers = servers;
+                caddyPost.mockRejectedValueOnce(new CaddyTimeoutError('POST /config/apps/http/servers/srv0/routes', 10000));
+                const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
+                expect(status).toBe(201);
+                expect(body).toMatchObject({ warningCode: 'CADDY_APPLY_UNCERTAIN', verification: { file: 'verified', live: 'uncertain' } });
+                expect(files.get(instance.configPath)).toContain('app.example.com {');
+                expect(caddyPost).toHaveBeenCalledTimes(1);
+            });
+
+            it('records maintenance state for a timed-out change it kept', async () => {
+                caddyLoad.mockRejectedValueOnce(timeout());
+                const { body } = await send('POST', '/routes/caddyfile/old.example.com/maintenance');
+                expect(body.warningCode).toBe('CADDY_APPLY_UNCERTAIN');
+                expect(getMaintenanceState('default')['old.example.com'].originalContent).toContain('old.example.com {');
+                expect((await send('DELETE', '/routes/caddyfile/old.example.com/maintenance')).status).toBe(200);
+            });
+
+            it('reports a reload from disk that timed out as uncertain', async () => {
+                caddyLoad.mockRejectedValueOnce(timeout());
+                const { status, body } = await send('POST', '/caddyfile/reloads');
+                expect(status).toBe(200);
+                expect(body).toMatchObject({ warningCode: 'CADDY_APPLY_UNCERTAIN', verification: { file: 'unchanged', live: 'uncertain' } });
+            });
         });
 
         it('keeps a force-saved file Caddy rejected distinct from applied configuration', async () => {

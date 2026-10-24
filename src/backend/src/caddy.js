@@ -7,7 +7,25 @@ const HEADERS = {
     'Origin': 'http://0.0.0.0:2019',
 };
 
-const TIMEOUT_MS = 10000;
+let timeoutMs = 10000;
+// How long a write that already timed out may keep running before caddy-ui
+// stops waiting for it. Stopping doesn't prove Caddy didn't apply it.
+const LATE_SETTLEMENT_LIMIT_MS = 60000;
+
+// For tests, which can't wait for the real timeout.
+export function setRequestTimeout(ms) {
+    timeoutMs = ms;
+}
+
+// Caddy didn't answer in time. The request may still complete, so callers must
+// treat the outcome as unknown: neither applied nor rejected, and not retried.
+export class CaddyTimeoutError extends Error {
+    constructor(label, ms) {
+        super(`Caddy API timeout after ${ms}ms: ${label}`);
+        this.name = 'CaddyTimeoutError';
+        this.code = 'CADDY_TIMEOUT';
+    }
+}
 
 // Counts configuration writes per admin API, so observations.js can tell a
 // read that may predate a write from one that can't. Bumped once a write
@@ -24,11 +42,33 @@ export function markConfigChanged(adminUrl) {
     configGenerations.set(base, configGeneration(base) + 1);
 }
 
+// A configuration write as a fetch whose settlement, however late, invalidates
+// observations again. A write that timed out can still complete in Caddy, and
+// reads made in between would otherwise keep the old config until they expire.
+function configWrite(base, label, url, options) {
+    const request = fetch(url, { ...options, signal: AbortSignal.timeout(LATE_SETTLEMENT_LIMIT_MS) });
+    const tracked = { timedOut: false };
+    request.then(
+        response => {
+            markConfigChanged(base);
+            if (tracked.timedOut) logger.warn('Caddy write completed after its timeout', { label, adminUrl: base, status: response.status });
+        },
+        error => {
+            markConfigChanged(base);
+            if (tracked.timedOut) logger.warn('Caddy write failed after its timeout', { label, adminUrl: base, error: error.name });
+        },
+    );
+    return withTimeout(request, timeoutMs, label).catch(error => {
+        if (error instanceof CaddyTimeoutError) tracked.timedOut = true;
+        throw error;
+    });
+}
+
 export function withTimeout(promise, ms, label) {
     return Promise.race([
         promise,
         new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Caddy API timeout after ${ms}ms: ${label}`)), ms)
+            setTimeout(() => reject(new CaddyTimeoutError(label, ms)), ms)
         ),
     ]);
 }
@@ -40,15 +80,11 @@ async function caddyRequest(method, path, body, adminUrl) {
     logger.debug(`Caddy API request`, { method, path, adminUrl: base });
 
     try {
-        const res = await withTimeout(
-            fetch(url, {
-                method,
-                headers: HEADERS,
-                body: body !== undefined ? JSON.stringify(body) : undefined,
-            }),
-            TIMEOUT_MS,
-            `${method} ${path}`
-        );
+        const options = { method, headers: HEADERS, body: body !== undefined ? JSON.stringify(body) : undefined };
+        const label = `${method} ${path}`;
+        const res = method === 'GET'
+            ? await withTimeout(fetch(url, options), timeoutMs, label)
+            : await configWrite(base, label, url, options);
 
         const elapsed = Date.now() - start;
 
@@ -111,7 +147,7 @@ export async function caddyAdapt(caddyfileContent, adminUrl) {
             body: caddyfileContent,
             signal: AbortSignal.timeout(TIMEOUT_MS),
         }),
-        TIMEOUT_MS,
+        timeoutMs,
         'POST /adapt'
     );
     const text = await res.text();
@@ -128,15 +164,11 @@ export async function caddyLoad(caddyfileContent, adminUrl) {
     logger.info(`Caddy reload initiated`, { adminUrl: base });
 
     try {
-        const res = await withTimeout(
-            fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
-                body: caddyfileContent,
-            }),
-            TIMEOUT_MS,
-            'POST /load'
-        );
+        const res = await configWrite(base, 'POST /load', url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
+            body: caddyfileContent,
+        });
 
         const elapsed = Date.now() - start;
 
