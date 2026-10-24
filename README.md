@@ -593,8 +593,8 @@ Both images are required. The frontend serves the UI and proxies requests to the
 | `edge` | Most recent successful build from `main`; may contain unreleased changes. Beta builds do not update this tag |
 
 These tags are mutable and advance independently for each image. Stable release
-tags and `latest` are published by the release workflow; beta builds update only
-`beta` and its version records.
+tags and `latest` are published by the release workflow; beta builds publish only
+the `beta` image tag and update only beta version records.
 
 See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
 for versioned image tags and release notes.

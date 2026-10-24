@@ -35,6 +35,7 @@ npm run lint --prefix src/frontend -- --max-warnings=0
 # Shared development tooling
 npm run lint:dev-caddy
 npm run test:dev-caddy              # harness/lifecycle/readiness tests, no Docker
+npm run test:workflows              # publication workflow contracts
 npm run test:dev-caddy:integration  # real Caddy, backend API and startup scenarios
 npm exec --prefix dev -- playwright install chromium
 npm run test:dev-caddy:e2e          # isolated browser scenarios
@@ -83,4 +84,4 @@ ES modules throughout (`type: "module"` in package manifests), 4-space indentati
 
 ## Commit / PR conventions
 
-PR titles use Conventional Commit prefixes (`feat:`, `fix:`, `build:`, `test:`, …) — see `git log` for examples. CI (`.github/workflows/test.yml`) tests and lints both application packages and runs shared tooling lint, lifecycle safety, real-Caddy integration and Chromium scenarios through the root commands. Its aggregate `Test` check includes the integration job.
+PR titles use Conventional Commit prefixes (`feat:`, `fix:`, `build:`, `test:`, …) — see `git log` for examples. CI (`.github/workflows/test.yml`) tests and lints both application packages and runs shared tooling lint, lifecycle safety, publication workflow contracts (`npm run test:workflows`), real-Caddy integration and Chromium scenarios through the root commands. Its aggregate `Test` check includes the integration job. Run `npm run test:workflows` when changing publication workflows or their regression checks.
