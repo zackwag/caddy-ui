@@ -18,6 +18,17 @@ for (const component of ['backend', 'frontend']) {
     });
 }
 
+test('package manifests do not declare a different Node runtime', () => {
+    const manifests = ['package.json', 'src/backend/package.json', 'src/frontend/package.json', 'dev/package.json', 'docs/package.json'];
+    for (const manifest of manifests) {
+        const engines = JSON.parse(readFileSync(new URL(manifest, root), 'utf8')).engines;
+        if (engines?.node === undefined) {
+            continue;
+        }
+        assert.equal(engines.node, `>=${version}`, `${manifest}: omit engines.node or require the .node-version major`);
+    }
+});
+
 test('workflow Node setup consistently reads the production runtime file', () => {
     const directory = new URL('.github/workflows/', root);
     let setups = 0;

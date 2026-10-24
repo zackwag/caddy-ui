@@ -96,8 +96,10 @@ includes both application tests and the real-service/browser integration job.
 
 When upgrading the production Node major, update `.node-version` and the Node
 stages in both Dockerfiles together, run the checks on that runtime, and update
-the setup instructions. `test:workflows` rejects mismatched Docker Node stages or
-workflow setup that overrides the shared version. GitHub Actions' own internal
+the setup instructions. `test:workflows` rejects mismatched Docker Node stages,
+workflow setup that overrides the shared version, and package `engines.node`
+fields that don't require that major. Package manifests don't need an `engines`
+field; `.node-version` is the source of truth. GitHub Actions' own internal
 JavaScript runtimes are managed by the actions and are separate from this policy.
 
 ## Verifying UI changes

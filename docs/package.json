@@ -2,9 +2,6 @@
     "name": "caddy-ui-documentation",
     "private": true,
     "type": "module",
-    "engines": {
-        "node": ">=24"
-    },
     "scripts": {
         "test": "node --test scripts/*.test.mjs",
         "test:screenshots": "node --test screenshots/capture.integration.mjs"
