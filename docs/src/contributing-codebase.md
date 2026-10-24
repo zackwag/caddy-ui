@@ -151,3 +151,47 @@ that Fetch Metadata is actually absent, forged fetches/forms never reach the
 write handler, and configured same-origin HTTP writes still work. Each case owns
 its browser and servers and closes them on completion or failure. Backend policy
 and route assertions also run with `npm test --prefix src/backend`.
+
+## Configuration reads during writes
+
+`src/backend/src/observations.js` shares short-lived reads of each instance's
+HTTP server configuration (`/config/apps/http/servers`) and the upstream checks
+built from it, so route handlers and monitors don't each call the admin API. A
+settled result is reused for up to `OBSERVATION_MAX_AGE_MS` (5 seconds).
+
+Writes through caddy-ui invalidate those results. `caddy.js` bumps a
+per-instance generation (`markConfigChanged`) when a non-GET admin request or
+`caddyLoad` settles, and `routes/caddyfile.js` does the same after its
+`caddy reload` fallback. The bump happens whether the write succeeds or fails,
+because a failed write may have applied partially.
+
+The contract for reads that overlap a write, agreed in
+[#347](https://github.com/zackwag/caddy-ui/issues/347):
+
+- **Overlapping read:** a read that started before the write settled may return
+  the configuration from before the write. Callers get that snapshot as is; it
+  isn't revalidated or retried.
+- **Read after invalidation:** a read that starts after the write settled always
+  collects fresh configuration, even while an older read is still in flight.
+- **No regression:** an older read never replaces or evicts the newer cached
+  result, whether it succeeds or fails. Upstream checks never outlive the
+  configuration they were collected from.
+- **External changes:** writes made outside caddy-ui, such as another admin API
+  client, aren't tracked. They show up once the cached result is older than
+  `OBSERVATION_MAX_AGE_MS`.
+
+Stronger ordering, such as revalidating every in-flight read after a write, is
+intentionally out of scope. Late completion of a write that timed out is tracked
+in [#348](https://github.com/zackwag/caddy-ui/issues/348).
+
+These tests in `src/backend/test/observations.test.js` protect the contract:
+
+| Guarantee | Test |
+| --- | --- |
+| Fresh read after a successful write | `reads again after a configuration write, however recent the last read` |
+| Fresh read after a failed write | `reads again after a failed configuration write, which may have applied partially` |
+| Overlapping reads return their snapshot without displacing newer results | `keeps the newer config cached when an older pre-write read succeeds` and `... fails` |
+| Upstream checks expire with their source configuration | `refreshes upstream checks when their older source config expires` |
+| Failed reads aren't reused | `does not reuse a failed read, so recovery shows on the next request` |
+
+Update this section and those tests together if the contract changes.
