@@ -55,7 +55,7 @@ async function caddyRequest(method, path, body, adminUrl) {
         if (!res.ok) {
             const text = await res.text();
             logger.error(`Caddy API error`, { method, path, status: res.status, elapsed, body: text.slice(0, 200) });
-            throw new Error(`Caddy API error: ${res.status} ${text}`);
+            throw Object.assign(new Error(`Caddy API error: ${res.status} ${text}`), { status: res.status });
         }
 
         logger.debug(`Caddy API response`, { method, path, status: res.status, elapsed });
@@ -78,6 +78,27 @@ export const caddyPut = (path, body, adminUrl) => caddyRequest('PUT', path, body
 export const caddyPost = (path, body, adminUrl) => caddyRequest('POST', path, body, adminUrl);
 export const caddyPatch = (path, body, adminUrl) => caddyRequest('PATCH', path, body, adminUrl);
 export const caddyDelete = (path, adminUrl) => caddyRequest('DELETE', path, undefined, adminUrl);
+
+// Adapts Caddyfile text to JSON the same way POST /load does, without
+// changing the running config. Rejections carry Caddy's message as `stderr`
+// so validation can report it like `caddy adapt` output.
+export async function caddyAdapt(caddyfileContent, adminUrl) {
+    const base = adminUrl || CADDY_ADMIN_URL;
+    const res = await withTimeout(
+        fetch(`${base}/adapt?adapter=caddyfile`, {
+            method: 'POST',
+            headers: { ...HEADERS, 'Content-Type': 'text/caddyfile' },
+            body: caddyfileContent,
+        }),
+        TIMEOUT_MS,
+        'POST /adapt'
+    );
+    const text = await res.text();
+    if (!res.ok) {
+        throw Object.assign(new Error(text), { status: res.status, stderr: text, stdout: '' });
+    }
+    return JSON.parse(text).result;
+}
 
 export async function caddyLoad(caddyfileContent, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;

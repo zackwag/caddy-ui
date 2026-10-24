@@ -24,7 +24,7 @@ vi.mock('../src/routes/caddyfile.js', () => ({
         await onApplied?.();
         return { applied: true };
     }),
-    historyWarning: () => ({}),
+    changeResultFields: () => ({}),
 }));
 vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getActor: () => null }) }));
 vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));

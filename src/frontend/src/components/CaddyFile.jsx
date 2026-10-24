@@ -326,15 +326,17 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
             const fresh = await apiFetch("/caddyfile", {}, onUnauth);
             setContent(fresh); setOriginal(fresh);
-            if (result?.warning) toast.info(t('errors.operationWarning'), result);
-            else toast.success(t("caddyfile.savedReloaded"));
+            notifyConfigurationSave(toast, t, result, t("caddyfile.savedReloaded"));
             if (historyOpen) loadHistory(true);
         } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSaving(false); }
     };
 
     const reload = async () => {
-        try { await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth); toast.success(t("caddyfile.reloadedFromDisk")); }
+        try {
+            const result = await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth);
+            notifyConfigurationSave(toast, t, result, t("caddyfile.reloadedFromDisk"));
+        }
         catch (e) { toast.error(localizeError(e, t), e); }
     };
 

@@ -76,6 +76,8 @@ export default {
         metricsUnavailable: 'Metrics are temporarily unavailable.',
         validationWarning: 'Validation completed with warnings. See the application logs.',
         operationWarning: 'The operation completed with warnings. See the application logs.',
+        configVerificationMismatch: 'Reading the configuration back after this change found differences. Another process may have changed it, so review the Caddyfile before saving again.',
+        configVerificationUnavailable: 'The configuration could not be read back to confirm this change. See the application logs.',
         viewLogs: 'View logs',
         caddyfileReadFailed: 'Could not read the Caddyfile.',
         caddyfileWriteFailed: 'Could not write the Caddyfile. Nothing was changed.',

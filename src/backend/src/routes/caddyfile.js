@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { mkdir, readdir, rename } from 'fs/promises';
 import { dirname, join } from 'path';
-import { caddyLoad, markConfigChanged, withTimeout } from '../caddy.js';
+import { caddyAdapt, caddyLoad, markConfigChanged } from '../caddy.js';
 import { describeReadError, readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
 import { execInInstance } from '../docker.js';
 import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
@@ -11,6 +11,7 @@ import { sendAppError } from '../errorReporting.js';
 import { createCaddyfileHistory } from '../caddyfileHistory.js';
 import { getAuthentication } from '../middleware/auth.js';
 import { caddyfileEntries, trailingComments } from '../caddyfileBlocks.js';
+import { NOT_APPLIED, UNCHANGED, verificationWarning, verifyFile, verifyLiveConfig } from '../configVerification.js';
 
 const router = Router();
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
@@ -74,8 +75,6 @@ async function fmtCaddyfile(content, containerName) {
     }
 }
 
-const ADAPT_TIMEOUT_MS = 10000;
-
 // Distinguish "Docker/caddy binary isn't reachable from this container" from a
 // genuine Caddyfile error reported by `caddy adapt`.
 function isDockerUnavailable(err) {
@@ -86,22 +85,7 @@ function isDockerUnavailable(err) {
 }
 
 async function adaptViaAdminApi(content, adminUrl) {
-    const res = await withTimeout(
-        fetch(`${adminUrl}/adapt?adapter=caddyfile`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
-            body: content,
-        }),
-        ADAPT_TIMEOUT_MS,
-        'POST /adapt'
-    );
-    if (!res.ok) {
-        const text = await res.text();
-        const err = new Error(text);
-        err.stderr = text;
-        err.stdout = '';
-        throw err;
-    }
+    return caddyAdapt(content, adminUrl);
 }
 
 // Adapt through the caddy binary in the Caddy container, writing the buffer to a
@@ -115,7 +99,8 @@ async function adaptViaCaddyBinary(content, configPath, containerName) {
     const tmp = join(dirname(configPath), `.caddy-ui-adapt-${process.pid}-${Date.now()}.tmp`);
     await writeContainerFile(containerName, tmp, content);
     try {
-        await execInInstance(containerName, 'caddy', ['adapt', '--config', tmp, '--adapter', 'caddyfile']);
+        const { stdout } = await execInInstance(containerName, 'caddy', ['adapt', '--config', tmp, '--adapter', 'caddyfile']);
+        return stdout;
     } finally {
         await removeContainerPath(containerName, tmp).catch(() => { });
     }
@@ -147,10 +132,12 @@ async function reloadViaCaddyBinary(configPath, containerName, adminUrl) {
     }
 }
 
+// Resolves to how the config was applied, 'admin' or 'binary', so verification
+// can adapt the same way.
 async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
     try {
         await caddyLoad(content, adminUrl);
-        return;
+        return 'admin';
     } catch (loadErr) {
         // In local mode the bundled binary would resolve {$VAR} placeholders
         // from caddy-ui's environment rather than Caddy's, and it would post to
@@ -159,7 +146,7 @@ async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
         try {
             await reloadViaCaddyBinary(configPath, containerName, adminUrl);
             logger.info('Caddy reloaded via caddy binary (admin /load failed)');
-            return;
+            return 'binary';
         } catch (caddyErr) {
             if (isDockerUnavailable(caddyErr)) throw loadErr;
             throw caddyErr;
@@ -197,6 +184,10 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 // new file in place and resolves to { applied: false, error }.
 // Function changes run inside the queue against the latest file. Post-apply
 // history failures return warning fields rather than rejecting an applied edit.
+// The result's `verification` reads back the file and the live config (see
+// configVerification.js). A custom `apply` must pass `verify`, which checks
+// the part of the live config it changed; a reload checks the whole config.
+// Verification never rejects a saved change: it adds warning fields.
 function saveCaddyfileChange(instance, content, options = {}) {
     return queueCaddyfileChange(instance, save => save(content, options));
 }
@@ -210,7 +201,25 @@ function queueCaddyfileChange(instance, operation) {
     return queued;
 }
 
-async function applyCaddyfileChange(instance, change, { apply, onApplied, rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
+function adaptedConfig(content, instance, via) {
+    if (via === 'binary') {
+        return async () => JSON.parse(await adaptViaCaddyBinary(content, instance.configPath, instance.containerName));
+    }
+    return () => caddyAdapt(content, instance.adminUrl);
+}
+
+async function verifyChange(instance, content, { applied, via, verify }) {
+    const file = await verifyFile(instance, content);
+    if (!applied) {
+        return { file, live: NOT_APPLIED };
+    }
+    return { file, live: verify ? await verify() : await verifyLiveConfig(instance, adaptedConfig(content, instance, via)) };
+}
+
+async function applyCaddyfileChange(instance, change, { apply, verify, onApplied, rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
+    if (apply && !verify) {
+        throw new TypeError('A custom apply must say how to verify it');
+    }
     const { configPath, containerName, id } = instance;
     const context = { instanceId: id, configPath };
     const previous = await readPreviousCaddyfile(configPath, containerName);
@@ -237,9 +246,10 @@ async function applyCaddyfileChange(instance, change, { apply, onApplied, rollba
     }
 
     let result;
+    let via = null;
     try {
         if (apply) await apply(content);
-        else await reloadCaddy(content, instance);
+        else via = await reloadCaddy(content, instance);
         result = { applied: true };
     } catch (err) {
         if (!rollback) result = { applied: false, error: err };
@@ -250,18 +260,37 @@ async function applyCaddyfileChange(instance, change, { apply, onApplied, rollba
         }
     }
     if (result.applied && onApplied) await onApplied();
+    result.verification = await verifyChange(instance, content, { applied: result.applied, via, verify });
+    const warnings = [];
     try { await history.record(id, content, { actor, action, outcome: result.applied ? 'applied' : 'saved-unapplied' }); }
     catch (cause) {
-        result.warning = 'The Caddyfile was saved, but its history version could not be recorded.';
-        result.warningCode = 'CADDYFILE_HISTORY_COMMIT_FAILED';
+        warnings.push({ warning: 'The Caddyfile was saved, but its history version could not be recorded.', warningCode: 'CADDYFILE_HISTORY_COMMIT_FAILED' });
         logger.warn('Could not record saved Caddyfile history', { ...context, applied: result.applied,
-            code: result.warningCode, error: cause.message });
+            code: 'CADDYFILE_HISTORY_COMMIT_FAILED', error: cause.message });
+    }
+    const verificationIssue = verificationWarning(result.verification);
+    if (verificationIssue) {
+        // A mismatch outranks a history failure: the running config may not be
+        // what the user saved.
+        if (verificationIssue.warningCode === 'CONFIG_VERIFICATION_MISMATCH') {
+            warnings.unshift(verificationIssue);
+        } else {
+            warnings.push(verificationIssue);
+        }
+    }
+    if (warnings.length) {
+        result.warning = warnings.map(entry => entry.warning).join(' ');
+        result.warningCode = warnings[0].warningCode;
     }
     return result;
 }
 
-function historyWarning(result) {
-    return result?.warning ? { warning: result.warning, warningCode: result.warningCode } : {};
+// Response fields for a saved change: any warning and the verification result.
+function changeResultFields(result) {
+    return {
+        ...(result?.warning ? { warning: result.warning, warningCode: result.warningCode } : {}),
+        ...(result?.verification ? { verification: result.verification } : {}),
+    };
 }
 
 function parseSiteBlocks(content) {
@@ -403,11 +432,16 @@ router.post('/validations', async (req, res) => {
 });
 
 // POST /api/caddyfile/reloads
+// Queued with saves, so its readback can't observe another change mid-write.
 router.post('/reloads', async (req, res) => {
     logger.info(`Caddyfile reload requested`);
-    const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
-    await reloadCaddy(content, req.instance);
-    res.json({ ok: true, message: 'Caddy reloaded from disk' });
+    const result = await queueCaddyfileChange(req.instance, async () => {
+        const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
+        const via = await reloadCaddy(content, req.instance);
+        const verification = { file: UNCHANGED, live: await verifyLiveConfig(req.instance, adaptedConfig(content, req.instance, via)) };
+        return { verification, ...verificationWarning(verification) };
+    });
+    res.json({ ok: true, message: 'Caddy reloaded from disk', ...changeResultFields(result) });
 });
 
 // PUT /api/caddyfile
@@ -479,14 +513,14 @@ router.put('/', async (req, res) => {
         return res.json({
             ok: true,
             message: 'Caddyfile written to disk. Caddy reload failed — changes apply on the next restart or manual reload.',
-            ...historyWarning(result),
+            ...changeResultFields(result),
             warning: [result.error.message, result.warning].filter(Boolean).join(' '),
         });
     }
 
     logger.info(`Caddyfile saved`, { bytes: final.length });
-    res.json({ ok: true, message: 'Caddyfile saved and reloaded', ...historyWarning(result) });
+    res.json({ ok: true, message: 'Caddyfile saved and reloaded', ...changeResultFields(result) });
 });
 
 export default router;
-export { historyWarning, migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, queueCaddyfileChange, saveCaddyfileChange, sortCaddyfile, validateCaddyfile };
+export { changeResultFields, migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, queueCaddyfileChange, saveCaddyfileChange, sortCaddyfile, validateCaddyfile };
