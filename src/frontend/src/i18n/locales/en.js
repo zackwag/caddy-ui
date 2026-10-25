@@ -638,6 +638,7 @@ export default {
         importedReloaded: 'Caddyfile imported and reloaded',
         loading: 'Loading Caddyfile...',
         sortEntries: 'sort entries',
+        vimMode: 'vim mode',
         unsavedChanges: 'unsaved changes',
         upToDate: 'up to date',
         validating: 'Validating...',

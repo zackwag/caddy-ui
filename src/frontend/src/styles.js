@@ -1959,11 +1959,13 @@ export const css = `
   /* ── Utility: Caddyfile-managed route notice ──────────────────────────────── */
 
   .modal-editor-wrap {
+    min-height: 180px;
     border-radius: 4px;
     overflow: hidden;
   }
 
-  .modal-editor-wrap .cm-editor { min-height: 180px; max-height: 340px; font-family: 'IBM Plex Mono', monospace !important; }
+  .modal-editor-wrap .cm-editor { min-height: 0; max-height: 340px; font-family: 'IBM Plex Mono', monospace !important; }
+  .modal-editor-wrap .cm-content, .modal-editor-wrap .cm-gutter { min-height: 180px; }
   .modal-editor-wrap .cm-editor.cm-focused { outline: none; }
   .modal-editor-wrap .cm-scroller { max-height: 340px; }
 
@@ -2328,7 +2330,9 @@ export const css = `
     .cm-editor { min-height: 300px; }
     .cm-editor .cm-content { font-size: 16px; }
     .history-body--versions { grid-template-columns: minmax(0, 1fr) minmax(0, 35%); }
-    .modal-editor-wrap .cm-editor { min-height: 160px; max-height: 260px; }
+    .modal-editor-wrap { min-height: 160px; }
+    .modal-editor-wrap .cm-editor { max-height: 260px; }
+    .modal-editor-wrap .cm-content, .modal-editor-wrap .cm-gutter { min-height: 160px; }
     .modal-editor-wrap .cm-scroller { max-height: 260px; }
     .editor-toolbar { flex-direction: column; align-items: stretch; }
     .editor-hint--desktop { display: none; }

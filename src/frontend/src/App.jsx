@@ -32,6 +32,7 @@ const DEFAULTS = {
     routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
     routeChecks: false,
     routeCheckExcludes: [],
+    editorVim: false,
 };
 
 const TITLE_KEYS = {
@@ -69,6 +70,7 @@ export default function App() {
     const [routeColumns, setRouteColumns] = useState(DEFAULTS.routeColumns);
     const [routeChecks, setRouteChecks] = useState(DEFAULTS.routeChecks);
     const [routeCheckExcludes, setRouteCheckExcludes] = useState(DEFAULTS.routeCheckExcludes);
+    const [editorVim, setEditorVim] = useState(DEFAULTS.editorVim);
     const [customThemes, setCustomThemes] = useState([]);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const [showThemeWelcome, setShowThemeWelcome] = useState(false);
@@ -153,6 +155,7 @@ export default function App() {
             setRouteColumns({ ...DEFAULTS.routeColumns, ...s.routeColumns });
             setRouteChecks(s.routeChecks === true);
             setRouteCheckExcludes(Array.isArray(s.routeCheckExcludes) ? s.routeCheckExcludes : []);
+            setEditorVim(s.editorVim === true);
             setSettingsLoaded(true);
             if (s.firstTimeRun) setShowThemeWelcome(true);
 
@@ -207,6 +210,7 @@ export default function App() {
     const changeRouteColumns = (cols) => { setRouteColumns(cols); persistSettings({ routeColumns: cols }); };
     const changeRouteChecks = (enabled) => { setRouteChecks(enabled); persistSettings({ routeChecks: enabled }); };
     const changeRouteCheckExcludes = (hosts) => { setRouteCheckExcludes(hosts); persistSettings({ routeCheckExcludes: hosts }); };
+    const changeEditorVim = (enabled) => { setEditorVim(enabled); persistSettings({ editorVim: enabled }); };
 
     const handleThemeWelcome = (dark, light) => {
         setDarkPalette(dark);
@@ -338,8 +342,8 @@ export default function App() {
                             <Routes>
                                 <Route path="/" element={<Navigate to={noInstances ? "/instances" : "/dashboard"} replace />} />
                                 <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
-                                <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} />} />
-                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} routeChecks={routeChecks} routeCheckExcludes={routeCheckExcludes} />} />
+                                <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} editorVim={editorVim} onEditorVimChange={changeEditorVim} />} />
+                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} editorVim={editorVim} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} routeChecks={routeChecks} routeCheckExcludes={routeCheckExcludes} />} />
                                 <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
                                 <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} noInstances={noInstances} />} />
                                 <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} routeChecks={routeChecks} onRouteChecksChange={changeRouteChecks} routeCheckExcludes={routeCheckExcludes} onRouteCheckExcludesChange={changeRouteCheckExcludes} />} />

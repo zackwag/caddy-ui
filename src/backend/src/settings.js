@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS = {
     routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
     routeChecks: false,
     routeCheckExcludes: [],
+    editorVim: false,
 };
 
 let _settings = null;

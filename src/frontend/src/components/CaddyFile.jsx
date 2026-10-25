@@ -27,12 +27,16 @@ const ACTION_KEYS = {
     'metrics.configure': 'caddyfile.actionMetrics',
 };
 
-function CaddyfileCodeMirror({ value, onChange, theme }) {
+const vimSaveHandlers = new WeakMap();
+
+function CaddyfileCodeMirror({ value, onChange, onSave, theme, vimMode }) {
     const containerRef = useRef(null);
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
+    const onSaveRef = useRef(onSave);
 
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+    useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -46,6 +50,13 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
             const { StreamLanguage, syntaxHighlighting, indentOnInput, bracketMatching } = await import("@codemirror/language");
             const { classHighlighter } = await import("@lezer/highlight");
             const { caddyfile } = await import("../lib/caddyfileMode.js");
+            let vimExtension = [];
+            if (vimMode) {
+                const { vim, Vim } = await import("@replit/codemirror-vim");
+                // eslint-disable-next-line i18next/no-literal-string -- Vim command name
+                Vim.defineEx("write", "w", cm => vimSaveHandlers.get(cm.cm6)?.());
+                vimExtension = vim();
+            }
 
             if (cancelled) return;
 
@@ -79,6 +90,7 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
             const startState = EditorState.create({
                 doc: value,
                 extensions: [
+                    vimExtension,
                     lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
                     history(), drawSelection(), indentOnInput(), bracketMatching(),
                     syntaxHighlighting(classHighlighter),
@@ -92,13 +104,14 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
             });
 
             view = new EditorView({ state: startState, parent: containerRef.current });
+            vimSaveHandlers.set(view, () => onSaveRef.current?.());
             viewRef.current = view;
         }
 
         init();
         return () => { cancelled = true; view?.destroy(); viewRef.current = null; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme change; including `value` would tear it down on every keystroke
-    }, [theme]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme or keymap change; including `value` would tear it down on every keystroke
+    }, [theme, vimMode]);
 
     useEffect(() => {
         const view = viewRef.current;
@@ -142,7 +155,7 @@ function CaddyfileDiff({ oldText, newText, previewRef }) {
     );
 }
 
-export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
+export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, onEditorVimChange }) {
     const { t } = useTranslation();
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
@@ -379,7 +392,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             style={{ "--editor-share": `${editorShare}fr`, "--history-share": `${100 - editorShare}fr` }}
         >
             <div id={EDITOR_PANE_ID} className="editor-wrap">
-                <CaddyfileCodeMirror value={content} onChange={setContent} theme={theme} />
+                <CaddyfileCodeMirror value={content} onChange={setContent} onSave={() => { if (!saving && isDirty) save(); }} theme={theme} vimMode={editorVim} />
                 <div ref={toolbarRef} className="editor-toolbar">
                     <div className="btn-row">
                         <label className="editor-checkbox-label">
@@ -389,6 +402,10 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                         <label className="editor-checkbox-label">
                             <input type="checkbox" className="editor-checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} />
                             {t("caddyfile.sortEntries")}
+                        </label>
+                        <label className="editor-checkbox-label">
+                            <input type="checkbox" className="editor-checkbox" checked={editorVim} onChange={e => onEditorVimChange(e.target.checked)} />
+                            {t("caddyfile.vimMode")}
                         </label>
                         <span className="editor-hint editor-hint--mobile"><UtilityIcon name={isDirty ? "dot" : "check"} size={10} /> {t(isDirty ? "caddyfile.unsavedChanges" : "caddyfile.upToDate")}</span>
                     </div>
