@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
+import { useEditorVim } from "../hooks/useEditorVim.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch, getInstanceId } from "../utils/api.js";
 import { formatPercent } from "../utils/format.js";
@@ -14,13 +15,17 @@ import { getRouteCheckHost, getRouteHost, getRouteTitle, getRouteUpstreams } fro
 // eslint-disable-next-line i18next/no-literal-string -- Example hostname
 const DOMAIN_PLACEHOLDER = "app.example.com";
 
-function MiniCodeMirror({ value, onChange, theme }) {
+function MiniCodeMirror({ value, onChange, onSave, theme }) {
     const { t, i18n } = useTranslation();
     const containerRef = useRef(null);
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
+    const onSaveRef = useRef(onSave);
+    // Set from the Caddyfile editor's toolbar; read once when the modal opens
+    const [vimMode] = useEditorVim();
 
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+    useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -30,10 +35,13 @@ function MiniCodeMirror({ value, onChange, theme }) {
         async function init() {
             const { createCaddyfileEditor } = await import("../utils/caddyfileEditor.js");
             if (cancelled) return;
-            view = createCaddyfileEditor({
-                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "12px",
+            const created = await createCaddyfileEditor({
+                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "12px", vimMode,
                 onChange: doc => onChangeRef.current(doc), t,
+                onSave: () => onSaveRef.current?.(),
             });
+            if (cancelled) { created.destroy(); return; }
+            view = created;
             viewRef.current = view;
         }
 
@@ -51,7 +59,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
         if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
     }, [value]);
 
-    return <div ref={containerRef} className="modal-editor-wrap" style={{ minHeight: 180, background: "var(--editor-bg)" }} />;
+    return <div ref={containerRef} className="modal-editor-wrap" style={{ background: "var(--editor-bg)" }} />;
 }
 
 function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme }) {
@@ -104,7 +112,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
                     <>
                         <div className="modal-section-label">{t("routes.caddyfile")}</div>
                         <div className="editor-wrap" style={{ marginBottom: 16 }}>
-                            <MiniCodeMirror value={content} onChange={setContent} theme={theme} />
+                            <MiniCodeMirror value={content} onChange={setContent} onSave={() => { if (canSave && !saving) handleSave(); }} theme={theme} />
                         </div>
                     </>
                 ) : isCaddyfileManaged && inMaintenance ? (

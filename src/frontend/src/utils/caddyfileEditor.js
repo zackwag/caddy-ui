@@ -104,15 +104,34 @@ function editorTheme({ dark, padding }) {
     }, { dark });
 }
 
+// `:w` handlers per editor. Vim ex commands are registered globally, so the one
+// `:w` command looks up the editor it was typed in.
+const vimSaveHandlers = new WeakMap();
+let vimLoaded;
+
+// Loaded only when vim mode is on, and `:w` is registered once per page.
+function loadVim() {
+    vimLoaded ??= import('@replit/codemirror-vim').then(({ vim, Vim }) => {
+        // eslint-disable-next-line i18next/no-literal-string -- Vim command name
+        Vim.defineEx('write', 'w', cm => vimSaveHandlers.get(cm.cm6)?.());
+        return vim;
+    });
+    return vimLoaded;
+}
+
 // Creates an editor for `doc` in `parent`. `onChange` receives the full text
 // after each edit, and `t` translates the editor's own labels. Nothing here
 // rewrites the document on load, and folding never changes it: content only
-// changes through the user's own edits.
-export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t }) {
+// changes through the user's own edits. With `vimMode`, vim keybindings and a
+// mode status bar are added and `:w` calls `onSave`.
+export async function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t, vimMode = false, onSave }) {
+    const vim = vimMode ? await loadVim() : null;
     const phrasesCompartment = new Compartment();
     const state = EditorState.create({
         doc,
         extensions: [
+            // Before the other keymaps, so vim sees keys first
+            vim ? vim({ status: true }) : [],
             phrasesCompartment.of(EditorState.phrases.of(editorPhrases(t))),
             lineNumbers(), caddyfileFolding, foldGutter(), codeFolding(), highlightActiveLineGutter(), highlightSpecialChars(),
             history(), drawSelection(), indentOnInput(), bracketMatching(),
@@ -133,5 +152,8 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t 
     });
     const view = new EditorView({ state, parent });
     view.updatePhrases = (t) => view.dispatch({ effects: phrasesCompartment.reconfigure(EditorState.phrases.of(editorPhrases(t))) });
+    if (onSave) {
+        vimSaveHandlers.set(view, onSave);
+    }
     return view;
 }

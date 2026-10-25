@@ -340,3 +340,64 @@ test('explicit autocomplete only offers names at directive positions', { timeout
     }
     assert.equal((await stack.api('/caddyfile')).data, original, 'Requesting completions does not save the Caddyfile');
 });
+
+test('vim mode is a local preference, and :w saves from both editors', { timeout: 90000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    const withSite = `${original.trimEnd()}\n\neditor-vim.test {\n\treverse_proxy 127.0.0.1:9\n}\n`;
+    const seeded = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: withSite, plain: true });
+    assert.equal(seeded.status, 200, JSON.stringify(seeded.data));
+    const text = root => root.locator('.cm-line').evaluateAll(lines => lines.map(line => line.textContent).join('\n'));
+
+    // Off by default: no status bar, and typing inserts text
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    assert.equal(await editor.locator('.cm-vim-panel').count(), 0, 'Vim mode is off by default');
+    const toggle = editor.getByLabel(en.caddyfile.vimMode);
+    assert(!await toggle.isChecked());
+
+    // Keep the saved text exactly as typed
+    await editor.getByLabel('caddy fmt').uncheck();
+    await editor.getByLabel(en.caddyfile.sortEntries).uncheck();
+    await toggle.check();
+    const status = editor.locator('.cm-vim-panel');
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_editor_vim')), 'true', 'The preference is stored in this browser');
+    assert.equal((await stack.api('/settings')).data.editorVim, undefined, 'The preference is not a server setting');
+
+    // Normal mode keys move rather than insert; O opens a line in insert mode
+    await editor.locator('.cm-content').click();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('ggjk');
+    assert.equal(await text(editor), withSite, 'Normal mode keys do not insert text');
+    await page.keyboard.type('O');
+    await status.filter({ hasText: '--INSERT--' }).waitFor();
+    await page.keyboard.type('# edited in vim');
+    await page.keyboard.press('Escape');
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    const edited = `# edited in vim\n${withSite}`;
+    assert.equal(await text(editor), edited);
+
+    // :w saves through the normal save flow
+    await page.keyboard.type(':w');
+    await page.keyboard.press('Enter');
+    await editor.locator('.editor-hint--desktop').filter({ hasText: en.caddyfile.upToDate }).waitFor();
+    assert.equal((await stack.api('/caddyfile')).data, edited, ':w saved the Caddyfile');
+
+    // The preference survives a reload and applies to the route editor
+    await page.goto(origin + '/routes', { waitUntil: 'domcontentloaded' });
+    await waitForView('tr:has-text("editor-vim.test")');
+    await page.locator('tr').filter({ hasText: 'editor-vim.test' }).getByTitle(en.routes.editRoute).click();
+    const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
+    await modal.locator('.cm-vim-panel').filter({ hasText: '--NORMAL--' }).waitFor();
+    await modal.locator('.cm-content').click();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('ggj$a0');
+    await page.keyboard.press('Escape');
+    assert.equal((await text(modal)).split('\n')[1], '\treverse_proxy 127.0.0.1:90', 'Vim edits the site block');
+    await page.keyboard.type(':w');
+    await page.keyboard.press('Enter');
+    await modal.waitFor({ state: 'detached' });
+    assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:90\n/, ':w saved the route');
+});
