@@ -163,14 +163,20 @@ describe('sendWebhook', () => {
                 res.end('failed');
             }
         };
-        const resolveDestination = vi.fn(async raw => ({
-            url: new URL(raw), address: '127.0.0.1', family: 4,
-            addresses: [{ address: '127.0.0.1', family: 4 }, { address: '127.0.0.1', family: 4 }],
-        }));
-        await expect(sendWebhook(`http://ntfy.test:${port}/topic`, { name: 'ntfy', body: 'once' }, { resolveDestination }))
-            .rejects.toThrow(failure === 'reset' ? 'socket hang up' : 'ntfy responded 500');
-        expect(resolveDestination).toHaveBeenCalledTimes(1);
-        expect(received).toHaveLength(1);
+        const request = vi.spyOn(http, 'request');
+        try {
+            const resolveDestination = vi.fn(async raw => ({
+                url: new URL(raw), address: '127.0.0.1', family: 4,
+                addresses: [{ address: '127.0.0.1', family: 4 }, { address: '::1', family: 6 }],
+            }));
+            await expect(sendWebhook(`http://ntfy.test:${port}/topic`, { name: 'ntfy', body: 'once' }, { resolveDestination }))
+                .rejects.toThrow(failure === 'reset' ? 'socket hang up' : 'ntfy responded 500');
+            expect(resolveDestination).toHaveBeenCalledTimes(1);
+            expect(request).toHaveBeenCalledTimes(1);
+            expect(received).toHaveLength(1);
+        } finally {
+            request.mockRestore();
+        }
     });
 
     it('uses the requested method', async () => {
