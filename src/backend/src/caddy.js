@@ -79,9 +79,29 @@ export const caddyPost = (path, body, adminUrl) => caddyRequest('POST', path, bo
 export const caddyPatch = (path, body, adminUrl) => caddyRequest('PATCH', path, body, adminUrl);
 export const caddyDelete = (path, adminUrl) => caddyRequest('DELETE', path, undefined, adminUrl);
 
+// A read for configuration readback. Unlike caddyGet, its deadline covers the
+// body as well as the headers, a body that isn't a JSON object or null is
+// rejected rather than returned as text, and an error response's body is
+// discarded unread, since it can quote configuration. Rejections carry the
+// HTTP status when there was one.
+export async function caddyReadJson(path, adminUrl) {
+    const base = adminUrl || CADDY_ADMIN_URL;
+    const res = await fetch(`${base}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) {
+        await res.body?.cancel();
+        throw Object.assign(new Error(`Caddy readback failed: ${res.status}`), { status: res.status });
+    }
+    const value = await res.json();
+    if (value !== null && (typeof value !== 'object' || Array.isArray(value))) {
+        throw new TypeError('Caddy readback must be a JSON object or null');
+    }
+    return value;
+}
+
 // Adapts Caddyfile text to JSON the same way POST /load does, without
 // changing the running config. Rejections carry Caddy's message as `stderr`
-// so validation can report it like `caddy adapt` output.
+// so validation can report it like `caddy adapt` output. The signal keeps the
+// deadline in force while the body is read.
 export async function caddyAdapt(caddyfileContent, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
     const res = await withTimeout(
@@ -89,6 +109,7 @@ export async function caddyAdapt(caddyfileContent, adminUrl) {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'text/caddyfile' },
             body: caddyfileContent,
+            signal: AbortSignal.timeout(TIMEOUT_MS),
         }),
         TIMEOUT_MS,
         'POST /adapt'

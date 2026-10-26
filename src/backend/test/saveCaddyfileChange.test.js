@@ -35,7 +35,8 @@ vi.mock('../src/containerFs.js', async importOriginal => ({
     }),
     removeContainerPath: vi.fn(async (container, path) => { files.delete(path); }),
 }));
-vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyAdapt, caddyLoad, caddyGet, caddyPost, caddyPut }));
+// Readback shares the fake admin API with every other read
+vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyAdapt, caddyLoad, caddyGet, caddyReadJson: caddyGet, caddyPost, caddyPut }));
 // `caddy reload` and `caddy adapt` in a Docker-mode instance, against the fake
 // files and admin API
 const execInInstance = vi.hoisted(() => vi.fn());
@@ -489,6 +490,13 @@ describe('API save paths', () => {
         it('reports an added route that the admin API serves differently', async () => {
             live.servers = servers;
             caddyPost.mockImplementationOnce(async (path, route) => addObject(path, { ...route, terminal: false }));
+            const { body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
+            expect(body).toMatchObject({ warningCode: 'CONFIG_VERIFICATION_MISMATCH', verification: { file: 'verified', live: 'mismatch' } });
+        });
+
+        it('reports an added route the admin API no longer has as a mismatch, not unavailable', async () => {
+            live.servers = servers;
+            caddyPost.mockImplementationOnce(async () => {});
             const { body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
             expect(body).toMatchObject({ warningCode: 'CONFIG_VERIFICATION_MISMATCH', verification: { file: 'verified', live: 'mismatch' } });
         });

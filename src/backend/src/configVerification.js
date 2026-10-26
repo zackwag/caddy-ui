@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { caddyGet } from './caddy.js';
+import { caddyReadJson } from './caddy.js';
 import { readContainerFile } from './containerFs.js';
 import logger from './logger.js';
 
@@ -69,17 +69,25 @@ export function verifyFile({ id, configPath, containerName }, expected) {
 // saved Caddyfile. Use the same adapter that applied the change.
 export function verifyLiveConfig({ id, adminUrl }, adapt) {
     return check('live', { instanceId: id }, async () => {
-        const [actual, expected] = await Promise.all([caddyGet('/config/', adminUrl), adapt()]);
+        const [actual, expected] = await Promise.all([caddyReadJson('/config/', adminUrl), adapt()]);
         return { actual, expected };
     });
 }
 
 // One object addressed by @id, after the admin API created or replaced it.
+// Caddy answers 404 for an unknown @id: the object is missing, a mismatch
+// rather than an unreadable config.
 export function verifyLiveObject({ id, adminUrl }, objectId, expected) {
-    return check('live', { instanceId: id, objectId }, async () => ({
-        actual: await caddyGet(`/id/${encodeURIComponent(objectId)}`, adminUrl),
-        expected,
-    }));
+    return check('live', { instanceId: id, objectId }, async () => {
+        try {
+            return { actual: await caddyReadJson(`/id/${encodeURIComponent(objectId)}`, adminUrl), expected };
+        } catch (error) {
+            if (error?.status === 404) {
+                return { actual: undefined, expected };
+            }
+            throw error;
+        }
+    });
 }
 
 function containsId(value, objectId) {
@@ -92,11 +100,11 @@ function containsId(value, objectId) {
     return Object.values(value).some(child => containsId(child, objectId));
 }
 
-// An @id the admin API deleted. Reads the HTTP servers rather than /id/, whose
-// expected 404 would log as an admin API error.
+// An @id the admin API deleted, searched for in the HTTP servers. Caddy serves
+// null when there are none, which verifies the removal.
 export function verifyLiveObjectRemoved({ id, adminUrl }, objectId) {
     return check('live', { instanceId: id, objectId }, async () => ({
-        actual: containsId(await caddyGet('/config/apps/http/servers', adminUrl), objectId),
+        actual: containsId(await caddyReadJson('/config/apps/http/servers', adminUrl), objectId),
         expected: false,
     }));
 }
