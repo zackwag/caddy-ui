@@ -79,8 +79,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=${{ needs.release-info.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=stable-backend
+          cache-to: type=gha,scope=stable-backend,mode=max
 
   docker-frontend:
     runs-on: ubuntu-latest
@@ -126,8 +126,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=${{ needs.release-info.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=stable-frontend
+          cache-to: type=gha,scope=stable-frontend,mode=max
 
   dockerhub-docs:
     runs-on: ubuntu-latest

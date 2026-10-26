@@ -67,8 +67,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=beta-${{ steps.sha.outputs.short }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=beta-backend
+          cache-to: type=gha,scope=beta-backend,mode=max
 
   docker-frontend:
     runs-on: ubuntu-latest
@@ -115,8 +115,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=beta-${{ steps.sha.outputs.short }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=beta-frontend
+          cache-to: type=gha,scope=beta-frontend,mode=max
 
   versions:
     runs-on: ubuntu-latest

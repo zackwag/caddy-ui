@@ -85,9 +85,15 @@ Shared dev lint borrows backend ESLint and frontend rule configuration, so both
 application packages must be installed. It covers harness, integration, browser
 and playground code. Lifecycle/readiness unit tests need no Docker Engine.
 
-Publication-channel tests parse the beta/edge workflows and exercise version
+Publication-channel tests parse the release/edge/beta workflows and exercise version
 recording with temporary files. They need only the dev dependencies and do not
 build or publish images. Run `npm run test:workflows` when changing those workflows.
+
+Publication caches use `<channel>-<image>` scopes: `stable-backend`,
+`stable-frontend`, `edge-backend`, `edge-frontend`, `beta-backend` and
+`beta-frontend`. `release.yml` uses `stable`; each build imports and exports only
+its own scope. Keep `mode=max` on exports to cache intermediate stages and
+`pull: true` to refresh base images. Renaming a scope starts a cold cache.
 
 Real-Caddy integration and Chromium checks use the same root commands locally and
 in CI. Follow the [integration testing guide](development-caddy.md#automated-integration-and-browser-checks)

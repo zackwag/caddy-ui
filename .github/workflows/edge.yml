@@ -80,8 +80,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=edge-${{ steps.sha.outputs.short }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=edge-backend
+          cache-to: type=gha,scope=edge-backend,mode=max
 
   docker-frontend:
     runs-on: ubuntu-latest
@@ -118,8 +118,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=edge-${{ steps.sha.outputs.short }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=edge-frontend
+          cache-to: type=gha,scope=edge-frontend,mode=max
 
   versions:
     runs-on: ubuntu-latest

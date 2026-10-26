@@ -9,12 +9,14 @@ import { parse } from 'yaml';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const workflow = channel => parse(readFileSync(join(root, '.github/workflows', channel + '.yml'), 'utf8'));
+const cacheEntries = value => value.trim().split(/\r?\n/).map(line =>
+    Object.fromEntries(line.split(',').map(field => field.trim().split('='))));
 const publicationChannels = document => Object.values(document.jobs).flatMap(job =>
     (job.steps || []).flatMap(step => [...(step.run || '').matchAll(/publish-versions\.sh\s+(\S+)/g)]
         .map(match => match[1])));
 
 for (const channel of ['release', 'edge', 'beta']) {
-    test(`${channel} refreshes every published base image while retaining layer caching`, () => {
+    test(`${channel} refreshes base images while isolating layer caches by channel and image`, () => {
         const components = [];
         for (const [name, job] of Object.entries(workflow(channel).jobs)) {
             for (const step of job.steps || []) {
@@ -22,10 +24,14 @@ for (const channel of ['release', 'edge', 'beta']) {
                 components.push(name);
                 assert.equal(step.with.pull, true, `${name}: resolves current base images, including intermediate and COPY stages`);
                 assert.notEqual(String(step.with['no-cache']).toLowerCase(), 'true', `${name}: ordinary cached layers remain usable`);
-                // Allow explicit scopes so channel/image cache isolation can follow.
-                assert.match(step.with['cache-from'], /^type=gha(?:,|$)/, `${name}: imports the layer cache`);
-                assert.match(step.with['cache-to'], /^type=gha(?:,|$)/, `${name}: exports the layer cache`);
-                assert.match(step.with['cache-to'], /(?:^|,)mode=max(?:,|$)/, `${name}: retains cached intermediate stages`);
+                const scope = (channel === 'release' ? 'stable' : channel) + '-' + name.replace(/^docker-/, '');
+                const imports = cacheEntries(step.with['cache-from']);
+                const exports = cacheEntries(step.with['cache-to']);
+                assert.deepEqual(imports.map(entry => [entry.type, entry.scope]), [['gha', scope]],
+                    `${name}: imports only its ${scope} cache`);
+                assert.deepEqual(exports.map(entry => [entry.type, entry.scope]), [['gha', scope]],
+                    `${name}: exports only its ${scope} cache`);
+                assert.equal(exports[0].mode, 'max', `${name}: retains cached intermediate stages`);
             }
         }
         assert.deepEqual(components.sort(), ['docker-backend', 'docker-frontend']);
