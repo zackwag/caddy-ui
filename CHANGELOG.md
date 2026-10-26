@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.7.1](https://github.com/zackwag/caddy-ui/compare/v3.7.0...v3.7.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **ci:** prevent beta builds from overwriting the edge channel ([#440](https://github.com/zackwag/caddy-ui/issues/440)) ([91ec9b6](https://github.com/zackwag/caddy-ui/commit/91ec9b686c63040559b2ad4301963d3a9bf33879))
+* explain CADDY_UI_EXTERNAL_URL rejections at sign-in ([#443](https://github.com/zackwag/caddy-ui/issues/443)) ([1e0f183](https://github.com/zackwag/caddy-ui/commit/1e0f183f158ca5a22ad7d8b96771232e91f5f1b0))
+* verify persisted and live configuration after UI-managed changes ([#454](https://github.com/zackwag/caddy-ui/issues/454)) ([2c96115](https://github.com/zackwag/caddy-ui/commit/2c96115ec074420885e08201bc33c391fec5d628))
+* webhook retry tests no longer need 127.0.0.2 ([#464](https://github.com/zackwag/caddy-ui/issues/464)) ([386f51e](https://github.com/zackwag/caddy-ui/commit/386f51e42524182725b37e45ca3a1601b70ee95f))
+
+
+### Miscellaneous Chores
+
+* **deps:** bump body-parser from 2.3.0 to 2.4.0 in /src/backend ([#460](https://github.com/zackwag/caddy-ui/issues/460)) ([21c26b3](https://github.com/zackwag/caddy-ui/commit/21c26b35f2ac763d3eb660bed7c71451e82abe2d))
+
 ## [3.7.0](https://github.com/zackwag/caddy-ui/compare/v3.6.10...v3.7.0) (2026-10-22)
 
 
