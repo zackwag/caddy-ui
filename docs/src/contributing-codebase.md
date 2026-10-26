@@ -102,6 +102,24 @@ fields that don't require that major. Package manifests don't need an `engines`
 field; `.node-version` is the source of truth. GitHub Actions' own internal
 JavaScript runtimes are managed by the actions and are separate from this policy.
 
+Node 26 is a manually requested compatibility candidate while `.node-version`
+and the production Dockerfiles remain on Node 24. Select **Run workflow** on the
+Test workflow and enable `node26_trial`, or dispatch from a working branch:
+
+```sh
+gh workflow run test.yml --repo juscghwe/caddy-ui \
+  --ref ci/node26-compatibility-trial -f node26_trial=true
+```
+
+The trial runs application/tooling tests, lint, real-Caddy and browser scenarios,
+frontend/documentation builds, and local Alpine builds of both images. Candidate
+Dockerfiles are generated under the runner's temporary directory; no images are
+pushed and no shared publication caches are exported. A failure stays visible;
+there is no automatic rerun on Node 24 that could disguise a Node 26 failure.
+Normal PR checks continue to use the production runtime. The runtime contract
+allows only this manual workflow to select Node 26 explicitly. Review the trial
+results before proposing a coordinated production upgrade.
+
 ## Verifying UI changes
 
 Run the app and exercise affected views in a browser before opening a PR. Unit

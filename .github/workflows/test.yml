@@ -5,15 +5,27 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      node26_trial:
+        description: Run the manual Node 26 compatibility trial instead of production checks
+        type: boolean
+        default: false
 
 concurrency:
-  group: test-${{ github.ref }}
+  group: test-${{ github.ref }}-${{ inputs.node26_trial && 'node26' || 'production' }}
   cancel-in-progress: true
 
 permissions: {}
 
 jobs:
+  node26:
+    if: github.event_name == 'workflow_dispatch' && inputs.node26_trial
+    permissions:
+      contents: read
+    uses: ./.github/workflows/node26-trial.yml
+
   test:
+    if: ${{ !inputs.node26_trial }}
     runs-on: ubuntu-latest
     name: Test (${{ matrix.project }})
     strategy:
@@ -45,6 +57,7 @@ jobs:
         run: npm test
 
   integration:
+    if: ${{ !inputs.node26_trial }}
     runs-on: ubuntu-latest
     name: Real Caddy integration
     timeout-minutes: 15
@@ -101,7 +114,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs: [test, integration]
-    if: always()
+    if: always() && !inputs.node26_trial
     steps:
       - name: Verify test matrix
         run: |
@@ -115,6 +128,7 @@ jobs:
           fi
 
   lint:
+    if: ${{ !inputs.node26_trial }}
     runs-on: ubuntu-latest
     name: Lint (${{ matrix.project }})
     strategy:
