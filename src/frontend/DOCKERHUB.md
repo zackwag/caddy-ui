@@ -1,4 +1,4 @@
-<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.7.0. Do not edit directly. -->
+<!-- AUTO-GENERATED using .github/scripts/dockerhub-docs.mjs from README.md for release 3.7.1. Do not edit directly. -->
 
 # caddy/ui — Frontend
 
@@ -165,8 +165,12 @@ volumes:
 | Tag | Description |
 |-----|-------------|
 | `latest` | Most recent stable release |
-| `beta` | Pre-release build of a specific branch or pull request, published manually for testing |
-| `edge` | Most recent build of any kind: every push to `main` and every `beta` build. May contain unreleased or unmerged changes |
+| `beta` | Most recent successful manual test build of a selected branch or pull request; may contain unmerged changes |
+| `edge` | Most recent successful build from `main`; may contain unreleased changes. Beta builds do not update this tag |
+
+These tags are mutable and advance independently for each image. Stable release
+tags and `latest` are published by the release workflow; beta builds publish only
+the `beta` image tag and update only beta version records.
 
 See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
 for versioned image tags and release notes.
