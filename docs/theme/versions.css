@@ -33,4 +33,4 @@
 .docs-resolver main { max-width: 650px; margin: 10vh auto; padding: 24px; }
 .docs-resolver a { color: #75c9ba; }
 .docs-resolver select { max-width: 100%; margin-top: 12px; }
-@media (max-width: 600px) { .docs-version-badge { margin-right: 5px; font-size: 10px; } }
+@media (max-width: 600px) { .docs-version-badge { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 5px; font-size: 10px; max-width: 30%; } }
