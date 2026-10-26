@@ -11,7 +11,9 @@ export function validateHistory(history) {
         throw new Error('Unsupported pull history');
     }
     for (const samples of Object.values(history.repositories)) {
-        if (!Array.isArray(samples)) throw new Error('Invalid repository history');
+        if (!Array.isArray(samples)) {
+            throw new Error('Invalid repository history');
+        }
         let previousDay = '';
         for (const sample of samples) {
             const timestamp = sample?.observedAt;
@@ -38,10 +40,14 @@ export async function collect(history, { fetchImpl = fetch, now = new Date() } =
     const updates = await Promise.all(repositories.map(async repository => {
         const samples = history.repositories[repository] || [];
         const last = samples.at(-1);
-        if (last && last.observedAt > observedAt) throw new Error('Observation predates the latest stored sample');
+        if (last && last.observedAt > observedAt) {
+            throw new Error('Observation predates the latest stored sample');
+        }
         // Keep the first successful observation, even if a manual rerun sees a
         // higher count. Failed runs never created an observation to replace.
-        if (last?.observedAt.slice(0, 10) === observedAt.slice(0, 10)) return [repository, samples];
+        if (last?.observedAt.slice(0, 10) === observedAt.slice(0, 10)) {
+            return [repository, samples];
+        }
         const response = await fetchImpl(`https://hub.docker.com/v2/repositories/${repository}/`, {
             signal: AbortSignal.timeout(15000),
             headers: { Accept: 'application/json' },
@@ -57,7 +63,9 @@ export async function collect(history, { fetchImpl = fetch, now = new Date() } =
         }
         return [repository, [...samples, { observedAt, pullCount }]];
     }));
-    if (updates.every(([repository, samples]) => samples === history.repositories[repository])) return history;
+    if (updates.every(([repository, samples]) => samples === history.repositories[repository])) {
+        return history;
+    }
     return validateHistory({ version: 1, repositories: { ...history.repositories, ...Object.fromEntries(updates) } });
 }
 
@@ -67,7 +75,9 @@ export async function run(directory) {
     try {
         history = JSON.parse(await readFile(historyPath, 'utf8'));
     } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
+        if (error.code !== 'ENOENT') {
+            throw error;
+        }
         history = emptyHistory();
     }
     // Both API reads must succeed before either repository's history changes.
