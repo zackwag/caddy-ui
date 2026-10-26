@@ -22,7 +22,6 @@ for (const channel of ['release', 'edge', 'beta']) {
                 components.push(name);
                 assert.equal(step.with.pull, true, `${name}: resolves current base images, including intermediate and COPY stages`);
                 assert.notEqual(String(step.with['no-cache']).toLowerCase(), 'true', `${name}: ordinary cached layers remain usable`);
-                // Allow explicit scopes so channel/image cache isolation can follow.
                 assert.match(step.with['cache-from'], /^type=gha(?:,|$)/, `${name}: imports the layer cache`);
                 assert.match(step.with['cache-to'], /^type=gha(?:,|$)/, `${name}: exports the layer cache`);
                 assert.match(step.with['cache-to'], /(?:^|,)mode=max(?:,|$)/, `${name}: retains cached intermediate stages`);
@@ -72,6 +71,25 @@ test('release publishes no beta or edge aliases and records only the stable chan
         assert.equal(builds[0].with.tags, '${{ steps.meta.outputs.tags }}');
     }
     assert.deepEqual(publicationChannels(document), ['stable']);
+});
+
+test('each channel/image build has a distinct cache scope', () => {
+    const scopes = [];
+    for (const channel of ['release', 'edge', 'beta']) {
+        for (const [name, job] of Object.entries(workflow(channel).jobs)) {
+            for (const step of job.steps || []) {
+                if (!step.uses?.startsWith('docker/build-push-action@')) continue;
+                const fromScope = step.with['cache-from'].match(/scope=([^,\s]+)/)?.[1];
+                const toScope = step.with['cache-to'].match(/scope=([^,\s]+)/)?.[1];
+                assert.ok(fromScope, `${channel}/${name}: cache-from must have an explicit scope`);
+                assert.ok(toScope, `${channel}/${name}: cache-to must have an explicit scope`);
+                assert.equal(fromScope, toScope, `${channel}/${name}: cache-from and cache-to scopes must match`);
+                scopes.push(fromScope);
+            }
+        }
+    }
+    assert.equal(scopes.length, 6, 'six channel/image builds');
+    assert.equal(new Set(scopes).size, 6, 'all scopes are unique');
 });
 
 test('edge follows main pushes while beta remains manually selected', () => {
