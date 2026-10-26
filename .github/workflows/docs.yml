@@ -28,24 +28,24 @@ permissions:
   contents: read
 
 concurrency:
-  group: documentation-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'published' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: documentation-${{ github.ref }}-${{ (inputs.archive_history || github.event_name == 'schedule' || github.event_name == 'workflow_run') && 'archive' || 'site' }}
+  cancel-in-progress: ${{ !inputs.archive_history && github.event_name != 'schedule' && github.event_name != 'workflow_run' }}
 
 jobs:
   archive:
-    if: github.event_name == 'workflow_dispatch' && inputs.archive_history
+    if: github.repository == 'juscghwe/caddy-ui' && ((github.event_name == 'workflow_dispatch' && inputs.archive_history) || github.event_name == 'schedule' || (github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'))
     permissions:
       contents: write
-    uses: ./.github/workflows/documentation-history.yml
+    uses: juscghwe/caddy-ui/.github/workflows/documentation-history.yml@1d01a539cfbbce29750e0820cdf194cc56df3765
     with:
-      bootstrap: ${{ inputs.bootstrap }}
-      retry_failed: ${{ inputs.retry_failed }}
+      tooling_ref: 1d01a539cfbbce29750e0820cdf194cc56df3765
+      bootstrap: ${{ inputs.bootstrap || false }}
+      retry_failed: ${{ inputs.retry_failed || false }}
 
   build:
     name: Build mdBook
-    # workflow_run always checks out trusted main, never the triggering run's
-    # code or artifacts. Release completion refreshes independent image records.
-    if: ${{ !inputs.archive_history && (github.event_name != 'workflow_run' || (github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion != 'cancelled')) }}
+    # Scheduled and archive-only runs use the separate archive job.
+    if: ${{ !inputs.archive_history && github.event_name != 'schedule' && github.event_name != 'workflow_run' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -54,7 +54,6 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.ref }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -183,7 +182,7 @@ jobs:
 
   deploy:
     name: Deploy documentation
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !inputs.archive_history
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event_name != 'schedule' && github.event_name != 'workflow_run' && !inputs.archive_history
     needs: build
     runs-on: ubuntu-latest
     permissions:
