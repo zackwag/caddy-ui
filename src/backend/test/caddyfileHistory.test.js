@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCaddyfileHistory } from '../src/caddyfileHistory.js';
 
@@ -68,6 +68,34 @@ describe('committed Caddyfile history', () => {
         expect((await history.read('default', filename)).content).toBe('{\n admin :2019\n}\n');
         expect(history.validFilename('../actors.json')).toBe(false);
         expect(history.validFilename('actors.json')).toBe(false);
+    });
+
+    it('confines reads and removals to a single instance directory', async () => {
+        const { root, history } = await fixture();
+        const outside = await fixture();
+        const filename = 'Caddyfile-2026-10-18T12-00-00';
+        const path = join(outside.root, filename);
+        await writeFile(path, 'outside history');
+        for (const id of [relative(root, outside.root), outside.root, '.', '..', 'nested/instance', 'nested\\instance', 'one\n']) {
+            await expect(history.read(id, filename)).rejects.toThrow('Invalid history instance ID');
+            await expect(history.remove(id, filename)).rejects.toThrow('Invalid history instance ID');
+            expect(await readFile(path, 'utf8')).toBe('outside history');
+        }
+        const valid = await history.record('release.v3-7_1', 'inside history');
+        expect((await history.read('release.v3-7_1', valid)).content).toBe('inside history');
+        await history.remove('release.v3-7_1', valid);
+        expect(await history.list('release.v3-7_1')).toEqual([]);
+    });
+
+    it('rejects traversal and trailing line breaks in history filenames', async () => {
+        const { history } = await fixture();
+        const filename = await history.record('default', 'preserved');
+        for (const invalid of ['../' + filename, '/tmp/' + filename, 'nested/' + filename, filename + '\n', filename + '\r\n']) {
+            expect(history.validFilename(invalid)).toBe(false);
+            await expect(history.read('default', invalid)).rejects.toThrow('Invalid history filename');
+            await expect(history.remove('default', invalid)).rejects.toThrow('Invalid history filename');
+        }
+        expect((await history.read('default', filename)).content).toBe('preserved');
     });
 
     it('keeps ordered immutable versions for rapid saves and prunes to the configured limit', async () => {
