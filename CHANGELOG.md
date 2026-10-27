@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.2](https://github.com/zackwag/caddy-ui/compare/v3.7.1...v3.7.2) (2026-10-27)
+
+
+### Bug Fixes
+
+* **security:** update dependencies and confine history paths ([#468](https://github.com/zackwag/caddy-ui/issues/468)) ([ff5d0d4](https://github.com/zackwag/caddy-ui/commit/ff5d0d474004c1ab719e7e9ad118143a544b1231))
+
 ## [3.7.1](https://github.com/zackwag/caddy-ui/compare/v3.7.0...v3.7.1) (2026-10-26)
 
 
