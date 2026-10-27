@@ -115,8 +115,9 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
         await atomicJson(directory(id), filename, { version: 1, timestamp, parent: previous, actor: reference, action, outcome, content });
         try {
             for (const name of (await filenames(id)).slice(limit)) {
-                await unlink(join(directory(id), name));
-                metadata.delete(join(directory(id), name));
+                const path = historyPath(id, name);
+                await unlink(path);
+                metadata.delete(path);
             }
         } catch (error) { logger.warn('Could not prune Caddyfile history', { instanceId: id, code: error.code }); }
         return filename;
@@ -132,7 +133,7 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
         return null;
     }
     async function entryMetadata(id, filename) {
-        const path = join(directory(id), filename);
+        const path = historyPath(id, filename);
         try {
             const info = await stat(path);
             const stamp = `${info.mtimeMs}:${info.ctimeMs}:${info.size}`;
@@ -156,16 +157,16 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
             const latest = await latestReadable(id);
             if (!latest || latest.value.content !== content) await record(id, content);
         },
-        async list(id, resolve = () => null) {
+        async list(id, resolveActor = () => null) {
             const identities = await registry();
             const names = await filenames(id);
-            const paths = new Set(names.map(filename => join(directory(id), filename)));
+            const paths = new Set(names.map(filename => historyPath(id, filename)));
             for (const path of metadata.keys()) if (dirname(path) === directory(id) && !paths.has(path)) metadata.delete(path);
             return (await Promise.all(names.map(async filename => {
                 const value = await entryMetadata(id, filename);
                 if (!value) return null;
                 const entry = { ...value };
-                if (entry.actor) entry.actor = resolve(entry.actor)
+                if (entry.actor) entry.actor = resolveActor(entry.actor)
                     || identities.actors[`${entry.actor.type}:${entry.actor.id}`] || { ...entry.actor, name: null };
                 return { filename, ...entry };
             }))).filter(Boolean);
