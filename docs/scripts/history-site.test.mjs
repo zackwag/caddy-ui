@@ -74,6 +74,27 @@ test('publication validates all payloads before replacing a previously working s
     for (const bad of ['//example.com/', '../', '/caddy-ui', '/a/../']) assert.throws(() => siteBase(bad));
 });
 
+test('publication discovers releases independently while preserving archived bytes and checking source identities', t => {
+    const f = fixture(t);
+    const manifestPath = join(f.archive, 'backfill.json');
+    const preserved = readFileSync(manifestPath, 'utf8');
+    const inventory = JSON.parse(preserved).inventory;
+    inventory.releases[0].images.backend = null;
+    inventory.releases.push({ ...inventory.releases[1], tag: 'v2.20.3', commit: 'b'.repeat(40), images: { frontend: null, backend: null } });
+    const catalog = publishSite({ ...f, inventory });
+    assert.equal(catalog.releases.find(release => release.tag === 'v2.20.3').snapshot, null);
+    assert(existsSync(join(f.output, 'versions/v2.20.3/index.html')));
+    assert.equal(catalog.releases.find(release => release.tag === 'v2.20.0').images.backend, null);
+    assert.equal(readFileSync(manifestPath, 'utf8'), preserved, 'publication never rewrites the preserved archive');
+    assert.equal(fingerprintBook(join(f.archive, 'books', f.fingerprint)), f.fingerprint);
+    const published = readFileSync(join(f.output, 'documentation.json'), 'utf8');
+    inventory.releases[0].commit = 'c'.repeat(40);
+    assert.throws(() => publishSite({ ...f, inventory }), /changed or removed/);
+    assert.equal(readFileSync(join(f.output, 'documentation.json'), 'utf8'), published);
+    inventory.releases.shift();
+    assert.throws(() => publishSite({ ...f, inventory }), /changed or removed/);
+});
+
 test('HTML decoration uses actual tags and fixes the mdBook 404 base for project Pages', () => {
     const html = decorateBookHtml(source.replace('<title>', '<base href="/"><title>'), {
         assets: '../../../_versions/', base: '/caddy-ui/', path: 'books/book/', book: 'book', commit: sha, label: 'Release',

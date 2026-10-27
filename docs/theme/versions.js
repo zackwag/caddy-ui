@@ -57,10 +57,14 @@ async function showVersions() {
         // including mdBook's keyboard navigation and generated search links.
         const pages = book === 'development' ? catalog.development.pages : catalog.books[book].pages;
         const preserve = container => {
+            const here = new URL(location.href);
             for (const link of container.querySelectorAll('a[href]')) {
                 const url = new URL(link.href, location.href);
                 if (url.origin !== bookRoot.origin || !url.pathname.startsWith(bookRoot.pathname)) continue;
                 if (!pages.includes(decodeURIComponent(url.pathname.slice(bookRoot.pathname.length)))) continue;
+                if (url.pathname === here.pathname && url.search === here.search) {
+                    continue;
+                }
                 url.searchParams.set('version', current);
                 link.href = url.href;
             }
