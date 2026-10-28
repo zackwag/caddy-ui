@@ -190,6 +190,29 @@ write handler, and configured same-origin HTTP writes still work. Each case owns
 its browser and servers and closes them on completion or failure. Backend policy
 and route assertions also run with `npm test --prefix src/backend`.
 
+## Browser checks for untrusted content
+
+Run the focused XSS rendering checks with the usual backend, frontend and dev
+dependencies, Docker, the development Caddy image and Playwright Chromium:
+
+```bash
+node --test dev/e2e/xss.mjs
+```
+
+These cases also run in `npm run test:dev-caddy:e2e`. They check Caddy log snapshots
+and live streams, application diagnostics, persisted route/server/instance/token
+names, and the Caddyfile editor, history diff, raw preview and actor labels.
+Each case owns its browser, backend, Caddy container and temporary state.
+
+The real API and storage are used for logs and saved content. Application-log
+responses and legacy/imported actor metadata are controlled at the browser's
+network boundary to reach their renderers without weakening input validation.
+Assertions require the payload text to appear, reject injected DOM nodes and
+resource requests, and check that no handler ran. A positive control first proves
+that handlers can execute in the test browser. These Vite-based tests deliberately
+run without CSP so a production policy cannot hide unsafe rendering. They cover
+these paths rather than establishing that every possible XSS path is safe.
+
 ## Configuration reads during writes
 
 `src/backend/src/observations.js` shares short-lived reads of each instance's
