@@ -16,8 +16,8 @@ async function watchForXss(page) {
     page.on('request', request => {
         if (new URL(request.url()).pathname === '/__xss_probe') requests.push(request.url());
     });
-    // Prove executable handlers aren't being hidden by CSP or browser settings.
-    // The production-CSP suite separately tests the extra policy defense.
+    // Prove handlers can execute, so CSP or browser settings cannot mask a
+    // rendering regression in the checks below.
     const control = await page.evaluate(() => new Promise(resolve => {
         const node = document.createElement('img');
         node.setAttribute('onerror', 'window.xssHits++');
@@ -115,7 +115,7 @@ test('Caddyfile editor, history diffs, raw previews and actor names never interp
     const { stack, page, origin } = await useBrowserFixture(t);
     const safe = await watchForXss(page);
     const initial = (await stack.api('/caddyfile')).data;
-    const content = initial + '\n' + payloads.map(payload => '# ' + payload).join('\n') + '\n';
+    const content = payloads.map(payload => '# ' + payload).join('\n') + '\n' + initial;
     assert.equal((await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', plain: true, body: content })).status, 200);
     await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
     await page.locator('.cm-editor').waitFor();
