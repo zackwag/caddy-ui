@@ -8,7 +8,7 @@ import { siteBase } from './history-site.mjs';
 
 const require = createRequire(new URL('../../dev/package.json', import.meta.url));
 const { chromium } = require('playwright');
-const args = options(process.argv.slice(2), ['site', 'base', 'screenshot']);
+const args = options(process.argv.slice(2), ['site', 'base', 'screenshot', 'mobile-screenshot']);
 const directory = resolve(args.site || new URL('../../.docs-site', import.meta.url).pathname);
 const base = siteBase(args.base || '/caddy-ui/');
 const catalog = JSON.parse(await readFile(join(directory, 'documentation.json'), 'utf8'));
@@ -45,6 +45,22 @@ try {
     const visit = path => page.goto(origin + base + path);
     const newest = catalog.releases.find(release => release.snapshot);
     const oldest = catalog.releases.filter(release => release.snapshot).at(-1);
+    await visit('index.html');
+    await page.locator('.docs-version-development').waitFor();
+    // Bare development anchors must scroll without a document navigation or
+    // adding ?version=dev. Check root and /dev/ URLs, since both are public.
+    for (const path of ['index.html', 'dev/index.html']) {
+        await visit(path);
+        await page.locator('.docs-version-development').waitFor();
+        const anchor = page.locator('main a.header[href^="#"]').first();
+        const href = await anchor.getAttribute('href');
+        assert(href?.startsWith('#'), 'same-page anchor keeps its original href');
+        await page.evaluate(() => { window.docsAnchorNavigation = true; });
+        await anchor.click();
+        assert.equal(await page.evaluate(() => window.docsAnchorNavigation), true, 'anchor does not reload the document');
+        assert.equal(new URL(page.url()).search, '');
+    }
+    console.log('Development anchors scroll without reloading or adding a version query');
     await visit('index.html');
     await page.locator('#docs-version').selectOption('dev');
     await page.waitForURL(url => url.pathname.includes('/dev/'));
@@ -86,7 +102,9 @@ try {
     assert((await page.getByRole('link', { name: new RegExp(`Frontend ${newest.tag}`) }).getAttribute('href')).includes(`version=${newest.tag}`));
     await visit('resolve.html?version=edge-abcd');
     await page.locator('.docs-version-development').waitFor();
-    for (const tag of ['v3.0.0', catalog.releases.find(release => !release.hasBook)?.tag].filter(Boolean)) {
+    const unavailable = [...catalog.releases.filter(release => release.hasBook && !release.snapshot).slice(0, 2),
+        catalog.releases.find(release => !release.hasBook)].filter(Boolean);
+    for (const { tag } of unavailable) {
         await visit(`versions/${tag}/index.html`);
         await page.waitForURL(url => url.hostname === 'github.com');
         assert.equal(notes.at(-1), `https://github.com/${catalog.repository}/releases/tag/${tag}`);
@@ -97,9 +115,20 @@ try {
     await visit('dev/index.html');
     await page.locator('.docs-version-development').waitFor();
     if (args.screenshot) await page.screenshot({ path: args.screenshot, fullPage: false });
-    await page.setViewportSize({ width: 390, height: 844 });
-    const badge = await page.locator('.docs-version-badge').boundingBox();
+    // A mobile page load initializes mdBook's sidebar for the small viewport.
+    // Resizing an existing desktop page retains its open, sliding sidebar.
+    const mobile = await context.newPage();
+    mobile.on('pageerror', error => errors.push(error.message));
+    await mobile.setViewportSize({ width: 390, height: 844 });
+    await mobile.goto(origin + base + 'dev/index.html');
+    await mobile.locator('.docs-version-development').waitFor();
+    const badge = await mobile.locator('.docs-version-badge').boundingBox();
     assert(badge && badge.x >= 0 && badge.x + badge.width <= 390, 'version label fits a mobile header');
+    if (args['mobile-screenshot']) await mobile.screenshot({ path: args['mobile-screenshot'], fullPage: false });
+    await mobile.locator('#mdbook-sidebar-toggle').click();
+    await mobile.getByLabel('Documentation version').selectOption(oldest.tag);
+    await mobile.waitForFunction(tag => document.getElementById('docs-version')?.value === tag, oldest.tag);
+    assert(new URL(mobile.url()).pathname.includes(`/books/${oldest.snapshot}/`));
     assert.deepEqual(missing, []);
     assert.deepEqual(errors, []);
     console.log('Project Pages prefix, local assets and mobile version label pass');

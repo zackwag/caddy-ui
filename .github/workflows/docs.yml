@@ -24,12 +24,17 @@ on:
         type: boolean
         default: false
 
+# Public archive storage and Pages hosting have separate owners. This is a
+# read-only dependency; repository owners can select a reviewed replacement.
+env:
+  DOCUMENTATION_ARCHIVE_REPOSITORY: ${{ vars.DOCS_ARCHIVE_REPOSITORY || 'juscghwe/caddy-ui' }}
+
 permissions:
   contents: read
 
 concurrency:
-  group: documentation-${{ github.ref }}-${{ (inputs.archive_history || github.event_name == 'schedule' || github.event_name == 'workflow_run') && 'archive' || 'site' }}
-  cancel-in-progress: ${{ !inputs.archive_history && github.event_name != 'schedule' && github.event_name != 'workflow_run' }}
+  group: documentation-${{ github.ref }}-${{ github.repository == 'juscghwe/caddy-ui' && (inputs.archive_history || github.event_name == 'schedule' || github.event_name == 'workflow_run') && 'archive' || 'site' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   archive:
@@ -44,8 +49,14 @@ jobs:
 
   build:
     name: Build mdBook
-    # Scheduled and archive-only runs use the separate archive job.
-    if: ${{ !inputs.archive_history && github.event_name != 'schedule' && github.event_name != 'workflow_run' }}
+    # The fork's scheduled runs collect books; the upstream repository publishes
+    # them. workflow_run always builds trusted main, never triggering artifacts.
+    if: >-
+      !inputs.archive_history &&
+      (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && !github.event.repository.fork) ||
+      (github.event_name == 'workflow_run' && !github.event.repository.fork &&
+      github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -54,6 +65,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -88,45 +100,17 @@ jobs:
       - name: Install Chromium
         run: npm exec --prefix dev -- playwright install --with-deps chromium
 
+      - name: Restore preserved release books
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node docs/scripts/history-archive.mjs restore --repository "$DOCUMENTATION_ARCHIVE_REPOSITORY"
+
       - name: Discover released documentation and image publications
-        id: inventory
         env:
           INVENTORY_FILE: ${{ runner.temp }}/documentation-releases.json
         run: |
           git fetch https://github.com/zackwag/caddy-ui.git --tags refs/heads/main:refs/remotes/upstream/main refs/heads/versions:refs/remotes/upstream/versions
           node docs/scripts/history-inventory.mjs --to refs/remotes/upstream/main --output "$INVENTORY_FILE"
-          node --input-type=module <<'JS'
-          import { createHash } from 'node:crypto';
-          import { readFileSync, appendFileSync } from 'node:fs';
-          const { releases } = JSON.parse(readFileSync(process.env.INVENTORY_FILE, 'utf8'));
-          const fingerprint = createHash('sha256').update(JSON.stringify(releases)).digest('hex');
-          appendFileSync(process.env.GITHUB_OUTPUT, `fingerprint=${fingerprint}\n`);
-          JS
-
-      - name: Restore verified release books
-        id: archive
-        uses: actions/cache/restore@v5
-        with:
-          path: .docs-history
-          key: documentation-history-v1-${{ runner.os }}-${{ steps.inventory.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            documentation-history-v1-${{ runner.os }}-${{ steps.inventory.outputs.fingerprint }}-
-            documentation-history-v1-${{ runner.os }}-
-
-      - name: Crawl new releases
-        env:
-          INVENTORY_FILE: ${{ runner.temp }}/documentation-releases.json
-          RETRY_FAILED: ${{ inputs.retry_failed || false }}
-        run: node docs/scripts/history-crawl.mjs --inventory "$INVENTORY_FILE" --retry-failed "$RETRY_FAILED"
-
-      # Do not create another large cache for development-only pushes. A fresh
-      # generation after a manual retry becomes the next restored archive.
-      - name: Preserve the updated release archive
-        if: steps.archive.outputs.cache-matched-key == '' || !startsWith(steps.archive.outputs.cache-matched-key, format('documentation-history-v1-{0}-{1}-', runner.os, steps.inventory.outputs.fingerprint)) || inputs.retry_failed
-        uses: actions/cache/save@v5
-        with:
-          path: .docs-history
-          key: ${{ steps.archive.outputs.cache-primary-key }}
 
       - name: Generate screenshots
         run: npm run docs:screenshots
@@ -145,7 +129,7 @@ jobs:
             *) DOCS_BASE="/${GITHUB_REPOSITORY#*/}/" ;;
           esac
           echo "DOCS_BASE=$DOCS_BASE" >> "$GITHUB_ENV"
-          node docs/scripts/history-site.mjs --base "$DOCS_BASE"
+          node docs/scripts/history-site.mjs --base "$DOCS_BASE" --inventory "$RUNNER_TEMP/documentation-releases.json"
 
       - name: Check versioned documentation in Chromium
         run: npm run test:history:browser --prefix docs -- --site "$PWD/.docs-site" --base "$DOCS_BASE"
@@ -175,14 +159,14 @@ jobs:
             .docs-history/logs
 
       - name: Upload Pages artifact
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.repository.fork
         uses: actions/upload-pages-artifact@v5
         with:
           path: .docs-site
 
   deploy:
     name: Deploy documentation
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event_name != 'schedule' && github.event_name != 'workflow_run' && !inputs.archive_history
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.repository.fork && !inputs.archive_history
     needs: build
     runs-on: ubuntu-latest
     permissions:

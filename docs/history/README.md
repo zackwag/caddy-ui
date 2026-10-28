@@ -18,8 +18,9 @@ renders retain their source identity and logs for a reviewed repair or fallback.
 Generated books are never committed. The Historical documentation archive Action
 stores complete `.docs-history/` bundles in the dedicated
 [`documentation-history-archive` prerelease in the owner's fork](https://github.com/juscghwe/caddy-ui/releases/tag/documentation-history-archive).
-This is storage for future docs integration, not an application release or a Pages
-deployment. Git retains the tooling, inventory evidence and grouping decisions.
+Archive collection runs in `juscghwe/caddy-ui`; the published documentation is
+built and hosted by `zackwag/caddy-ui`. The public release assets are the handoff
+between them. Git retains the tooling, inventory evidence and grouping decisions.
 
 Bootstrap from the working branch through the existing Documentation workflow:
 
@@ -50,9 +51,8 @@ The default-branch Documentation workflow can call this runner daily and after
 successful Release runs in the fork. The daily crawl discovers releases published
 upstream. Its `archive` job pins both the reusable workflow and `tooling_ref` to
 the same reviewed full commit, so the fork's default branch need not include the
-unfinished site integration. That small scheduling change must reach the fork's
-default branch before daily triggers become active. Manual dispatch from this
-branch can build the initial archive first. Writers
+site integration. The scheduling branch has reached the fork's default branch;
+daily collection is active independently of upstream publication. Writers
 queue under one concurrency group. The archive job rejects PR events and storage
 outside the owner's fork. Its write token is exposed only to restore/upload
 steps, never to historical build scripts. The archive tag is not a `v*` release.
@@ -199,23 +199,32 @@ until an explicit retry; they get release-note links rather than current docs.
 The crawler succeeds with these documented fallbacks, while the lower-level
 `history:backfill` command retains its failure exit status for a failed render.
 
-The Documentation workflow runs on main updates, completion of the Release image
-workflow, a daily catch-up schedule, and manual dispatch.
-The image-workflow trigger catches frontend/backend publication records written
-after the release itself. Production runs queue rather than cancelling an active
-publication; PR runs can replace their own obsolete preview.
+In the upstream repository, the Documentation workflow publishes on main updates,
+completion of successful local Release runs, a daily catch-up schedule, and manual
+dispatch. The daily publisher picks up archives produced by the independent fork
+collector; GitHub schedules can be delayed and the two jobs need not finish in a
+particular order. A later publication run catches up if collection is still running.
+Production runs are not cancelled by a newer run; PR previews can replace their
+own obsolete previews.
 
-The existing site-preview prototype also caches raw books. Keys change with release/publication
-records; development-only updates reuse the existing cache without saving another
-large copy. A manual retry saves a new cache generation. Cache availability is an
-optimization: a cold runner rebuilds from release tags, without needing release
-attachments or a generated Git branch. Such rerenders can change screenshot
-bytes, as described above; this is not permanent storage of original deployments.
-For preservation, use the release-asset archive above. Preview and diagnostic
-artifacts remain useful for debugging and expire according to Actions retention.
+The publisher restores the latest complete archive from `juscghwe/caddy-ui`,
+verifying the payload checksum, snapshot bytes and provenance before assembly.
+It never crawls or rerenders historical releases, and needs only read access to
+the public archive. It refreshes release and component-publication metadata
+independently: a new release gets a release-notes entry until its collected book
+arrives. Changed or removed archived source tags fail publication.
 
-PRs and manual runs on feature branches produce preview artifacts. Only main-ref
-publication runs can deploy Pages, preserving main-only environment rules.
+The archive owner is an intentional external dependency, not the Pages host.
+Repository maintainers can set the Actions variable `DOCS_ARCHIVE_REPOSITORY`
+to a reviewed replacement with the same archive format. Changing it does not
+grant the publisher write access to that repository or move the fork's collector.
+Missing, unavailable or corrupted archives fail the build, leaving the previous
+Pages deployment in place. There is no fallback that recreates historical books
+with potentially different assets. Preview and diagnostic artifacts still expire
+according to Actions retention; the release assets remain the durable source.
+
+PRs, forks and manual runs on feature branches produce preview artifacts.
+Only main-ref publication runs in a non-fork repository can deploy Pages.
 A `workflow_run` trigger checks the source repository and checks out main,
 never the triggering run's code or artifacts. The build job has read-only repository
 permissions; Pages write permission belongs only to the deployment job.
@@ -226,7 +235,8 @@ Build the current development book normally, then assemble the site:
 
 ```sh
 MDBOOK_OUTPUT__HTML__SITE_URL=/ mdbook build docs
-npm run docs:history:site -- --base /
+npm run docs:history:inventory -- --to refs/remotes/upstream/main --output /tmp/documentation-releases.json
+npm run docs:history:site -- --base / --inventory /tmp/documentation-releases.json
 python3 -m http.server 8000 --bind 127.0.0.1 --directory .docs-site
 ```
 

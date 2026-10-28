@@ -52,7 +52,7 @@ export function decorateBookHtml(source, { assets, base, book, path, commit, lab
     if (head === undefined || body === undefined) throw new Error('Book page has no HTML head/body');
     edits.push({ start: head, end: head, text: `<link rel="stylesheet" href="${assets}versions.css">\n` });
     edits.push({ start: body, end: body, text: `<noscript><p class="docs-version-noscript">${escape(label)}</p></noscript>\n`
-        + `<script type="module" src="${assets}versions.js" data-docs-book="${book}" data-docs-base="${path}"></script>\n` });
+        + `<script type="module" src="${assets}versions.js" data-docs-book="${escape(book)}" data-docs-base="${escape(path)}"></script>\n` });
     for (const edit of edits.sort((a, b) => b.start - a.start)) source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
     return source;
 }
@@ -65,7 +65,7 @@ function resolverPage(assets, tag = '') {
 </main><script type="module" src="${assets}resolve.js" data-docs-version="${escape(tag)}"></script></body></html>\n`;
 }
 
-export function publishSite({ root, archive, developmentBook, output, base = '/caddy-ui/', developmentCommit, grouping, older = [] }) {
+export function publishSite({ root, archive, developmentBook, output, base = '/caddy-ui/', developmentCommit, grouping, older = [], inventory }) {
     siteBase(base);
     if (!/^[a-f0-9]{40}$/.test(developmentCommit)) throw new Error('Development source must be a commit ID');
     const manifest = JSON.parse(readFileSync(join(archive, 'backfill.json'), 'utf8'));
@@ -74,15 +74,28 @@ export function publishSite({ root, archive, developmentBook, output, base = '/c
     validateBookResults(archive, manifest.inventory, manifest.results);
     validateBookAssets(developmentBook);
     if (manifest.results.length !== manifest.inventory.releases.length) throw new Error('Crawl is incomplete; refusing to publish a partial catalogue');
+    // The collector and publisher run independently. Discover new releases and
+    // refreshed component publications without rerendering historical books.
+    // Until their snapshots arrive, new releases explicitly use release notes.
+    inventory ||= manifest.inventory;
+    validateInventory(inventory);
+    if (inventory.repository !== manifest.inventory.repository || inventory.from !== manifest.inventory.from) {
+        throw new Error('Publication inventory does not describe the archived project');
+    }
+    for (const release of manifest.inventory.releases) {
+        if (!inventory.releases.some(current => current.tag === release.tag && current.commit === release.commit)) {
+            throw new Error(`Archived release was changed or removed: ${release.tag}`);
+        }
+    }
     for (const release of older) {
         if (!legacyTag.test(release.tag) || !/^[a-f0-9]{40}$/.test(release.commit)) throw new Error('Invalid legacy release');
     }
-    const groups = groupBooks(manifest.inventory.releases, manifest.results, grouping);
+    const groups = groupBooks(inventory.releases, manifest.results, grouping);
     const pages = directory => bookFiles(directory).filter(name => name.endsWith('.html'));
     const catalog = { schema: 1, repository, development: { path: 'dev/', commit: developmentCommit, pages: pages(developmentBook) }, books: {}, releases: [] };
     const snapshots = new Map();
     for (const group of groups.filter(group => group.snapshot)) {
-        const source = manifest.inventory.releases.find(release => release.tag === group.source);
+        const source = inventory.releases.find(release => release.tag === group.source);
         snapshots.set(group.snapshot, source.commit);
     }
     for (const [fingerprint, sourceCommit] of snapshots) {
@@ -90,7 +103,7 @@ export function publishSite({ root, archive, developmentBook, output, base = '/c
         validateBookAssets(source);
         catalog.books[fingerprint] = { path: `books/${fingerprint}/`, sourceCommit, pages: pages(source) };
     }
-    catalog.releases = [...manifest.inventory.releases.map(release => {
+    catalog.releases = [...inventory.releases.map(release => {
         const group = groups.find(group => group.tag === release.tag);
         return { ...release, snapshot: group.snapshot, source: group.source, grouping: group.grouping,
             ...(group.reason ? { reason: group.reason } : {}) };
@@ -144,13 +157,14 @@ export function publishSite({ root, archive, developmentBook, output, base = '/c
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     try {
-        const args = options(process.argv.slice(2), ['repo', 'archive', 'development', 'output', 'base']);
+        const args = options(process.argv.slice(2), ['repo', 'archive', 'development', 'output', 'base', 'inventory']);
         const root = resolve(args.repo || fileURLToPath(new URL('../..', import.meta.url)));
         const archive = resolve(args.archive || root + '/.docs-history');
         const manifest = JSON.parse(readFileSync(join(archive, 'backfill.json'), 'utf8'));
+        const inventory = args.inventory ? JSON.parse(readFileSync(resolve(args.inventory), 'utf8')) : manifest.inventory;
         const catalog = publishSite({ root, archive, developmentBook: resolve(args.development || root + '/docs/book'),
             output: resolve(args.output || root + '/.docs-site'), base: args.base || '/caddy-ui/', developmentCommit: git(root, ['rev-parse', 'HEAD']),
-            grouping: JSON.parse(readFileSync(join(root, 'docs/history/groups.json'), 'utf8')), older: legacyReleases(root, manifest.inventory) });
+            grouping: JSON.parse(readFileSync(join(root, 'docs/history/groups.json'), 'utf8')), older: legacyReleases(root, inventory), inventory });
         console.log(`Published development documentation and ${catalog.releases.length} release entries (${Object.keys(catalog.books).length} shared books).`);
     } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
