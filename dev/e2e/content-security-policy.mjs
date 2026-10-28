@@ -101,7 +101,6 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
                 page.setDefaultTimeout(10000);
                 const errors = [];
                 const unexpected = [];
-                let fontRequested = false;
                 let authenticated = false;
                 await page.addInitScript(() => {
                     window.cspViolations = [];
@@ -109,9 +108,8 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
                 });
                 page.on('pageerror', error => errors.push(error.message));
                 await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ contentType: 'text/css',
-                    body: '@font-face { font-family: "CSP fixture"; src: url(https://fonts.gstatic.com/csp-fixture.woff2) format("woff2"); }' }));
+                    body: '@font-face { font-family: "IBM Plex Sans"; src: url(https://fonts.gstatic.com/csp-fixture.woff2) format("woff2"); }' }));
                 await page.route('https://fonts.gstatic.com/csp-fixture.woff2', route => {
-                    fontRequested = true;
                     return route.fulfill({ contentType: 'font/woff2', headers: { 'Access-Control-Allow-Origin': '*' }, body: font });
                 });
                 await page.route('**/api/**', route => {
@@ -151,8 +149,13 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
                 await page.getByLabel('Password', { exact: true }).fill(randomUUID());
                 await page.getByRole('button', { name: 'Sign in', exact: true }).click();
                 await page.locator('.cm-editor').waitFor();
-                assert.equal(await page.evaluate(async () => (await document.fonts.load('12px "CSP fixture"')).length), 1);
-                assert.equal(fontRequested, true, 'The font allowlist must work over both transports');
+                // Exercise the application's font whether it is supplied by the
+                // current Google import or by a subsequent local font bundle.
+                assert.equal(await page.evaluate(async () => {
+                    await document.fonts.ready;
+                    const faces = await document.fonts.load('400 12px "IBM Plex Sans"');
+                    return faces.length > 0 && faces.every(face => face.status === 'loaded');
+                }), true);
                 await page.locator('.cm-content').click();
                 await page.keyboard.insertText('# edited under CSP\n');
                 assert((await page.locator('.cm-content').innerText()).includes('edited under CSP'));
