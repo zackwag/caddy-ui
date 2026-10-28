@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.7.3](https://github.com/zackwag/caddy-ui/compare/v3.7.2...v3.7.3) (2026-10-28)
+
+
+### Bug Fixes
+
+* node26 runtime alignment ([#488](https://github.com/zackwag/caddy-ui/issues/488)) ([f54f9a8](https://github.com/zackwag/caddy-ui/commit/f54f9a80d785698363a67ead4f46ce243621fbb9))
+* **security:** prevent in-memory instance mutation on failed save ([#489](https://github.com/zackwag/caddy-ui/issues/489)) ([1d54a9d](https://github.com/zackwag/caddy-ui/commit/1d54a9d73970fef9157a5429febe7bf0d9456ebe))
+* Update Dockerfile to Node 26-alpine ([#427](https://github.com/zackwag/caddy-ui/issues/427)) ([33c5218](https://github.com/zackwag/caddy-ui/commit/33c5218d782d9228024167b78295ca334e23b8a7))
+
+
+### Documentation
+
+* generate release table from changelog at build time ([#475](https://github.com/zackwag/caddy-ui/issues/475)) ([c35136a](https://github.com/zackwag/caddy-ui/commit/c35136aed9c67e231ee2cbc4bf708232d5b2d85e))
+* publish versioned online documentation ([#411](https://github.com/zackwag/caddy-ui/issues/411)) ([d81f0ba](https://github.com/zackwag/caddy-ui/commit/d81f0ba06117192f601ea482987a3224b6b8477e))
+
+
+### Miscellaneous Chores
+
+* **deps:** bump @codemirror/view from 6.43.14 to 6.43.15 in /src/frontend ([#483](https://github.com/zackwag/caddy-ui/issues/483)) ([f612b4d](https://github.com/zackwag/caddy-ui/commit/f612b4d47106c1ced27bc3b78ace0015330176e2))
+* **deps:** bump i18next from 26.5.2 to 26.5.10 in /src/frontend ([#485](https://github.com/zackwag/caddy-ui/issues/485)) ([73188f1](https://github.com/zackwag/caddy-ui/commit/73188f1ee2cf19591f4f3f98120c20afef789218))
+* **deps:** bump react-i18next from 17.1.0 to 17.1.8 in /src/frontend ([#479](https://github.com/zackwag/caddy-ui/issues/479)) ([73c03a6](https://github.com/zackwag/caddy-ui/commit/73c03a614dc7d644a89e638b929de63c50f2c4f7))
+
 ## [3.7.2](https://github.com/zackwag/caddy-ui/compare/v3.7.1...v3.7.2) (2026-10-27)
 
 
