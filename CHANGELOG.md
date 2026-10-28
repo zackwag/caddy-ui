@@ -3,11 +3,6 @@
 ## [3.7.3](https://github.com/zackwag/caddy-ui/compare/v3.7.2...v3.7.3) (2026-10-28)
 
 
-### build
-
-* release as 3.7.3 ([#490](https://github.com/zackwag/caddy-ui/issues/490)) ([0b7b005](https://github.com/zackwag/caddy-ui/commit/0b7b005c631d75ca3326b5bc93abddd98c71a8aa))
-
-
 ### Bug Fixes
 
 * node26 runtime alignment ([#488](https://github.com/zackwag/caddy-ui/issues/488)) ([f54f9a8](https://github.com/zackwag/caddy-ui/commit/f54f9a80d785698363a67ead4f46ce243621fbb9))
