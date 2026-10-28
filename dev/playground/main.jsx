@@ -4,6 +4,7 @@ import Workbench from './Workbench.jsx';
 import { createPreviewI18n } from './model.js';
 import { css, THEME_LIST } from '../../src/frontend/src/styles.js';
 import './workbench.css';
+import '../../src/frontend/src/fonts.css';
 
 const modules = import.meta.glob('../../src/frontend/src/i18n/locales/*.js', { eager: true, import: 'default' });
 const catalogs = Object.fromEntries(
