@@ -74,8 +74,9 @@ export async function addInstance(instance) {
     if (instances.find(i => i.id === instance.id)) {
         throw new AppError('CONFLICT', { message: `Instance "${instance.id}" already exists` });
     }
-    instances.push(instance);
-    await saveInstances(instances);
+    // Copy before mutating so a failed save never leaves stale changes in memory.
+    const next = [...instances, instance];
+    await saveInstances(next);
     logger.info('Instance added', { id: instance.id, name: instance.name });
     return instance;
 }
@@ -84,17 +85,20 @@ export async function updateInstance(id, updates) {
     const instances = getInstances();
     const idx = instances.findIndex(i => i.id === id);
     if (idx === -1) throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
-    instances[idx] = { ...instances[idx], ...updates, id };
-    await saveInstances(instances);
+    const updated = { ...instances[idx], ...updates, id };
+    // Copy before mutating so a failed save never leaves stale changes in memory.
+    const next = instances.map((inst, i) => i === idx ? updated : inst);
+    await saveInstances(next);
     logger.info('Instance updated', { id });
-    return instances[idx];
+    return updated;
 }
 
 export async function removeInstance(id) {
     const instances = getInstances();
     const idx = instances.findIndex(i => i.id === id);
     if (idx === -1) throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
-    instances.splice(idx, 1);
-    await saveInstances(instances);
+    // Copy before mutating so a failed save never leaves stale changes in memory.
+    const next = instances.filter((_, i) => i !== idx);
+    await saveInstances(next);
     logger.info('Instance removed', { id });
 }
