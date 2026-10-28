@@ -16,7 +16,8 @@ import {
 import { getBackendUrl } from '../dockerDiscovery.js';
 import { getServers } from '../observations.js';
 import { validateContainerName, validatePath } from '../validation.js';
-import { historyWarning, queueCaddyfileChange, saveCaddyfileChange } from './caddyfile.js';
+import { UNCHANGED, verificationWarning, verifyLiveObject, verifyLiveObjectRemoved } from '../configVerification.js';
+import { changeResultFields, queueCaddyfileChange, saveCaddyfileChange } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
 
 const router = Router();
@@ -168,14 +169,16 @@ router.post('/', async (req, res) => {
     // Written before the live change, so a rejected route restores the file
     // instead of leaving a running route the Caddyfile doesn't have
     try {
-        result = await saveCaddyfileChange(req.instance, previous => `${(previous || '').trimEnd()}\n\n${block}\n`, { apply: addLive, actor: getAuthentication().getActor(req), action: 'route.add' });
+        result = await saveCaddyfileChange(req.instance, previous => `${(previous || '').trimEnd()}\n\n${block}\n`, {
+            apply: addLive, verify: () => verifyLiveObject(req.instance, id, route), actor: getAuthentication().getActor(req), action: 'route.add',
+        });
     } catch (e) {
         if (e instanceof AppError) return sendAppError(res, e);
         throw e;
     }
 
     logger.info(`Route added`, { id, domain, upstream });
-    res.status(201).json({ ok: true, id, route, ...historyWarning(result) });
+    res.status(201).json({ ok: true, id, route, ...changeResultFields(result) });
 });
 
 // GET /api/routes/caddyfile/:domain -- get site block content
@@ -220,7 +223,7 @@ router.patch('/caddyfile/:domain', async (req, res) => {
         }, { actor: getAuthentication().getActor(req), action: 'route.edit' });
 
         logger.info('Caddyfile site block updated', { domain });
-        res.json({ ok: true, domain, ...historyWarning(result) });
+        res.json({ ok: true, domain, ...changeResultFields(result) });
     } catch (e) {
         if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to update site block', { domain, error: e.message });
@@ -239,7 +242,7 @@ router.delete('/caddyfile/:domain', async (req, res) => {
         }, { actor: getAuthentication().getActor(req), action: 'route.delete' });
 
         logger.info('Caddyfile site block deleted', { domain });
-        res.json({ ok: true, domain, ...historyWarning(result) });
+        res.json({ ok: true, domain, ...changeResultFields(result) });
     } catch (e) {
         if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to delete site block', { domain, error: e.message });
@@ -264,11 +267,16 @@ router.patch('/:id', async (req, res) => {
             let oldDomain;
             try { oldDomain = (await caddyGet(`/id/${id}`, req.instance.adminUrl))?.match?.[0]?.host?.[0]; }
             catch { logger.warn('Could not fetch old route for update', { id }); }
-            if (!oldDomain) { await patchLive(); return; }
+            const verify = () => verifyLiveObject(req.instance, id, route);
+            if (!oldDomain) {
+                await patchLive();
+                const verification = { file: UNCHANGED, live: await verify() };
+                return { applied: true, verification, ...verificationWarning(verification) };
+            }
             return save(async previous => {
                 const env = await getCaddyEnv(req.instance.containerName);
                 return replaceSiteBlock(previous || '', oldDomain, buildCaddyfileBlock({ domain, upstream, stripPrefix }), env);
-            }, { apply: patchLive, actor: getAuthentication().getActor(req), action: 'route.edit' });
+            }, { apply: patchLive, verify, actor: getAuthentication().getActor(req), action: 'route.edit' });
         });
     } catch (error) {
         if (error instanceof AppError) return sendAppError(res, error);
@@ -276,7 +284,7 @@ router.patch('/:id', async (req, res) => {
     }
 
     logger.info(`Route updated`, { id, domain, upstream });
-    res.json({ ok: true, id, route, ...historyWarning(result) });
+    res.json({ ok: true, id, route, ...changeResultFields(result) });
 });
 
 // DELETE /api/routes/:id
@@ -291,9 +299,14 @@ router.delete('/:id', async (req, res) => {
         result = await queueCaddyfileChange(req.instance, async save => {
             try { domain = (await caddyGet(`/id/${id}`, req.instance.adminUrl))?.match?.[0]?.host?.[0]; }
             catch { logger.warn('Could not fetch route for deletion', { id }); }
-            if (!domain) { await deleteLive(); return; }
+            const verify = () => verifyLiveObjectRemoved(req.instance, id);
+            if (!domain) {
+                await deleteLive();
+                const verification = { file: UNCHANGED, live: await verify() };
+                return { applied: true, verification, ...verificationWarning(verification) };
+            }
             return save(async previous => removeSiteBlock(previous || '', domain, await getCaddyEnv(req.instance.containerName)),
-                { apply: deleteLive, actor: getAuthentication().getActor(req), action: 'route.delete' });
+                { apply: deleteLive, verify, actor: getAuthentication().getActor(req), action: 'route.delete' });
         });
     } catch (error) {
         if (error instanceof AppError) return sendAppError(res, error);
@@ -301,7 +314,7 @@ router.delete('/:id', async (req, res) => {
     }
 
     logger.info(`Route deleted`, { id, domain });
-    res.json({ ok: true, id, ...historyWarning(result) });
+    res.json({ ok: true, id, ...changeResultFields(result) });
 });
 
 // Whether the instance's Caddyfile currently serves the maintenance page for
@@ -351,7 +364,7 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
             onApplied: () => setMaintenance(req.instance.id, domain, block) });
 
         logger.info('Maintenance mode enabled', { domain });
-        res.json({ ok: true, domain, ...historyWarning(result) });
+        res.json({ ok: true, domain, ...changeResultFields(result) });
     } catch (e) {
         if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to enable maintenance mode', { domain, error: e.message });
@@ -374,7 +387,7 @@ router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
             onApplied: () => clearMaintenance(req.instance.id, domain) });
 
         logger.info('Maintenance mode disabled', { domain });
-        res.json({ ok: true, domain, ...historyWarning(result) });
+        res.json({ ok: true, domain, ...changeResultFields(result) });
     } catch (e) {
         if (e instanceof AppError) return sendAppError(res, e);
         logger.error('Failed to disable maintenance mode', { domain, error: e.message });

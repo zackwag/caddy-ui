@@ -25,6 +25,7 @@ A modern, self-hosted web interface for managing your [Caddy](https://caddyserve
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![Frontend](https://img.shields.io/badge/frontend-React-61dafb?style=flat-square)
 ![Backend](https://img.shields.io/badge/backend-Node.js-339933?style=flat-square)
+[![Backend pulls](https://img.shields.io/docker/pulls/zackwag/caddy-ui-backend?style=flat-square&label=backend%20pulls)](https://hub.docker.com/r/zackwag/caddy-ui-backend)
 
 <details>
 <summary>Docker image roles</summary>
@@ -589,8 +590,12 @@ Both images are required. The frontend serves the UI and proxies requests to the
 | Tag | Description |
 |-----|-------------|
 | `latest` | Most recent stable release |
-| `beta` | Pre-release build of a specific branch or pull request, published manually for testing |
-| `edge` | Most recent build of any kind: every push to `main` and every `beta` build. May contain unreleased or unmerged changes |
+| `beta` | Most recent successful manual test build of a selected branch or pull request; may contain unmerged changes |
+| `edge` | Most recent successful build from `main`; may contain unreleased changes. Beta builds do not update this tag |
+
+These tags are mutable and advance independently for each image. Stable release
+tags and `latest` are published by the release workflow; beta builds publish only
+the `beta` image tag and update only beta version records.
 
 See [GitHub releases](https://github.com/zackwag/caddy-ui/releases)
 for versioned image tags and release notes.

@@ -2,9 +2,6 @@
     "name": "caddy-ui-documentation",
     "private": true,
     "type": "module",
-    "engines": {
-        "node": ">=22.12.0"
-    },
     "scripts": {
         "test": "node --test scripts/*.test.mjs",
         "history:inventory": "node scripts/history-inventory.mjs",

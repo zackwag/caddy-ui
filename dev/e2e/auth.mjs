@@ -335,8 +335,7 @@ test('Auth settings explain an origin mismatch instead of reporting missing conf
             limit: 3, passkeys: [] } });
     });
     const dialog = await openPasskeys(page);
-    await dialog.getByText('Passkeys are configured for a different address.', { exact: false }).waitFor();
-    assert((await dialog.innerText()).includes('https://configured.example.com'));
+    await dialog.getByText('Passkeys are configured for a different address. Open Caddy UI at https://configured.example.com to use passkeys.', { exact: true }).waitFor();
     assert.equal(await dialog.getByText('Passkey setup is incomplete.', { exact: false }).count(), 0);
     assert.equal(await dialog.getByRole('button', { name: 'Add passkey', exact: true }).isDisabled(), true);
 });
@@ -358,8 +357,7 @@ test('passkey sign-in explains an incompatible HTTPS origin and works at the con
     const button = page.getByRole('button', { name: 'Sign in with a passkey', exact: true });
     await button.waitFor();
     assert.equal(await button.isDisabled(), true);
-    await page.getByText('Passkeys are configured for a different address.', { exact: false }).waitFor();
-    assert((await page.locator('.login-card').innerText()).includes(origin));
+    await page.getByText(`Passkeys are configured for a different address. Open Caddy UI at ${origin} to use passkeys.`, { exact: true }).waitFor();
     await page.goto(origin);
     await page.getByRole('button', { name: 'Sign in with a passkey', exact: true }).click();
     await page.locator('.shell').waitFor();

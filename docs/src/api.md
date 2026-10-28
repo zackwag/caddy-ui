@@ -18,6 +18,42 @@ An empty result means the resource is empty, not that it couldn't be read:
 
 The Caddy log source reads the selected instance's configured log file, rather than Docker's captured stdout/stderr. A writable directory mount alone does not enable file logging: Caddy must be configured to write to the selected path. The UI displays unavailable reads separately from an empty file. Refresh retries the read and clears the error after success.
 
+## Configuration change verification
+
+After a configuration change, the backend reads the result back and reports
+it as `verification: { "file": ..., "live": ... }` in the response. Each value
+is one of:
+
+| Value | Meaning |
+| --- | --- |
+| `verified` | The readback matches what the change should have produced. |
+| `mismatch` | The readback differs, for example because another process changed it in between. |
+| `unavailable` | The readback couldn't be made or interpreted. Nothing is known either way. |
+| `not-applied` | The change deliberately wasn't applied: a force save that Caddy rejected. |
+| `unchanged` | The operation didn't touch this representation. |
+
+A `mismatch` or `unavailable` result doesn't fail the request, because the
+change was already made. The response keeps its success status and adds
+`warningCode: "CONFIG_VERIFICATION_MISMATCH"` or
+`"CONFIG_VERIFICATION_UNAVAILABLE"` with a `warning`. A mismatch takes priority
+over other warnings. The backend never retries the write or overwrites the
+readback, since the difference may be someone else's change. Logs name the
+representation and the JSON path of the first difference, never configuration
+values.
+
+| Endpoint | How it applies the change | File check | Live check |
+| --- | --- | --- | --- |
+| `PUT /api/caddyfile`, `PUT /api/metrics/config`, `PUT /api/logs/config`, Caddyfile route edits and maintenance | Writes the Caddyfile and reloads it | Exact text, after any formatting and sorting | Running config (`GET /config/`) equals Caddy's adaptation of the saved file |
+| `PUT /api/caddyfile?validate=false` rejected by Caddy | Writes the Caddyfile only | Exact text | `not-applied` |
+| `POST /api/routes`, `PATCH /api/routes/:id`, `DELETE /api/routes/:id` | Writes the Caddyfile block and changes the route through the admin API | Exact text, or `unchanged` for a route without a Caddyfile block | The route's `/id/` object equals the sent route, or is gone after a delete |
+| `POST /api/caddyfile/reloads` | Reloads the file on disk | `unchanged` | Running config equals Caddy's adaptation of that file |
+
+Checks run in the same per-instance queue as other changes, so they never
+compare against another caddy/ui change in progress. They can't rule out a
+change made outside caddy/ui between the write and the readback; that is what
+`mismatch` reports. The file and the admin API are updated separately, so a
+change is never atomic across both.
+
 ## Logging configuration
 
 `GET /api/logs/config` returns defaults when the Caddyfile has no default logger.

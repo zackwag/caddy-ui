@@ -163,29 +163,19 @@ describe('sendWebhook', () => {
                 res.end('failed');
             }
         };
-        let fallbackRequests = 0;
-        const alternate = createServer((req, res) => {
-            fallbackRequests++;
-            req.resume();
-            res.end('unexpected retry');
-        });
-        await new Promise((resolve, reject) => {
-            alternate.once('error', reject);
-            alternate.listen(port, '127.0.0.2', resolve);
-        });
+        const request = vi.spyOn(http, 'request');
         try {
             const resolveDestination = vi.fn(async raw => ({
                 url: new URL(raw), address: '127.0.0.1', family: 4,
-                addresses: [{ address: '127.0.0.1', family: 4 }, { address: '127.0.0.2', family: 4 }],
+                addresses: [{ address: '127.0.0.1', family: 4 }, { address: '::1', family: 6 }],
             }));
             await expect(sendWebhook(`http://ntfy.test:${port}/topic`, { name: 'ntfy', body: 'once' }, { resolveDestination }))
                 .rejects.toThrow(failure === 'reset' ? 'socket hang up' : 'ntfy responded 500');
             expect(resolveDestination).toHaveBeenCalledTimes(1);
+            expect(request).toHaveBeenCalledTimes(1);
             expect(received).toHaveLength(1);
-            expect(fallbackRequests).toBe(0);
         } finally {
-            alternate.closeAllConnections();
-            await new Promise(resolve => alternate.close(resolve));
+            request.mockRestore();
         }
     });
 

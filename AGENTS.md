@@ -35,6 +35,7 @@ npm run lint --prefix src/frontend -- --max-warnings=0
 # Shared development tooling
 npm run lint:dev-caddy
 npm run test:dev-caddy              # harness/lifecycle/readiness tests, no Docker
+npm run test:workflows              # publication workflow contracts
 npm run test:dev-caddy:integration  # real Caddy, backend API and startup scenarios
 npm exec --prefix dev -- playwright install chromium
 npm run test:dev-caddy:e2e          # isolated browser scenarios
@@ -49,7 +50,7 @@ Integration infrastructure is limited to three support modules: `dev/integration
 
 - If you changed `src/backend/src/**`, run `cd src/backend && npm test && npm run lint` and make sure both are green.
 - If you changed `src/frontend/src/**`, run `cd src/frontend && npm test && npm run lint`, and run the dev server to exercise the affected view in a browser. Don't claim a UI fix works without having rendered it — Vitest does not cover the full UI.
-- Don't hand-edit `CHANGELOG.md` or bump versions — release-please generates both from Conventional Commit PR titles on `main`, so pick the prefix (`feat:` vs `fix:`, `!` for breaking) that matches the user-visible impact. The Changelog table in `docs/src/releases.md` is frozen history for pre-`v1.18` releases.
+- Don't hand-edit `CHANGELOG.md` or bump versions — release-please generates both from Conventional Commit PR titles on `main`, so pick the prefix (`feat:` vs `fix:`, `!` for breaking) that matches the user-visible impact. Don't merge the release-please PR either: it accumulates changes until both maintainers approve it. The Changelog table in `docs/src/releases.md` is frozen history for pre-`v1.18` releases.
 
 ## Things to know before editing
 
@@ -83,4 +84,4 @@ ES modules throughout (`type: "module"` in package manifests), 4-space indentati
 
 ## Commit / PR conventions
 
-PR titles use Conventional Commit prefixes (`feat:`, `fix:`, `build:`, `test:`, …) — see `git log` for examples. CI (`.github/workflows/test.yml`) tests and lints both application packages and runs shared tooling lint, lifecycle safety, real-Caddy integration and Chromium scenarios through the root commands. Its aggregate `Test` check includes the integration job.
+PR titles use Conventional Commit prefixes (`feat:`, `fix:`, `build:`, `test:`, …) — see `git log` for examples. CI (`.github/workflows/test.yml`) tests and lints both application packages and runs shared tooling lint, lifecycle safety, publication workflow contracts (`npm run test:workflows`), real-Caddy integration and Chromium scenarios through the root commands. Its aggregate `Test` check includes the integration job. Run `npm run test:workflows` when changing publication workflows or their regression checks.

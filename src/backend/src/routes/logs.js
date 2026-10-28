@@ -6,7 +6,7 @@ import { AppError, asAppError, errorChain, publicError } from '../AppError.js';
 import { logReadError } from '../logReadError.js';
 import { errorDefinition } from '../errorRegistry.js';
 import { sendAppError } from '../errorReporting.js';
-import { historyWarning, saveCaddyfileChange, validateCaddyfile } from './caddyfile.js';
+import { changeResultFields, saveCaddyfileChange, validateCaddyfile } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
 import { caddyfileChildren, extractDirective, extractGlobalBlock } from '../caddyfileBlocks.js';
 const router = Router();
@@ -251,7 +251,7 @@ router.put('/config', async (req, res) => {
             return updated;
         }, { actor: getAuthentication().getActor(req), action: 'logs.configure' });
         logger.info('Log config saved and reloaded');
-        res.json({ ok: true, message: 'Log config saved and reloaded', ...historyWarning(result) });
+        res.json({ ok: true, message: 'Log config saved and reloaded', ...changeResultFields(result) });
     } catch (err) {
         return sendAppError(res, asAppError(err, 'CADDYFILE_WRITE_FAILED', { instanceId: req.instance.id }));
     }

@@ -5,7 +5,7 @@ import { getInstances, loadInstances } from './instances.js';
 import logger from './logger.js';
 import { diagnosticMiddleware } from './errorReporting.js';
 import { authMiddleware, initializeAuthentication, publicMetrics } from './middleware/auth.js';
-import { createCrossSiteMiddleware } from './middleware/crossSite.js';
+import { createCrossSiteMiddleware, misnamedExternalUrlVariables } from './middleware/crossSite.js';
 import { createCsrfMiddleware } from './middleware/csrf.js';
 import { createApiTokenMiddleware } from './middleware/apiToken.js';
 import { instanceMiddleware } from './middleware/instance.js';
@@ -96,6 +96,9 @@ const publicLimiter = rateLimit({
 app.use('/public/responses', publicLimiter, pagesRouter);
 
 app.use('/api', apiLimiter);
+for (const name of misnamedExternalUrlVariables(process.env)) {
+    logger.warn(`${name} is set but ignored. Rename it to CADDY_UI_EXTERNAL_URL; until then, browser sign-in over plain HTTP is rejected.`);
+}
 app.use('/api', createCrossSiteMiddleware(process.env.CADDY_UI_EXTERNAL_URL));
 app.use('/api', createApiTokenMiddleware(authentication));
 app.use('/api', createCsrfMiddleware(authentication.sessions));

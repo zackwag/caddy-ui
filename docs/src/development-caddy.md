@@ -7,7 +7,8 @@ data separate from production. The root npm package contains development scripts
 
 ## Prerequisites and startup
 
-Use Node.js 22.16+ (or 24), npm, and a running Docker Engine or Docker Desktop.
+Use Node.js 26 (the major recorded in `.node-version`), npm, and a running Docker
+Engine or Docker Desktop. This matches the production Node major used by CI.
 The Docker CLI must be on PATH and `docker info` must succeed for your user.
 The harness and backend Docker exec use the same Docker CLI context. Discovery
 separately uses `DOCKER_SOCKET` (default `/var/run/docker.sock`); it does not

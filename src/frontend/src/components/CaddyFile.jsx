@@ -283,14 +283,24 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         }
     };
 
+    // Reloads the editor after a saved change. The save's own outcome is
+    // reported first, so a failed refresh only adds its error and keeps the
+    // current editor contents.
+    const refreshSaved = async () => {
+        try {
+            const fresh = await apiFetch("/caddyfile", {}, onUnauth);
+            setContent(fresh); setOriginal(fresh);
+        } catch (e) { toast.error(localizeError(e, t), e); }
+    };
+
     const restoreSnapshot = async (entry) => {
         if (!await confirm(t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("caddyfile.restore") })) return;
         try {
             const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
             const result = await apiFetch("/caddyfile?action=restore&fmt=false&sort=false", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
-            const fresh = await apiFetch("/caddyfile", {}, onUnauth);
-            setContent(fresh); setOriginal(fresh); setHistoryOpen(false); clearPreview();
             notifyConfigurationSave(toast, t, result, t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
+            await refreshSaved();
+            setHistoryOpen(false); clearPreview();
             loadHistory(true);
         } catch (e) { toast.error(localizeError(e, t), e); }
     };
@@ -324,17 +334,18 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         try {
             const q = `fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`; // eslint-disable-line i18next/no-literal-string -- API query parameter
             const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
-            const fresh = await apiFetch("/caddyfile", {}, onUnauth);
-            setContent(fresh); setOriginal(fresh);
-            if (result?.warning) toast.info(t('errors.operationWarning'), result);
-            else toast.success(t("caddyfile.savedReloaded"));
+            notifyConfigurationSave(toast, t, result, t("caddyfile.savedReloaded"));
+            await refreshSaved();
             if (historyOpen) loadHistory(true);
         } catch (e) { toast.error(localizeError(e, t), e); }
         finally { setSaving(false); }
     };
 
     const reload = async () => {
-        try { await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth); toast.success(t("caddyfile.reloadedFromDisk")); }
+        try {
+            const result = await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth);
+            notifyConfigurationSave(toast, t, result, t("caddyfile.reloadedFromDisk"));
+        }
         catch (e) { toast.error(localizeError(e, t), e); }
     };
 
@@ -351,9 +362,8 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             if (!await confirm(t("caddyfile.importConfirm"), { confirmLabel: t("caddyfile.import") })) return;
             try {
                 const result = await apiFetch("/caddyfile?action=import", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
-                const fresh = await apiFetch("/caddyfile", {}, onUnauth);
-                setContent(fresh); setOriginal(fresh);
                 notifyConfigurationSave(toast, t, result, t("caddyfile.importedReloaded"));
+                await refreshSaved();
                 if (historyOpen) loadHistory(true);
             } catch (err) { toast.error(localizeError(err, t), err); }
         };

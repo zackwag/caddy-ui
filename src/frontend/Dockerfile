@@ -1,4 +1,4 @@
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 
 ARG APP_VERSION=dev
 ENV VITE_APP_VERSION=$APP_VERSION

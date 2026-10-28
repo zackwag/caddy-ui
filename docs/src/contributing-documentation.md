@@ -34,6 +34,7 @@ includes and produces the final sidebar and pages.
 | Page order and nesting | `docs/src/SUMMARY.md` |
 | Documentation theme | `docs/theme/` |
 | Comments beside paths in the generated project tree | `docs/project-structure-notes.json` |
+| Release entries from `v1.18` onward | Root `CHANGELOG.md`, maintained by release-please |
 
 The book uses mdBook's built-in includes for shared references. Those references
 are authored once in the README; edit the original section there. Leave the
@@ -49,7 +50,8 @@ select excerpts for the book. Never edit `src/backend/DOCKERHUB.md` or
 Work in a checkout of your fork. Install the prebuilt
 [mdBook 0.5.4 binary for your environment](https://github.com/rust-lang/mdBook/releases/tag/v0.5.4)
 and put it on your `PATH`. For a Linux devcontainer or WSL, use the Linux binary;
-for a native Windows terminal, use the Windows binary. Install Node.js 22.12 or newer
+for a native Windows terminal, use the Windows binary. Install Node.js 26, matching
+the tested major in `.node-version`,
 and run `npm ci --prefix docs --ignore-scripts` once before building or serving.
 
 From the repository root:
@@ -121,6 +123,12 @@ and follow the selected light/dark theme; preview diagrams in the built book.
 The project tree is generated automatically. Add file/directory comments in
 `docs/project-structure-notes.json`, keyed by repository-relative path (directories
 end in `/`). Builds preserve these annotations; update the key after a rename.
+
+The release table is generated from `CHANGELOG.md` by an mdBook preprocessor.
+Keep the release-table directive in `releases.md`; builds and local previews update it
+without writing generated rows to the source page. The earlier release summaries
+remain hand-authored history. Release-please owns `CHANGELOG.md`; do not edit it
+manually to update the book.
 
 - Keep examples runnable and state any deployment assumptions.
 - Preserve code indentation, environment-variable names, and paths exactly.

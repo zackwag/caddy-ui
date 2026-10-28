@@ -1,6 +1,6 @@
 {
     "name": "caddy-ui with host Docker",
-    "image": "node:24-bookworm",
+    "image": "node:26-bookworm",
     "remoteUser": "node",
     "features": {
         "ghcr.io/devcontainers/features/common-utils:2": { "username": "node" },

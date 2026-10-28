@@ -32,7 +32,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: |
             src/${{ matrix.project }}/package-lock.json
@@ -57,7 +57,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: |
             src/backend/package-lock.json
@@ -78,6 +78,9 @@ jobs:
 
       - name: Test development lifecycle safety
         run: npm run test:dev-caddy
+
+      - name: Test workflow contracts
+        run: npm run test:workflows
 
       - name: Prepare real Caddy and Chromium
         run: |
@@ -130,7 +133,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: src/${{ matrix.project }}/package-lock.json
 

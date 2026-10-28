@@ -63,8 +63,12 @@ for (const configured of [true, false]) {
 
         await page.goto(target.origin);
         assert.equal(await page.evaluate(() => isSecureContext), false);
-        const ownStatus = await page.evaluate(async () => (await fetch('/api/write', { method: 'POST' })).status);
-        assert.equal(ownStatus, configured ? 200 : 403);
+        const own = await page.evaluate(async () => {
+            const response = await fetch('/api/write', { method: 'POST' });
+            return { status: response.status, code: (await response.json()).code };
+        });
+        // An unconfigured backend names the fix instead of a generic denial.
+        assert.deepEqual(own, configured ? { status: 200, code: undefined } : { status: 403, code: 'EXTERNAL_URL_REQUIRED' });
         assert.equal(target.records.at(-1).origin, target.origin);
         assert.equal(target.records.at(-1).site, undefined);
         assert.equal(target.writes, configured ? 1 : 0);

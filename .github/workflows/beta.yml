@@ -57,18 +57,18 @@ jobs:
           images: zackwag/caddy-ui-backend
           tags: |
             type=raw,value=beta
-            type=raw,value=edge
 
       - uses: docker/build-push-action@v7
         with:
           context: ${{ steps.context.outputs.path }}
           push: true
+          pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=beta-${{ steps.sha.outputs.short }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=beta-backend
+          cache-to: type=gha,scope=beta-backend,mode=max
 
   docker-frontend:
     runs-on: ubuntu-latest
@@ -105,18 +105,18 @@ jobs:
           images: zackwag/caddy-ui-frontend
           tags: |
             type=raw,value=beta
-            type=raw,value=edge
 
       - uses: docker/build-push-action@v7
         with:
           context: ${{ steps.context.outputs.path }}
           push: true
+          pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_VERSION=beta-${{ steps.sha.outputs.short }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=beta-frontend
+          cache-to: type=gha,scope=beta-frontend,mode=max
 
   versions:
     runs-on: ubuntu-latest
@@ -142,4 +142,3 @@ jobs:
             exit 0
           fi
           .github/scripts/publish-versions.sh beta "${ARGS[@]}"
-          .github/scripts/publish-versions.sh edge "${ARGS[@]}"

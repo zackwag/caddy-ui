@@ -6,7 +6,7 @@ import { asAppError, errorChain } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 import { ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
 import { getStatsForInstance } from '../uptimeHistory.js';
-import { historyWarning, saveCaddyfileChange } from './caddyfile.js';
+import { changeResultFields, saveCaddyfileChange } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
 
 const router = Router();
@@ -228,7 +228,7 @@ router.put('/config', async (req, res) => {
             return previous.replace(/^\s*metrics\s*\n?/m, '');
         }, { actor: getAuthentication().getActor(req), action: 'metrics.configure' });
         logger.info('Metrics config saved and reloaded', { enabled });
-        res.json({ ok: true, enabled, ...historyWarning(result) });
+        res.json({ ok: true, enabled, ...changeResultFields(result) });
     } catch (err) {
         sendAppError(res, asAppError(err, 'METRICS_CONFIG_FAILED', { instanceId: req.instance.id }));
     }

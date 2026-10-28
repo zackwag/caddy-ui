@@ -7,7 +7,11 @@ src = "src"
 [build]
 build-dir = "book"
 create-missing = false
-extra-watch-dirs = ["../README.md", "../src/backend/src", "../src/frontend/src", "../dev", "../.github", "scripts", "project-structure-notes.json"]
+extra-watch-dirs = ["../README.md", "../CHANGELOG.md", "../src/backend/src", "../src/frontend/src", "../dev", "../.github", "scripts", "project-structure-notes.json"]
+
+[preprocessor.release-table]
+command = "node scripts/release-table.mjs"
+before = ["links"]
 
 [preprocessor.project-structure]
 command = "node scripts/project-structure.mjs"

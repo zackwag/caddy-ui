@@ -8,7 +8,7 @@ const { execInInstance, validateCaddyfile, saveCaddyfileChange, state } = vi.hoi
 }));
 vi.mock('../src/docker.js', async original => ({ ...await original(), execInInstance }));
 vi.mock('../src/containerFs.js', () => ({ readContainerFile: vi.fn(async () => state.original) }));
-vi.mock('../src/routes/caddyfile.js', () => ({ historyWarning: () => ({}), validateCaddyfile, saveCaddyfileChange }));
+vi.mock('../src/routes/caddyfile.js', () => ({ changeResultFields: () => ({}), validateCaddyfile, saveCaddyfileChange }));
 vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getActor: () => null }) }));
 import logsRouter from '../src/routes/logs.js';
 import { readContainerFile } from '../src/containerFs.js';
