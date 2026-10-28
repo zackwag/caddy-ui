@@ -49,7 +49,9 @@ export async function loadInstances() {
 // Derive a change inside the write queue against the last successfully saved
 // state. Publish the new array only after persistence succeeds.
 export async function saveInstances(change) {
-    _writeLock = _writeLock.then(async () => {
+    // A failed operation still rejects its caller, but must not prevent later
+    // operations from retrying against the last successfully saved state.
+    _writeLock = _writeLock.catch(() => {}).then(async () => {
         const instances = typeof change === 'function' ? change(getInstances()) : change;
         await mkdir(dirname(INSTANCES_PATH), { recursive: true });
         await writeFile(INSTANCES_PATH, JSON.stringify(instances, null, 2), 'utf8');

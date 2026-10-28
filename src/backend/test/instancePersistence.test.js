@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -87,6 +87,49 @@ describe('queued instance changes', () => {
         expect(results[1].status).toBe('rejected');
         expect(results[1].reason).toMatchObject({ code: 'INSTANCE_NOT_FOUND' });
         expect(instances.getInstance('beta')).toBeNull();
+        await expectPersisted();
+    });
+});
+
+describe('failed instance changes', () => {
+    const changes = {
+        add: () => instances.addInstance(instance('gamma')),
+        update: () => instances.updateInstance('alpha', { configPath: '/etc/caddy/changed.Caddyfile' }),
+        remove: () => instances.removeInstance('beta'),
+    };
+
+    it.each(Object.keys(changes))('%s keeps memory unchanged on a failed write and works after repair', async operation => {
+        // A writable success control for every isolated failure case.
+        await instances.updateInstance('alpha', { name: 'Alpha baseline' });
+        await expectPersisted();
+        const before = structuredClone(instances.getInstances());
+        const persisted = await readFile(file, 'utf8');
+        await chmod(file, 0o444);
+        try {
+            await expect(changes[operation]()).rejects.toMatchObject({ code: 'EACCES' });
+            expect(instances.getInstances()).toEqual(before);
+            expect(await readFile(file, 'utf8')).toBe(persisted);
+        } finally {
+            await chmod(file, 0o600);
+        }
+
+        // Reloading data must not hide a poisoned write queue. Retrying the
+        // operation needs to reach the now-writable file and update both views.
+        await instances.loadInstances();
+        await changes[operation]();
+        if (operation === 'add') expect(instances.getInstance('gamma')).toEqual(instance('gamma'));
+        if (operation === 'update') expect(instances.getInstance('alpha').configPath).toBe('/etc/caddy/changed.Caddyfile');
+        if (operation === 'remove') expect(instances.getInstance('beta')).toBeNull();
+        await expectPersisted();
+    });
+
+    it.each([
+        ['duplicate ID', () => instances.addInstance(instance('alpha')), 'CONFLICT'],
+        ['unknown ID', () => instances.updateInstance('missing', { name: 'Missing' }), 'INSTANCE_NOT_FOUND'],
+    ])('rejects a %s without preventing the next valid change', async (_, change, code) => {
+        await expect(change()).rejects.toMatchObject({ code });
+        await instances.addInstance(instance('gamma'));
+        expect(instances.getInstance('gamma')).toEqual(instance('gamma'));
         await expectPersisted();
     });
 });
