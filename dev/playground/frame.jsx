@@ -10,6 +10,7 @@ import { capture, scenarios } from './registry.jsx';
 import { createReplayFetch } from './capture-format.js';
 import { markReferences } from './dom-context.js';
 import { placeholders, readValue } from './model.js';
+import '../../src/frontend/src/fonts.css';
 
 const modules = import.meta.glob('../../src/frontend/src/i18n/locales/*.js', { eager: true, import: 'default' });
 const catalogs = Object.fromEntries(Object.entries(modules).map(([path, catalog]) => [path.split('/').pop().slice(0, -3), catalog]));
