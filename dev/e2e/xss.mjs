@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { before, test } from 'node:test';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
+import { THEME_LIST } from '../../src/frontend/src/styles.js';
+import { prepareBrowserTests, useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
 
 const image = '<img data-xss-probe src=/__xss_probe onerror="window.xssHits++">';
 const svg = '<svg data-xss-probe onload="window.xssHits++"></svg>';
@@ -38,6 +42,77 @@ async function expectText(locator, text) {
     await locator.filter({ hasText: text }).first().waitFor();
     assert((await locator.allTextContents()).some(value => value.includes(text)));
 }
+
+test('custom theme labels stay literal while selecting, exporting and reloading valid palettes', options, async t => {
+    // Theme loading and settings need a real backend, but no Caddy instance.
+    const { page, context, origin, env, restart } = await useAuthBrowserFixture(t);
+    const safe = await watchForXss(page);
+    const themes = ['dark', 'light'].map(mode => ({
+        id: `custom-${mode}-xss-theme`, mode,
+        label: `Custom ${mode} ${payloads.join(' ')} </option></select>${image}`,
+        vars: { ...THEME_LIST.find(theme => theme.mode === mode).vars, '--bg': mode === 'dark' ? '#123456' : '#fedcba' },
+    }));
+    for (const theme of themes) {
+        const directory = join(env.THEMES_PATH, theme.mode);
+        await mkdir(directory, { recursive: true });
+        await writeFile(join(directory, 'xss-theme.json'), JSON.stringify({ label: theme.label, vars: theme.vars }));
+    }
+    // The production loader scans THEMES_PATH at startup, not per request.
+    await restart();
+    const csrf = await context.request.get(origin + '/api/auth/csrf');
+    const enrollment = await context.request.post(origin + '/api/auth/setup', {
+        headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken },
+        data: { username: 'xss-theme-administrator', password: randomBytes(24).toString('base64url') },
+    });
+    assert.equal(enrollment.status(), 200, 'Enroll an isolated administrator');
+    const loaded = await context.request.get(origin + '/api/custom-themes');
+    assert.equal(loaded.status(), 200);
+    assert.deepEqual(await loaded.json(), themes.map(theme => ({ ...theme, custom: true })));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('.shell').waitFor();
+
+    for (const [index, theme] of themes.entries()) {
+        if (theme.mode === 'light') {
+            const saved = page.waitForResponse(response => response.url().endsWith('/api/settings') && response.request().method() === 'PUT');
+            await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+            assert.equal((await saved).status(), 200);
+        }
+        await page.getByRole('button', { name: 'Choose themes', exact: true }).click();
+        const menu = page.locator('.theme-picker-menu');
+        const select = menu.locator('select').nth(index);
+        const option = select.locator(`option[value="${theme.id}"]`);
+        await option.waitFor({ state: 'attached' });
+        assert.equal(await option.textContent(), theme.label, 'The loader-provided option label stays literal');
+        const saved = page.waitForResponse(response => response.url().endsWith('/api/settings') && response.request().method() === 'PUT');
+        await select.selectOption(theme.id);
+        assert.equal((await saved).status(), 200);
+        await page.waitForFunction(theme => document.documentElement.dataset.palette === theme.id
+            && document.documentElement.style.getPropertyValue('--bg') === theme.vars['--bg'], theme);
+        await safe();
+        const exported = menu.getByRole('button', { name: 'Export ' + theme.label + ' as JSON', exact: true });
+        assert.equal(await exported.textContent(), ' Export ' + theme.label + ' as JSON');
+        assert.equal(await exported.getAttribute('title'), `Download ${theme.label} as a custom theme file for the themes/${theme.mode}/ folder`);
+        await safe();
+
+        const downloading = page.waitForEvent('download');
+        await exported.click();
+        const download = await downloading;
+        assert.equal(download.suggestedFilename(), 'xss-theme.json');
+        assert.deepEqual(JSON.parse(await readFile(await download.path(), 'utf8')), { label: theme.label, vars: theme.vars });
+        await safe();
+
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(theme => document.documentElement.dataset.palette === theme.id
+            && document.documentElement.style.getPropertyValue('--bg') === theme.vars['--bg'], theme);
+        await page.getByRole('button', { name: 'Choose themes', exact: true }).click();
+        assert.equal(await menu.locator('select').nth(index).inputValue(), theme.id);
+        assert.equal(await menu.locator('select').nth(index).locator('option:checked').textContent(), theme.label);
+        await exported.waitFor();
+        assert.equal(await exported.getAttribute('title'), `Download ${theme.label} as a custom theme file for the themes/${theme.mode}/ folder`);
+        await safe();
+        await page.getByRole('button', { name: 'Choose themes', exact: true }).click();
+    }
+});
 
 test('Caddy log snapshots and live streams render hostile content as text', options, async t => {
     const { stack, page, origin } = await useBrowserFixture(t);

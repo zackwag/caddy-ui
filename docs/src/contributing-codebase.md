@@ -198,7 +198,13 @@ Run the focused XSS rendering checks with the usual backend, frontend and dev de
 node --test dev/e2e/xss.mjs
 ```
 
-These cases also run in `npm run test:dev-caddy:e2e`. They check Caddy log snapshots and live streams, application diagnostics, persisted route/server/instance/token names, and the Caddyfile editor, history diff, raw preview and actor labels. Each case owns its browser, backend, Caddy container and temporary state.
+These cases also run in `npm run test:dev-caddy:e2e`. They check Caddy log snapshots and live streams, application diagnostics, persisted route/server/instance/token names, custom theme labels, and the Caddyfile editor, history diff, raw preview and actor labels. Each case owns its browser, backend, temporary state and any required Caddy container.
+
+The custom-theme case needs no Docker or Caddy instance. It loads valid dark and light theme files from an isolated `THEMES_PATH`, checks literal option and selected-theme export labels, verifies palette application and JSON export, then reloads to check persisted selection and safe rendering. Run it alone with:
+
+```bash
+node --test --test-name-pattern='custom theme labels' dev/e2e/xss.mjs
+```
 
 The real API and storage are used for logs and saved content. Application-log responses and legacy/imported actor metadata are controlled at the browser's network boundary to reach their renderers without weakening input validation. Assertions require the payload text to appear, reject injected DOM nodes and resource requests, and check that no handler ran. A positive control first proves that handlers can execute in the test browser. These Vite-based tests deliberately run without CSP so a production policy cannot hide unsafe rendering. They cover these paths rather than establishing that every possible XSS path is safe.
 
