@@ -158,19 +158,23 @@ router.post('/', async (req, res) => {
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
 
     const routesPath = `/config/apps/http/servers/${primaryServer}/routes`;
-    const addLive = async () => {
-        const current = await caddyGet('/config/apps/http/servers', req.instance.adminUrl);
-        if (checkPrimaryServer(current || {}, primaryServer)) throw new AppError('VALIDATION_FAILED');
-        return current[primaryServer].routes ? caddyPost(routesPath, route, req.instance.adminUrl)
-            : caddyPut(routesPath, [route], req.instance.adminUrl);
-    };
     const block = buildCaddyfileBlock({ domain, upstream, stripPrefix });
     let result;
-    // Written before the live change, so a rejected route restores the file
-    // instead of leaving a running route the Caddyfile doesn't have
     try {
-        result = await saveCaddyfileChange(req.instance, previous => `${(previous || '').trimEnd()}\n\n${block}\n`, {
-            apply: addLive, verify: () => verifyLiveObject(req.instance, id, route), actor: getAuthentication().getActor(req), action: 'route.add',
+        result = await queueCaddyfileChange(req.instance, async save => {
+            // Recheck inside the queue, before changing the file. A preflight
+            // timeout cannot leave a saved route that was never sent to Caddy.
+            let current;
+            try { current = await caddyGet('/config/apps/http/servers', req.instance.adminUrl); }
+            catch (error) { throw asAppError(error, 'CADDY_CONFIG_UNAVAILABLE', { instanceId: req.instance.id }); }
+            if (checkPrimaryServer(current || {}, primaryServer)) throw new AppError('VALIDATION_FAILED');
+            const addLive = () => current[primaryServer].routes ? caddyPost(routesPath, route, req.instance.adminUrl)
+                : caddyPut(routesPath, [route], req.instance.adminUrl);
+            // The file still precedes the mutation, so a rejected write can
+            // restore it and a dispatched write timeout can keep it.
+            return save(previous => `${(previous || '').trimEnd()}\n\n${block}\n`, {
+                apply: addLive, verify: () => verifyLiveObject(req.instance, id, route), actor: getAuthentication().getActor(req), action: 'route.add',
+            });
         });
     } catch (e) {
         if (e instanceof AppError) return sendAppError(res, e);

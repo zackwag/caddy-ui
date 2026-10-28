@@ -55,6 +55,9 @@ Admin API calls time out after 10 seconds, but a timeout doesn't stop Caddy
 from finishing the request. caddy/ui therefore treats a timed-out change as
 uncertain rather than rejected:
 
+- This applies only after dispatching a write. Route-creation preflight reads
+  finish inside the change queue before the Caddyfile is written; if a read
+  fails or times out, no route mutation is sent and the file stays unchanged.
 - The new Caddyfile stays on disk instead of being rolled back. If Caddy applies
   the change late, the file and running config agree. If it never does, the
   file is ahead of the running config, as after a force save, and **Reload**

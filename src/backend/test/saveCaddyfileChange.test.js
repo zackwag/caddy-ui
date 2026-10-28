@@ -495,6 +495,20 @@ describe('API save paths', () => {
                 expect(caddyPost).toHaveBeenCalledTimes(1);
             });
 
+            it('leaves the file unchanged when the queued route preflight times out before dispatching a write', async () => {
+                caddyGet.mockResolvedValueOnce(servers)
+                    .mockRejectedValueOnce(new CaddyTimeoutError('GET /config/apps/http/servers', 10000));
+                const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
+                expect(status).toBe(503);
+                expect(body).toMatchObject({ code: 'CADDY_CONFIG_UNAVAILABLE' });
+                expect(body.warningCode).toBeUndefined();
+                expect(files.get(instance.configPath)).toBe(original);
+                expect(failWrites.count).toBe(0);
+                expect(caddyPost).not.toHaveBeenCalled();
+                expect(caddyPut).not.toHaveBeenCalled();
+                expect(caddyLoad).not.toHaveBeenCalled();
+            });
+
             it('records maintenance state for a timed-out change it kept', async () => {
                 caddyLoad.mockRejectedValueOnce(timeout());
                 const { body } = await send('POST', '/routes/caddyfile/old.example.com/maintenance');
