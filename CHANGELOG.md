@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.7.4](https://github.com/zackwag/caddy-ui/compare/v3.7.3...v3.7.4) (2026-10-28)
+
+
+### Bug Fixes
+
+* **security:** add an HTTP-compatible frontend Content Security Policy ([#492](https://github.com/zackwag/caddy-ui/issues/492)) ([4cbdd6b](https://github.com/zackwag/caddy-ui/commit/4cbdd6bec5cae05305927185b0f0f9ab0781fa84))
+* **ui:** serve IBM Plex fonts locally instead of using Google Fonts ([#494](https://github.com/zackwag/caddy-ui/issues/494)) ([a7906e5](https://github.com/zackwag/caddy-ui/commit/a7906e5d20bb2feaea77806c31546ef7d6516994))
+
 ## [3.7.3](https://github.com/zackwag/caddy-ui/compare/v3.7.2...v3.7.3) (2026-10-28)
 
 
