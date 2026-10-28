@@ -34,7 +34,10 @@ export default defineConfig(async () => ({
         host: '127.0.0.1', port: 5174, strictPort: true, watch: { ignoreInitial: true },
         // The playground imports the app's CSS; its bundled font files also
         // need to be served from the sibling frontend package during development.
-        fs: { allow: [searchForWorkspaceRoot(import.meta.dirname), fileURLToPath(new URL('../../src/frontend', import.meta.url))] },
+        fs: { allow: [
+            searchForWorkspaceRoot(fileURLToPath(new URL('.', import.meta.url))),
+            fileURLToPath(new URL('../../src/frontend', import.meta.url)),
+        ] },
     },
     build: { outDir: '../../src/frontend/dist-playground', emptyOutDir: true, rolldownOptions: { input: {
         index: fileURLToPath(new URL('index.html', import.meta.url)),

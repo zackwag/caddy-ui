@@ -35,7 +35,9 @@ try {
     }
     const editor = page.getByLabel('Try translation');
     await go('dashboard.status', 'dashboard-online');
-    for (const target of [page.mainFrame(), page.frames().find(frame => frame !== page.mainFrame())]) {
+    const previewFrame = page.frames().find(frame => frame !== page.mainFrame());
+    assert.ok(previewFrame, 'Preview frame must be attached before checking bundled fonts');
+    for (const target of [page.mainFrame(), previewFrame]) {
         assert.equal(await target.evaluate(async () => {
             const faces = await Promise.all(['IBM Plex Sans', 'IBM Plex Mono'].map(family => document.fonts.load(`400 12px "${family}"`)));
             return faces.every(fonts => fonts.length > 0 && fonts.every(font => font.status === 'loaded'));
