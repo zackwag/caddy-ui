@@ -82,6 +82,11 @@ export function clearInstanceId() {
 }
 
 export async function apiFetch(path, opts = {}, onUnauth) {
+    return (await apiRequest(path, opts, onUnauth)).body;
+}
+
+// apiFetch, also resolving the response headers, e.g. a validator to send back.
+export async function apiRequest(path, opts = {}, onUnauth) {
     const headers = { ...(opts.headers || {}) };
     // Capture the intended instance before asynchronous CSRF preparation.
     const instanceId = getInstanceId();
@@ -120,5 +125,5 @@ export async function apiFetch(path, opts = {}, onUnauth) {
               requestId: payload.requestId || res.headers.get('X-Request-ID'), status: res.status },
         );
     }
-    return body;
+    return { body, headers: res.headers };
 }

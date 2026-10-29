@@ -1,7 +1,7 @@
 import { once } from 'node:events';
 import { mkdtempSync, readdirSync } from 'fs';
 import { readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createCaddyfileHistory } from '../src/caddyfileHistory.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -487,6 +487,76 @@ describe('API save paths', () => {
             } finally {
                 tagged.mockRestore();
             }
+        });
+    });
+
+    describe('editor save preconditions', () => {
+        const fileTag = text => `"sha256:${createHash('sha256').update(text).digest('hex')}"`;
+        const request = async (method, path, { body, headers = {} } = {}) => {
+            const res = await fetch(baseUrl + path, { method, body, headers: { ...(body === undefined ? {} : { 'Content-Type': 'text/plain' }), ...headers } });
+            const json = res.headers.get('content-type')?.includes('application/json');
+            return { status: res.status, headers: res.headers, body: json ? await res.json() : await res.text() };
+        };
+        const save = (content, ifMatch) => request('PUT', '/caddyfile?fmt=false&sort=false', { body: content, headers: ifMatch ? { 'If-Match': ifMatch } : {} });
+
+        it('serves the Caddyfile with an uncached ETag that changes exactly when its text does', async () => {
+            const first = await request('GET', '/caddyfile');
+            expect(first.body).toBe(original);
+            expect(first.headers.get('etag')).toBe(fileTag(original));
+            expect(first.headers.get('cache-control')).toBe('no-store');
+            expect((await request('GET', '/caddyfile')).headers.get('etag')).toBe(fileTag(original));
+            files.set(instance.configPath, original + '\n');
+            expect((await request('GET', '/caddyfile')).headers.get('etag')).not.toBe(fileTag(original));
+            files.set(instance.configPath, original);
+            expect((await request('GET', '/caddyfile')).headers.get('etag')).toBe(fileTag(original));
+            expect((await request('GET', '/caddyfile?download=true')).headers.get('etag')).toBe(fileTag(original));
+        });
+
+        it.each([
+            ['its ETag', tag => tag],
+            ['its weakened ETag', tag => `W/${tag}`],
+            ['a list including its ETag', tag => `"sha256:other", ${tag}`],
+            ['*', () => '*'],
+        ])('saves when If-Match names the current file by %s', async (label, ifMatch) => {
+            const { status, body } = await save('mine.example.com {\n}\n', ifMatch(fileTag(original)));
+            expect(status).toBe(200);
+            expect(body.verification).toEqual(verified);
+            expect(files.get(instance.configPath)).toBe('mine.example.com {\n}\n');
+        });
+
+        it('refuses a save based on a file that changed since, without writing, reloading or recording history', async () => {
+            files.set(instance.configPath, 'external.example.com {\n}\n');
+            const versions = historyFiles().length;
+            const { status, body } = await save('mine.example.com {\n}\n', fileTag(original));
+            expect(status).toBe(409);
+            expect(body).toMatchObject({ valid: false, code: 'CADDYFILE_CHANGED' });
+            expect(files.get(instance.configPath)).toBe('external.example.com {\n}\n');
+            expect(failWrites.count).toBe(0);
+            expect(caddyLoad).not.toHaveBeenCalled();
+            expect(historyFiles()).toHaveLength(versions);
+        });
+
+        it('refuses * when there is no file to replace', async () => {
+            files.delete(instance.configPath);
+            expect((await save('mine.example.com {\n}\n', '*')).body.code).toBe('CADDYFILE_CHANGED');
+            expect(files.has(instance.configPath)).toBe(false);
+        });
+
+        it('saves without If-Match as before', async () => {
+            files.set(instance.configPath, 'external.example.com {\n}\n');
+            expect((await save('mine.example.com {\n}\n')).status).toBe(200);
+            expect(files.get(instance.configPath)).toBe('mine.example.com {\n}\n');
+        });
+
+        it('checks the precondition against the file inside the change queue', async () => {
+            let release;
+            const gate = new Promise(resolve => { release = resolve; });
+            const queued = saveCaddyfileChange(instance, 'queued.example.com {\n}\n', { apply: () => gate, verify: async () => 'verified' });
+            const saving = save('mine.example.com {\n}\n', fileTag(original));
+            release();
+            await queued;
+            expect((await saving).body.code).toBe('CADDYFILE_CHANGED');
+            expect(files.get(instance.configPath)).toBe('queued.example.com {\n}\n');
         });
     });
 

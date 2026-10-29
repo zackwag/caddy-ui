@@ -12,7 +12,7 @@ import { createCaddyfileHistory } from '../caddyfileHistory.js';
 import { getAuthentication } from '../middleware/auth.js';
 import { caddyfileEntries, trailingComments } from '../caddyfileBlocks.js';
 import { runExclusive } from '../instanceQueue.js';
-import { recordLocalChange } from '../configDrift.js';
+import { fingerprintText, recordLocalChange } from '../configDrift.js';
 import { NOT_APPLIED, UNCHANGED, verificationWarning, verifyAfterTimeout, verifyFile, verifyLiveConfig } from '../configVerification.js';
 
 const router = Router();
@@ -169,6 +169,31 @@ async function readPreviousCaddyfile(configPath, containerName) {
     }
 }
 
+// The editor's validator for the Caddyfile text it was served. Caddy's ETag
+// can't stand in: it describes the running config, and /load ignores it.
+function caddyfileETag(text) {
+    return `"${fingerprintText(text)}"`;
+}
+
+// The ETags an If-Match header lists, or null without one. A weak ETag counts
+// as its strong form: nginx weakens ETags when it compresses a response, and
+// the tag is still the hash of the uncompressed text.
+function ifMatchTags(header) {
+    if (!header) {
+        return null;
+    }
+    return header.split(',').map(tag => tag.trim().replace(/^W\//, '')).filter(Boolean);
+}
+
+// Whether the file a change would replace is one the client said it was based
+// on. `*` accepts any existing file; no file matches nothing else.
+function matchesCaddyfile(tags, previous) {
+    if (previous === null) {
+        return false;
+    }
+    return tags.includes('*') || tags.includes(caddyfileETag(previous));
+}
+
 async function restoreCaddyfile(previous, { configPath, containerName }) {
     if (previous === null) await removeContainerPath(containerName, configPath);
     else await writeContainerFile(containerName, configPath, previous);
@@ -180,6 +205,8 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 // defaults to reloading Caddy from the new content; admin API edits pass their
 // own live change instead. Throws:
 // - CADDYFILE_READ_FAILED / CADDYFILE_WRITE_FAILED: nothing changed
+// - CADDYFILE_CHANGED: `ifMatch` (ETags from an If-Match header) doesn't name
+//   the file the change would replace, so nothing was written or recorded
 // - CADDYFILE_CHANGE_REJECTED: applying failed and the previous file was restored
 //   (an AppError thrown by a custom apply keeps its own code)
 // - CADDYFILE_ROLLBACK_FAILED: the previous file couldn't be restored, so the
@@ -219,13 +246,18 @@ async function verifyChange(instance, content, { applied, uncertain, live }) {
     return { file, live: uncertain ? await verifyAfterTimeout(live) : await live() };
 }
 
-async function applyCaddyfileChange(instance, change, { apply, verify, onApplied, rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
+async function applyCaddyfileChange(instance, change, { apply, verify, onApplied, rollback = true, actor = null, action = 'caddyfile.save', ifMatch = null } = {}) {
     if (apply && !verify) {
         throw new TypeError('A custom apply must say how to verify it');
     }
     const { configPath, containerName, id } = instance;
     const context = { instanceId: id, configPath };
     const previous = await readPreviousCaddyfile(configPath, containerName);
+    // Checked against the file read inside the queue, so no other caddy/ui
+    // change can land between this check and the write
+    if (ifMatch && !matchesCaddyfile(ifMatch, previous)) {
+        throw new AppError('CADDYFILE_CHANGED', { context });
+    }
     if (typeof change === 'function' && previous === null) throw new AppError('CADDYFILE_READ_FAILED', { context });
     const content = typeof change === 'function' ? await change(previous) : change;
     if (typeof content !== 'string') throw new TypeError('A Caddyfile change must produce text');
@@ -371,6 +403,10 @@ router.get('/', async (req, res) => {
     } catch (error) {
         return sendAppError(res, asAppError(error, 'CADDYFILE_READ_FAILED', { instanceId: req.instance.id, configPath }));
     }
+    // The editor sends this back as If-Match, so a save can't overwrite edits
+    // made since it loaded the file. Never cached: the file changes outside caddy/ui.
+    res.setHeader('ETag', caddyfileETag(content));
+    res.setHeader('Cache-Control', 'no-store');
     if (req.query.download === 'true') {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);
@@ -522,7 +558,8 @@ router.put('/', async (req, res) => {
     try {
         // A force save keeps the file even when Caddy rejects it
         const action = ['restore', 'import'].includes(req.query.action) ? `caddyfile.${req.query.action}` : 'caddyfile.save';
-        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: getAuthentication().getActor(req), action });
+        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: getAuthentication().getActor(req), action,
+            ifMatch: ifMatchTags(req.get('If-Match')) });
     } catch (err) {
         if (!(err instanceof AppError)) throw err;
         res.locals.appError = err;

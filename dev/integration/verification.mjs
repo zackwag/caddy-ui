@@ -137,3 +137,38 @@ test('admin API route edits fail instead of overwriting a concurrent change in r
     assert.deepEqual(deleted.data.verification, verified);
     assert.ok(proxy.requests.some(request => request.method === 'PATCH' && request.ifMatch), 'writes carried If-Match');
 });
+
+test('editor saves refuse to overwrite a Caddyfile changed since it was loaded', { timeout: 90000 }, async t => {
+    const stack = await useTestStack(t);
+    const { instance } = stack.instances.get('alpha');
+    const loaded = await stack.api('/caddyfile');
+    const etag = loaded.headers.get('etag');
+    assert.match(etag, /^"sha256:[0-9a-f]{64}"$/);
+    const save = (content, ifMatch) => stack.api('/caddyfile?fmt=false&sort=false', {
+        method: 'PUT', body: content, plain: true, headers: ifMatch ? { 'If-Match': ifMatch } : {},
+    });
+    const live = async () => (await fetch(instance.adminUrl + '/config/')).json();
+    const versions = async () => (await stack.api('/caddyfile/history')).data.length;
+
+    // Someone edits the file on the host after the editor loaded it
+    const external = loaded.data.replace('Caddy UI test instance:', 'external-edit:');
+    await stack.harness.run(['exec', instance.containerName, 'sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', external, instance.configPath]);
+    const [running, saved] = [await live(), await versions()];
+    const refused = await save(loaded.data.replace('Caddy UI test instance:', 'editor-edit:'), etag);
+    assert.equal(refused.status, 409, JSON.stringify(refused.data));
+    assert.equal(refused.data.code, 'CADDYFILE_CHANGED');
+    assert.equal((await stack.api('/caddyfile')).data, external, 'the external edit is kept');
+    assert.deepEqual(await live(), running, 'nothing was reloaded');
+    assert.equal(await versions(), saved, 'no history version was recorded');
+
+    // Based on the current file, including the weak form a compressing proxy sends
+    const current = (await stack.api('/caddyfile')).headers.get('etag');
+    assert.notEqual(current, etag);
+    const accepted = await save(external.replace('external-edit:', 'merged-edit:'), `W/${current}`);
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.data));
+    assert.deepEqual(accepted.data.verification, verified);
+
+    // Without If-Match the save behaves as before
+    assert.equal((await save(loaded.data)).status, 200);
+    assert.equal((await stack.api('/caddyfile')).data, loaded.data);
+});
