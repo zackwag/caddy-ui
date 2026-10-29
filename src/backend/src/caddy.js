@@ -122,7 +122,7 @@ export const caddyDelete = (path, adminUrl) => caddyRequest('DELETE', path, unde
 // HTTP status when there was one.
 export async function caddyReadJson(path, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
-    const res = await fetch(`${base}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const res = await fetch(`${base}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) {
         await res.body?.cancel();
         throw Object.assign(new Error(`Caddy readback failed: ${res.status}`), { status: res.status });
@@ -145,7 +145,7 @@ export async function caddyAdapt(caddyfileContent, adminUrl) {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'text/caddyfile' },
             body: caddyfileContent,
-            signal: AbortSignal.timeout(TIMEOUT_MS),
+            signal: AbortSignal.timeout(timeoutMs),
         }),
         timeoutMs,
         'POST /adapt'
