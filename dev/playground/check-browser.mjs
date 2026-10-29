@@ -356,7 +356,7 @@ try {
             routeKeys.add(key);
         }
     }
-    assert.equal(routeKeys.size, 31);
+    assert.equal(routeKeys.size, 40);
     await go('routes.newRoute', 'routes-add');
     await frame().locator('.modal input').nth(0).fill('preview.home.arpa');
     await frame().locator('.modal input').nth(1).fill('127.0.0.1:8080');
@@ -550,7 +550,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(requests, []);
     assert.deepEqual(errors, []);
-    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, 31 route/history keys, 32 Caddyfile/route-edit keys, 50 instance/certificate/uptime keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
+    console.log('Playground Chromium checks passed: real Dashboard states, 27 onboarding/appearance keys, 30 notification settings keys, 43 observability keys, 33 TLS/sidebar keys, 40 route/history keys, 32 Caddyfile/route-edit keys, 50 instance/certificate/uptime keys, live drafts, DOM context, interpolation, locale formatting, focus, offline isolation, blocked notification saves/sends and observability writes, clipboard, reload, local theme export, bounded frame sizing, keyboard/wheel pane scrolling and mobile reachability.');
 } finally {
     await browser?.close();
     await vite.close();

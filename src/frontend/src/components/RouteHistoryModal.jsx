@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../utils/api.js";
 import { currentLocale, formatNumber, formatPercent } from "../utils/format.js";
+import { summarizeHistory } from "../utils/uptimeHistory.js";
 
 const RANGES = [
     { label: "1h", ms: 60 * 60 * 1000 },
@@ -18,55 +19,6 @@ const GAP_THRESHOLD_MS = 3 * 60 * 1000;
 const GAP_INTERVAL_MULTIPLIER = 2.5;
 const REFRESH_INTERVAL_MS = 30_000;
 const AXIS_TICK_COUNT = 4;
-
-// Turns a sparse list of point-in-time checks into contiguous timeline
-// segments spanning [rangeStart, rangeEnd], each labeled online/offline/unknown.
-function buildSegments(entries, rangeStart, rangeEnd, gapThresholdMs) {
-    const points = entries.filter(e => e.at < rangeEnd);
-    if (!points.length) return [{ status: "unknown", start: rangeStart, end: rangeEnd }];
-
-    const segments = [];
-    let cursor = rangeStart;
-
-    // Extends the previous segment instead of pushing a new one when the
-    // status matches and they're back-to-back, so a long run of same-status
-    // checks renders as one continuous bar rather than one sliver per check.
-    const emit = (status, start, end) => {
-        const last = segments[segments.length - 1];
-        if (last && last.status === status && last.end === start) last.end = end;
-        else segments.push({ status, start, end });
-    };
-
-    for (let i = 0; i < points.length; i++) {
-        const at = Math.max(points[i].at, rangeStart);
-        const nextAt = Math.min(i + 1 < points.length ? points[i + 1].at : rangeEnd, rangeEnd);
-
-        if (at > cursor) emit("unknown", cursor, at);
-
-        if (nextAt - at > gapThresholdMs) {
-            const knownEnd = Math.min(at + gapThresholdMs, nextAt);
-            emit(points[i].online ? "online" : "offline", at, knownEnd);
-            if (nextAt > knownEnd) emit("unknown", knownEnd, nextAt);
-        } else if (nextAt > at) {
-            emit(points[i].online ? "online" : "offline", at, nextAt);
-        }
-
-        cursor = nextAt;
-    }
-
-    if (cursor < rangeEnd) emit("unknown", cursor, rangeEnd);
-    return segments.filter(s => s.end > s.start);
-}
-
-// Points where status actually changed, most recent first. The first known
-// check counts as a transition too, establishing the earliest known state.
-function buildTransitions(entries) {
-    const transitions = [];
-    for (let i = 0; i < entries.length; i++) {
-        if (i === 0 || entries[i].online !== entries[i - 1].online) transitions.push(entries[i]);
-    }
-    return transitions.reverse();
-}
 
 function buildAxisTicks(rangeStart, rangeEnd) {
     const ticks = [];
@@ -98,6 +50,16 @@ function formatActivityTime(ms) {
     return new Date(ms).toLocaleString(currentLocale(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
+/* eslint-disable i18next/no-literal-string -- Intl unit option identifiers; Intl supplies the localized labels. */
+function formatDuration(ms) {
+    const seconds = ms / 1000;
+    const [value, unit] = seconds >= 86400 ? [seconds / 86400, "day"]
+        : seconds >= 3600 ? [seconds / 3600, "hour"]
+            : seconds >= 60 ? [seconds / 60, "minute"] : [seconds, "second"];
+    return new Intl.NumberFormat(currentLocale(), { style: "unit", unit, unitDisplay: "short", maximumFractionDigits: unit === "second" ? 0 : 1 }).format(value);
+}
+/* eslint-enable i18next/no-literal-string */
+
 const STATUS_LABEL_KEYS = { online: "routeHistory.online", offline: "routeHistory.offline", unknown: "routeHistory.noData" };
 
 // Shows one target's history: an upstream, or a route host when route checks
@@ -109,6 +71,7 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
     const [entries, setEntries] = useState(null);
     const [intervalMs, setIntervalMs] = useState(0);
     const [error, setError] = useState(null);
+    const [focus, setFocus] = useState(null);
     const target = route || upstream;
 
     useEffect(() => {
@@ -118,33 +81,34 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
             const param = route ? `route=${encodeURIComponent(route)}` : `upstream=${encodeURIComponent(upstream)}`;
             apiFetch(`/health/history?${param}&since=${since}`, {}, onUnauth)
                 .then(data => { if (!cancelled) { setEntries(data.entries); setIntervalMs(data.intervalMs || 0); setError(null); } })
-                .catch(e => { if (!cancelled) setError(localizeError(e, t)); });
+                .catch(e => { if (!cancelled) setError(e); });
         };
         load();
         if (!autoRefresh) return () => { cancelled = true; };
-        const t = setInterval(load, REFRESH_INTERVAL_MS);
-        return () => { cancelled = true; clearInterval(t); };
+        const timer = setInterval(load, REFRESH_INTERVAL_MS);
+        return () => { cancelled = true; clearInterval(timer); };
     }, [upstream, route, range, autoRefresh, onUnauth]);
 
-    const rangeEnd = Date.now();
-    const rangeStart = rangeEnd - range.ms;
+    const now = Date.now();
+    const overviewStart = now - range.ms;
+    const rangeStart = focus ? Math.max(focus.start, overviewStart) : overviewStart;
+    const rangeEnd = focus ? Math.max(rangeStart + 1, Math.min(focus.end, now)) : now;
     const gapThresholdMs = Math.max(GAP_THRESHOLD_MS, intervalMs * GAP_INTERVAL_MULTIPLIER);
-    const segments = useMemo(() => buildSegments(entries || [], rangeStart, rangeEnd, gapThresholdMs), [entries, rangeStart, rangeEnd, gapThresholdMs]);
+    const history = useMemo(() => summarizeHistory(entries || [], rangeStart, rangeEnd, gapThresholdMs), [entries, rangeStart, rangeEnd, gapThresholdMs]);
     const ticks = useMemo(() => buildAxisTicks(rangeStart, rangeEnd), [rangeStart, rangeEnd]);
-    const transitions = useMemo(() => buildTransitions(entries || []), [entries]);
-
-    const uptimePct = useMemo(() => {
-        if (!entries || entries.length === 0) return null;
-        const online = entries.filter(e => e.online).length;
-        return Math.round((online / entries.length) * 1000) / 10;
-    }, [entries]);
 
     const lastCheck = entries && entries.length > 0 ? entries[entries.length - 1] : null;
-    const lastStatus = lastCheck ? (lastCheck.online ? "online" : "offline") : null;
+    const lastStatus = lastCheck ? (now - lastCheck.at > gapThresholdMs ? "unknown" : lastCheck.online ? "online" : "offline") : null;
+    const incidentLabel = incident => t("routeHistory.incidentTitle", {
+        start: formatActivityTime(incident.start), duration: formatDuration(incident.end - incident.start),
+    });
+    function inspectIncident(incident) {
+        setFocus({ start: Math.max(overviewStart, incident.start - 5 * 60_000), end: Math.min(now, incident.end + 5 * 60_000) });
+    }
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal" style={{ width: 640 }} onClick={e => e.stopPropagation()}>
+            <div className="modal history-modal" role="dialog" aria-modal="true" aria-label={title || target} onClick={e => e.stopPropagation()}>
                 <div className="modal-title">{title || target}</div>
                 {title && title !== target && <div className="modal-hint mono" style={{ marginTop: -14, marginBottom: 8 }}>{target}</div>}
 
@@ -152,8 +116,8 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                     <div className="history-header">
                         <div className="history-header-left">
                             <span
-                                className={lastStatus ? "health-dot" : "health-dot health-dot--none"}
-                                style={lastStatus ? { background: lastStatus === "online" ? "var(--accent)" : "var(--danger)" } : undefined}
+                                className={lastStatus && lastStatus !== "unknown" ? "health-dot" : "health-dot health-dot--none"}
+                                style={lastStatus && lastStatus !== "unknown" ? { background: lastStatus === "online" ? "var(--accent)" : "var(--danger)" } : undefined}
                             />
                             <span className="history-header-relative">{lastCheck ? formatRelativeTime(lastCheck.at, t) : t("routeHistory.noDataYet")}</span>
                         </div>
@@ -166,8 +130,8 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                         {RANGES.map(r => (
                             <button
                                 key={r.label}
-                                className={`btn btn--sm ${range.label === r.label ? "btn-primary" : "btn-ghost"}`}
-                                onClick={() => setRange(r)}
+                                className={`btn btn--sm ${!focus && range.label === r.label ? "btn-primary" : "btn-ghost"}`}
+                                onClick={() => { setRange(r); setFocus(null); }}
                             >{r.label}</button>
                         ))}
                     </div>
@@ -178,54 +142,87 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                 </div>
 
                 {error ? (
-                    <div className="card-empty">{error}</div>
+                    <div className="card-empty">{localizeError(error, t)}</div>
                 ) : entries === null ? (
                     <div className="loading">{t("common.loading")}</div>
                 ) : (
                     <>
-                        <div className="history-timeline">
-                            {segments.map((seg, i) => (
-                                <div
-                                    key={i}
-                                    className={`history-segment history-segment--${seg.status}`}
-                                    style={{ flexGrow: seg.end - seg.start }}
-                                    title={t("routeHistory.segmentTitle", { status: t(STATUS_LABEL_KEYS[seg.status]), start: new Date(seg.start).toLocaleString(currentLocale()), end: new Date(seg.end).toLocaleString(currentLocale()) })}
-                                >
-                                    <span className="history-segment-label">{t(STATUS_LABEL_KEYS[seg.status])}</span>
-                                </div>
+                        {focus && <div className="history-focus">
+                            <span>{t("routeHistory.focusedInterval")}</span>
+                            <button className="btn btn-ghost btn--sm" onClick={() => setFocus(null)}>{t("routeHistory.backToOverview")}</button>
+                        </div>}
+                        <div className="history-timeline-wrap">
+                            <div className="history-timeline" aria-label={t("routeHistory.observedTimeline")}>
+                                {history.segments.map((seg, i) => (
+                                    <div
+                                        key={i}
+                                        className={`history-segment history-segment--${seg.status}`}
+                                        style={{ flexGrow: seg.end - seg.start }}
+                                        title={t("routeHistory.segmentTitle", { status: t(STATUS_LABEL_KEYS[seg.status]), start: new Date(seg.start).toLocaleString(currentLocale()), end: new Date(seg.end).toLocaleString(currentLocale()) })}
+                                    />
+                                ))}
+                            </div>
+                            {history.incidents.map(incident => (
+                                <button key={incident.start} className="history-outage-marker"
+                                    style={{ left: `clamp(6px, ${(incident.start - rangeStart) / (rangeEnd - rangeStart) * 100}%, calc(100% - 6px))` }}
+                                    title={incidentLabel(incident)} aria-label={incidentLabel(incident)}
+                                    onClick={() => inspectIncident(incident)} />
                             ))}
                         </div>
                         <div className="history-timeline-axis">
                             {ticks.map((tick, i) => (
                                 <span key={i} className="history-axis-tick" style={{ left: `${(i / AXIS_TICK_COUNT) * 100}%` }}>
-                                    {tick.isNow ? t("routeHistory.now") : formatAxisTime(tick.ms, range.ms)}
+                                    {tick.isNow && !focus ? t("routeHistory.now") : formatAxisTime(tick.ms, rangeEnd - rangeStart)}
                                 </span>
                             ))}
                         </div>
 
+                        <div className="history-legend">
+                            {Object.entries(STATUS_LABEL_KEYS).map(([status, key]) => <span key={status}>
+                                <i className={`history-legend-dot history-segment--${status}`} />{t(key)}
+                            </span>)}
+                            <span className="history-marker-hint">{t("routeHistory.markerHint")}</span>
+                        </div>
                         <div className="history-stats">
                             <div>
-                                <span className="history-stat-label">{t("routeHistory.uptime")}</span>
-                                <span className="history-stat-val">{uptimePct !== null ? formatPercent(uptimePct) : "—"}</span>
+                                <span className="history-stat-label">{t("routeHistory.successfulChecks")}</span>
+                                <span className="history-stat-val">{history.successPct !== null ? formatPercent(history.successPct) : "—"}</span>
                             </div>
                             <div>
-                                <span className="history-stat-label">{t("routeHistory.checks")}</span>
-                                <span className="history-stat-val">{formatNumber(entries.length)}</span>
+                                <span className="history-stat-label">{t("routeHistory.outages")}</span>
+                                <span className={`history-stat-val${history.incidents.length ? " history-stat-val--danger" : ""}`}>{formatNumber(history.incidents.length)}</span>
+                            </div>
+                            <div>
+                                <span className="history-stat-label">{t("routeHistory.estimatedDowntime")}</span>
+                                <span className="history-stat-val">{history.checks ? formatDuration(history.downtimeMs) : "—"}</span>
+                            </div>
+                            <div>
+                                <span className="history-stat-label">{t("routeHistory.longestOutage")}</span>
+                                <span className="history-stat-val">{history.checks ? formatDuration(history.longestMs) : "—"}</span>
                             </div>
                         </div>
-
-                        <div className="history-section-label">{t("routeHistory.activity")}</div>
-                        <div className="history-activity-list">
-                            {transitions.length === 0 ? (
-                                <div className="history-activity-empty">{t("routeHistory.noChanges")}</div>
-                            ) : transitions.map((transition, i) => (
-                                <div key={i} className="history-activity-item">
-                                    <span className={`history-activity-dot history-activity-dot--${transition.online ? "online" : "offline"}`} />
-                                    <span className="history-activity-label">{transition.online ? t("routeHistory.online") : t("routeHistory.offline")}</span>
-                                    <span className="history-activity-time">{formatActivityTime(transition.at)}</span>
-                                </div>
+                        <div className="history-coverage">{t("routeHistory.observationSummary", { checks: formatNumber(history.checks), coverage: formatPercent(history.coveragePct) })}
+                            {history.unknownMs > 0 && <> · {t("routeHistory.unobserved", { duration: formatDuration(history.unknownMs) })}</>}
+                        </div>
+                        <div className="history-section-label">{t("routeHistory.incidents")}</div>
+                        <div className="history-incident-list">
+                            {history.incidents.length === 0 ? (
+                                <div className="history-activity-empty">{t("routeHistory.noOutages")}</div>
+                            ) : [...history.incidents].reverse().map(incident => (
+                                <button key={incident.start} className="history-incident" onClick={() => inspectIncident(incident)} title={t("routeHistory.inspectIncident")}>
+                                    <span className="history-incident-dot" />
+                                    <span className="history-incident-details">
+                                        <span className="history-incident-start">{formatActivityTime(incident.start)}</span>
+                                        <span className="history-incident-recovery">{incident.recoveredAt
+                                            ? t("routeHistory.recoveredAt", { time: formatActivityTime(incident.recoveredAt) })
+                                            : t(incident.monitoringGap ? "routeHistory.recoveryGap" : "routeHistory.noRecovery")}</span>
+                                    </span>
+                                    <span className="history-incident-duration">{formatDuration(incident.end - incident.start)}</span>
+                                    <span className="history-incident-inspect">{t("routeHistory.inspectIncident")}</span>
+                                </button>
                             ))}
                         </div>
+                        <p className="history-estimate-hint">{t("routeHistory.estimateHint")}</p>
                     </>
                 )}
 

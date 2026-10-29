@@ -109,18 +109,19 @@ describe('localization playground', () => {
         expect(keys.has('tls.validUpper')).toBe(false);
         expect(keys.has('sidebar.updateAvailable')).toBe(false);
     });
-    it('adds 31 route management and history keys from real read-only profiles', () => {
+    it('adds 40 route management and history keys from real read-only profiles', () => {
         const added = scenarios.filter(scenario => ['routes', 'route-history'].includes(scenario.kind));
         const existing = new Set(scenarios.filter(scenario => !added.includes(scenario)).flatMap(scenario => scenario.keys));
         const keys = new Set(added.flatMap(scenario => scenario.keys));
         expect(added).toHaveLength(6);
-        expect([...keys].filter(key => !existing.has(key))).toHaveLength(31);
+        expect([...keys].filter(key => !existing.has(key))).toHaveLength(40);
         for (const profileId of new Set(added.map(scenario => scenario.profile))) {
             const profile = capture.scenarios.find(profile => profile.id === profileId);
             expect(profile.requests.every(record => record.request.method === 'GET')).toBe(true);
         }
         expect(keys.has('routes.added')).toBe(false);
-        expect(keys.has('routeHistory.online')).toBe(false);
+        expect(keys.has('routeHistory.online')).toBe(true);
+        expect(keys.has('routeHistory.uptime')).toBe(false);
         expect(keys.has('routes.noUpstreamStatus')).toBe(false);
     });
     it('adds 32 Caddyfile and unavailable route-block keys with real captures', () => {
