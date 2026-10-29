@@ -6,15 +6,18 @@ import { createCaddyfileHistory } from '../src/caddyfileHistory.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import express from 'express';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { files, failWrites, live, caddyAdapt, caddyLoad, caddyGet, caddyPost, caddyPut } = vi.hoisted(() => ({
+const { files, failWrites, live, etagOf, caddyAdapt, caddyLoad, caddyGet, caddyPost, caddyPut } = vi.hoisted(() => ({
     files: new Map(),
     // Writes to fail, counted from 1 since the last reset
     failWrites: { at: [], count: 0 },
     // What the fake admin API serves: the loaded config, the HTTP servers and
     // objects added by @id
     live: { config: null, servers: null, objects: new Map() },
+    // Like Caddy's, a fake ETag names the path it was read from and changes
+    // with its value
+    etagOf: (path, value) => `"${path} ${JSON.stringify(value)}"`,
     caddyAdapt: vi.fn(),
     caddyLoad: vi.fn(),
     caddyGet: vi.fn(),
@@ -37,6 +40,10 @@ vi.mock('../src/containerFs.js', async importOriginal => ({
 }));
 // Readback shares the fake admin API with every other read
 vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyAdapt, caddyLoad, caddyGet, caddyReadJson: caddyGet, caddyPost, caddyPut,
+    caddyGetTagged: async (path, adminUrl) => {
+        const value = await caddyGet(path, adminUrl);
+        return { value, etag: etagOf(path, value) };
+    },
     caddyGetConfig: async () => ({ config: live.config, fingerprint: JSON.stringify([live.config, [...live.objects.keys()]]) }) }));
 // `caddy reload` and `caddy adapt` in a Docker-mode instance, against the fake
 // files and admin API
@@ -400,6 +407,87 @@ describe('API save paths', () => {
         const latest = (await createCaddyfileHistory(process.env.HISTORY_PATH).list('default'))[0];
         expect(latest.actor).toEqual(actor);
         expect(latest.action).toBe('route.add');
+    });
+
+    describe('conditional admin API route edits', () => {
+        const routesPath = '/config/apps/http/servers/srv0/routes';
+        const stale = () => Object.assign(new Error('Caddy API error: 412 If-Match header did not match current config hash'), { status: 412 });
+        const managed = id => ({ '@id': id, match: [{ host: ['old.example.com'] }], handle: [] });
+        const hostless = id => ({ '@id': id, match: [{ path: ['/'] }], handle: [] });
+        let caddy, patch, remove;
+
+        beforeEach(async () => {
+            caddy = await import('../src/caddy.js');
+            patch = vi.spyOn(caddy, 'caddyPatch').mockImplementation(async (path, body) => { live.objects.set(body['@id'], body); });
+            remove = vi.spyOn(caddy, 'caddyDelete').mockImplementation(async path => { live.objects.delete(path.slice('/id/'.length)); });
+        });
+        afterEach(() => {
+            patch.mockRestore();
+            remove.mockRestore();
+        });
+
+        it('adds a route only if the HTTP servers it read are unchanged', async () => {
+            live.servers = servers;
+            expect((await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' })).status).toBe(201);
+            expect(caddyPost).toHaveBeenCalledWith(routesPath, expect.any(Object), instance.adminUrl,
+                { ifMatch: etagOf('/config/apps/http/servers', servers) });
+            // A server without routes yet gets them with a PUT, guarded the same way
+            live.servers = { srv0: { listen: [':443'] } };
+            expect((await send('POST', '/routes', { domain: 'next.example.com', upstream: 'next:3000' })).status).toBe(201);
+            expect(caddyPut).toHaveBeenCalledWith(routesPath, [expect.any(Object)], instance.adminUrl,
+                { ifMatch: etagOf('/config/apps/http/servers', { srv0: { listen: [':443'] } }) });
+        });
+
+        it.each([['with', managed], ['without', hostless]])('updates and deletes a route %s a Caddyfile block only if its object is unchanged', async (label, shape) => {
+            live.objects.set('route-a', shape('route-a'));
+            const read = etagOf('/id/route-a', shape('route-a'));
+            expect((await send('PATCH', '/routes/route-a', { domain: 'old.example.com', upstream: 'app:3000' })).status).toBe(200);
+            expect(patch).toHaveBeenCalledWith('/id/route-a', expect.any(Object), instance.adminUrl, { ifMatch: read });
+            const updated = live.objects.get('route-a');
+            expect((await send('DELETE', '/routes/route-a')).status).toBe(200);
+            expect(remove).toHaveBeenCalledWith('/id/route-a', instance.adminUrl, { ifMatch: etagOf('/id/route-a', updated) });
+        });
+
+        it('refuses a stale route addition without retrying, and restores the Caddyfile', async () => {
+            live.servers = servers;
+            caddyPost.mockRejectedValueOnce(stale());
+            const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
+            expect(status).toBe(409);
+            expect(body).toMatchObject({ code: 'CONFIG_CHANGED' });
+            expect(body.warningCode).toBeUndefined();
+            expect(caddyPost).toHaveBeenCalledTimes(1);
+            expect(caddyPut).not.toHaveBeenCalled();
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
+        it('refuses stale updates and deletions with or without a Caddyfile block, without retrying', async () => {
+            live.objects.set('route-managed', managed('route-managed'));
+            live.objects.set('route-admin', hostless('route-admin'));
+            patch.mockRejectedValueOnce(stale());
+            const updated = await send('PATCH', '/routes/route-managed', { domain: 'new.example.com', upstream: 'app:3000' });
+            expect(updated.status).toBe(409);
+            expect(updated.body).toMatchObject({ code: 'CONFIG_CHANGED' });
+            expect(files.get(instance.configPath)).toBe(original);
+
+            remove.mockRejectedValueOnce(stale());
+            const deleted = await send('DELETE', '/routes/route-admin');
+            expect(deleted.status).toBe(409);
+            expect(deleted.body).toMatchObject({ code: 'CONFIG_CHANGED' });
+            expect(live.objects.has('route-admin')).toBe(true);
+            expect(patch).toHaveBeenCalledTimes(1);
+            expect(remove).toHaveBeenCalledTimes(1);
+        });
+
+        it('writes unconditionally when Caddy sends no ETag', async () => {
+            live.servers = servers;
+            const tagged = vi.spyOn(caddy, 'caddyGetTagged').mockImplementation(async path => ({ value: await caddyGet(path), etag: null }));
+            try {
+                expect((await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' })).status).toBe(201);
+                expect(caddyPost).toHaveBeenCalledWith(routesPath, expect.any(Object), instance.adminUrl, { ifMatch: null });
+            } finally {
+                tagged.mockRestore();
+            }
+        });
     });
 
     describe('readback verification', () => {

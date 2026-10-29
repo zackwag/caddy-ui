@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { AppError, asAppError } from '../AppError.js';
-import { CaddyTimeoutError, caddyDelete, caddyGet, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
+import { CaddyTimeoutError, caddyDelete, caddyGet, caddyGetTagged, caddyPatch, caddyPost, caddyPut } from '../caddy.js';
 import { caddyfileEntries, matchesSiteAddress } from '../caddyfileBlocks.js';
 import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
@@ -114,6 +114,24 @@ function checkPrimaryServer(servers, primaryServer) {
         + 'Update the instance\'s Primary Server ID on the Instances page.';
 }
 
+// Admin API route edits send If-Match with the ETag of the read they're based
+// on, so Caddy refuses them with 412 if that part of the config changed in
+// between instead of overwriting someone else's change. That's a confirmed
+// rejection, never retried: a retry would act on a state nobody reviewed.
+// Without an ETag (Caddy before 2.6) the write is unconditional, as before.
+function ifUnchanged(write) {
+    return async () => {
+        try {
+            return await write();
+        } catch (error) {
+            if (error?.status === 412) {
+                throw new AppError('CONFIG_CHANGED', { cause: error });
+            }
+            throw error;
+        }
+    };
+}
+
 // GET /api/routes -- an empty list means Caddy has no HTTP routes. When the
 // config can't be read the request fails, so an outage never looks empty.
 router.get('/', async (req, res) => {
@@ -166,12 +184,16 @@ router.post('/', async (req, res) => {
         result = await queueCaddyfileChange(req.instance, async save => {
             // Recheck inside the queue, before changing the file. A preflight
             // timeout cannot leave a saved route that was never sent to Caddy.
-            let current;
-            try { current = await caddyGet('/config/apps/http/servers', req.instance.adminUrl); }
+            let current, etag;
+            try { ({ value: current, etag } = await caddyGetTagged('/config/apps/http/servers', req.instance.adminUrl)); }
             catch (error) { throw asAppError(error, 'CADDY_CONFIG_UNAVAILABLE', { instanceId: req.instance.id }); }
             if (checkPrimaryServer(current || {}, primaryServer)) throw new AppError('VALIDATION_FAILED');
-            const addLive = () => current[primaryServer].routes ? caddyPost(routesPath, route, req.instance.adminUrl)
-                : caddyPut(routesPath, [route], req.instance.adminUrl);
+            // Caddy checks If-Match against the path the ETag names, so the
+            // servers read guards the add, including the PUT that creates a
+            // missing routes array (which has no ETag of its own yet).
+            const addLive = ifUnchanged(() => current[primaryServer].routes
+                ? caddyPost(routesPath, route, req.instance.adminUrl, { ifMatch: etag })
+                : caddyPut(routesPath, [route], req.instance.adminUrl, { ifMatch: etag }));
             // The file still precedes the mutation, so a rejected write can
             // restore it and a dispatched write timeout can keep it.
             return save(previous => `${(previous || '').trimEnd()}\n\n${block}\n`, {
@@ -280,13 +302,16 @@ router.patch('/:id', async (req, res) => {
     logger.info(`Updating route`, { id, domain, upstream });
 
     const route = buildReverseProxyRoute({ id, domain, upstream, stripPrefix });
-    const patchLive = () => caddyPatch(`/id/${id}`, route, req.instance.adminUrl);
     let result;
     try {
         result = await queueCaddyfileChange(req.instance, async save => {
-            let oldDomain;
-            try { oldDomain = (await caddyGet(`/id/${id}`, req.instance.adminUrl))?.match?.[0]?.host?.[0]; }
-            catch { logger.warn('Could not fetch old route for update', { id }); }
+            let oldDomain, etag;
+            try {
+                const read = await caddyGetTagged(`/id/${id}`, req.instance.adminUrl);
+                oldDomain = read.value?.match?.[0]?.host?.[0];
+                etag = read.etag;
+            } catch { logger.warn('Could not fetch old route for update', { id }); }
+            const patchLive = ifUnchanged(() => caddyPatch(`/id/${id}`, route, req.instance.adminUrl, { ifMatch: etag }));
             const verify = () => verifyLiveObject(req.instance, id, route);
             const expectLive = routeExpectation({ operation: 'replace', id, route });
             if (!oldDomain) {
@@ -314,12 +339,16 @@ router.delete('/:id', async (req, res) => {
     logger.info(`Deleting route`, { id });
 
     let domain;
-    const deleteLive = () => caddyDelete(`/id/${id}`, req.instance.adminUrl);
     let result;
     try {
         result = await queueCaddyfileChange(req.instance, async save => {
-            try { domain = (await caddyGet(`/id/${id}`, req.instance.adminUrl))?.match?.[0]?.host?.[0]; }
-            catch { logger.warn('Could not fetch route for deletion', { id }); }
+            let etag;
+            try {
+                const read = await caddyGetTagged(`/id/${id}`, req.instance.adminUrl);
+                domain = read.value?.match?.[0]?.host?.[0];
+                etag = read.etag;
+            } catch { logger.warn('Could not fetch route for deletion', { id }); }
+            const deleteLive = ifUnchanged(() => caddyDelete(`/id/${id}`, req.instance.adminUrl, { ifMatch: etag }));
             const verify = () => verifyLiveObjectRemoved(req.instance, id);
             const expectLive = routeExpectation({ operation: 'remove', id });
             if (!domain) {
