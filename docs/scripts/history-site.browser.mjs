@@ -8,7 +8,7 @@ import { siteBase } from './history-site.mjs';
 
 const require = createRequire(new URL('../../dev/package.json', import.meta.url));
 const { chromium } = require('playwright');
-const args = options(process.argv.slice(2), ['site', 'base', 'screenshot', 'mobile-screenshot']);
+const args = options(process.argv.slice(2), ['site', 'base', 'screenshot', 'mobile-screenshot', 'footer-screenshot']);
 const directory = resolve(args.site || new URL('../../.docs-site', import.meta.url).pathname);
 const base = siteBase(args.base || '/caddy-ui/');
 const catalog = JSON.parse(await readFile(join(directory, 'documentation.json'), 'utf8'));
@@ -31,7 +31,7 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 let browser;
 try {
     browser = await chromium.launch({ ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
-    const context = await browser.newContext();
+    const context = await browser.newContext({ colorScheme: 'dark' });
     await context.route('**/*', route => {
         const url = route.request().url();
         if (url.startsWith(origin)) return route.continue();
@@ -46,10 +46,28 @@ try {
     const newest = catalog.releases.find(release => release.snapshot);
     const oldest = catalog.releases.filter(release => release.snapshot).at(-1);
     await visit('index.html');
-    await page.locator('.docs-version-development').waitFor();
+    await page.waitForURL(url => url.pathname.includes(`/books/${newest.snapshot}/`));
+    await page.waitForFunction(tag => document.getElementById('docs-version')?.value === tag, newest.tag);
+    assert.deepEqual(await page.locator('#docs-version option').evaluateAll(options => options.map(option => option.value)),
+        [catalog.releases[0].tag, 'dev', ...catalog.releases.slice(1).map(release => release.tag)]);
+    const footer = page.locator('.docs-sidebar-footer');
+    const select = footer.getByLabel('Documentation version');
+    const license = footer.getByRole('link', { name: 'MIT License', exact: true });
+    const [selectBounds, licenseBounds] = await Promise.all([select.boundingBox(), license.boundingBox()]);
+    assert(Math.abs(selectBounds.y + selectBounds.height / 2 - licenseBounds.y - licenseBounds.height / 2) < 1,
+        'the selector and license are vertically centered in one footer row');
+    assert.equal(await select.evaluate(node => getComputedStyle(node).fontSize), await license.evaluate(node => getComputedStyle(node).fontSize));
+    assert.equal(await footer.locator('.docs-version-box').evaluate(node => getComputedStyle(node).borderBottomWidth), '0px');
+    assert.equal(await footer.locator('.docs-version-select').evaluate(node => getComputedStyle(node, '::after').right), '12px');
+    const chapter = catalog.books[newest.snapshot].pages.find(name => name === 'about.html') || 'index.html';
+    await visit(chapter + '#overview');
+    await page.waitForURL(url => url.pathname.includes(`/books/${newest.snapshot}/`) && url.pathname.endsWith('/' + chapter));
+    assert.equal(new URL(page.url()).hash, '#overview');
+    console.log('Unversioned visits open the newest release; footer alignment and selector ordering pass');
     // Bare development anchors must scroll without a document navigation or
-    // adding ?version=dev. Check root and /dev/ URLs, since both are public.
-    for (const path of ['index.html', 'dev/index.html']) {
+    // changing the version query. Explicit root Development links and /dev/
+    // URLs remain available independently of the default release landing.
+    for (const path of ['index.html?version=dev', 'dev/index.html']) {
         await visit(path);
         await page.locator('.docs-version-development').waitFor();
         const anchor = page.locator('main a.header[href^="#"]').first();
@@ -58,7 +76,7 @@ try {
         await page.evaluate(() => { window.docsAnchorNavigation = true; });
         await anchor.click();
         assert.equal(await page.evaluate(() => window.docsAnchorNavigation), true, 'anchor does not reload the document');
-        assert.equal(new URL(page.url()).search, '');
+        assert.equal(new URL(page.url()).search, new URL(origin + base + path).search);
     }
     console.log('Development anchors scroll without reloading or adding a version query');
     await visit('index.html');
@@ -112,9 +130,10 @@ try {
     await visit('resolve.html?version=https%3A%2F%2Fexample.invalid');
     await page.getByText('The requested version was not recognised. Choose a version below.').waitFor();
     console.log('Independent component versions, edge builds, unavailable books and invalid input pass');
-    await visit('dev/index.html');
-    await page.locator('.docs-version-development').waitFor();
+    await visit('index.html');
+    await page.waitForFunction(tag => document.getElementById('docs-version')?.value === tag, newest.tag);
     if (args.screenshot) await page.screenshot({ path: args.screenshot, fullPage: false });
+    if (args['footer-screenshot']) await page.locator('.docs-sidebar-footer').screenshot({ path: args['footer-screenshot'] });
     // A mobile page load initializes mdBook's sidebar for the small viewport.
     // Resizing an existing desktop page retains its open, sliding sidebar.
     const mobile = await context.newPage();
@@ -124,8 +143,11 @@ try {
     await mobile.locator('.docs-version-development').waitFor();
     const badge = await mobile.locator('.docs-version-badge').boundingBox();
     assert(badge && badge.x >= 0 && badge.x + badge.width <= 390, 'version label fits a mobile header');
-    if (args['mobile-screenshot']) await mobile.screenshot({ path: args['mobile-screenshot'], fullPage: false });
     await mobile.locator('#mdbook-sidebar-toggle').click();
+    await mobile.waitForFunction(() => document.getElementById('mdbook-sidebar').getBoundingClientRect().x >= 0);
+    const mobileFooter = await mobile.locator('.docs-sidebar-footer').boundingBox();
+    assert(mobileFooter.x >= 0 && mobileFooter.x + mobileFooter.width <= 390, 'the version/license row fits the mobile sidebar');
+    if (args['mobile-screenshot']) await mobile.screenshot({ path: args['mobile-screenshot'], fullPage: false });
     await mobile.getByLabel('Documentation version').selectOption(oldest.tag);
     await mobile.waitForFunction(tag => document.getElementById('docs-version')?.value === tag, oldest.tag);
     assert(new URL(mobile.url()).pathname.includes(`/books/${oldest.snapshot}/`));

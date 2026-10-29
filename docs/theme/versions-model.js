@@ -5,6 +5,19 @@ export function releaseNotes(catalog, tag) {
     return `https://github.com/${catalog.repository}/releases/tag/${encodeURIComponent(tag)}`;
 }
 
+// The catalogue is published newest first. Keep Development beside the latest
+// release rather than ahead of the release documentation most readers need.
+export function documentationOptions(catalog) {
+    const [latest, ...older] = catalog.releases;
+    const option = release => [release.tag, release.tag + (release.snapshot ? '' : ' (release notes)')];
+    return [...(latest ? [option(latest)] : []), ['dev', 'Development'], ...older.map(option)];
+}
+
+export function defaultDocumentation(catalog, options) {
+    const latest = catalog.releases.find(release => release.snapshot && catalog.books[release.snapshot]);
+    return latest ? documentationTarget(catalog, latest.tag, options) : null;
+}
+
 // Both the selector and installed-version resolver use this policy. A missing
 // historical book never silently becomes development documentation.
 export function documentationTarget(catalog, value, { component, page = 'index.html', hash = '' } = {}) {

@@ -249,7 +249,8 @@ The ignored `.docs-site/` directory contains:
 
 | Path relative to the Pages site | Purpose |
 | --- | --- |
-| `/` and `/dev/` | Clearly labelled development documentation; old root chapter URLs keep working |
+| `/` and unversioned root chapter URLs | Open the newest available release book, keeping its chapter and anchor when possible |
+| `/dev/` and root chapter URLs with `?version=dev` | Explicitly selected development documentation |
 | `/documentation.json` | Release, image-publication and source-commit catalogue |
 | `/books/<sha256>/` | One complete book per selected source fingerprint |
 | `/versions/<tag>/` | Stable release permalink, resolving to its book or release notes |
@@ -278,7 +279,8 @@ After installing the shared dev package and its Playwright browser, run:
 npm run test:docs:history:browser -- --site "$PWD/.docs-site" --base /
 ```
 
-This checks the oldest/newest books, images and search, shared-book selection,
+This checks the default release landing and footer selector, the oldest/newest
+books, images and search, shared-book selection,
 chapter/anchor preservation, unavailable releases, mismatched component versions,
 development builds and the mobile version label. It also works under the project
 Pages prefix. The workflow performs this check before deploying.
