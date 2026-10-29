@@ -34,6 +34,7 @@ import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCheck.js';
 import { startUpstreamMonitor } from './upstreamMonitor.js';
+import { startConfigDriftMonitor } from './configDrift.js';
 import { createProxyTrust } from './trustedProxies.js';
 import { getAvailableFonts, getEnabledLanguages } from './languages.js';
 
@@ -162,6 +163,7 @@ await loadMaintenance();
 await loadCustomThemes();
 await initUptimeHistory();
 startUpstreamMonitor();
+startConfigDriftMonitor();
 startRouteMonitor();
 startUpdateCheck();
 

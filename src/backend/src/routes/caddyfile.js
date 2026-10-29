@@ -11,12 +11,13 @@ import { sendAppError } from '../errorReporting.js';
 import { createCaddyfileHistory } from '../caddyfileHistory.js';
 import { getAuthentication } from '../middleware/auth.js';
 import { caddyfileEntries, trailingComments } from '../caddyfileBlocks.js';
+import { runExclusive } from '../instanceQueue.js';
+import { recordLocalChange } from '../configDrift.js';
 import { NOT_APPLIED, UNCHANGED, verificationWarning, verifyAfterTimeout, verifyFile, verifyLiveConfig } from '../configVerification.js';
 
 const router = Router();
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
 const history = createCaddyfileHistory(HISTORY_PATH);
-const pendingChanges = new Map();
 
 function instanceHistoryDir(instanceId) {
     return history.directory(instanceId);
@@ -199,12 +200,7 @@ function saveCaddyfileChange(instance, content, options = {}) {
 }
 
 function queueCaddyfileChange(instance, operation) {
-    const queued = (pendingChanges.get(instance.id) || Promise.resolve()).catch(() => {})
-        .then(() => operation((change, options) => applyCaddyfileChange(instance, change, options)));
-    pendingChanges.set(instance.id, queued);
-    const cleanup = () => { if (pendingChanges.get(instance.id) === queued) pendingChanges.delete(instance.id); };
-    void queued.then(cleanup, cleanup);
-    return queued;
+    return runExclusive(instance.id, () => operation((change, options) => applyCaddyfileChange(instance, change, options)));
 }
 
 function adaptedConfig(content, instance, via) {
@@ -214,12 +210,11 @@ function adaptedConfig(content, instance, via) {
     return () => caddyAdapt(content, instance.adminUrl);
 }
 
-async function verifyChange(instance, content, { applied, uncertain, via, verify }) {
+async function verifyChange(instance, content, { applied, uncertain, live }) {
     const file = await verifyFile(instance, content);
     if (!applied && !uncertain) {
         return { file, live: NOT_APPLIED };
     }
-    const live = verify || (() => verifyLiveConfig(instance, adaptedConfig(content, instance, via)));
     return { file, live: uncertain ? await verifyAfterTimeout(live) : await live() };
 }
 
@@ -272,7 +267,9 @@ async function applyCaddyfileChange(instance, change, { apply, verify, onApplied
     // State kept beside the file (maintenance) follows the file, which an
     // uncertain apply keeps.
     if ((result.applied || result.uncertain) && onApplied) await onApplied();
-    result.verification = await verifyChange(instance, content, { applied: result.applied, uncertain: result.uncertain, via, verify });
+    const live = verify || (() => verifyLiveConfig(instance, adaptedConfig(content, instance, via)));
+    result.verification = await verifyChange(instance, content, { applied: result.applied, uncertain: result.uncertain, live });
+    await recordLocalChange(instance, { content, verification: result.verification, verifyLive: live });
     const warnings = [];
     const outcome = result.applied ? 'applied' : result.uncertain ? 'unknown' : 'saved-unapplied';
     try { await history.record(id, content, { actor, action, outcome }); }
@@ -458,6 +455,7 @@ router.post('/reloads', async (req, res) => {
         }
         const live = () => verifyLiveConfig(req.instance, adaptedConfig(content, req.instance, via));
         const verification = { file: UNCHANGED, live: via ? await live() : await verifyAfterTimeout(live) };
+        await recordLocalChange(req.instance, { content, verification, verifyLive: live });
         return { verification, ...verificationWarning(verification) };
     });
     res.json({ ok: true, message: 'Caddy reloaded from disk', ...changeResultFields(result) });

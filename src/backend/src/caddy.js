@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import logger from './logger.js';
 
 export const CADDY_ADMIN_URL = (process.env.CADDY_ADMIN_URL || 'http://caddy:2019').replace(/\/+$/, '');
@@ -42,12 +43,27 @@ export function markConfigChanged(adminUrl) {
     configGenerations.set(base, configGeneration(base) + 1);
 }
 
+// Writes per admin API whose requests haven't settled, including ones that
+// already timed out. Until they settle, the running config may still change.
+const unsettledWrites = new Map();
+
+export function hasUnsettledWrites(adminUrl) {
+    return unsettledWrites.has(adminUrl || CADDY_ADMIN_URL);
+}
+
 // A configuration write as a fetch whose settlement, however late, invalidates
 // observations again. A write that timed out can still complete in Caddy, and
 // reads made in between would otherwise keep the old config until they expire.
 function configWrite(base, label, url, options) {
     const request = fetch(url, { ...options, signal: AbortSignal.timeout(LATE_SETTLEMENT_LIMIT_MS) });
     const tracked = { timedOut: false };
+    unsettledWrites.set(base, (unsettledWrites.get(base) || 0) + 1);
+    const settled = () => {
+        const remaining = unsettledWrites.get(base) - 1;
+        if (remaining) unsettledWrites.set(base, remaining);
+        else unsettledWrites.delete(base);
+    };
+    request.finally(settled).catch(() => {});
     request.then(
         response => {
             markConfigChanged(base);
@@ -132,6 +148,25 @@ export async function caddyReadJson(path, adminUrl) {
         throw new TypeError('Caddy readback must be a JSON object or null');
     }
     return value;
+}
+
+// The whole running config with a fingerprint of it: Caddy's ETag when it sends
+// one (Caddy 2.6+), otherwise a hash of the response body. Equal fingerprints
+// mean the same config. The signal covers both headers and body so a stalled
+// response can't hold the instance queue beyond the deadline.
+export async function caddyGetConfig(adminUrl) {
+    const base = adminUrl || CADDY_ADMIN_URL;
+    const signal = AbortSignal.timeout(timeoutMs);
+    const res = await fetch(`${base}/config/`, { headers: HEADERS, signal });
+    const text = await res.text();
+    if (!res.ok) {
+        throw Object.assign(new Error(`Caddy API error: ${res.status}`), { status: res.status });
+    }
+    const etag = res.headers.get('etag');
+    return {
+        config: text ? JSON.parse(text) : null,
+        fingerprint: etag ? `etag:${etag}` : `sha256:${createHash('sha256').update(text).digest('hex')}`,
+    };
 }
 
 // Adapts Caddyfile text to JSON the same way POST /load does, without
