@@ -28,7 +28,8 @@ export const DRIFT_HISTORY_LIMIT = 20;
 const states = new Map();
 let timer = null;
 
-const fingerprintText = text => `sha256:${createHash('sha256').update(text).digest('hex')}`;
+// Also the editor's ETag for the Caddyfile, so both name a file the same way.
+export const fingerprintText = text => `sha256:${createHash('sha256').update(text).digest('hex')}`;
 // Enough of a fingerprint to tell states apart in logs.
 const shortFingerprint = fingerprint => fingerprint?.replace(/^(sha256|etag):/, '').replace(/\W/g, '').slice(-12) ?? null;
 

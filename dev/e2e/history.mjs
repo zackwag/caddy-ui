@@ -69,7 +69,18 @@ test('saved versions show stable attribution, preserve unknown external edits an
     const external = (await stack.api('/caddyfile')).data;
     assert(external.includes('external-history-edit'));
     await edit(external.replace('first-attributed-save:', 'second-attributed-save:'));
-    await save();
+    // The editor loaded the file before the external edit, so the save is
+    // refused until the user chooses to overwrite the file they were shown.
+    const refused = page.waitForResponse(response => new URL(response.url()).pathname === '/api/caddyfile'
+        && response.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    assert.equal((await refused).status(), 409);
+    const conflict = page.getByRole('dialog', { name: 'The Caddyfile changed' });
+    const overwritten = page.waitForResponse(response => new URL(response.url()).pathname === '/api/caddyfile'
+        && response.request().method() === 'PUT');
+    await conflict.getByRole('button', { name: 'Overwrite with my edits', exact: true }).click();
+    assert.equal((await overwritten).status(), 200);
+    await page.getByText('Caddyfile saved and reloaded', { exact: true }).last().waitFor();
     entries = (await stack.api('/caddyfile/history')).data;
     assert.equal(entries[0].actor.id, first.actor.id);
     assert.equal(entries[1].actor, null);

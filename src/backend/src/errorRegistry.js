@@ -15,6 +15,7 @@ export const ERROR_REGISTRY = Object.freeze({
     CONFIG_VERIFICATION_UNAVAILABLE: { status: 503, level: 'warn' },
     CADDY_APPLY_UNCERTAIN: { status: 504, level: 'warn' },
     CONFIG_CHANGED: { status: 409, level: 'warn' },
+    CADDYFILE_CHANGED: { status: 409, level: 'warn' },
     ROUTE_NOTES_READ_FAILED: { status: 500, level: 'error' },
     ROUTE_NOTES_SAVE_FAILED: { status: 500, level: 'error' },
     CADDY_RELOAD_FAILED: { status: 502, level: 'error' },
