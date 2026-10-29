@@ -207,6 +207,23 @@ describe('configuration drift detection', () => {
         expect(reports()[0][1].representations).toContain('live');
     });
 
+    it('a verified route PATCH does not adopt an unrelated external live change', async () => {
+        // External live change (route B edited outside caddy-ui)
+        live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: ['alpha', 'external-route-B'] } } } } });
+        // Route PATCH for route A: scoped verification (content null, live verified)
+        await recordLocalChange(alpha, {
+            content: null,
+            verification: { file: 'unchanged', live: 'verified' },
+            verifyLive: async () => 'verified',
+        });
+        // First check confirms the pending scoped change but keeps the old
+        // live expectation. Second check detects the unrelated live drift.
+        await checkAllInstances();
+        await checkAllInstances();
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toContain('live');
+    });
+
     it('a confirmed pending API-only change does not adopt an external file edit', async () => {
         // External file edit
         files.set(alpha.configPath, 'externally-edited {\n}\n');
@@ -219,6 +236,47 @@ describe('configuration drift detection', () => {
         });
         await checkAllInstances();
         // The route change is confirmed, but the file edit must still be reported
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toContain('file');
+    });
+
+    it('a confirmed pending route change does not adopt an unrelated external live change', async () => {
+        // External live change plus a pending route PATCH
+        live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: ['alpha', 'external'] } } } } });
+        await recordLocalChange(alpha, {
+            content: null,
+            verification: { file: 'unchanged', live: 'uncertain' },
+            verifyLive: async () => 'verified',
+        });
+        // First check confirms the pending change, second detects unrelated live drift
+        await checkAllInstances();
+        await checkAllInstances();
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toContain('live');
+    });
+
+    it('does not adopt an external file edit that arrives between verification and observation', async () => {
+        // Simulate TOCTOU: verifyFile succeeded on 'local', but by the time
+        // observe() reads the file, an external edit has landed.
+        const { readContainerFile } = await import('../src/containerFs.js');
+        const originalImpl = readContainerFile.getMockImplementation();
+        let calls = 0;
+        readContainerFile.mockImplementation(async (container, path) => {
+            calls++;
+            // First call from observe() inside recordLocalChange returns the external edit
+            if (path === alpha.configPath && calls === 1) return 'external-race {\n}\n';
+            return originalImpl(container, path);
+        });
+        files.set(alpha.configPath, 'external-race {\n}\n');
+        live.set(alpha.adminUrl, { apps: { local: true } });
+        await recordLocalChange(alpha, {
+            content: 'local {\n}\n',
+            verification: { file: 'verified', live: 'verified' },
+            verifyLive: async () => 'verified',
+        });
+        readContainerFile.mockImplementation(originalImpl);
+        // The file expectation should be 'local', not 'external-race'
+        await checkAllInstances();
         expect(reports()).toHaveLength(1);
         expect(reports()[0][1].representations).toContain('file');
     });

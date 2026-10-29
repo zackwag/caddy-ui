@@ -68,15 +68,18 @@ export async function recordLocalChange(instance, { content, verification, verif
     const file = content === null ? state.expected?.file ?? null : fingerprintText(content);
     const fileVerified = [VERIFIED, UNCHANGED].includes(verification.file);
     const liveVerified = [VERIFIED, NOT_APPLIED].includes(verification.live);
-    if (fileVerified && liveVerified) {
+    // A whole-config verification (Caddyfile save or reload) justifies adopting
+    // both representations. A scoped verification (route PATCH/DELETE, where
+    // content is null and verifyLive checks only one @id object) can't justify
+    // the whole live fingerprint, so it falls through to pending and lets the
+    // next drift check confirm it.
+    const liveScoped = content === null;
+    if (fileVerified && liveVerified && !liveScoped) {
         try {
             const observed = await observe(instance);
-            // Only update representations the change justified. An untouched
-            // file keeps its previous expectation; an unapplied live config
-            // keeps its previous expectation.
             const previous = state.expected || {};
             state.expected = {
-                file: content !== null ? observed.file : previous.file ?? observed.file,
+                file: content !== null ? file : previous.file ?? observed.file,
                 live: verification.live !== NOT_APPLIED ? observed.live : previous.live ?? observed.live,
             };
             state.pending = null;
@@ -86,7 +89,7 @@ export async function recordLocalChange(instance, { content, verification, verif
             logger.warn('Could not fingerprint the configuration after a local change', { instanceId: instance.id, error: error.name });
         }
     }
-    state.pending = { file, verifyLive };
+    state.pending = { file, verifyLive, scoped: liveScoped };
 }
 
 async function explainedByPendingChange(state, observed) {
@@ -133,12 +136,14 @@ export async function checkInstance(instance) {
         return;
     }
     if (await explainedByPendingChange(state, observed)) {
-        // Only adopt the representations the pending change justified:
-        // the file fingerprint if the change wrote the file, and the live
-        // fingerprint since the verifier confirmed the running config.
+        // Adopt only the representations the pending change justified.
+        // A scoped verifier (route PATCH/DELETE, file is null) confirms only
+        // one object, so the whole-config live fingerprint stays at the
+        // previous expectation until a whole-config save resets it.
+        const scoped = state.pending.scoped;
         state.expected = {
-            file: state.pending.file !== null ? observed.file : state.expected.file,
-            live: observed.live,
+            file: !scoped ? observed.file : state.expected.file,
+            live: !scoped ? observed.live : state.expected.live,
         };
         state.pending = null;
         state.reported = null;
@@ -179,14 +184,14 @@ export function getConfigDriftState(instanceId) {
     if (!state) {
         return null;
     }
-    return { expected: state.expected, pending: Boolean(state.pending), failing: state.failing, changes: state.changes.map(change => ({ ...change })) };
+    return { expected: state.expected && { ...state.expected }, pending: Boolean(state.pending), failing: state.failing, changes: state.changes.map(change => ({ ...change })) };
 }
 
 export function startConfigDriftMonitor() {
     if (timer) {
         return;
     }
-    checkAllInstances();
+    checkAllInstances().catch(() => {});
     timer = setInterval(checkAllInstances, DRIFT_CHECK_INTERVAL_MS).unref();
 }
 
