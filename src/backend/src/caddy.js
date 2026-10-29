@@ -152,10 +152,12 @@ export async function caddyReadJson(path, adminUrl) {
 
 // The whole running config with a fingerprint of it: Caddy's ETag when it sends
 // one (Caddy 2.6+), otherwise a hash of the response body. Equal fingerprints
-// mean the same config.
+// mean the same config. The signal covers both headers and body so a stalled
+// response can't hold the instance queue beyond the deadline.
 export async function caddyGetConfig(adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
-    const res = await withTimeout(fetch(`${base}/config/`, { headers: HEADERS }), timeoutMs, 'GET /config/');
+    const signal = AbortSignal.timeout(timeoutMs);
+    const res = await fetch(`${base}/config/`, { headers: HEADERS, signal });
     const text = await res.text();
     if (!res.ok) {
         throw Object.assign(new Error(`Caddy API error: ${res.status}`), { status: res.status });

@@ -57,13 +57,28 @@ function changedRepresentations(previous, current) {
 // the next check accepts it only if the file is what the change wrote and
 // `verifyLive` confirms the running config, so an unrelated concurrent change
 // isn't explained away.
+//
+// Only the representations the change actually touched and verified are updated
+// in the expected state. A route-only PATCH that didn't write the file keeps
+// the previous file expectation, and a file-only save that didn't verify live
+// keeps the previous live expectation. This prevents a verified scoped change
+// from silently adopting unrelated external edits to the other representation.
 export async function recordLocalChange(instance, { content, verification, verifyLive }) {
     const state = stateFor(instance.id);
     const file = content === null ? state.expected?.file ?? null : fingerprintText(content);
-    const verified = [VERIFIED, UNCHANGED].includes(verification.file) && [VERIFIED, NOT_APPLIED].includes(verification.live);
-    if (verified) {
+    const fileVerified = [VERIFIED, UNCHANGED].includes(verification.file);
+    const liveVerified = [VERIFIED, NOT_APPLIED].includes(verification.live);
+    if (fileVerified && liveVerified) {
         try {
-            state.expected = await observe(instance);
+            const observed = await observe(instance);
+            // Only update representations the change justified. An untouched
+            // file keeps its previous expectation; an unapplied live config
+            // keeps its previous expectation.
+            const previous = state.expected || {};
+            state.expected = {
+                file: content !== null ? observed.file : previous.file ?? observed.file,
+                live: verification.live !== NOT_APPLIED ? observed.live : previous.live ?? observed.live,
+            };
             state.pending = null;
             state.reported = null;
             return;
@@ -118,7 +133,13 @@ export async function checkInstance(instance) {
         return;
     }
     if (await explainedByPendingChange(state, observed)) {
-        state.expected = observed;
+        // Only adopt the representations the pending change justified:
+        // the file fingerprint if the change wrote the file, and the live
+        // fingerprint since the verifier confirmed the running config.
+        state.expected = {
+            file: state.pending.file !== null ? observed.file : state.expected.file,
+            live: observed.live,
+        };
         state.pending = null;
         state.reported = null;
         logger.info('Local configuration change confirmed', context);

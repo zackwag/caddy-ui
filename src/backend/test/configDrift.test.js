@@ -173,4 +173,53 @@ describe('configuration drift detection', () => {
         expect(reports()).toHaveLength(1);
         expect(JSON.stringify([...warn.mock.calls, ...info.mock.calls])).not.toContain(secret);
     });
+
+    it('a verified API-only route change does not adopt an external file edit', async () => {
+        // External file edit happens before the route PATCH
+        files.set(alpha.configPath, 'externally-edited {\n}\n');
+        // Route PATCH: content is null (didn't write the file), live is verified
+        live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: ['patched'] } } } } });
+        await recordLocalChange(alpha, {
+            content: null,
+            verification: { file: 'unchanged', live: 'verified' },
+            verifyLive: async () => 'verified',
+        });
+        // The external file edit must still be detected
+        await checkAllInstances();
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toContain('file');
+    });
+
+    it('a verified route change does not adopt an unrelated live edit', async () => {
+        // Record initial state, then an external live change happens
+        const originalLive = live.get(alpha.adminUrl);
+        live.set(alpha.adminUrl, { ...originalLive, externally_injected: true });
+        // A file-only save that verified the file but live was not-applied
+        files.set(alpha.configPath, 'local {\n}\n');
+        await recordLocalChange(alpha, {
+            content: 'local {\n}\n',
+            verification: { file: 'verified', live: 'not-applied' },
+            verifyLive: async () => 'verified',
+        });
+        // The unrelated live change must still be detected
+        await checkAllInstances();
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toContain('live');
+    });
+
+    it('a confirmed pending API-only change does not adopt an external file edit', async () => {
+        // External file edit
+        files.set(alpha.configPath, 'externally-edited {\n}\n');
+        // Pending route change: content is null, live uncertain initially
+        live.set(alpha.adminUrl, { apps: { patched: true } });
+        await recordLocalChange(alpha, {
+            content: null,
+            verification: { file: 'unchanged', live: 'uncertain' },
+            verifyLive: async () => 'verified',
+        });
+        await checkAllInstances();
+        // The route change is confirmed, but the file edit must still be reported
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toContain('file');
+    });
 });
