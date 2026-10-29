@@ -2,8 +2,9 @@
 
 This implements the online documentation part of
 [#288](https://github.com/zackwag/caddy-ui/issues/288): historical collection,
-incremental release crawling, Pages publication and version selection. The Help
-button inside caddy/ui and bundling offline documentation remain separate work.
+incremental release crawling, Pages publication and version selection. The
+Documentation link in caddy/ui's sidebar forwards installed component versions
+to the published resolver. Bundling offline documentation remains separate work.
 
 The [collection report](collection-report.md) records an earlier v2.20.0–v3.7.0
 backfill: 55 candidates, 54 complete books and 47 byte-distinct snapshots. It is

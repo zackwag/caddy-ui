@@ -6,6 +6,7 @@ import { useClickOutside } from "../hooks/useClickOutside.js";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
 import { apiFetch, setInstanceId } from "../utils/api.js";
 import { updateLink } from "../utils/updateLink.js";
+import { documentationLink } from "../utils/documentationLink.js";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 
@@ -50,6 +51,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
         update?.backend && t("sidebar.updatePartBackend", { version: update.backend }),
     ].filter(Boolean);
     const updateUrl = updateLink(update, { backend: backendVersion, frontend: FRONTEND_VERSION });
+    const documentationUrl = documentationLink({ frontend: FRONTEND_VERSION, backend: backendVersion });
 
     useEffect(() => {
         apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
@@ -143,7 +145,11 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                     </a>
                 )}
                 <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.versionDetails", { frontend: displayVersion(FRONTEND_VERSION), backend: displayVersion(backendVersion) }) : undefined}>
-                    {displayVersion(FRONTEND_VERSION)}{backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.backendVersion", { version: displayVersion(backendVersion) }) : ""}
+                    <span className="sidebar-version-label">{displayVersion(FRONTEND_VERSION)}{backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.backendVersion", { version: displayVersion(backendVersion) }) : ""}</span>
+                    <span className="sidebar-documentation-group">
+                        <span aria-hidden="true">·</span>
+                        <a className="sidebar-documentation" href={documentationUrl} target="_blank" rel="noopener noreferrer">{t("sidebar.documentation")}</a>
+                    </span>
                 </div>
             </div>
         </aside>

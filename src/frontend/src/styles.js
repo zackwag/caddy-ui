@@ -894,12 +894,22 @@ export const css = `
   }
 
   .sidebar-version {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 6px;
     padding: 8px 20px 0;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     color: var(--muted);
     letter-spacing: 0.5px;
   }
+
+  .sidebar-version-label { max-width: 100%; overflow-wrap: anywhere; }
+  .sidebar-documentation-group { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .sidebar-documentation { color: inherit; text-decoration: none; transition: color 0.15s; }
+  .sidebar-documentation:hover, .sidebar-documentation:focus-visible, .sidebar-documentation:active { color: var(--accent); }
+  .sidebar-documentation:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 
   .sidebar-update-badge {
     display: flex;

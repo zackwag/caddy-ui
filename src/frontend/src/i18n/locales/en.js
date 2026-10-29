@@ -115,6 +115,7 @@ export default {
         refreshStatus: 'Refresh status',
         selectInstance: 'Select instance',
         signOut: 'Sign out',
+        documentation: 'Documentation',
         updatePartFrontend: 'frontend {{version}}',
         updatePartBackend: 'backend {{version}}',
         availableUpdates: 'Available: {{parts}}',
