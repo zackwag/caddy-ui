@@ -79,6 +79,7 @@ export default {
         configVerificationMismatch: 'Reading the configuration back after this change found differences. Another process may have changed it, so review the Caddyfile before saving again.',
         configVerificationUnavailable: 'The configuration could not be read back to confirm this change. See the application logs.',
         caddyApplyUncertain: 'Caddy didn\'t confirm this change in time, so it may still apply. Check the running configuration before trying again.',
+        configChanged: 'The configuration changed since it was loaded, so this change wasn\'t made. The routes have been refreshed; review them and try again.',
         viewLogs: 'View logs',
         caddyfileReadFailed: 'Could not read the Caddyfile.',
         caddyfileWriteFailed: 'Could not write the Caddyfile. Nothing was changed.',

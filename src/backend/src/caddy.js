@@ -89,14 +89,19 @@ export function withTimeout(promise, ms, label) {
     ]);
 }
 
-async function caddyRequest(method, path, body, adminUrl) {
+// Resolves to the parsed body and the response's ETag. `ifMatch` makes a write
+// conditional: Caddy refuses it with 412 when the config at the ETag's path has
+// changed. Caddy releases without ETags send no ETag, and an absent one sends
+// no condition.
+async function caddyRequest(method, path, body, adminUrl, { ifMatch } = {}) {
     const base = adminUrl || CADDY_ADMIN_URL;
     const url = `${base}${path}`;
     const start = Date.now();
     logger.debug(`Caddy API request`, { method, path, adminUrl: base });
 
     try {
-        const options = { method, headers: HEADERS, body: body !== undefined ? JSON.stringify(body) : undefined };
+        const headers = ifMatch ? { ...HEADERS, 'If-Match': ifMatch } : HEADERS;
+        const options = { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined };
         const label = `${method} ${path}`;
         const res = method === 'GET'
             ? await withTimeout(fetch(url, options), timeoutMs, label)
@@ -106,14 +111,19 @@ async function caddyRequest(method, path, body, adminUrl) {
 
         if (!res.ok) {
             const text = await res.text();
-            logger.error(`Caddy API error`, { method, path, status: res.status, elapsed, body: text.slice(0, 200) });
+            // A failed precondition is Caddy guarding a concurrent change, not a fault
+            const log = res.status === 412 ? logger.warn : logger.error;
+            log.call(logger, `Caddy API error`, { method, path, status: res.status, elapsed, body: text.slice(0, 200) });
             throw Object.assign(new Error(`Caddy API error: ${res.status} ${text}`), { status: res.status });
         }
 
         logger.debug(`Caddy API response`, { method, path, status: res.status, elapsed });
+        const etag = res.headers.get('etag');
         const text = await res.text();
-        if (!text) return null;
-        try { return JSON.parse(text); } catch { return text; }
+        if (!text) {
+            return { value: null, etag };
+        }
+        try { return { value: JSON.parse(text), etag }; } catch { return { value: text, etag }; }
     } catch (err) {
         const elapsed = Date.now() - start;
         if (!err.message.includes('Caddy API error')) {
@@ -125,11 +135,16 @@ async function caddyRequest(method, path, body, adminUrl) {
     }
 }
 
-export const caddyGet = (path, adminUrl) => caddyRequest('GET', path, undefined, adminUrl);
-export const caddyPut = (path, body, adminUrl) => caddyRequest('PUT', path, body, adminUrl);
-export const caddyPost = (path, body, adminUrl) => caddyRequest('POST', path, body, adminUrl);
-export const caddyPatch = (path, body, adminUrl) => caddyRequest('PATCH', path, body, adminUrl);
-export const caddyDelete = (path, adminUrl) => caddyRequest('DELETE', path, undefined, adminUrl);
+const valueOf = response => response.value;
+
+export const caddyGet = (path, adminUrl) => caddyRequest('GET', path, undefined, adminUrl).then(valueOf);
+// A read whose ETag can make a later write conditional on what was read:
+// { value, etag }, with etag null when Caddy sends none.
+export const caddyGetTagged = (path, adminUrl) => caddyRequest('GET', path, undefined, adminUrl);
+export const caddyPut = (path, body, adminUrl, options) => caddyRequest('PUT', path, body, adminUrl, options).then(valueOf);
+export const caddyPost = (path, body, adminUrl, options) => caddyRequest('POST', path, body, adminUrl, options).then(valueOf);
+export const caddyPatch = (path, body, adminUrl, options) => caddyRequest('PATCH', path, body, adminUrl, options).then(valueOf);
+export const caddyDelete = (path, adminUrl, options) => caddyRequest('DELETE', path, undefined, adminUrl, options).then(valueOf);
 
 // A read for configuration readback. Unlike caddyGet, its deadline covers the
 // body as well as the headers, a body that isn't a JSON object or null is
