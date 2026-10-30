@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.8.0](https://github.com/zackwag/caddy-ui/compare/v3.7.4...v3.8.0) (2026-10-30)
+
+
+### Features
+
+* detect external Caddy configuration changes against verified state ([#456](https://github.com/zackwag/caddy-ui/issues/456)) ([eb299ad](https://github.com/zackwag/caddy-ui/commit/eb299ad4ab4078f6c8d4f50d70c611e6ffa2274a))
+
+
+### Bug Fixes
+
+* treat timed-out configuration writes as uncertain ([#455](https://github.com/zackwag/caddy-ui/issues/455)) ([9581207](https://github.com/zackwag/caddy-ui/commit/9581207a0317cdd85b84de1170adccae684b0187))
+
 ## [3.7.4](https://github.com/zackwag/caddy-ui/compare/v3.7.3...v3.7.4) (2026-10-28)
 
 
