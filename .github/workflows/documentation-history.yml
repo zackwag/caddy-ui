@@ -29,6 +29,8 @@ permissions:
 
 concurrency:
   group: historical-documentation-archive
+  # Keep every pending writer; the default single slot replaces older requests.
+  queue: max
   cancel-in-progress: false
 
 jobs:

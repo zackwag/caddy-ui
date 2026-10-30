@@ -22,11 +22,11 @@ Archive collection runs in `juscghwe/caddy-ui`; the published documentation is
 built and hosted by `zackwag/caddy-ui`. The public release assets are the handoff
 between them. Git retains the tooling, inventory evidence and grouping decisions.
 
-Bootstrap from the working branch through the existing Documentation workflow:
+Bootstrap through the fork's default-branch Documentation workflow:
 
 ```sh
 gh workflow run docs.yml --repo juscghwe/caddy-ui \
-  --ref docs/historical-book-inventory \
+  --ref main \
   -f archive_history=true -f bootstrap=true
 ```
 
@@ -47,15 +47,73 @@ release inventories create no additional assets and skip installing rendering
 dependencies and Chromium. Fresh retries can explicitly
 preserve updated diagnostics even when their outcome remains unchanged.
 
-The default-branch Documentation workflow can call this runner daily and after
-successful Release runs in the fork. The daily crawl discovers releases published
-upstream. Its `archive` job pins both the reusable workflow and `tooling_ref` to
-the same reviewed full commit, so the fork's default branch need not include the
-site integration. The scheduling branch has reached the fork's default branch;
-daily collection is active independently of upstream publication. Writers
-queue under one concurrency group. The archive job rejects PR events and storage
-outside the owner's fork. Its write token is exposed only to restore/upload
-steps, never to historical build scripts. The archive tag is not a `v*` release.
+The fork's Documentation workflow accepts an explicit collection request. Its
+`archive` job pins both the reusable workflow and `tooling_ref` to the same
+reviewed full commit. Writers queue under one concurrency group with
+`queue: max`, so multiple pending requests wait instead of replacing each other.
+GitHub limits that queue to 100 pending runs; requests beyond it are cancelled.
+The archive job rejects PR events and storage outside the owner's fork. Its write token is
+exposed only to restore/upload steps, never to historical build scripts. The
+archive tag is not a `v*` release. The fork has no independent scheduled work.
+
+## Release handoff and setup
+
+After a successful `Release` run in `zackwag/caddy-ui`, the upstream Documentation
+workflow dispatches `docs.yml` on the archive fork's `main`, passing
+`archive_history=true` and requesting `return_run_details=true` from the API.
+Collection and archive storage stay in the fork. The upstream workflow polls the
+returned `workflow_run_id` directly until that run succeeds, then restores the
+archive, assembles the site and deploys Pages. It never accepts an unrelated
+successful crawl as completion of its own request.
+
+Dispatch is attempted exactly once, including when its response is ambiguous.
+Status reads tolerate three consecutive API failures; a successful read resets
+that budget. A fourth consecutive failure, invalid response, unsuccessful run,
+cancellation or a 95-minute wait timeout stops publication. This avoids deploying
+the previous archive as a coordinated release update.
+
+A weekly upstream catch-up runs the same collect-then-publish path every Monday
+at 04:17 UTC. It waits for its own dispatched run before restoring the archive,
+so collection and publication cannot race on separate schedules. The fork does
+no scheduled work. Catch-up retries missed releases after transient failures;
+it cannot renew an expired or revoked token. Renew that token before expiry and
+use a fresh manual coordinated run after repairing persistent failures.
+
+Before enabling the release handoff:
+
+1. Merge the workflow change upstream, then immediately sync the fork's `main`,
+   before the next release or coordinated manual run. This activates the updated
+   concurrency settings and removes the fork's former daily trigger. Both
+   repositories use the same workflow definition; the repository and event
+   determine which jobs run. The reusable collector and its tooling remain
+   pinned together to a reviewed full commit containing the queue fix.
+2. Create a fine-grained token selecting only `juscghwe/caddy-ui`, with repository
+   **Actions: read and write**. The upstream workflow needs it to dispatch and
+   observe the fork's run; GitHub's built-in token cannot dispatch across
+   repositories. Collection continues using the fork's own token for release
+   asset uploads.
+3. Save that token as the **upstream** Actions secret
+   `DOCS_ARCHIVE_DISPATCH_TOKEN` before the next release. For example, this command
+   prompts for the value without putting it in a command argument:
+
+   ```sh
+   gh secret set DOCS_ARCHIVE_DISPATCH_TOKEN --repo zackwag/caddy-ui
+   ```
+
+The dispatch token is available only in the trusted-main coordination job. It is
+not passed to PR previews, historical renderers or the publishing job. Missing
+configuration fails with an explicit setup error. This handoff does not require
+a callback token with write access to the upstream repository.
+
+For a manual collection followed by publication, start a fresh upstream run:
+
+```sh
+gh workflow run docs.yml --repo zackwag/caddy-ui --ref main -f collect_history=true
+```
+
+A plain manual run without `collect_history=true` republishes the already
+preserved archive. Fork-only bootstrap/retry commands above remain available for
+archive maintenance and do not deploy the site.
 
 Restore a saved archive locally with GitHub CLI, Node 24, the documentation
 dependencies, Python 3.12+ and `tar` installed:
@@ -200,24 +258,36 @@ The crawler succeeds with these documented fallbacks, while the lower-level
 `history:backfill` command retains its failure exit status for a failed render.
 
 In the upstream repository, the Documentation workflow publishes on main updates,
-completion of successful local Release runs, a daily catch-up schedule, and manual
-dispatch. The daily publisher picks up archives produced by the independent fork
-collector; GitHub schedules can be delayed and the two jobs need not finish in a
-particular order. A later publication run catches up if collection is still running.
-Production runs are not cancelled by a newer run; PR previews can replace their
-own obsolete previews.
+completion of successful local Release runs, weekly catch-up, and manual dispatch.
+Release and weekly runs first request and wait for collection as described above;
+ordinary development updates and PR previews restore the preserved archive
+without requesting a crawl.
+All Documentation runs, including PR previews, use `queue: max` with cancellation
+disabled. Site runs queue by ref, separately from fork archive requests; the
+reusable collector also queues all writers together. A later push, release or
+manual request cannot replace an already pending run. Queue time counts toward
+the upstream collection wait, so a long backlog can still reach its timeout.
 
 The publisher restores the latest complete archive from `juscghwe/caddy-ui`,
 verifying the payload checksum, snapshot bytes and provenance before assembly.
 It never crawls or rerenders historical releases, and needs only read access to
 the public archive. It refreshes release and component-publication metadata
-independently: a new release gets a release-notes entry until its collected book
-arrives. Changed or removed archived source tags fail publication.
+independently: ordinary development updates may list a new release before its
+collection completes. A coordinated release publication requires a recorded
+result for every discovered release; an uncollected release fails assembly
+before replacing the site. Recorded historical rendering failures still get an
+explicit release-notes fallback. Changed or removed archived source tags fail
+publication. If a new release tag appears after collection finishes but before
+the publisher discovers releases, `--require-collected` can stop that earlier
+publication. The later release's coordinated run (or weekly catch-up) collects
+the missing release and retries publication.
 
 The archive owner is an intentional external dependency, not the Pages host.
 Repository maintainers can set the Actions variable `DOCS_ARCHIVE_REPOSITORY`
-to a reviewed replacement with the same archive format. Changing it does not
-grant the publisher write access to that repository or move the fork's collector.
+to a reviewed replacement with the same archive format and `docs.yml` dispatch
+protocol. This selects both the dispatch destination and archive storage; the
+dispatch token must independently have access to that repository. Changing the
+variable grants no permissions and does not run collection in the upstream repo.
 Missing, unavailable or corrupted archives fail the build, leaving the previous
 Pages deployment in place. There is no fallback that recreates historical books
 with potentially different assets. Preview and diagnostic artifacts still expire

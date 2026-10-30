@@ -7,10 +7,15 @@ on:
   workflow_run:
     workflows: [Release]
     types: [completed]
+  # Upstream catch-up uses the same collect-then-publish path, never a timed race.
   schedule:
-    - cron: '17 4 * * *'
+    - cron: '17 4 * * 1'
   workflow_dispatch:
     inputs:
+      collect_history:
+        description: Collect release books in the archive fork before publishing (upstream only)
+        type: boolean
+        default: false
       archive_history:
         description: Archive books in the fork only, without building or deploying Pages
         type: boolean
@@ -24,8 +29,8 @@ on:
         type: boolean
         default: false
 
-# Public archive storage and Pages hosting have separate owners. This is a
-# read-only dependency; repository owners can select a reviewed replacement.
+# The fork collects and stores release books. The upstream publisher requests
+# collection after a release and waits for that exact run before restoring them.
 env:
   DOCUMENTATION_ARCHIVE_REPOSITORY: ${{ vars.DOCS_ARCHIVE_REPOSITORY || 'juscghwe/caddy-ui' }}
 
@@ -33,28 +38,66 @@ permissions:
   contents: read
 
 concurrency:
-  group: documentation-${{ github.ref }}-${{ github.repository == 'juscghwe/caddy-ui' && (inputs.archive_history || github.event_name == 'schedule' || github.event_name == 'workflow_run') && 'archive' || 'site' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: documentation-${{ github.ref }}-${{ inputs.archive_history && 'archive' || 'site' }}
+  # Preserve pending release/manual requests when more pushes arrive.
+  queue: max
+  cancel-in-progress: false
 
 jobs:
   archive:
-    if: github.repository == 'juscghwe/caddy-ui' && ((github.event_name == 'workflow_dispatch' && inputs.archive_history) || github.event_name == 'schedule' || (github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'))
+    if: github.repository == 'juscghwe/caddy-ui' && github.event_name == 'workflow_dispatch' && inputs.archive_history
     permissions:
       contents: write
-    uses: juscghwe/caddy-ui/.github/workflows/documentation-history.yml@1d01a539cfbbce29750e0820cdf194cc56df3765
+    uses: juscghwe/caddy-ui/.github/workflows/documentation-history.yml@bafb0788a3d14cd4fef1e61971061307ca8b1e61
     with:
-      tooling_ref: 1d01a539cfbbce29750e0820cdf194cc56df3765
+      tooling_ref: bafb0788a3d14cd4fef1e61971061307ca8b1e61
       bootstrap: ${{ inputs.bootstrap || false }}
       retry_failed: ${{ inputs.retry_failed || false }}
 
+  collect:
+    name: Collect release books in the archive fork
+    if: >-
+      github.repository == 'zackwag/caddy-ui' && github.ref == 'refs/heads/main' && !inputs.archive_history &&
+      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.collect_history) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - name: Check out trusted main
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: main
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: Request collection and wait for the matching fork run
+        env:
+          # Fine-grained token: Actions write on the archive fork only. It is
+          # never passed to historical renderers or the publishing job.
+          GH_TOKEN: ${{ secrets.DOCS_ARCHIVE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo '::error::Configure DOCS_ARCHIVE_DISPATCH_TOKEN with Actions write on the archive fork.'
+            exit 1
+          fi
+          node docs/scripts/history-collect.mjs --repository "$DOCUMENTATION_ARCHIVE_REPOSITORY"
+
   build:
     name: Build mdBook
-    # The fork's scheduled runs collect books; the upstream repository publishes
-    # them. workflow_run always builds trusted main, never triggering artifacts.
+    needs: [archive, collect]
+    # Skipped collection permits ordinary previews/development updates, but a
+    # failed or cancelled collection must never publish an older archive.
     if: >-
-      !inputs.archive_history &&
+      !cancelled() && !inputs.archive_history &&
+      (needs.archive.result == 'success' || needs.archive.result == 'skipped') &&
+      (needs.collect.result == 'success' || needs.collect.result == 'skipped') &&
       (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'schedule' && !github.event.repository.fork) ||
+      (github.event_name == 'schedule' && github.repository == 'zackwag/caddy-ui') ||
       (github.event_name == 'workflow_run' && !github.event.repository.fork &&
       github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
@@ -122,6 +165,8 @@ jobs:
         run: npm test --prefix docs
 
       - name: Build documentation
+        env:
+          REQUIRE_COLLECTED: ${{ needs.collect.result == 'success' && 'true' || 'false' }}
         run: |
           MDBOOK_OUTPUT__HTML__SITE_URL=/ mdbook build docs
           case "${GITHUB_REPOSITORY#*/}" in
@@ -129,7 +174,7 @@ jobs:
             *) DOCS_BASE="/${GITHUB_REPOSITORY#*/}/" ;;
           esac
           echo "DOCS_BASE=$DOCS_BASE" >> "$GITHUB_ENV"
-          node docs/scripts/history-site.mjs --base "$DOCS_BASE" --inventory "$RUNNER_TEMP/documentation-releases.json"
+          node docs/scripts/history-site.mjs --base "$DOCS_BASE" --inventory "$RUNNER_TEMP/documentation-releases.json" --require-collected "$REQUIRE_COLLECTED"
 
       - name: Check versioned documentation in Chromium
         run: npm run test:history:browser --prefix docs -- --site "$PWD/.docs-site" --base "$DOCS_BASE"
@@ -166,7 +211,7 @@ jobs:
 
   deploy:
     name: Deploy documentation
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.repository.fork && !inputs.archive_history
+    if: ${{ !cancelled() && needs.build.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.repository.fork && !inputs.archive_history }}
     needs: build
     runs-on: ubuntu-latest
     permissions:
