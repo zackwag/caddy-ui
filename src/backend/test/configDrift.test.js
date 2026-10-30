@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { routeExpectation } from '../src/configExpectation.js';
 
 const { files, live, instances, unsettled } = vi.hoisted(() => ({
     files: new Map(),
@@ -102,15 +103,26 @@ describe('configuration drift detection', () => {
     it('does not report a verified local change', async () => {
         files.set(alpha.configPath, 'local {\n}\n');
         live.set(alpha.adminUrl, { apps: { local: true } });
-        await recordLocalChange(alpha, { content: 'local {\n}\n', verification: verified, verifyLive: async () => 'verified' });
+        await recordLocalChange(alpha, { content: 'local {\n}\n', verification: verified, verifyLive: async () => 'verified',
+            expectLive: () => ({ apps: { local: true } }) });
         await checkAllInstances();
         expect(reports()).toHaveLength(0);
+    });
+
+    it('binds a full-save expectation to its adapter result rather than a later live observation', async () => {
+        files.set(alpha.configPath, 'local {\n}\n');
+        live.set(alpha.adminUrl, { apps: { local: true, external: true } });
+        await recordLocalChange(alpha, { content: 'local {\n}\n', verification: verified,
+            expectLive: () => ({ apps: { local: true } }) });
+        await checkAllInstances();
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toEqual(['live']);
     });
 
     it('confirms an unverified local change once the running config matches it', async () => {
         files.set(alpha.configPath, 'local {\n}\n');
         await recordLocalChange(alpha, { content: 'local {\n}\n', verification: { file: 'verified', live: 'uncertain' },
-            verifyLive: async () => 'verified' });
+            verifyLive: async () => 'verified', expectLive: () => ({ apps: { local: true } }) });
         live.set(alpha.adminUrl, { apps: { local: true } });
         await checkAllInstances();
         expect(reports()).toHaveLength(0);
@@ -131,7 +143,8 @@ describe('configuration drift detection', () => {
 
     it('defers judgment while a timed-out caddy-ui write is unsettled', async () => {
         await recordLocalChange(alpha, { content: 'local {\n}\n', verification: { file: 'verified', live: 'uncertain' },
-            verifyLive: async () => (live.get(alpha.adminUrl).apps.local ? 'verified' : 'mismatch') });
+            verifyLive: async () => (live.get(alpha.adminUrl).apps.local ? 'verified' : 'mismatch'),
+            expectLive: () => ({ apps: { local: true } }) });
         files.set(alpha.configPath, 'local {\n}\n');
         unsettled.add(alpha.adminUrl);
         await checkAllInstances();
@@ -174,85 +187,15 @@ describe('configuration drift detection', () => {
         expect(JSON.stringify([...warn.mock.calls, ...info.mock.calls])).not.toContain(secret);
     });
 
-    it('a verified API-only route change does not adopt an external file edit', async () => {
-        // External file edit happens before the route PATCH
-        files.set(alpha.configPath, 'externally-edited {\n}\n');
-        // Route PATCH: content is null (didn't write the file), live is verified
-        live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: ['patched'] } } } } });
-        await recordLocalChange(alpha, {
-            content: null,
-            verification: { file: 'unchanged', live: 'verified' },
-            verifyLive: async () => 'verified',
-        });
-        // The external file edit must still be detected
-        await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toContain('file');
-    });
-
-    it('a verified route change does not adopt an unrelated live edit', async () => {
-        // Record initial state, then an external live change happens
-        const originalLive = live.get(alpha.adminUrl);
-        live.set(alpha.adminUrl, { ...originalLive, externally_injected: true });
-        // A file-only save that verified the file but live was not-applied
+    it('a file-only save keeps unrelated live changes unexplained', async () => {
+        live.set(alpha.adminUrl, { apps: { externally_injected: true } });
         files.set(alpha.configPath, 'local {\n}\n');
         await recordLocalChange(alpha, {
-            content: 'local {\n}\n',
-            verification: { file: 'verified', live: 'not-applied' },
-            verifyLive: async () => 'verified',
-        });
-        // The unrelated live change must still be detected
-        await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toContain('live');
-    });
-
-    it('a verified route PATCH does not adopt an unrelated external live change', async () => {
-        // External live change (route B edited outside caddy-ui)
-        live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: ['alpha', 'external-route-B'] } } } } });
-        // Route PATCH for route A: scoped verification (content null, live verified)
-        await recordLocalChange(alpha, {
-            content: null,
-            verification: { file: 'unchanged', live: 'verified' },
-            verifyLive: async () => 'verified',
-        });
-        // First check confirms the pending scoped change but keeps the old
-        // live expectation. Second check detects the unrelated live drift.
-        await checkAllInstances();
-        await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toContain('live');
-    });
-
-    it('a confirmed pending API-only change does not adopt an external file edit', async () => {
-        // External file edit
-        files.set(alpha.configPath, 'externally-edited {\n}\n');
-        // Pending route change: content is null, live uncertain initially
-        live.set(alpha.adminUrl, { apps: { patched: true } });
-        await recordLocalChange(alpha, {
-            content: null,
-            verification: { file: 'unchanged', live: 'uncertain' },
-            verifyLive: async () => 'verified',
+            content: 'local {\n}\n', verification: { file: 'verified', live: 'not-applied' },
         });
         await checkAllInstances();
-        // The route change is confirmed, but the file edit must still be reported
         expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toContain('file');
-    });
-
-    it('a confirmed pending route change does not adopt an unrelated external live change', async () => {
-        // External live change plus a pending route PATCH
-        live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: ['alpha', 'external'] } } } } });
-        await recordLocalChange(alpha, {
-            content: null,
-            verification: { file: 'unchanged', live: 'uncertain' },
-            verifyLive: async () => 'verified',
-        });
-        // First check confirms the pending change, second detects unrelated live drift
-        await checkAllInstances();
-        await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toContain('live');
+        expect(reports()[0][1].representations).toEqual(['live']);
     });
 
     it('does not adopt an external file edit that arrives between verification and observation', async () => {
@@ -273,11 +216,94 @@ describe('configuration drift detection', () => {
             content: 'local {\n}\n',
             verification: { file: 'verified', live: 'verified' },
             verifyLive: async () => 'verified',
+            expectLive: () => ({ apps: { local: true } }),
         });
         readContainerFile.mockImplementation(originalImpl);
         // The file expectation should be 'local', not 'external-race'
         await checkAllInstances();
         expect(reports()).toHaveLength(1);
         expect(reports()[0][1].representations).toContain('file');
+    });
+});
+
+
+// Exercise verification scope independently of file writes and completion time.
+const routeCases = ['add', 'replace', 'remove'].flatMap(operation =>
+    [false, true].flatMap(diskBacked => ['verified', 'uncertain'].map(status => ({ operation, diskBacked, status }))));
+const routeA = { '@id': 'route-a', handle: [{ handler: 'static_response', body: 'original A' }] };
+const routeB = { '@id': 'route-b', handle: [{ handler: 'static_response', body: 'original B' }] };
+const updatedRoute = operation => ({ '@id': operation === 'add' ? 'route-c' : 'route-a',
+    handle: [{ handler: 'static_response', body: 'local edit' }] });
+const routesOf = config => config.apps.http.servers.srv0.routes;
+
+async function routeChange({ operation, diskBacked, status }, external = false) {
+    resetConfigDrift();
+    live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: structuredClone([routeA, routeB]) } } } } });
+    await checkAllInstances();
+    const config = structuredClone(live.get(alpha.adminUrl));
+    const routes = routesOf(config);
+    if (external) routes[1].handle[0].body = 'external edit';
+    const route = updatedRoute(operation);
+    if (operation === 'add') routes.push(route);
+    else if (operation === 'replace') routes[0] = route;
+    else routes.splice(0, 1);
+    const verifyLive = async () => {
+        const actual = routesOf(live.get(alpha.adminUrl)).find(candidate => candidate['@id'] === route['@id']);
+        return operation === 'remove' ? (actual ? 'mismatch' : 'verified')
+            : (JSON.stringify(actual) === JSON.stringify(route) ? 'verified' : 'mismatch');
+    };
+    const content = diskBacked ? 'local-file {\n}\n' : null;
+    if (diskBacked) files.set(alpha.configPath, content);
+    if (status === 'verified') live.set(alpha.adminUrl, config);
+    await recordLocalChange(alpha, { content, verification: { file: diskBacked ? 'verified' : 'unchanged', live: status },
+        verifyLive, expectLive: routeExpectation({ operation, id: 'route-a', serverName: 'srv0', route }) });
+    if (status === 'uncertain') live.set(alpha.adminUrl, config);
+    return config;
+}
+
+describe('scoped route expectations', () => {
+    it.each(routeCases)('accepts only the local $operation (disk=$diskBacked, live=$status) without false drift on later polls', async options => {
+        await routeChange(options);
+        await checkAllInstances();
+        await checkAllInstances();
+        expect(reports()).toHaveLength(0);
+        expect(changes(alpha.id)).toEqual([]);
+    });
+
+    it.each(routeCases)('preserves unrelated live drift after $operation (disk=$diskBacked, live=$status)', async options => {
+        const config = await routeChange(options, true);
+        await checkAllInstances();
+        await checkAllInstances();
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toEqual(['live']);
+        // Reverting only the external edit reaches the projected expectation,
+        // even though the legitimate local mutation remains in place.
+        const other = routesOf(config).find(route => route['@id'] === 'route-b');
+        other.handle[0].body = 'original B';
+        await checkAllInstances();
+        expect(reports()).toHaveLength(1);
+        other.handle[0].body = 'external edit';
+        await checkAllInstances();
+        expect(reports()).toHaveLength(2);
+    });
+
+    it.each(['verified', 'uncertain'])('keeps an external file edit visible while confirming a %s API-only edit', async status => {
+        await routeChange({ operation: 'replace', diskBacked: false, status });
+        files.set(alpha.configPath, 'externally-edited {\n}\n');
+        await checkAllInstances();
+        await checkAllInstances();
+        expect(reports()).toHaveLength(1);
+        expect(reports()[0][1].representations).toEqual(['file']);
+    });
+
+    it('does not expose configuration snapshots in diagnostics or logs', async () => {
+        const secret = crypto.randomUUID();
+        resetConfigDrift();
+        live.set(alpha.adminUrl, { apps: { secret } });
+        await checkAllInstances();
+        files.set(alpha.configPath, 'external {\n}\n');
+        await checkAllInstances();
+        expect(JSON.stringify(getConfigDriftState(alpha.id))).not.toContain(secret);
+        expect(JSON.stringify([...info.mock.calls, ...warn.mock.calls])).not.toContain(secret);
     });
 });

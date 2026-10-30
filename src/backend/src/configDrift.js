@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { caddyGetConfig, hasUnsettledWrites } from './caddy.js';
 import { NOT_APPLIED, UNCHANGED, VERIFIED } from './configVerification.js';
 import { readContainerFile } from './containerFs.js';
@@ -35,7 +36,7 @@ const shortFingerprint = fingerprint => fingerprint?.replace(/^(sha256|etag):/, 
 function stateFor(instanceId) {
     let state = states.get(instanceId);
     if (!state) {
-        state = { expected: null, pending: null, reported: null, failing: false, changes: [] };
+        state = { expected: null, liveConfig: undefined, pending: null, reported: null, failing: false, changes: [] };
         states.set(instanceId, state);
     }
     return state;
@@ -43,65 +44,72 @@ function stateFor(instanceId) {
 
 async function observe({ adminUrl, configPath, containerName }) {
     const [text, live] = await Promise.all([readContainerFile(containerName, configPath), caddyGetConfig(adminUrl)]);
-    return { file: fingerprintText(text), live: live.fingerprint };
+    return { file: fingerprintText(text), live: live.fingerprint, config: live.config };
+}
+
+const fingerprints = ({ file, live }) => ({ file, live });
+
+async function acceptLiveExpectation(state, expectLive) {
+    const config = await expectLive?.(structuredClone(state.liveConfig));
+    if (config === undefined) return false;
+    state.liveConfig = structuredClone(config);
+    // Caddy's ETag isn't computable from an intended JSON result. Keep a hash
+    // until a read matches that result, then use the matching read's ETag.
+    state.expected.live = fingerprintText(JSON.stringify(config));
+    return true;
+}
+
+function matchLiveFingerprint(state, observed) {
+    if (state.expected.live !== observed.live && isDeepStrictEqual(state.liveConfig, observed.config)) {
+        state.expected.live = observed.live;
+    }
 }
 
 function changedRepresentations(previous, current) {
     return ['file', 'live'].filter(representation => previous[representation] !== current[representation]);
 }
 
-// Called inside the change queue after a local change was read back.
-// `content` is the Caddyfile the change left on disk, or null when it didn't
-// touch the file. A fully verified change becomes the expected state now.
-// Anything less (a mismatch, an unavailable readback or a timeout) is pending:
-// the next check accepts it only if the file is what the change wrote and
-// `verifyLive` confirms the running config, so an unrelated concurrent change
-// isn't explained away.
-//
-// Only the representations the change actually touched and verified are updated
-// in the expected state. A route-only PATCH that didn't write the file keeps
-// the previous file expectation, and a file-only save that didn't verify live
-// keeps the previous live expectation. This prevents a verified scoped change
-// from silently adopting unrelated external edits to the other representation.
-export async function recordLocalChange(instance, { content, verification, verifyLive }) {
+// Called inside the change queue after readback. expectLive returns the complete
+// intended config: the adapter's result for a load, or the previous expected
+// config with just the submitted route mutation applied. Its scope is independent
+// of whether the operation wrote a Caddyfile. Neither path adopts a fresh read.
+export async function recordLocalChange(instance, { content, verification, verifyLive, expectLive }) {
     const state = stateFor(instance.id);
-    const file = content === null ? state.expected?.file ?? null : fingerprintText(content);
+    // Until the first successful observation there is no baseline to compare.
+    // The monitor will establish it using the documented startup behavior.
+    if (!state.expected) return;
+    const file = content === null ? null : fingerprintText(content);
     const fileVerified = [VERIFIED, UNCHANGED].includes(verification.file);
-    const liveVerified = [VERIFIED, NOT_APPLIED].includes(verification.live);
-    // A whole-config verification (Caddyfile save or reload) justifies adopting
-    // both representations. A scoped verification (route PATCH/DELETE, where
-    // content is null and verifyLive checks only one @id object) can't justify
-    // the whole live fingerprint, so it falls through to pending and lets the
-    // next drift check confirm it.
-    const liveScoped = content === null;
-    if (fileVerified && liveVerified && !liveScoped) {
+    if (file !== null && fileVerified) state.expected.file = file;
+    let liveAccepted = verification.live === NOT_APPLIED;
+    if (verification.live === VERIFIED) {
         try {
-            const observed = await observe(instance);
-            const previous = state.expected || {};
-            state.expected = {
-                file: content !== null ? file : previous.file ?? observed.file,
-                live: verification.live !== NOT_APPLIED ? observed.live : previous.live ?? observed.live,
-            };
-            state.pending = null;
-            state.reported = null;
-            return;
+            liveAccepted = await acceptLiveExpectation(state, expectLive);
         } catch (error) {
-            logger.warn('Could not fingerprint the configuration after a local change', { instanceId: instance.id, error: error.name });
+            logger.warn('Could not establish the expected configuration after a local change', { instanceId: instance.id, error: error.name });
         }
     }
-    state.pending = { file, verifyLive, scoped: liveScoped };
+    state.pending = (!fileVerified && file !== null) || !liveAccepted
+        ? { file: !fileVerified ? file : null, live: !liveAccepted, verifyLive, expectLive } : null;
 }
 
-async function explainedByPendingChange(state, observed) {
+async function confirmPendingChange(state, observed) {
     const { pending } = state;
-    if (!pending || (pending.file !== null && pending.file !== observed.file)) {
-        return false;
+    if (!pending) return false;
+    let confirmed = false;
+    if (pending.file !== null && pending.file === observed.file) {
+        state.expected.file = pending.file;
+        confirmed = true;
     }
     try {
-        return await pending.verifyLive() === VERIFIED;
+        if (pending.live && await pending.verifyLive() === VERIFIED) {
+            confirmed = await acceptLiveExpectation(state, pending.expectLive) || confirmed;
+        }
     } catch {
-        return false;
+        // Unavailable/mismatched readback can't justify accepting live state.
     }
+    state.pending = null;
+    return confirmed;
 }
 
 export async function checkInstance(instance) {
@@ -126,28 +134,18 @@ export async function checkInstance(instance) {
         state.failing = false;
     }
     if (!state.expected) {
-        state.expected = observed;
+        state.expected = fingerprints(observed);
+        state.liveConfig = structuredClone(observed.config);
+        state.pending = null;
         logger.info('Configuration baseline established', { ...context, file: shortFingerprint(observed.file), live: shortFingerprint(observed.live) });
         return;
     }
-    if (!changedRepresentations(state.expected, observed).length) {
-        state.pending = null;
-        state.reported = null;
-        return;
-    }
-    if (await explainedByPendingChange(state, observed)) {
-        // Adopt only the representations the pending change justified.
-        // A scoped verifier (route PATCH/DELETE, file is null) confirms only
-        // one object, so the whole-config live fingerprint stays at the
-        // previous expectation until a whole-config save resets it.
-        const scoped = state.pending.scoped;
-        state.expected = {
-            file: !scoped ? observed.file : state.expected.file,
-            live: !scoped ? observed.live : state.expected.live,
-        };
-        state.pending = null;
-        state.reported = null;
+    if (await confirmPendingChange(state, observed)) {
         logger.info('Local configuration change confirmed', context);
+    }
+    matchLiveFingerprint(state, observed);
+    if (!changedRepresentations(state.expected, observed).length) {
+        state.reported = null;
         return;
     }
     // A pending change that didn't explain this state can't explain a later one.
@@ -158,7 +156,7 @@ export async function checkInstance(instance) {
     }
     state.reported = key;
     const representations = changedRepresentations(state.expected, observed);
-    state.changes.push({ detectedAt: new Date().toISOString(), representations, previous: { ...state.expected }, current: observed });
+    state.changes.push({ detectedAt: new Date().toISOString(), representations, previous: { ...state.expected }, current: fingerprints(observed) });
     state.changes.splice(0, Math.max(0, state.changes.length - DRIFT_HISTORY_LIMIT));
     logger.warn('Configuration changed outside caddy-ui', { ...context, representations,
         previous: { file: shortFingerprint(state.expected.file), live: shortFingerprint(state.expected.live) },

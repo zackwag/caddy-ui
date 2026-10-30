@@ -80,6 +80,17 @@ it. Anything else is reported as
 makes it the expected state, so it stays reported until the configuration
 returns to the expected state or caddy/ui saves a new one.
 
+A route add, edit or deletion updates only that route in the expected running
+configuration, whether or not the operation also writes the Caddyfile. An
+unrelated external edit remains unexplained. A full save or reload instead uses
+the adapter's complete intended configuration. File expectations use the text
+that was verified, rather than a later read that could include another edit.
+
+To attribute route changes, the monitor retains one expected configuration
+snapshot per instance in memory. Normal checks compare fingerprints; when a
+fingerprint differs, the observed JSON can be compared with this expected result.
+These snapshots aren't included in drift history, diagnostics or logs.
+
 Each distinct unexplained state is logged once, so an edit that stays in
 place doesn't repeat every minute. Failed checks are logged separately as
 `Configuration drift check unavailable`, once per outage, and never count as

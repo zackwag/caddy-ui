@@ -19,6 +19,7 @@ import { validateContainerName, validatePath } from '../validation.js';
 import { UNCHANGED, verificationWarning, verifyAfterTimeout, verifyLiveObject, verifyLiveObjectRemoved } from '../configVerification.js';
 import { changeResultFields, queueCaddyfileChange, saveCaddyfileChange } from './caddyfile.js';
 import { recordLocalChange } from '../configDrift.js';
+import { routeExpectation } from '../configExpectation.js';
 import { getAuthentication } from '../middleware/auth.js';
 
 const router = Router();
@@ -174,7 +175,9 @@ router.post('/', async (req, res) => {
             // The file still precedes the mutation, so a rejected write can
             // restore it and a dispatched write timeout can keep it.
             return save(previous => `${(previous || '').trimEnd()}\n\n${block}\n`, {
-                apply: addLive, verify: () => verifyLiveObject(req.instance, id, route), actor: getAuthentication().getActor(req), action: 'route.add',
+                apply: addLive, verify: () => verifyLiveObject(req.instance, id, route),
+                expectLive: routeExpectation({ operation: 'add', serverName: primaryServer, route }),
+                actor: getAuthentication().getActor(req), action: 'route.add',
             });
         });
     } catch (e) {
@@ -285,15 +288,16 @@ router.patch('/:id', async (req, res) => {
             try { oldDomain = (await caddyGet(`/id/${id}`, req.instance.adminUrl))?.match?.[0]?.host?.[0]; }
             catch { logger.warn('Could not fetch old route for update', { id }); }
             const verify = () => verifyLiveObject(req.instance, id, route);
+            const expectLive = routeExpectation({ operation: 'replace', id, route });
             if (!oldDomain) {
                 const verification = { file: UNCHANGED, live: await applyAdminOnly(patchLive, verify) };
-                await recordLocalChange(req.instance, { content: null, verification, verifyLive: verify });
+                await recordLocalChange(req.instance, { content: null, verification, verifyLive: verify, expectLive });
                 return { applied: true, verification, ...verificationWarning(verification) };
             }
             return save(async previous => {
                 const env = await getCaddyEnv(req.instance.containerName);
                 return replaceSiteBlock(previous || '', oldDomain, buildCaddyfileBlock({ domain, upstream, stripPrefix }), env);
-            }, { apply: patchLive, verify, actor: getAuthentication().getActor(req), action: 'route.edit' });
+            }, { apply: patchLive, verify, expectLive, actor: getAuthentication().getActor(req), action: 'route.edit' });
         });
     } catch (error) {
         if (error instanceof AppError) return sendAppError(res, error);
@@ -317,13 +321,14 @@ router.delete('/:id', async (req, res) => {
             try { domain = (await caddyGet(`/id/${id}`, req.instance.adminUrl))?.match?.[0]?.host?.[0]; }
             catch { logger.warn('Could not fetch route for deletion', { id }); }
             const verify = () => verifyLiveObjectRemoved(req.instance, id);
+            const expectLive = routeExpectation({ operation: 'remove', id });
             if (!domain) {
                 const verification = { file: UNCHANGED, live: await applyAdminOnly(deleteLive, verify) };
-                await recordLocalChange(req.instance, { content: null, verification, verifyLive: verify });
+                await recordLocalChange(req.instance, { content: null, verification, verifyLive: verify, expectLive });
                 return { applied: true, verification, ...verificationWarning(verification) };
             }
             return save(async previous => removeSiteBlock(previous || '', domain, await getCaddyEnv(req.instance.containerName)),
-                { apply: deleteLive, verify, actor: getAuthentication().getActor(req), action: 'route.delete' });
+                { apply: deleteLive, verify, expectLive, actor: getAuthentication().getActor(req), action: 'route.delete' });
         });
     } catch (error) {
         if (error instanceof AppError) return sendAppError(res, error);

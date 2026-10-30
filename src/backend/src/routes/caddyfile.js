@@ -194,6 +194,8 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 // The result's `verification` reads back the file and the live config (see
 // configVerification.js). A custom `apply` must pass `verify`, which checks
 // the part of the live config it changed; a reload checks the whole config.
+// `expectLive` projects that mutation onto the last expected config for drift
+// attribution. A scoped verifier alone cannot approve the whole live config.
 // Verification never rejects a saved change: it adds warning fields.
 function saveCaddyfileChange(instance, content, options = {}) {
     return queueCaddyfileChange(instance, save => save(content, options));
@@ -218,7 +220,7 @@ async function verifyChange(instance, content, { applied, uncertain, live }) {
     return { file, live: uncertain ? await verifyAfterTimeout(live) : await live() };
 }
 
-async function applyCaddyfileChange(instance, change, { apply, verify, onApplied, rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
+async function applyCaddyfileChange(instance, change, { apply, verify, expectLive, onApplied, rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
     if (apply && !verify) {
         throw new TypeError('A custom apply must say how to verify it');
     }
@@ -267,9 +269,15 @@ async function applyCaddyfileChange(instance, change, { apply, verify, onApplied
     // State kept beside the file (maintenance) follows the file, which an
     // uncertain apply keeps.
     if ((result.applied || result.uncertain) && onApplied) await onApplied();
-    const live = verify || (() => verifyLiveConfig(instance, adaptedConfig(content, instance, via)));
+    let expected;
+    const adapt = adaptedConfig(content, instance, via);
+    const live = verify || (() => verifyLiveConfig(instance, async () => {
+        expected = await adapt();
+        return expected;
+    }));
     result.verification = await verifyChange(instance, content, { applied: result.applied, uncertain: result.uncertain, live });
-    await recordLocalChange(instance, { content, verification: result.verification, verifyLive: live });
+    await recordLocalChange(instance, { content, verification: result.verification, verifyLive: live,
+        expectLive: expectLive || (() => expected) });
     const warnings = [];
     const outcome = result.applied ? 'applied' : result.uncertain ? 'unknown' : 'saved-unapplied';
     try { await history.record(id, content, { actor, action, outcome }); }
@@ -453,9 +461,14 @@ router.post('/reloads', async (req, res) => {
         } catch (err) {
             if (!(err instanceof CaddyTimeoutError)) throw err;
         }
-        const live = () => verifyLiveConfig(req.instance, adaptedConfig(content, req.instance, via));
+        let expected;
+        const adapt = adaptedConfig(content, req.instance, via);
+        const live = () => verifyLiveConfig(req.instance, async () => {
+            expected = await adapt();
+            return expected;
+        });
         const verification = { file: UNCHANGED, live: via ? await live() : await verifyAfterTimeout(live) };
-        await recordLocalChange(req.instance, { content, verification, verifyLive: live });
+        await recordLocalChange(req.instance, { content, verification, verifyLive: live, expectLive: () => expected });
         return { verification, ...verificationWarning(verification) };
     });
     res.json({ ok: true, message: 'Caddy reloaded from disk', ...changeResultFields(result) });
