@@ -3,8 +3,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
-import { caddyGet, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
+import { caddyGet, caddyGetConfig, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
 import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
 import { useTestStack } from './stack.mjs';
 
@@ -20,15 +21,31 @@ test('real Caddy route mutations explain only their own changes in the drift mon
     // without a test endpoint, environment switch or a minute-long timer wait.
     await writeFile(entry, `
         await import(${JSON.stringify(moduleUrl('src/backend/src/index.js'))});
+        const nativeFetch = globalThis.fetch;
+        let failNextConfigRead = false;
+        globalThis.fetch = (url, options) => {
+            if (failNextConfigRead && String(url).endsWith('/config/')) {
+                failNextConfigRead = false;
+                return Promise.reject(new TypeError('Injected unavailable drift read'));
+            }
+            return nativeFetch(url, options);
+        };
         const drift = await import(${JSON.stringify(moduleUrl('src/backend/src/configDrift.js'))});
+        const { hasUnsettledWrites } = await import(${JSON.stringify(moduleUrl('src/backend/src/caddy.js'))});
+        const { getInstances } = await import(${JSON.stringify(moduleUrl('src/backend/src/instances.js'))});
+        const { getRecentLogEntries } = await import(${JSON.stringify(moduleUrl('src/backend/src/logger.js'))});
         process.on('message', async message => {
             if (message?.type !== 'test:drift') return;
             try {
                 if (message.baseline) drift.resetConfigDrift();
+                if (message.failRead) failNextConfigRead = true;
+                const deferred = getInstances().some(instance => hasUnsettledWrites(instance.adminUrl));
                 await drift.checkAllInstances();
-                process.send({ type: 'test:drift-result', state: drift.getConfigDriftState('default') });
+                process.send({ type: 'test:drift-result', id: message.id,
+                    state: drift.getConfigDriftState('default'), deferred,
+                    diagnostics: getRecentLogEntries().filter(entry => entry.message.startsWith('Configuration drift')).slice(-5) });
             } catch (error) {
-                process.send({ type: 'test:drift-result', error: error.name });
+                process.send({ type: 'test:drift-result', id: message.id, error: error.name });
             }
         });
     `);
@@ -39,21 +56,41 @@ test('real Caddy route mutations explain only their own changes in the drift mon
     const other = { '@id': 'drift-other', match: [{ host: ['other.test'] }], handle: [{ handler: 'static_response', body: 'original' }] };
     const adminUrl = instance.adminUrl;
     const append = route => caddyPost(`/config/apps/http/servers/${instance.serverName}/routes`, route, adminUrl);
-    async function check(baseline = false) {
+    let nextCheck = 0;
+    let unavailableSamples = 0;
+    function requestCheck(baseline, failRead, timeoutMs) {
+        const id = ++nextCheck;
         return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => finish(new Error('Drift IPC check timed out')), 15000);
+            const timeout = setTimeout(() => finish(new Error('Drift IPC check timed out')), timeoutMs);
             const onMessage = message => {
-                if (message?.type === 'test:drift-result') finish(message.error && new Error(message.error), message.state);
+                if (message?.type === 'test:drift-result' && message.id === id) finish(message.error && new Error(message.error), message);
             };
-            function finish(error, state) {
+            function finish(error, result) {
                 clearTimeout(timeout);
                 stack.backend.removeListener('message', onMessage);
                 if (error) reject(error);
-                else resolve(state);
+                else resolve(result);
             }
             stack.backend.on('message', onMessage);
-            stack.backend.send({ type: 'test:drift', baseline }, error => { if (error) finish(error); });
+            stack.backend.send({ type: 'test:drift', id, baseline, failRead }, error => { if (error) finish(error); });
         });
+    }
+    async function check(baseline = false, { expectedLive, failRead = false } = {}) {
+        const deadline = Date.now() + 15000;
+        let result;
+        do {
+            result = await requestCheck(baseline, failRead, Math.max(1, deadline - Date.now()));
+            // A reset or injected outage applies to the first request only.
+            baseline = false;
+            failRead = false;
+            assert.ok(result.state, 'The monitor must establish a baseline');
+            if (result.state.failing) unavailableSamples++;
+            if (!result.deferred && !result.state.failing && (!expectedLive || result.state.expected.live === expectedLive)) {
+                return result.state;
+            }
+            await delay(25, undefined, { signal: t.signal });
+        } while (Date.now() < deadline);
+        assert.fail(`No completed drift observation matching ${expectedLive || 'an available read'}: ${JSON.stringify(result)}`);
     }
     async function mutate(operation, id) {
         const result = await stack.api(operation === 'add' ? '/routes' : `/routes/${id}`, {
@@ -89,13 +126,19 @@ test('real Caddy route mutations explain only their own changes in the drift mon
                     // Undo only the external edit. The local mutation remains,
                     // so an unchanged baseline would still report drift here.
                     await caddyPatch('/id/drift-other', other, adminUrl);
-                    await check();
+                    const revertedFingerprint = (await caddyGetConfig(adminUrl)).fingerprint;
+                    // An unavailable/deferred check retains the previous
+                    // report. Observe the clean state before changing it again,
+                    // and exercise that contract with a one-shot read outage.
+                    const reverted = await check(false, { expectedLive: revertedFingerprint, failRead: operation === 'remove' });
+                    assert.equal(reverted.changes.length, 1, label);
                     await caddyPatch('/id/drift-other', { ...other, handle: [{ handler: 'static_response', body: 'external' }] }, adminUrl);
                     assert.equal((await check()).changes.length, 2, label);
                 }
             }
         }
     }
+    assert.ok(unavailableSamples >= 2, 'Both injected read outages must be retried as observations, not counted as completed checks');
     await t.test('an API-only edit cannot approve an external file edit', async () => {
         const restored = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: original, plain: true });
         assert.equal(restored.status, 200);
