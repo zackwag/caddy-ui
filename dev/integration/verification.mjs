@@ -26,7 +26,8 @@ async function adminProxy(t, target) {
                 hook = null;
                 await change();
             }
-            const response = await fetch(target + req.url, {
+            const url = new URL(req.url, target);
+            const response = await fetch(url, {
                 method: req.method, headers: withoutHopHeaders(req.headers), body: chunks.length ? Buffer.concat(chunks) : undefined,
             });
             const body = Buffer.from(await response.arrayBuffer());
