@@ -49,6 +49,7 @@
     },
     "edge": {
       "backend": [
+        "edge-eb299ad",
         "edge-9581207",
         "edge-d859055",
         "edge-8b386bd",
@@ -67,8 +68,7 @@
         "edge-94d9d10",
         "edge-3795289",
         "edge-d356427",
-        "edge-ea94f3c",
-        "edge-9de5504"
+        "edge-ea94f3c"
       ],
       "frontend": [
         "edge-9581207",
