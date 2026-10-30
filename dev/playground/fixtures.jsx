@@ -145,8 +145,9 @@ function RoutesFixture() {
 function CaddyfileFixture() {
     const toast = useToast();
     const confirmation = useConfirm();
+    const [editorVim, setEditorVim] = useState(false);
     return <><div style={{ height: 960 }}>
-        <CaddyFile toast={toast} onUnauth={noop} theme="dark" confirm={confirmation.confirm} />
+        <CaddyFile toast={toast} onUnauth={noop} theme="dark" confirm={confirmation.confirm} editorVim={editorVim} onEditorVimChange={setEditorVim} />
     </div><ConfirmDialog dialog={confirmation.dialog} resolve={confirmation.resolve} /><Toasts toasts={toast.toasts} /></>;
 }
 

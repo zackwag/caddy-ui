@@ -14,7 +14,7 @@ import { getRouteCheckHost, getRouteHost, getRouteTitle, getRouteUpstreams } fro
 // eslint-disable-next-line i18next/no-literal-string -- Example hostname
 const DOMAIN_PLACEHOLDER = "app.example.com";
 
-function MiniCodeMirror({ value, onChange, theme }) {
+function MiniCodeMirror({ value, onChange, theme, vimMode }) {
     const containerRef = useRef(null);
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
@@ -24,6 +24,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
     useEffect(() => {
         if (!containerRef.current) return;
         let view;
+        let cancelled = false;
 
         async function init() {
             const { EditorView, keymap, lineNumbers, highlightActiveLineGutter, drawSelection, highlightSpecialChars } = await import("@codemirror/view");
@@ -32,6 +33,9 @@ function MiniCodeMirror({ value, onChange, theme }) {
             const { StreamLanguage, syntaxHighlighting, indentOnInput, bracketMatching } = await import("@codemirror/language");
             const { classHighlighter } = await import("@lezer/highlight");
             const { caddyfile } = await import("../lib/caddyfileMode.js");
+            const vimExtension = vimMode ? (await import("@replit/codemirror-vim")).vim() : [];
+
+            if (cancelled) return;
 
             const isDark = theme === 'dark';
 
@@ -63,6 +67,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
             const startState = EditorState.create({
                 doc: value,
                 extensions: [
+                    vimExtension,
                     lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
                     history(), drawSelection(), indentOnInput(), bracketMatching(),
                     syntaxHighlighting(classHighlighter),
@@ -80,9 +85,9 @@ function MiniCodeMirror({ value, onChange, theme }) {
         }
 
         init();
-        return () => { view?.destroy(); viewRef.current = null; };
+        return () => { cancelled = true; view?.destroy(); viewRef.current = null; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [theme]);
+    }, [theme, vimMode]);
 
     useEffect(() => {
         const view = viewRef.current;
@@ -91,10 +96,10 @@ function MiniCodeMirror({ value, onChange, theme }) {
         if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
     }, [value]);
 
-    return <div ref={containerRef} className="modal-editor-wrap" style={{ minHeight: 180, background: "var(--editor-bg)" }} />;
+    return <div ref={containerRef} className="modal-editor-wrap" style={{ background: "var(--editor-bg)" }} />;
 }
 
-function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme }) {
+function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme, editorVim }) {
     const { t } = useTranslation();
     const [form, setForm] = useState({
         domain: route.domain || "",
@@ -144,7 +149,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
                     <>
                         <div className="modal-section-label">{t("routes.caddyfile")}</div>
                         <div className="editor-wrap" style={{ marginBottom: 16 }}>
-                            <MiniCodeMirror value={content} onChange={setContent} theme={theme} />
+                            <MiniCodeMirror value={content} onChange={setContent} theme={theme} vimMode={editorVim} />
                         </div>
                     </>
                 ) : isCaddyfileManaged && inMaintenance ? (
@@ -228,7 +233,7 @@ const STATUS_STYLE = {
     maintenance: { labelKey: "routes.maintenance", color: "var(--accent3)" },
 };
 
-export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes }) {
+export default function Routes({ toast, onUnauth, confirm, theme, editorVim, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes }) {
     const { t } = useTranslation();
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
@@ -680,6 +685,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                     onDelete={() => deleteCaddyfileBlock(editModal.domain)}
                     onClose={() => setEditModal(null)}
                     theme={theme}
+                    editorVim={editorVim}
                 />
             )}
             {newModal && <NewRouteModal onSave={addRoute} onClose={() => setNewModal(false)} />}

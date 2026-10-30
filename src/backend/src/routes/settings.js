@@ -12,7 +12,7 @@ router.get('/', (req, res) => {
 
 router.put('/', async (req, res) => {
     try {
-        const allowed = ['firstTimeRun', 'theme', 'language', 'darkPalette', 'lightPalette', 'routeColumns', 'routeChecks', 'routeCheckExcludes'];
+        const allowed = ['firstTimeRun', 'theme', 'language', 'darkPalette', 'lightPalette', 'routeColumns', 'routeChecks', 'routeCheckExcludes', 'editorVim'];
         const updates = {};
         for (const key of allowed) {
             if (key in req.body) updates[key] = req.body[key];
@@ -25,6 +25,7 @@ router.put('/', async (req, res) => {
             if (updates.language === undefined) return res.status(400).json({ error: 'Unsupported language' });
         }
         if ('routeChecks' in updates) updates.routeChecks = updates.routeChecks === true;
+        if ('editorVim' in updates) updates.editorVim = updates.editorVim === true;
         if ('routeCheckExcludes' in updates) updates.routeCheckExcludes = sanitizeHostList(updates.routeCheckExcludes);
         const wasChecking = getSettings().routeChecks;
         const settings = await saveSettings(updates);
