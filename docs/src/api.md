@@ -77,6 +77,29 @@ uncertain rather than rejected:
 caddy/ui can't tell whether Caddy completes a request it stopped waiting for.
 The application log records when a timed-out write later completes or fails.
 
+### Admin API route edits and concurrent changes
+
+`POST /api/routes`, `PATCH /api/routes/:id` and `DELETE /api/routes/:id` read
+Caddy's config and then change it. Each write sends `If-Match` with the ETag of
+the read it's based on, so Caddy applies it only if that part of the config is
+unchanged:
+
+- Adding a route uses the ETag of `/config/apps/http/servers`, read in the
+  change queue to check that the primary server exists.
+- Updating or deleting a route uses the ETag of its `/id/` object. Caddy
+  reports that ETag against the route's position in its server's route list,
+  so a route inserted or removed ahead of it also counts as a change.
+
+If another client changed that part of the config in between, Caddy refuses
+the write with `412`. caddy/ui restores the Caddyfile, as for any rejected
+change, and returns `409` with `{ "code": "CONFIG_CHANGED" }`. It doesn't
+retry, since a retry would apply the edit to a state nobody reviewed. The
+Routes page reloads the list and closes an edit based on the old state.
+
+Caddy versions that don't send ETags (before 2.6) get the same writes without
+`If-Match`, as before. Changes applied by reloading the Caddyfile aren't
+guarded this way, because Caddy's `/load` ignores `If-Match`.
+
 Checks run in the same per-instance queue as other changes, so they never
 compare against another caddy/ui change in progress. They can't rule out a
 change made outside caddy/ui between the write and the readback; that is what
