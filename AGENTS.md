@@ -37,7 +37,7 @@ npm run lint:dev-caddy
 npm run test:dev-caddy              # harness/lifecycle/readiness tests, no Docker
 npm run test:workflows              # publication workflow contracts
 npm run test:dev-caddy:integration  # real Caddy, backend API and startup scenarios
-npm exec --prefix dev -- playwright install chromium
+npm exec --prefix dev -- playwright install --with-deps chromium
 npm run test:dev-caddy:e2e          # isolated browser scenarios
 npm run i18n:preview               # lightweight localization preview
 ```

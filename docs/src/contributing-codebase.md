@@ -177,7 +177,7 @@ The focused Chromium suite needs backend and dev dependencies plus a Playwright
 browser; it does not need Docker or a Caddy instance:
 
 ```bash
-npm exec --prefix dev -- playwright install chromium
+npm exec --prefix dev -- playwright install --with-deps chromium
 npm run test:cross-site:browser
 ```
 
