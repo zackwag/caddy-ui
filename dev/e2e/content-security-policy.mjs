@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { createHash, randomUUID, X509Certificate } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, X509Certificate } from 'node:crypto';
 import { once } from 'node:events';
 import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
@@ -10,6 +10,7 @@ import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
+import { Harness } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from '../integration/lifecycle.mjs';
 import { waitForContainerNetwork, waitForHttp } from '../integration/stack.mjs';
 
@@ -49,20 +50,33 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
         }
     }
     await makeReadable(dist);
+    const network = await new Harness(randomBytes(8).toString('hex')).network();
     const container = 'caddy-ui-csp-' + randomUUID();
     await scope.acquire(() => exec('docker', ['create', '--name', container,
         '--label', 'io.caddy-ui.test-fixture=true', '--add-host', 'caddy-ui-backend:127.0.0.1',
-        '-p', '127.0.0.1::80',
-        '-v', `${dist}:/usr/share/nginx/html:ro`,
-        '-v', `${join(root, 'src/frontend/nginx.conf')}:/etc/nginx/conf.d/default.conf:ro`,
+        ...(network ? ['--network', network] : ['-p', '127.0.0.1::80']),
         'nginx:alpine'], { timeout: 60000, signal: scope.signal }),
     () => exec('docker', ['rm', '-f', container], { timeout: 10000 }));
+    // The Docker daemon may run outside this Dev Container, where neither the
+    // checkout nor our temporary build directory exists. Copy through the Docker
+    // client instead of asking the daemon to bind-mount client-side paths.
+    await exec('docker', ['cp', `${dist}/.`, `${container}:/usr/share/nginx/html`],
+        { timeout: 15000, signal: scope.signal });
+    await exec('docker', ['cp', join(root, 'src/frontend/nginx.conf'), `${container}:/etc/nginx/conf.d/default.conf`],
+        { timeout: 15000, signal: scope.signal });
     await exec('docker', ['start', container], { timeout: 15000, signal: scope.signal });
     await waitForContainerNetwork(container, { signal: scope.signal });
-    const { stdout } = await exec('docker', ['port', container, '80/tcp'], { timeout: 10000 });
-    const port = Number(stdout.trim().split(':').at(-1));
+    const { stdout } = await exec('docker', ['container', 'inspect', container], { timeout: 10000 });
+    const [detail] = JSON.parse(stdout);
+    // A host-published loopback port is outside a Dev Container's network
+    // namespace. Reuse the harness's network selection and address nginx
+    // directly on that network, without changing the Dev Container itself.
+    const address = network ? detail.NetworkSettings.Networks?.[network]?.IPAddress : '127.0.0.1';
+    const port = network ? 80 : Number(detail.NetworkSettings.Ports?.['80/tcp']?.[0]?.HostPort);
+    assert(address, 'CSP nginx must have an address on the selected Docker network');
     assert(Number.isInteger(port) && port > 0);
-    const upstream = `http://127.0.0.1:${port}`;
+    const upstream = `http://${address}:${port}`;
+    const httpOrigin = network ? upstream : `http://[::ffff:127.0.0.1]:${port}`;
     await waitForHttp(upstream, { signal: scope.signal });
 
     // Terminate TLS in front of the same nginx, as a normal reverse proxy does.
@@ -93,7 +107,7 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
     }), value => value.close());
     const font = await readFile(join(root, 'src/frontend/node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-latin-standard-normal.woff2'));
 
-    for (const origin of [`http://[::ffff:127.0.0.1]:${port}`, `https://localhost:${proxy.address().port}`]) {
+    for (const origin of [httpOrigin, `https://localhost:${proxy.address().port}`]) {
         await t.test(new URL(origin).protocol, async () => {
             const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
             try {
@@ -140,7 +154,7 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
                 });
                 const response = await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
                 const policy = response.headers()['content-security-policy'];
-                assert(policy, 'nginx must send an enforced CSP on deep links');
+                assert(policy, `nginx must send an enforced CSP on deep links (HTTP ${response.status()})${policy ? '' : ': ' + (await response.text()).slice(0, 200)}`);
                 assert(!/upgrade-insecure-requests|block-all-mixed-content/.test(policy), 'HTTP must remain supported');
                 assert.equal(new URL(page.url()).protocol, new URL(origin).protocol);
                 assert.equal(await page.evaluate(() => window.isSecureContext), new URL(origin).protocol === 'https:',
