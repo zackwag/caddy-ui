@@ -1,15 +1,33 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { request } from 'node:https';
+import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import { EXAMPLE_SITES, createExampleInstance } from '../dev-caddy/examples.mjs';
 import { Harness, checkDocker, defaultCaddyfile } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from './lifecycle.mjs';
 import { claimNamespace, waitForHttp } from './stack.mjs';
 
-function requestSite(url, ca, domain) {
+async function requestSite(url, ca, domain, signal) {
+    const deadline = Date.now() + 15000;
+    while (true) {
+        try { return await requestReadySite(url, ca, domain, signal, Math.max(1, Math.min(5000, deadline - Date.now()))); }
+        catch (error) {
+            // HTTP readiness and a CA certificate don't prove that Caddy has
+            // issued this hostname's leaf certificate yet. Retry only startup
+            // transport failures; CA/hostname validation and HTTP assertions
+            // retain their normal failures.
+            const starting = ['ECONNREFUSED', 'ECONNRESET'].includes(error.code)
+                || (error.code === 'EPROTO' && /alert internal error|SSL alert number 80/.test(error.message));
+            if (!starting || Date.now() >= deadline) throw error;
+            await delay(50, undefined, { signal });
+        }
+    }
+}
+
+function requestReadySite(url, ca, domain, signal, timeout) {
     return new Promise((resolve, reject) => {
-        const req = request(url, { ca, servername: domain, headers: { Host: domain }, timeout: 5000 }, response => {
+        const req = request(url, { ca, servername: domain, headers: { Host: domain }, timeout, signal }, response => {
             const chunks = [];
             response.on('data', chunk => chunks.push(chunk));
             response.on('error', reject);
@@ -39,7 +57,7 @@ test('shared real examples serve trusted TLS and preserve edited or retained Cad
     const { root_certificate: ca } = await caResponse.json();
     assert(ca);
     for (const site of EXAMPLE_SITES) {
-        const response = await requestSite(info.httpsUrl, ca, site.domain);
+        const response = await requestSite(info.httpsUrl, ca, site.domain, scope.signal);
         assert.equal(response.status, 200);
         assert.equal(response.body, 'OK');
     }
@@ -57,7 +75,7 @@ test('shared real examples serve trusted TLS and preserve edited or retained Cad
     info = await create('default');
     await ready(info);
     assert.equal(await readConfig(info), edited.trim());
-    assert.equal((await requestSite(info.httpsUrl, ca, 'example.com')).status, 200, 'The original local CA survives recreation');
+    assert.equal((await requestSite(info.httpsUrl, ca, 'example.com', scope.signal)).status, 200, 'The original local CA survives recreation');
 
     // An upstream IP change can't be followed into preserved edits; it warns.
     const address = edited.match(/reverse_proxy (\S+):8123/)[1];
