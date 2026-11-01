@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -7,9 +9,58 @@ import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import { caddyGet, caddyGetConfig, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
 import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
+import { FixtureScope } from './lifecycle.mjs';
 import { useTestStack } from './stack.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
+
+// Reloads replace Caddy's admin server asynchronously. An idle connection
+// can close just as this fixture reuses it. Retry the fixture's own reads once
+// on a fresh connection; mutation requests must retain their uncertain-write semantics.
+async function retryClosedRead(read) {
+    try {
+        return await read();
+    } catch (error) {
+        if (error.cause?.code !== 'UND_ERR_SOCKET') throw error;
+        return read();
+    }
+}
+
+const readLiveConfig = adminUrl => retryClosedRead(() => caddyGetConfig(adminUrl));
+
+test('drift fixture retries a closed configuration read without hiding persistent or response errors', async t => {
+    const scope = new FixtureScope(t.signal);
+    t.after(() => scope.close());
+    for (const failure of ['socket', 'persistent socket', 'HTTP', 'JSON']) {
+        await t.test(failure, async () => {
+            let requests = 0;
+            const server = await scope.acquire(async () => {
+                const server = createServer((req, res) => {
+                    requests++;
+                    assert.equal(req.method, 'GET');
+                    assert.equal(req.url, '/config/');
+                    if (failure === 'persistent socket' || (failure === 'socket' && requests === 1)) {
+                        req.socket.destroy();
+                        return;
+                    }
+                    res.writeHead(failure === 'HTTP' ? 503 : 200, { ETag: '"fixture"' });
+                    res.end(failure === 'JSON' ? 'invalid JSON' : '{"apps":{}}');
+                });
+                server.listen(0, '127.0.0.1');
+                await once(server, 'listening');
+                return server;
+            }, async server => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+            const url = `http://127.0.0.1:${server.address().port}`;
+            if (failure === 'socket') {
+                assert.deepEqual(await readLiveConfig(url), { config: { apps: {} }, fingerprint: 'etag:"fixture"' });
+            } else {
+                await assert.rejects(readLiveConfig(url), error => failure === 'HTTP' ? error.status === 503
+                    : failure === 'JSON' ? error instanceof SyntaxError : error.cause?.code === 'UND_ERR_SOCKET');
+            }
+            assert.equal(requests, failure.includes('socket') ? 2 : 1);
+        });
+    }
+});
 
 test('real Caddy route mutations explain only their own changes in the drift monitor', { timeout: 120000 }, async t => {
     const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-drift-test-'));
@@ -122,11 +173,11 @@ test('real Caddy route mutations explain only their own changes in the drift mon
                 const label = `${operation}, disk=${diskBacked}, external=${external}`;
                 assert.deepEqual(state.changes.map(change => change.representations), external ? [['live']] : [], label);
                 if (external) {
-                    assert.equal((await caddyGet('/id/drift-other', adminUrl)).handle[0].body, 'external');
+                    assert.equal((await retryClosedRead(() => caddyGet('/id/drift-other', adminUrl))).handle[0].body, 'external');
                     // Undo only the external edit. The local mutation remains,
                     // so an unchanged baseline would still report drift here.
                     await caddyPatch('/id/drift-other', other, adminUrl);
-                    const revertedFingerprint = (await caddyGetConfig(adminUrl)).fingerprint;
+                    const revertedFingerprint = (await readLiveConfig(adminUrl)).fingerprint;
                     // An unavailable/deferred check retains the previous
                     // report. Observe the clean state before changing it again,
                     // and exercise that contract with a one-shot read outage.
