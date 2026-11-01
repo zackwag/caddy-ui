@@ -1,0 +1,138 @@
+import assert from 'node:assert/strict';
+import { before, test } from 'node:test';
+import en from '../../src/frontend/src/i18n/locales/en.js';
+import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
+
+before(prepareBrowserTests, { timeout: 35000 });
+
+// CodeMirror's tab focus mode toggle from the default keymap.
+const TOGGLE_TAB_FOCUS = process.platform === 'darwin' ? 'Shift+Alt+m' : 'Control+m';
+// Tab-indented on purpose: editing must keep existing tabs rather than convert them.
+const SITE = 'site.test {\n\treverse_proxy app:3000\n    respond ok\n}';
+
+// Keyboard checks shared by both editors, through real key events only.
+async function exerciseEditor(page, root, label) {
+    const content = root.locator('.cm-content');
+    const text = () => root.locator('.cm-line').evaluateAll(lines => lines.map(line => line.textContent).join('\n'));
+    const focused = () => content.evaluate(element => element === document.activeElement);
+    // From the start of the document, so ArrowDown keeps column 0
+    async function caretAt(line, { end = false } = {}) {
+        await page.keyboard.press('ControlOrMeta+Home');
+        for (let i = 1; i < line; i++) {
+            await page.keyboard.press('ArrowDown');
+        }
+        if (end) {
+            await page.keyboard.press('End');
+        }
+    }
+    async function undoAll() {
+        for (let i = 0; i < 20 && await text() !== SITE; i++) {
+            await page.keyboard.press('ControlOrMeta+z');
+        }
+        assert.equal(await text(), SITE, `${label}: undo restores the document`);
+    }
+
+    await content.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(SITE);
+    assert.equal(await text(), SITE, label);
+
+    // Enter keeps the line's own indentation, tab or spaces (#429)
+    await caretAt(2, { end: true });
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('a');
+    await caretAt(4, { end: true });
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('b');
+    assert.equal(await text(), 'site.test {\n\treverse_proxy app:3000\n\ta\n    respond ok\n    b\n}', `${label}: Enter keeps indentation`);
+    await undoAll();
+    await page.keyboard.press('ControlOrMeta+Shift+z');
+    assert.notEqual(await text(), SITE, `${label}: redo reapplies the edits`);
+    await undoAll();
+
+    // Enter over a selection replaces it and leaves the caret after the indentation
+    await caretAt(2, { end: true });
+    for (let i = 0; i < 'app:3000'.length; i++) {
+        await page.keyboard.press('Shift+ArrowLeft');
+    }
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('c');
+    const replaced = (await text()).split('\n');
+    assert.equal(replaced[1].trimEnd(), '\treverse_proxy', label);
+    assert.equal(replaced[2], '\tc', `${label}: the caret follows the kept indentation`);
+    await undoAll();
+
+    // Tab at a caret inserts four spaces there (#430)
+    await caretAt(3, { end: true });
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('d');
+    assert.equal((await text()).split('\n')[2], '    respond ok    d', `${label}: Tab inserts four spaces`);
+    assert(await focused(), `${label}: Tab keeps focus in the editor`);
+    await undoAll();
+
+    // Tab and Shift+Tab move selected lines by one level. The selection ends at
+    // the start of the closing line, which stays where it is.
+    await caretAt(2);
+    await page.keyboard.press('Shift+ArrowDown');
+    await page.keyboard.press('Shift+ArrowDown');
+    await page.keyboard.press('Tab');
+    assert.equal(await text(), 'site.test {\n    \treverse_proxy app:3000\n        respond ok\n}', `${label}: Tab indents the selected lines`);
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await text(), SITE, `${label}: Shift+Tab outdents them again`);
+    await caretAt(1);
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await text(), SITE, `${label}: outdenting an unindented line changes nothing`);
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('ControlOrMeta+z');
+    assert.equal(await text(), SITE, `${label}: an indentation is undone in one step`);
+
+    // Keyboard-only ways out: Escape then Tab, or the tab focus mode toggle
+    await content.focus();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Tab');
+    assert(!await focused(), `${label}: Escape then Tab moves focus out of the editor`);
+    assert.equal(await text(), SITE, label);
+    await content.focus();
+    await page.keyboard.press(TOGGLE_TAB_FOCUS);
+    await page.keyboard.press('Tab');
+    assert(!await focused(), `${label}: Tab moves focus while tab focus mode is on`);
+    await content.focus();
+    await page.keyboard.press(TOGGLE_TAB_FOCUS);
+    await caretAt(1);
+    await page.keyboard.press('Tab');
+    assert(await focused(), `${label}: turning tab focus mode off makes Tab indent again`);
+    assert.equal((await text()).split('\n')[0], '    site.test {', label);
+    await undoAll();
+}
+
+test('the Caddyfile and route editors share keyboard indentation and a way out', { timeout: 150000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+
+    // Opening the editor leaves the file exactly as loaded
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    assert.equal(await editor.locator('.cm-line').evaluateAll(lines => lines.map(line => line.textContent).join('\n')), original, 'The editor shows the file exactly as loaded');
+    await editor.locator('.editor-hint--desktop').filter({ hasText: en.caddyfile.upToDate }).waitFor();
+    await exerciseEditor(page, editor, 'Caddyfile editor');
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(original);
+    await editor.locator('.editor-hint--desktop').filter({ hasText: en.caddyfile.upToDate }).waitFor();
+
+    // A Caddyfile site block, which the route modal edits as text (admin API routes have no block)
+    const withSite = `${original.trimEnd()}\n\neditor-keys.test {\n\treverse_proxy 127.0.0.1:9\n}\n`;
+    const saved = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: withSite, plain: true });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+    await page.goto(origin + '/routes', { waitUntil: 'domcontentloaded' });
+    await waitForView('tr:has-text("editor-keys.test")');
+    await page.locator('tr').filter({ hasText: 'editor-keys.test' }).getByTitle(en.routes.editRoute).click();
+    const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
+    await modal.locator('.cm-editor').waitFor();
+    await exerciseEditor(page, modal, 'Route editor');
+    assert(await modal.isVisible(), 'Escape in the route editor does not close its modal');
+    await modal.getByRole('button', { name: en.common.close, exact: true }).click();
+    await modal.waitFor({ state: 'detached' });
+    assert.equal((await stack.api('/caddyfile')).data, withSite, 'Nothing was saved');
+});

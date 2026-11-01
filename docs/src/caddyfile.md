@@ -140,6 +140,20 @@ blog.{$DOMAIN} {
 }
 ```
 
+## Editing keys
+
+The Caddyfile editor and the route editor's site-block editor handle these keys the same way. Opening either editor never changes the file: only your own edits do.
+
+| Key | Effect |
+| --- | --- |
+| Enter | Starts the new line with the same leading whitespace as the current one, tabs or spaces, character for character. |
+| Tab | Inserts four spaces at the caret. With text selected, indents every selected line by four spaces. |
+| Shift+Tab | Removes one level of indentation from the current or selected lines, leaving any remaining tabs or spaces as they are. |
+
+A selection that ends at the very start of a line doesn't include that line. Each indentation change is a single undo step.
+
+Since Tab indents, it doesn't move focus out of the editor. To leave the editor with the keyboard, press Escape and then Tab (or Shift+Tab) within two seconds. To make Tab move focus until you switch back, press Ctrl+M (Shift+Alt+M on macOS).
+
 ## Caddyfile Syntax Highlighting
 
 The editor's Caddyfile highlighting is a [CodeMirror 6](https://codemirror.net/) `StreamLanguage` mode generated from [**zackwag/caddyfile-codemirror**](https://github.com/zackwag/caddyfile-codemirror), a small companion repo that stays in sync — automatically, every day — with the Caddyfile keyword vocabulary (directives, global options, subdirectives, matcher names, and plugin vocabulary) from [**Sean Whalen**](https://github.com/seanthegeek)'s [**rouge-lexer-caddyfile**](https://github.com/seanthegeek/rouge-lexer-caddyfile), the [Rouge](http://rouge.jneen.net/) lexer Jekyll/GitHub Pages uses to highlight ` ```caddyfile ` code blocks. That gem is the actual research into Caddy's (and its most-downloaded plugins') documented syntax; the CodeMirror mode is a hand-written translation of its grammar into CodeMirror's token-stream API.
