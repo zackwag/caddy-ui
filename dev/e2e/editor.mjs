@@ -94,6 +94,30 @@ async function exerciseEditor(page, root, label) {
     await page.keyboard.press('ControlOrMeta+z');
     assert.equal(await text(), SITE, `${label}: an indentation is undone in one step`);
 
+    // Brackets complete, and Enter between braces opens an indented body with
+    // the closing brace aligned to its opening line (#431)
+    await caretAt(3, { end: true });
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('handle {');
+    assert.equal((await text()).split('\n')[3], '    handle {}', `${label}: { gains its closing brace`);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('respond (a) [b]');
+    assert.equal(await text(), 'site.test {\n\treverse_proxy app:3000\n    respond ok\n    handle {\n        respond (a) [b]\n    }\n}',
+        `${label}: Enter opens the block, and typed closing brackets step over their completions`);
+    await page.keyboard.type(' (');
+    await page.keyboard.press('Backspace');
+    assert.equal((await text()).split('\n')[4], '        respond (a) [b] ', `${label}: Backspace removes a completed pair`);
+    await undoAll();
+
+    // In comments and quoted text a bracket is just text
+    await caretAt(3, { end: true });
+    await page.keyboard.type(' # see {');
+    assert.equal((await text()).split('\n')[2], '    respond ok # see {', `${label}: no completion in a comment`);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('respond "{');
+    assert.equal((await text()).split('\n')[3], '    respond "{', `${label}: no completion in a quoted token`);
+    await undoAll();
+
     // Keyboard-only ways out: Escape then Tab, or the tab focus mode toggle
     await content.focus();
     await page.keyboard.press('Escape');

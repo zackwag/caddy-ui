@@ -84,7 +84,7 @@ describe('Caddyfile editor indentation', () => {
         ['moves text after the caret down without its leading spaces', '\tlog| output', '\tlog\n\t|output'],
         ['opens a line above from a caret inside the indentation', '\t|\tfoo', '\n\t|\tfoo'],
         ['opens a line above from the end of the indentation', '    |foo', '\n    |foo'],
-        ['replaces a selection, indenting from where it starts', '\treverse_proxy [app:3000]', '\treverse_proxy \n\t|'],
+        ['replaces a selection, indenting from where it starts', '\treverse_proxy [app:3000]', '\treverse_proxy\n\t|'],
         ['keeps a whitespace-only line\'s indentation on the caret line', '    |', '\n    |'],
         ['does not leave trailing whitespace when a selection starts in the indentation', '  [foo]', '\n  |'],
     ])('%s', (label, before, after) => {
@@ -95,6 +95,30 @@ describe('Caddyfile editor indentation', () => {
 
     it('leaves the rest of the document untouched', () => {
         expect(run(insertNewlinePreservingIndent, stateOf('a {\n\tb|\n  c\n}')).text).toBe('a {\n\tb\n\t\n  c\n}');
+    });
+
+    it.each([
+        ['opens an empty pair into an indented body and an aligned closing line', 'example.com {|}', 'example.com {\n    |\n}'],
+        ['does the same with spaces between the braces', 'example.com { | }', 'example.com {\n    |\n}'],
+        ['aligns a nested pair with its own opening line', 'a {\n\thandle {|}\n}', 'a {\n\thandle {\n\t    |\n\t}\n}'],
+        ['indents one level after an opening brace', 'example.com {|\n}', 'example.com {\n    |\n}'],
+        ['indents after an opening brace followed by a comment', '\t@api { # matcher|\n\t}', '\t@api { # matcher\n\t    |\n\t}'],
+        ['indents nested blocks relative to their opening line', '  route {\n    handle {|', '  route {\n    handle {\n        |'],
+        ['aligns a closing brace moved to a new line with its opening line', '\ta {\n\t\tb |}', '\ta {\n\t\tb\n\t|}'],
+        ['keeps a placeholder from counting as a block', '\trespond {host}|', '\trespond {host}\n\t|'],
+        ['keeps a brace in a comment from counting as a block', '\t# note {|', '\t# note {\n\t|'],
+        ['keeps a brace in a quoted token from counting as a block', '\trespond "{|', '\trespond "{\n\t|'],
+        ['keeps an escaped brace from counting as a block', '\trespond \\{|', '\trespond \\{\n\t|'],
+        ['tolerates an unmatched closing brace', '}\n}|', '}\n}\n|'],
+    ])('%s', (label, before, after) => {
+        const { state, text } = run(insertNewlinePreservingIndent, stateOf(before));
+        const caret = state.selection.main.head;
+        expect(text.slice(0, caret) + '|' + text.slice(caret)).toBe(after);
+    });
+
+    it('undoes an opened pair in one step', () => {
+        const opened = run(insertNewlinePreservingIndent, stateOf('a {|}', [history()])).state;
+        expect(run(undo, opened).text).toBe('a {}');
     });
 
     it('is undone as a single step', () => {

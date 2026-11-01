@@ -1,13 +1,31 @@
 // The CodeMirror setup shared by the full Caddyfile editor and the route
 // site-block editor, so both edit the same way. Components import this module
 // dynamically, which keeps CodeMirror out of the main bundle.
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { StreamLanguage, bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/language';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec } from '@codemirror/state';
 import { EditorView, drawSelection, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers } from '@codemirror/view';
 import { classHighlighter } from '@lezer/highlight';
 import { caddyfile } from '../lib/caddyfileMode.js';
-import { indentation, indentationKeymap } from './caddyfileIndentation.js';
+import { indentation, indentationKeymap, structureOf } from './caddyfileIndentation.js';
+import { isLiteralAt } from './caddyfileStructure.js';
+
+// Typing one of these inserts its closing partner, and typing that partner
+// next to it steps over it. Quotes aren't paired: Caddyfile text uses them
+// sparingly, and an apostrophe in `respond` text would gain a stray partner.
+const BRACKETS = ['(', '[', '{'];
+
+// Inside a comment, quoted token or heredoc a bracket is text, so it's typed
+// as is instead of being paired. This runs ahead of closeBrackets.
+const literalBrackets = Prec.high(EditorView.inputHandler.of((view, from, to, text) => {
+    if (!BRACKETS.includes(text) || !isLiteralAt(structureOf(view.state.doc), from)) {
+        return false;
+    }
+    // eslint-disable-next-line i18next/no-literal-string -- CodeMirror user event name, not UI copy
+    view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input.type', scrollIntoView: true });
+    return true;
+}));
 
 // Colors read from the CSS theme variables (see styles.js) rather than being
 // hardcoded per theme here, so a new theme needs no changes in this file.
@@ -44,10 +62,12 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange }) 
         extensions: [
             lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
             history(), drawSelection(), indentOnInput(), bracketMatching(),
+            EditorState.languageData.of(() => [{ closeBrackets: { brackets: BRACKETS } }]),
+            literalBrackets, closeBrackets(),
             syntaxHighlighting(classHighlighter),
             StreamLanguage.define(caddyfile), editorTheme({ dark, padding }),
             indentation,
-            keymap.of([...indentationKeymap, ...defaultKeymap, ...historyKeymap]),
+            keymap.of([...closeBracketsKeymap, ...indentationKeymap, ...defaultKeymap, ...historyKeymap]),
             EditorView.updateListener.of(update => {
                 if (update.docChanged) {
                     onChange(update.state.doc.toString());
