@@ -181,6 +181,7 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 // own live change instead. Throws:
 // - CADDYFILE_READ_FAILED / CADDYFILE_WRITE_FAILED: nothing changed
 // - CADDYFILE_CHANGE_REJECTED: applying failed and the previous file was restored
+//   (an AppError thrown by a custom apply keeps its own code)
 // - CADDYFILE_ROLLBACK_FAILED: the previous file couldn't be restored, so the
 //   file on disk is not what Caddy is running
 // With rollback: false (the editor's force save), a failed apply leaves the
@@ -263,6 +264,10 @@ async function applyCaddyfileChange(instance, change, { apply, verify, expectLiv
         else {
             await restore('apply', err);
             logger.warn('Caddy rejected the change, previous Caddyfile restored', { ...context, error: err.message });
+            // A custom apply names a more specific rejection, such as CONFIG_CHANGED
+            if (err instanceof AppError) {
+                throw err;
+            }
             throw new AppError('CADDYFILE_CHANGE_REJECTED', { cause: err, context });
         }
     }

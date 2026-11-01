@@ -303,12 +303,23 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
         return () => clearInterval(t);
     }, [load, loadHealth]);
 
+    // Caddy refused a route edit because the config changed since it was read.
+    // Show the current routes instead of the stale ones, and close an edit
+    // based on them; a new route's form didn't come from the loaded config.
+    const failRouteEdit = (e) => {
+        toast.error(localizeError(e, t), e);
+        if (e.code !== "CONFIG_CHANGED") {
+            return;
+        }
+        setEditModal(null); load(); loadHealth();
+    };
+
     const addRoute = async (form) => {
         try {
             const result = await apiFetch("/routes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }, onUnauth);
             notifyConfigurationSave(toast, t, result, t("routes.added", { domain: form.domain }));
             setNewModal(false); load(); loadHealth();
-        } catch (e) { toast.error(localizeError(e, t), e); }
+        } catch (e) { failRouteEdit(e); }
     };
 
     const deleteCaddyfileBlock = async (domain) => {
@@ -344,7 +355,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
             }
             if (saveNote) setNotes(n => { const u = { ...n }; if (title.trim()) u[domain] = title.trim(); else delete u[domain]; return u; });
             setEditModal(null); load(); loadHealth();
-        } catch (e) { toast.error(localizeError(e, t), e); }
+        } catch (e) { failRouteEdit(e); }
     };
 
     const deleteRoute = async (id, domain) => {
@@ -356,7 +367,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                 setNotes(n => { const u = { ...n }; delete u[domain]; return u; });
             }
             notifyConfigurationSave(toast, t, result, t("routes.removed")); load(); loadHealth();
-        } catch (e) { toast.error(localizeError(e, t), e); }
+        } catch (e) { failRouteEdit(e); }
     };
 
     const toggleMaintenance = async (domain) => {

@@ -40,3 +40,40 @@ test('a saved change reports its warning even when the editor refresh after it f
         assert((await page.locator('.cm-content').innerText()).includes('warning-before-refresh:'), 'The editor keeps its contents');
     } finally { await chmod(historyPath, 0o700); }
 });
+
+test('a route edit refused for a concurrent change explains it and shows the current routes', { timeout: 120000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const added = await stack.api('/routes', { method: 'POST', body: { domain: 'conflict-ui.test', upstream: '127.0.0.1:9' } });
+    assert.equal(added.status, 201, JSON.stringify(added.data));
+    const { id } = added.data;
+    await page.goto(origin + '/routes', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('tr').filter({ hasText: 'conflict-ui.test' });
+    await waitForView('tr:has-text("conflict-ui.test")');
+
+    // Caddy refused the write because the route changed since it was read
+    const conflict = { code: 'CONFIG_CHANGED', error: 'Operation failed' };
+    await page.route(url => url.pathname === `/api/routes/${id}`, route => ['PATCH', 'DELETE'].includes(route.request().method())
+        ? route.fulfill({ status: 409, json: conflict }) : route.fallback());
+    const refreshed = () => page.waitForRequest(request => new URL(request.url()).pathname === '/api/routes' && request.method() === 'GET');
+
+    const conflicts = page.locator('.toast-error').filter({ hasText: en.errors.configChanged });
+
+    // An edit based on the stale route closes, and the list reloads
+    await row.getByTitle(en.routes.editRoute).click();
+    const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
+    await modal.waitFor();
+    await modal.locator('input[placeholder="192.168.4.88:8080"]').fill('127.0.0.1:10');
+    let refresh = refreshed();
+    await modal.getByRole('button', { name: en.common.save, exact: true }).click();
+    await conflicts.first().waitFor();
+    assert.equal(await conflicts.first().locator('code').innerText(), 'CONFIG_CHANGED');
+    await refresh;
+    await modal.waitFor({ state: 'detached' });
+
+    refresh = refreshed();
+    await row.getByRole('button', { name: en.common.delete, exact: true }).click();
+    await page.locator('.modal--confirm').getByRole('button', { name: en.common.delete, exact: true }).click();
+    await conflicts.nth(1).waitFor();
+    await refresh;
+    await row.waitFor();
+});
