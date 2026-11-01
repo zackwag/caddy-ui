@@ -80,6 +80,30 @@ function configWrite(base, label, url, options) {
     });
 }
 
+// Caddy replaces its admin server on every config load and closes the old
+// server's idle keep-alive connections. A request sent on one of them just as
+// it closes fails with UND_ERR_SOCKET ("other side closed"), or ECONNRESET
+// when the connection is reset rather than closed. Right after a
+// write, that's the readback, which then looked unavailable although the
+// change applied. A request that doesn't change Caddy's state is sent once
+// more on a fresh connection. A write is never resent: Caddy may already have
+// applied it (see CaddyTimeoutError).
+export function isClosedConnection(error) {
+    return ['UND_ERR_SOCKET', 'ECONNRESET'].includes(error?.cause?.code);
+}
+
+async function fetchIdempotent(url, options) {
+    try {
+        return await fetch(url, options);
+    } catch (error) {
+        if (!isClosedConnection(error) || options.signal?.aborted) {
+            throw error;
+        }
+        logger.debug('Caddy closed an idle admin connection, sending the read again', { url });
+        return fetch(url, options);
+    }
+}
+
 export function withTimeout(promise, ms, label) {
     return Promise.race([
         promise,
@@ -104,7 +128,7 @@ async function caddyRequest(method, path, body, adminUrl, { ifMatch } = {}) {
         const options = { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined };
         const label = `${method} ${path}`;
         const res = method === 'GET'
-            ? await withTimeout(fetch(url, options), timeoutMs, label)
+            ? await withTimeout(fetchIdempotent(url, options), timeoutMs, label)
             : await configWrite(base, label, url, options);
 
         const elapsed = Date.now() - start;
@@ -153,7 +177,7 @@ export const caddyDelete = (path, adminUrl, options) => caddyRequest('DELETE', p
 // HTTP status when there was one.
 export async function caddyReadJson(path, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
-    const res = await fetch(`${base}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetchIdempotent(`${base}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) {
         await res.body?.cancel();
         throw Object.assign(new Error(`Caddy readback failed: ${res.status}`), { status: res.status });
@@ -172,7 +196,7 @@ export async function caddyReadJson(path, adminUrl) {
 export async function caddyGetConfig(adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
     const signal = AbortSignal.timeout(timeoutMs);
-    const res = await fetch(`${base}/config/`, { headers: HEADERS, signal });
+    const res = await fetchIdempotent(`${base}/config/`, { headers: HEADERS, signal });
     const text = await res.text();
     if (!res.ok) {
         throw Object.assign(new Error(`Caddy API error: ${res.status}`), { status: res.status });
@@ -191,7 +215,8 @@ export async function caddyGetConfig(adminUrl) {
 export async function caddyAdapt(caddyfileContent, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
     const res = await withTimeout(
-        fetch(`${base}/adapt?adapter=caddyfile`, {
+        // Adapting doesn't change the running config, so it's retried like a read
+        fetchIdempotent(`${base}/adapt?adapter=caddyfile`, {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'text/caddyfile' },
             body: caddyfileContent,
