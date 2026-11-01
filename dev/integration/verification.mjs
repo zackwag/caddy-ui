@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import test from 'node:test';
 import { useTestStack } from './stack.mjs';
 
@@ -13,6 +13,24 @@ const withoutHopHeaders = headers => Object.fromEntries(Object.entries(headers).
 // first request that matches, so another client's change lands between the
 // backend's read and its conditional write without depending on timing.
 async function adminProxy(t, target) {
+    // Only the path comes from the request. The host and port are fixed to
+    // the target, and an absolute-form request target is refused rather than
+    // forwarded wherever it names.
+    const { hostname, port } = new URL(target);
+    const forward = (method, path, headers, body) => new Promise((resolve, reject) => {
+        if (!path.startsWith('/')) {
+            reject(new Error(`refusing non-origin-form request target ${path}`));
+            return;
+        }
+        const outgoing = httpRequest({ hostname, port, path, method, headers }, incoming => {
+            const parts = [];
+            incoming.on('data', part => parts.push(part));
+            incoming.on('end', () => resolve({ status: incoming.statusCode, headers: incoming.headers, body: Buffer.concat(parts) }));
+            incoming.on('error', reject);
+        });
+        outgoing.on('error', reject);
+        outgoing.end(body.length ? body : undefined);
+    });
     const requests = [];
     let hook = null;
     const server = createServer(async (req, res) => {
@@ -26,13 +44,9 @@ async function adminProxy(t, target) {
                 hook = null;
                 await change();
             }
-            const url = new URL(req.url, target);
-            const response = await fetch(url, {
-                method: req.method, headers: withoutHopHeaders(req.headers), body: chunks.length ? Buffer.concat(chunks) : undefined,
-            });
-            const body = Buffer.from(await response.arrayBuffer());
-            res.writeHead(response.status, withoutHopHeaders(Object.fromEntries(response.headers)));
-            res.end(body);
+            const response = await forward(req.method, req.url, withoutHopHeaders(req.headers), Buffer.concat(chunks));
+            res.writeHead(response.status, withoutHopHeaders(response.headers));
+            res.end(response.body);
         } catch (error) {
             res.writeHead(502).end(String(error?.message ?? error));
         }
