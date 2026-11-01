@@ -10,13 +10,14 @@ before(prepareBrowserTests, { timeout: 35000 });
 test('a saved change reports its warning even when the editor refresh after it fails', { timeout: 120000 }, async t => {
     const { stack, page, origin, waitForView } = await useBrowserFixture(t);
     const initial = (await stack.api('/caddyfile')).data;
-    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
-    await waitForView('.cm-editor');
 
     // A real save that succeeds with a warning: its history version can't be
-    // recorded. Only the refresh that follows it fails.
+    // recorded. Only the refresh that follows it fails. The editor loads the
+    // baseline, since a save over a file changed since loading is refused.
     const baseline = initial.replace('Caddy UI test instance:', 'history-baseline:');
     assert.equal((await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: baseline, plain: true })).status, 200);
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
     const historyPath = join(stack.directory, 'backend/history');
     await chmod(historyPath, 0o500);
     try {
@@ -76,4 +77,62 @@ test('a route edit refused for a concurrent change explains it and shows the cur
     await conflicts.nth(1).waitFor();
     await refresh;
     await row.waitFor();
+});
+
+test('the editor refuses to overwrite a newer Caddyfile and lets the user compare, overwrite or load it', { timeout: 120000 }, async t => {
+    const { stack, page, context, origin, waitForView } = await useBrowserFixture(t);
+    const { instance } = stack.instances.get('alpha');
+    const initial = (await stack.api('/caddyfile')).data;
+    const marked = marker => initial.replace('Caddy UI test instance:', `${marker}:`);
+    const file = async () => (await stack.api('/caddyfile')).data;
+    const replaceText = async (tab, text) => {
+        await tab.locator('.cm-content').click();
+        await tab.keyboard.press('ControlOrMeta+a');
+        await tab.keyboard.insertText(text);
+    };
+    const saveIn = async tab => {
+        const saved = tab.waitForResponse(response => new URL(response.url()).pathname === '/api/caddyfile' && response.request().method() === 'PUT');
+        await tab.getByRole('button', { name: en.common.save, exact: true }).click();
+        return saved;
+    };
+
+    // Two tabs load the same file; the second saves first
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const other = await context.newPage();
+    t.after(() => other.close());
+    await other.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await other.locator('.cm-editor').waitFor();
+    await replaceText(other, marked('other-tab'));
+    assert.equal((await saveIn(other)).status(), 200);
+
+    await replaceText(page, marked('this-tab'));
+    assert.equal((await saveIn(page)).status(), 409);
+    const dialog = page.getByRole('dialog', { name: en.caddyfile.conflictTitle });
+    await dialog.waitFor();
+    // Saves from the editor are formatted and sorted, so compare by marker
+    assert.ok((await file()).includes('other-tab:'), 'the other tab\'s save is kept');
+
+    await dialog.getByRole('button', { name: en.caddyfile.conflictCompare }).click();
+    const diff = dialog.getByRole('region', { name: en.caddyfile.conflictDiff });
+    await diff.locator('.diff-line--del', { hasText: 'other-tab:' }).waitFor();
+    await diff.locator('.diff-line--add', { hasText: 'this-tab:' }).waitFor();
+
+    const overwritten = page.waitForResponse(response => new URL(response.url()).pathname === '/api/caddyfile' && response.request().method() === 'PUT');
+    await dialog.getByRole('button', { name: en.caddyfile.conflictOverwrite }).click();
+    assert.equal((await overwritten).status(), 200);
+    await dialog.waitFor({ state: 'detached' });
+    assert.ok((await file()).includes('this-tab:') && !(await file()).includes('other-tab:'));
+
+    // An edit made on the host, then a save from the stale editor
+    await page.locator('.editor-hint--desktop', { hasText: en.caddyfile.upToDate }).waitFor();
+    await stack.harness.run(['exec', instance.containerName, 'sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', marked('host-edit'), instance.configPath]);
+    await replaceText(page, marked('stale-edit'));
+    assert.equal((await saveIn(page)).status(), 409);
+    await dialog.waitFor();
+    await dialog.getByRole('button', { name: en.caddyfile.conflictLoadCurrent }).click();
+    await dialog.waitFor({ state: 'detached' });
+    assert.ok((await page.locator('.cm-content').innerText()).includes('host-edit:'), 'the editor shows the current file');
+    assert.equal(await file(), marked('host-edit'));
+    assert.ok(await page.getByRole('button', { name: en.common.save, exact: true }).isDisabled(), 'nothing is left unsaved');
 });

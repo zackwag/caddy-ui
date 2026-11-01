@@ -100,6 +100,34 @@ Caddy versions that don't send ETags (before 2.6) get the same writes without
 `If-Match`, as before. Changes applied by reloading the Caddyfile aren't
 guarded this way, because Caddy's `/load` ignores `If-Match`.
 
+### Editor saves and concurrent edits
+
+`GET /api/caddyfile` returns an `ETag` of the file text it served, a SHA-256
+in the form `"sha256:<hex>"`. The response is never cached.
+
+`PUT /api/caddyfile` accepts that value in `If-Match`. The backend compares it
+with the file it's about to replace, inside the same per-instance queue as
+other caddy/ui changes. If the file changed since it was served, for example
+by a manual edit on the host, automation or a save from another browser tab,
+the save returns `409` with `{ "code": "CADDYFILE_CHANGED" }` and changes
+nothing: no write, no reload and no history version.
+
+- A weak ETag (`W/"..."`) matches its strong form, since nginx weakens ETags
+  when it compresses a response.
+- `If-Match: *` matches any existing file.
+- A save without `If-Match` behaves as before. Restore and import don't send
+  it, since they replace the file deliberately.
+
+The editor sends `If-Match` with every save, including a force save. When a
+save is refused, it shows the current file and lets you compare it with your
+edits, load it in place of your edits or overwrite it with your edits.
+Overwriting sends the ETag of the file you were shown, so a file that changed
+again is refused again.
+
+The check can't stop an external write that lands between the backend's read
+and its write. That window is small, and the readback after the save reports
+it as a file `mismatch`.
+
 Checks run in the same per-instance queue as other changes, so they never
 compare against another caddy/ui change in progress. They can't rule out a
 change made outside caddy/ui between the write and the readback; that is what

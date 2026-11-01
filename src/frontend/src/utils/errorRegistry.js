@@ -42,6 +42,7 @@ export const ERROR_MESSAGES = Object.freeze({
     CONFIG_VERIFICATION_UNAVAILABLE: 'errors.configVerificationUnavailable',
     CADDY_APPLY_UNCERTAIN: 'errors.caddyApplyUncertain',
     CONFIG_CHANGED: 'errors.configChanged',
+    CADDYFILE_CHANGED: 'errors.caddyfileChanged',
     CADDY_RELOAD_FAILED: 'errors.caddyReloadFailed',
     INSTANCE_NOT_FOUND: 'errors.instanceNotFound',
     INSTANCE_SELECTION_INVALID: 'errors.instanceSelectionInvalid',
