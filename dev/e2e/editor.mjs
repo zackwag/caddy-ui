@@ -10,6 +10,11 @@ const TOGGLE_TAB_FOCUS = process.platform === 'darwin' ? 'Shift+Alt+m' : 'Contro
 // Tab-indented on purpose: editing must keep existing tabs rather than convert them.
 const SITE = 'site.test {\n\treverse_proxy app:3000\n    respond ok\n}';
 
+// CodeMirror joins edits made within 500ms (its newGroupDelay) into one undo
+// step. Waiting past that after replacing the document keeps the replacement
+// its own step, so undoing later edits stops at it on fast machines too.
+const settleHistory = page => page.waitForTimeout(600);
+
 // Keyboard checks shared by both editors, through real key events only.
 async function exerciseEditor(page, root, label) {
     const content = root.locator('.cm-content');
@@ -36,6 +41,7 @@ async function exerciseEditor(page, root, label) {
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.insertText(SITE);
     assert.equal(await text(), SITE, label);
+    await settleHistory(page);
 
     // Enter keeps the line's own indentation, tab or spaces (#429)
     await caretAt(2, { end: true });
