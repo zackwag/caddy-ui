@@ -237,7 +237,7 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
         const enrollment = await api('/auth/setup', { method: 'POST', body: credentials });
         if (enrollment.status !== 200) throw new Error('Integration administrator setup failed');
         return {
-            harness, directory, url, instances, close, api, credentials,
+            harness, directory, url, instances, close, api, credentials, backend,
             async create(name) {
                 const info = await scope.run(() => harness.create(name));
                 await waitForHttp(info.httpUrl + '/health', { signal: scope.signal });
