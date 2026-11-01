@@ -15,6 +15,7 @@ import { getRouteCheckHost, getRouteHost, getRouteTitle, getRouteUpstreams } fro
 const DOMAIN_PLACEHOLDER = "app.example.com";
 
 function MiniCodeMirror({ value, onChange, theme }) {
+    const { t, i18n } = useTranslation();
     const containerRef = useRef(null);
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
@@ -31,15 +32,15 @@ function MiniCodeMirror({ value, onChange, theme }) {
             if (cancelled) return;
             view = createCaddyfileEditor({
                 parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "12px",
-                onChange: doc => onChangeRef.current(doc),
+                onChange: doc => onChangeRef.current(doc), t,
             });
             viewRef.current = view;
         }
 
         init();
         return () => { cancelled = true; view?.destroy(); viewRef.current = null; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [theme]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme or language change; including `value` would tear it down on every keystroke
+    }, [theme, i18n.language]);
 
     useEffect(() => {
         const view = viewRef.current;

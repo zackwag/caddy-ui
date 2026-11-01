@@ -15,6 +15,71 @@ const SITE = 'site.test {\n\treverse_proxy app:3000\n    respond ok\n}';
 // everywhere except macOS, where Cmd+Shift+Z is.
 const REDO = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y';
 
+// CodeMirror's fold keys from its fold keymap.
+const FOLD = process.platform === 'darwin' ? 'Meta+Alt+BracketLeft' : 'Control+Shift+BracketLeft';
+const UNFOLD = process.platform === 'darwin' ? 'Meta+Alt+BracketRight' : 'Control+Shift+BracketRight';
+const UNFOLD_ALL = 'Control+Alt+BracketRight';
+const NESTED = 'site.test {\n\thandle /api/* {\n\t\treverse_proxy app:3000\n\t}\n\trespond "{ not a block"\n}';
+
+const visibleText = root => root.locator('.cm-line').evaluateAll(lines => lines.map(line => line.textContent).join('\n'));
+
+// Folding checks shared by both editors (#428). Folded lines aren't rendered,
+// so the full text is compared after unfolding.
+async function exerciseFolding(page, root, label) {
+    const content = root.locator('.cm-content');
+    // CodeMirror sizes each gutter with a hidden copy of a marker, so only visible ones count
+    const foldMarkers = root.locator(`.cm-foldGutter [title="${en.caddyfile.foldBlock}"]`).filter({ visible: true });
+    const unfoldMarkers = root.locator(`.cm-foldGutter [title="${en.caddyfile.unfoldBlock}"]`).filter({ visible: true });
+    const placeholders = root.locator('.cm-foldPlaceholder');
+    async function caretOn(line) {
+        await page.keyboard.press('ControlOrMeta+Home');
+        for (let i = 1; i < line; i++) {
+            await page.keyboard.press('ArrowDown');
+        }
+    }
+
+    await content.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(NESTED);
+    assert.equal(await foldMarkers.count(), 2, `${label}: the site and handle blocks fold, a brace in a quoted token doesn't`);
+
+    // Nested blocks fold independently through the gutter
+    await foldMarkers.nth(1).click();
+    assert.equal(await placeholders.count(), 1, label);
+    assert.equal(await placeholders.first().getAttribute('aria-label'), en.caddyfile.foldedBlock, label);
+    assert.equal(await visibleText(root), 'site.test {\n\thandle /api/* {…}\n\trespond "{ not a block"\n}', `${label}: only the handle body is hidden`);
+    await foldMarkers.first().click();
+    assert.equal(await visibleText(root), 'site.test {…}', `${label}: the site block folds around it`);
+    await unfoldMarkers.first().click();
+    assert.equal(await visibleText(root), 'site.test {\n\thandle /api/* {…}\n\trespond "{ not a block"\n}', `${label}: the inner fold survives unfolding the outer one`);
+    await unfoldMarkers.first().click();
+    assert.equal(await visibleText(root), NESTED, `${label}: folding never changes the text`);
+
+    // The keyboard commands fold and unfold the block at the caret. Gutter
+    // clicks leave focus outside the text, so return to it first.
+    await content.focus();
+    await caretOn(2);
+    await page.keyboard.press(FOLD);
+    assert.equal(await placeholders.count(), 1, `${label}: the fold key folds the block at the caret`);
+    await page.keyboard.press(UNFOLD);
+    assert.equal(await visibleText(root), NESTED, `${label}: the unfold key unfolds it`);
+
+    // Editing elsewhere while folded keeps both the fold and the text
+    await caretOn(1);
+    await page.keyboard.press(FOLD);
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('# after');
+    assert.equal(await placeholders.count(), 1, `${label}: an edit outside the fold keeps it folded`);
+    await page.keyboard.press(UNFOLD_ALL);
+    assert.equal(await visibleText(root), NESTED + '\n# after', label);
+    for (let i = 0; i < 10 && await visibleText(root) !== NESTED; i++) {
+        await page.keyboard.press('ControlOrMeta+z');
+    }
+    assert.equal(await visibleText(root), NESTED, `${label}: undo after folding restores the text`);
+    assert.equal(await foldMarkers.count(), 2, `${label}: undo keeps the fold markers`);
+}
+
 // Keyboard checks shared by both editors, through real key events only.
 async function exerciseEditor(page, root, label) {
     const content = root.locator('.cm-content');
@@ -137,7 +202,7 @@ async function exerciseEditor(page, root, label) {
     await undoAll();
 }
 
-test('the Caddyfile and route editors share keyboard indentation and a way out', { timeout: 150000 }, async t => {
+test('the Caddyfile and route editors share indentation, bracket completion, folding and a way out', { timeout: 150000 }, async t => {
     const { stack, page, origin, waitForView } = await useBrowserFixture(t);
     const original = (await stack.api('/caddyfile')).data;
 
@@ -147,7 +212,13 @@ test('the Caddyfile and route editors share keyboard indentation and a way out',
     const editor = page.locator('.editor-wrap');
     assert.equal(await editor.locator('.cm-line').evaluateAll(lines => lines.map(line => line.textContent).join('\n')), original, 'The editor shows the file exactly as loaded');
     await editor.locator('.editor-hint--desktop').filter({ hasText: en.caddyfile.upToDate }).waitFor();
+    // Folding the loaded file changes nothing to save
+    await editor.locator(`.cm-foldGutter [title="${en.caddyfile.foldBlock}"]`).filter({ visible: true }).first().click();
+    await editor.locator('.cm-foldPlaceholder').waitFor();
+    assert.equal((await editor.locator('.editor-hint--desktop').innerText()).trim(), en.caddyfile.upToDate, 'Folding is not an edit');
+    await editor.locator(`.cm-foldGutter [title="${en.caddyfile.unfoldBlock}"]`).filter({ visible: true }).first().click();
     await exerciseEditor(page, editor, 'Caddyfile editor');
+    await exerciseFolding(page, editor, 'Caddyfile editor');
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.insertText(original);
     await editor.locator('.editor-hint--desktop').filter({ hasText: en.caddyfile.upToDate }).waitFor();
@@ -162,6 +233,7 @@ test('the Caddyfile and route editors share keyboard indentation and a way out',
     const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
     await modal.locator('.cm-editor').waitFor();
     await exerciseEditor(page, modal, 'Route editor');
+    await exerciseFolding(page, modal, 'Route editor');
     assert(await modal.isVisible(), 'Escape in the route editor does not close its modal');
     await modal.getByRole('button', { name: en.common.close, exact: true }).click();
     await modal.waitFor({ state: 'detached' });

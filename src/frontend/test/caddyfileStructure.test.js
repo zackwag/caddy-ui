@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockClosedAt, blockOpenedBefore, isLiteralAt, scanCaddyfile } from '../src/utils/caddyfileStructure.js';
+import { blockClosedAt, blockOpenedBefore, foldRangeOf, isLiteralAt, scanCaddyfile } from '../src/utils/caddyfileStructure.js';
 
 // The [open, close] text offsets of each block, as line:column pairs, for readable expectations.
 function blocksOf(text) {
@@ -94,5 +94,23 @@ describe('Caddyfile structure', () => {
         expect(blockClosedAt(structure, text.indexOf('}'))).toBe(structure.blocks[1]);
         expect(blockClosedAt(structure, text.lastIndexOf('}'))).toBe(structure.blocks[0]);
         expect(blockClosedAt(structure, text.indexOf('{host}') + 5)).toBe(null);
+    });
+
+    it('folds from the end of an opening line to its closing brace, for closed blocks only', () => {
+        const foldsOf = text => {
+            const structure = scanCaddyfile(text);
+            let from = 0;
+            return text.split('\n').map(line => {
+                const range = foldRangeOf(structure, { from, text: line });
+                from += line.length + 1;
+                return range && text.slice(range.from, range.to);
+            });
+        };
+        expect(foldsOf('site { # keep\n\thandle {\n\t\trespond ok\n\t}\n\trespond "{"\n}')).toEqual([
+            '\n\thandle {\n\t\trespond ok\n\t}\n\trespond "{"\n', '\n\t\trespond ok\n\t', null, null, null, null,
+        ]);
+        // An unclosed inner block takes the last brace, so the outer one stays unfolded
+        expect(foldsOf('site {\n\tunfinished {\n\t\trespond ok\n}')).toEqual([null, '\n\t\trespond ok\n', null, null]);
+        expect(foldsOf('a {}')).toEqual([null]);
     });
 });
