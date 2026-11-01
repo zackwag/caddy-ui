@@ -1,20 +1,23 @@
 import { once } from 'node:events';
 import { mkdtempSync, readdirSync } from 'fs';
 import { readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createCaddyfileHistory } from '../src/caddyfileHistory.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import express from 'express';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { files, failWrites, live, caddyAdapt, caddyLoad, caddyGet, caddyPost, caddyPut } = vi.hoisted(() => ({
+const { files, failWrites, live, etagOf, caddyAdapt, caddyLoad, caddyGet, caddyPost, caddyPut } = vi.hoisted(() => ({
     files: new Map(),
     // Writes to fail, counted from 1 since the last reset
     failWrites: { at: [], count: 0 },
     // What the fake admin API serves: the loaded config, the HTTP servers and
     // objects added by @id
     live: { config: null, servers: null, objects: new Map() },
+    // Like Caddy's, a fake ETag names the path it was read from and changes
+    // with its value
+    etagOf: (path, value) => `"${path} ${JSON.stringify(value)}"`,
     caddyAdapt: vi.fn(),
     caddyLoad: vi.fn(),
     caddyGet: vi.fn(),
@@ -37,6 +40,10 @@ vi.mock('../src/containerFs.js', async importOriginal => ({
 }));
 // Readback shares the fake admin API with every other read
 vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyAdapt, caddyLoad, caddyGet, caddyReadJson: caddyGet, caddyPost, caddyPut,
+    caddyGetTagged: async (path, adminUrl) => {
+        const value = await caddyGet(path, adminUrl);
+        return { value, etag: etagOf(path, value) };
+    },
     caddyGetConfig: async () => ({ config: live.config, fingerprint: JSON.stringify([live.config, [...live.objects.keys()]]) }) }));
 // `caddy reload` and `caddy adapt` in a Docker-mode instance, against the fake
 // files and admin API
@@ -400,6 +407,157 @@ describe('API save paths', () => {
         const latest = (await createCaddyfileHistory(process.env.HISTORY_PATH).list('default'))[0];
         expect(latest.actor).toEqual(actor);
         expect(latest.action).toBe('route.add');
+    });
+
+    describe('conditional admin API route edits', () => {
+        const routesPath = '/config/apps/http/servers/srv0/routes';
+        const stale = () => Object.assign(new Error('Caddy API error: 412 If-Match header did not match current config hash'), { status: 412 });
+        const managed = id => ({ '@id': id, match: [{ host: ['old.example.com'] }], handle: [] });
+        const hostless = id => ({ '@id': id, match: [{ path: ['/'] }], handle: [] });
+        let caddy, patch, remove;
+
+        beforeEach(async () => {
+            caddy = await import('../src/caddy.js');
+            patch = vi.spyOn(caddy, 'caddyPatch').mockImplementation(async (path, body) => { live.objects.set(body['@id'], body); });
+            remove = vi.spyOn(caddy, 'caddyDelete').mockImplementation(async path => { live.objects.delete(path.slice('/id/'.length)); });
+        });
+        afterEach(() => {
+            patch.mockRestore();
+            remove.mockRestore();
+        });
+
+        it('adds a route only if the HTTP servers it read are unchanged', async () => {
+            live.servers = servers;
+            expect((await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' })).status).toBe(201);
+            expect(caddyPost).toHaveBeenCalledWith(routesPath, expect.any(Object), instance.adminUrl,
+                { ifMatch: etagOf('/config/apps/http/servers', servers) });
+            // A server without routes yet gets them with a PUT, guarded the same way
+            live.servers = { srv0: { listen: [':443'] } };
+            expect((await send('POST', '/routes', { domain: 'next.example.com', upstream: 'next:3000' })).status).toBe(201);
+            expect(caddyPut).toHaveBeenCalledWith(routesPath, [expect.any(Object)], instance.adminUrl,
+                { ifMatch: etagOf('/config/apps/http/servers', { srv0: { listen: [':443'] } }) });
+        });
+
+        it.each([['with', managed], ['without', hostless]])('updates and deletes a route %s a Caddyfile block only if its object is unchanged', async (label, shape) => {
+            live.objects.set('route-a', shape('route-a'));
+            const read = etagOf('/id/route-a', shape('route-a'));
+            expect((await send('PATCH', '/routes/route-a', { domain: 'old.example.com', upstream: 'app:3000' })).status).toBe(200);
+            expect(patch).toHaveBeenCalledWith('/id/route-a', expect.any(Object), instance.adminUrl, { ifMatch: read });
+            const updated = live.objects.get('route-a');
+            expect((await send('DELETE', '/routes/route-a')).status).toBe(200);
+            expect(remove).toHaveBeenCalledWith('/id/route-a', instance.adminUrl, { ifMatch: etagOf('/id/route-a', updated) });
+        });
+
+        it('refuses a stale route addition without retrying, and restores the Caddyfile', async () => {
+            live.servers = servers;
+            caddyPost.mockRejectedValueOnce(stale());
+            const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
+            expect(status).toBe(409);
+            expect(body).toMatchObject({ code: 'CONFIG_CHANGED' });
+            expect(body.warningCode).toBeUndefined();
+            expect(caddyPost).toHaveBeenCalledTimes(1);
+            expect(caddyPut).not.toHaveBeenCalled();
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
+        it('refuses stale updates and deletions with or without a Caddyfile block, without retrying', async () => {
+            live.objects.set('route-managed', managed('route-managed'));
+            live.objects.set('route-admin', hostless('route-admin'));
+            patch.mockRejectedValueOnce(stale());
+            const updated = await send('PATCH', '/routes/route-managed', { domain: 'new.example.com', upstream: 'app:3000' });
+            expect(updated.status).toBe(409);
+            expect(updated.body).toMatchObject({ code: 'CONFIG_CHANGED' });
+            expect(files.get(instance.configPath)).toBe(original);
+
+            remove.mockRejectedValueOnce(stale());
+            const deleted = await send('DELETE', '/routes/route-admin');
+            expect(deleted.status).toBe(409);
+            expect(deleted.body).toMatchObject({ code: 'CONFIG_CHANGED' });
+            expect(live.objects.has('route-admin')).toBe(true);
+            expect(patch).toHaveBeenCalledTimes(1);
+            expect(remove).toHaveBeenCalledTimes(1);
+        });
+
+        it('writes unconditionally when Caddy sends no ETag', async () => {
+            live.servers = servers;
+            const tagged = vi.spyOn(caddy, 'caddyGetTagged').mockImplementation(async path => ({ value: await caddyGet(path), etag: null }));
+            try {
+                expect((await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' })).status).toBe(201);
+                expect(caddyPost).toHaveBeenCalledWith(routesPath, expect.any(Object), instance.adminUrl, { ifMatch: null });
+            } finally {
+                tagged.mockRestore();
+            }
+        });
+    });
+
+    describe('editor save preconditions', () => {
+        const fileTag = text => `"sha256:${createHash('sha256').update(text).digest('hex')}"`;
+        const request = async (method, path, { body, headers = {} } = {}) => {
+            const res = await fetch(baseUrl + path, { method, body, headers: { ...(body === undefined ? {} : { 'Content-Type': 'text/plain' }), ...headers } });
+            const json = res.headers.get('content-type')?.includes('application/json');
+            return { status: res.status, headers: res.headers, body: json ? await res.json() : await res.text() };
+        };
+        const save = (content, ifMatch) => request('PUT', '/caddyfile?fmt=false&sort=false', { body: content, headers: ifMatch ? { 'If-Match': ifMatch } : {} });
+
+        it('serves the Caddyfile with an uncached ETag that changes exactly when its text does', async () => {
+            const first = await request('GET', '/caddyfile');
+            expect(first.body).toBe(original);
+            expect(first.headers.get('etag')).toBe(fileTag(original));
+            expect(first.headers.get('cache-control')).toBe('no-store');
+            expect((await request('GET', '/caddyfile')).headers.get('etag')).toBe(fileTag(original));
+            files.set(instance.configPath, original + '\n');
+            expect((await request('GET', '/caddyfile')).headers.get('etag')).not.toBe(fileTag(original));
+            files.set(instance.configPath, original);
+            expect((await request('GET', '/caddyfile')).headers.get('etag')).toBe(fileTag(original));
+            expect((await request('GET', '/caddyfile?download=true')).headers.get('etag')).toBe(fileTag(original));
+        });
+
+        it.each([
+            ['its ETag', tag => tag],
+            ['its weakened ETag', tag => `W/${tag}`],
+            ['a list including its ETag', tag => `"sha256:other", ${tag}`],
+            ['*', () => '*'],
+        ])('saves when If-Match names the current file by %s', async (label, ifMatch) => {
+            const { status, body } = await save('mine.example.com {\n}\n', ifMatch(fileTag(original)));
+            expect(status).toBe(200);
+            expect(body.verification).toEqual(verified);
+            expect(files.get(instance.configPath)).toBe('mine.example.com {\n}\n');
+        });
+
+        it('refuses a save based on a file that changed since, without writing, reloading or recording history', async () => {
+            files.set(instance.configPath, 'external.example.com {\n}\n');
+            const versions = historyFiles().length;
+            const { status, body } = await save('mine.example.com {\n}\n', fileTag(original));
+            expect(status).toBe(409);
+            expect(body).toMatchObject({ valid: false, code: 'CADDYFILE_CHANGED' });
+            expect(files.get(instance.configPath)).toBe('external.example.com {\n}\n');
+            expect(failWrites.count).toBe(0);
+            expect(caddyLoad).not.toHaveBeenCalled();
+            expect(historyFiles()).toHaveLength(versions);
+        });
+
+        it('refuses * when there is no file to replace', async () => {
+            files.delete(instance.configPath);
+            expect((await save('mine.example.com {\n}\n', '*')).body.code).toBe('CADDYFILE_CHANGED');
+            expect(files.has(instance.configPath)).toBe(false);
+        });
+
+        it('saves without If-Match as before', async () => {
+            files.set(instance.configPath, 'external.example.com {\n}\n');
+            expect((await save('mine.example.com {\n}\n')).status).toBe(200);
+            expect(files.get(instance.configPath)).toBe('mine.example.com {\n}\n');
+        });
+
+        it('checks the precondition against the file inside the change queue', async () => {
+            let release;
+            const gate = new Promise(resolve => { release = resolve; });
+            const queued = saveCaddyfileChange(instance, 'queued.example.com {\n}\n', { apply: () => gate, verify: async () => 'verified' });
+            const saving = save('mine.example.com {\n}\n', fileTag(original));
+            release();
+            await queued;
+            expect((await saving).body.code).toBe('CADDYFILE_CHANGED');
+            expect(files.get(instance.configPath)).toBe('queued.example.com {\n}\n');
+        });
     });
 
     describe('readback verification', () => {

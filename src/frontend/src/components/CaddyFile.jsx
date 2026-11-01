@@ -3,7 +3,7 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PaneDivider from "./PaneDivider.jsx";
-import { apiFetch, getInstanceId } from "../utils/api.js";
+import { apiFetch, apiRequest, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { formatTs } from "../utils/format.js";
 import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
@@ -13,6 +13,10 @@ import { historyActor, historyComparison, notifyConfigurationSave } from '../uti
 const CADDY_FMT_LABEL = "caddy fmt";
 // eslint-disable-next-line i18next/no-literal-string -- Stable DOM identifier linking the divider to the editor pane
 const EDITOR_PANE_ID = "caddyfile-editor-pane";
+// eslint-disable-next-line i18next/no-literal-string -- Stable DOM identifier labelling the save conflict dialog
+const CONFLICT_TITLE_ID = "caddyfile-conflict-title";
+// eslint-disable-next-line i18next/no-literal-string -- HTTP header name, not translatable UI copy
+const ETAG_HEADER = "ETag";
 
 const ACTION_KEYS = {
     'caddyfile.save': 'caddyfile.actionSave',
@@ -110,21 +114,21 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
     return <div ref={containerRef} className="caddyfile-editor" />;
 }
 
-function CaddyfileDiff({ oldText, newText, previewRef }) {
+function CaddyfileDiff({ oldText, newText, previewRef, label }) {
     const { t } = useTranslation();
     const lines = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
     const added = lines.filter(l => l.type === "add").length;
     const removed = lines.filter(l => l.type === "del").length;
     const shown = useMemo(() => collapseUnchanged(lines), [lines]);
 
-    if (!added && !removed) return <div ref={previewRef} className="history-preview history-diff-empty" role="region" aria-label={t("caddyfile.versionPreview")} tabIndex={0}>{t("caddyfile.noDifferences")}</div>;
+    if (!added && !removed) return <div ref={previewRef} className="history-preview history-diff-empty" role="region" aria-label={label || t("caddyfile.versionPreview")} tabIndex={0}>{t("caddyfile.noDifferences")}</div>;
 
     return (
         <>
             <div className="history-diff-stats">
                 <span className="diff-stat--add">+{added}</span> <span className="diff-stat--del">−{removed}</span>
             </div>
-            <div ref={previewRef} className="history-preview history-diff" role="region" aria-label={t("caddyfile.versionPreview")} tabIndex={0}>
+            <div ref={previewRef} className="history-preview history-diff" role="region" aria-label={label || t("caddyfile.versionPreview")} tabIndex={0}>
                 <div className="history-diff-lines">
                     {shown.map((line, i) => line.type === "skip" ? (
                         <div key={i} className="diff-skip">⋯ {t("caddyfile.unchangedLines", { count: line.count })}</div>
@@ -165,6 +169,12 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [previewMode, setPreviewMode] = useState("diff");
     const [compareTo, setCompareTo] = useState("current");
     const [compareContent, setCompareContent] = useState(null);
+    // A save refused because the file changed since it was loaded: the
+    // current file and its ETag, and whether it was a force save
+    const [conflict, setConflict] = useState(null);
+    const [conflictCompare, setConflictCompare] = useState(false);
+    // The ETag of the file the editor was loaded from, sent back as If-Match
+    const savedETag = useRef(null);
     const snapshotCache = useRef(new Map());
     const importInputRef = useRef(null);
     const pageRef = useRef(null);
@@ -186,8 +196,8 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
 
     useEffect(() => {
         const key = stateNotificationKey('caddyfile.load', getInstanceId());
-        apiFetch("/caddyfile", {}, onUnauth)
-            .then(content => { toast.recover(key); setContent(content); setOriginal(content); })
+        apiRequest("/caddyfile", {}, onUnauth)
+            .then(({ body, headers }) => { toast.recover(key); savedETag.current = headers.get(ETAG_HEADER); setContent(body); setOriginal(body); })
             .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount only; toast isn't stable across renders
@@ -288,8 +298,9 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     // current editor contents.
     const refreshSaved = async () => {
         try {
-            const fresh = await apiFetch("/caddyfile", {}, onUnauth);
-            setContent(fresh); setOriginal(fresh);
+            const { body, headers } = await apiRequest("/caddyfile", {}, onUnauth);
+            savedETag.current = headers.get(ETAG_HEADER);
+            setContent(body); setOriginal(body);
         } catch (e) { toast.error(localizeError(e, t), e); }
     };
 
@@ -328,18 +339,57 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
         finally { setValidating(false); }
     };
 
-    const save = async ({ force = false } = {}) => {
-        if (force && !await confirm(t("caddyfile.forceSaveConfirm"), { confirmLabel: t("caddyfile.forceSave"), danger: true })) return;
+    // Shows the file that blocked a save, so its changes can be compared with
+    // the editor's before choosing which to keep.
+    const showConflict = async (force, error) => {
+        try {
+            const { body, headers } = await apiRequest("/caddyfile", {}, onUnauth);
+            setConflict({ current: body, etag: headers.get(ETAG_HEADER), force });
+        } catch (e) {
+            toast.error(localizeError(error, t), error);
+            toast.error(localizeError(e, t), e);
+        }
+    };
+
+    const closeConflict = () => { setConflict(null); setConflictCompare(false); };
+
+    // Saves only over the file `basis` names, when given: a file changed since
+    // is refused with CADDYFILE_CHANGED rather than overwritten.
+    const saveContent = async ({ force, basis }) => {
         setSaving(true);
         try {
             const q = `fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`; // eslint-disable-line i18next/no-literal-string -- API query parameter
-            const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
+            const headers = { "Content-Type": "text/plain", ...(basis ? { "If-Match": basis } : {}) };
+            const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers, body: content }, onUnauth);
+            closeConflict();
             notifyConfigurationSave(toast, t, result, t("caddyfile.savedReloaded"));
             await refreshSaved();
             if (historyOpen) loadHistory(true);
-        } catch (e) { toast.error(localizeError(e, t), e); }
+        } catch (e) {
+            if (e.code === "CADDYFILE_CHANGED") {
+                await showConflict(force, e);
+            } else {
+                toast.error(localizeError(e, t), e);
+            }
+        }
         finally { setSaving(false); }
     };
+
+    const save = async ({ force = false } = {}) => {
+        if (force && !await confirm(t("caddyfile.forceSaveConfirm"), { confirmLabel: t("caddyfile.forceSave"), danger: true })) return;
+        await saveContent({ force, basis: savedETag.current });
+    };
+
+    // Discards the editor's changes for the file that blocked the save.
+    const loadConflictingFile = () => {
+        savedETag.current = conflict.etag;
+        setContent(conflict.current); setOriginal(conflict.current);
+        closeConflict();
+    };
+
+    // Saves the editor's text over the file the user just reviewed; one changed
+    // again since then is refused again.
+    const overwriteConflictingFile = () => saveContent({ force: conflict.force, basis: conflict.etag });
 
     const reload = async () => {
         try {
@@ -517,6 +567,26 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                                 {!historyLoading && history.length === 0 && <div className="card-empty">{historyError ? localizeError(historyError, t) : t("caddyfile.noSavedVersions")}</div>}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {conflict && (
+                <div className="modal-overlay" onClick={closeConflict}>
+                    <div className="modal" role="dialog" aria-modal="true" aria-labelledby={CONFLICT_TITLE_ID} style={{ width: 720 }} onClick={e => e.stopPropagation()}>
+                        <div id={CONFLICT_TITLE_ID} className="modal-title">{t("caddyfile.conflictTitle")}</div>
+                        <div className="modal-hint">{t("errors.caddyfileChanged")} {t("caddyfile.conflictHint")}</div>
+                        {conflictCompare && <CaddyfileDiff oldText={conflict.current} newText={content} label={t("caddyfile.conflictDiff")} />}
+                        <div className="btn-row" style={{ justifyContent: "space-between", marginTop: 16 }}>
+                            <button className="btn btn-ghost" onClick={() => setConflictCompare(open => !open)} aria-expanded={conflictCompare}>
+                                {t(conflictCompare ? "caddyfile.conflictHideCompare" : "caddyfile.conflictCompare")}
+                            </button>
+                            <div className="btn-row">
+                                <button className="btn btn-ghost" onClick={closeConflict}>{t("caddyfile.conflictKeepEditing")}</button>
+                                <button className="btn btn-ghost" onClick={loadConflictingFile} disabled={saving}>{t("caddyfile.conflictLoadCurrent")}</button>
+                                <button className="btn btn-danger" onClick={overwriteConflictingFile} disabled={saving}>{saving ? t("common.saving") : t("caddyfile.conflictOverwrite")}</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
