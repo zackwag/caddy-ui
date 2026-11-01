@@ -10,10 +10,10 @@ const TOGGLE_TAB_FOCUS = process.platform === 'darwin' ? 'Shift+Alt+m' : 'Contro
 // Tab-indented on purpose: editing must keep existing tabs rather than convert them.
 const SITE = 'site.test {\n\treverse_proxy app:3000\n    respond ok\n}';
 
-// CodeMirror joins edits made within 500ms (its newGroupDelay) into one undo
-// step. Waiting past that after replacing the document keeps the replacement
-// its own step, so undoing later edits stops at it on fast machines too.
-const settleHistory = page => page.waitForTimeout(600);
+// CodeMirror ignores Shift when matching a printed character, so Ctrl+Shift+z
+// with a lowercase z reaches its Ctrl-z undo binding on Linux. Mod-y is redo
+// everywhere except macOS, where Cmd+Shift+Z is.
+const REDO = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y';
 
 // Keyboard checks shared by both editors, through real key events only.
 async function exerciseEditor(page, root, label) {
@@ -31,17 +31,18 @@ async function exerciseEditor(page, root, label) {
         }
     }
     async function undoAll() {
-        for (let i = 0; i < 20 && await text() !== SITE; i++) {
+        const visited = [await text()];
+        for (let i = 0; i < 20 && visited.at(-1) !== SITE; i++) {
             await page.keyboard.press('ControlOrMeta+z');
+            visited.push(await text());
         }
-        assert.equal(await text(), SITE, `${label}: undo restores the document`);
+        assert.equal(visited.at(-1), SITE, `${label}: undo restores the document, through ${JSON.stringify(visited)}`);
     }
 
     await content.click();
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.insertText(SITE);
     assert.equal(await text(), SITE, label);
-    await settleHistory(page);
 
     // Enter keeps the line's own indentation, tab or spaces (#429)
     await caretAt(2, { end: true });
@@ -52,8 +53,8 @@ async function exerciseEditor(page, root, label) {
     await page.keyboard.type('b');
     assert.equal(await text(), 'site.test {\n\treverse_proxy app:3000\n\ta\n    respond ok\n    b\n}', `${label}: Enter keeps indentation`);
     await undoAll();
-    await page.keyboard.press('ControlOrMeta+Shift+z');
-    assert.notEqual(await text(), SITE, `${label}: redo reapplies the edits`);
+    await page.keyboard.press(REDO);
+    assert.equal(await text(), 'site.test {\n\treverse_proxy app:3000\n\ta\n    respond ok\n}', `${label}: redo reapplies the first edit`);
     await undoAll();
 
     // Enter over a selection replaces it and leaves the caret after the indentation
