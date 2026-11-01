@@ -14,17 +14,19 @@ import { useTestStack } from './stack.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 
-async function readLiveConfig(adminUrl) {
-    // Reloads replace Caddy's admin server asynchronously. An idle connection
-    // can close just as this fixture reuses it. Retry this read once on a fresh
-    // connection; mutation requests must retain their uncertain-write semantics.
+// Reloads replace Caddy's admin server asynchronously. An idle connection
+// can close just as this fixture reuses it. Retry the fixture's own reads once
+// on a fresh connection; mutation requests must retain their uncertain-write semantics.
+async function retryClosedRead(read) {
     try {
-        return await caddyGetConfig(adminUrl);
+        return await read();
     } catch (error) {
         if (error.cause?.code !== 'UND_ERR_SOCKET') throw error;
-        return caddyGetConfig(adminUrl);
+        return read();
     }
 }
+
+const readLiveConfig = adminUrl => retryClosedRead(() => caddyGetConfig(adminUrl));
 
 test('drift fixture retries a closed configuration read without hiding persistent or response errors', async t => {
     const scope = new FixtureScope(t.signal);
@@ -171,7 +173,7 @@ test('real Caddy route mutations explain only their own changes in the drift mon
                 const label = `${operation}, disk=${diskBacked}, external=${external}`;
                 assert.deepEqual(state.changes.map(change => change.representations), external ? [['live']] : [], label);
                 if (external) {
-                    assert.equal((await caddyGet('/id/drift-other', adminUrl)).handle[0].body, 'external');
+                    assert.equal((await retryClosedRead(() => caddyGet('/id/drift-other', adminUrl))).handle[0].body, 'external');
                     // Undo only the external edit. The local mutation remains,
                     // so an unchanged baseline would still report drift here.
                     await caddyPatch('/id/drift-other', other, adminUrl);

@@ -50,6 +50,8 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
         }
     }
     await makeReadable(dist);
+    // Only the Dev Container network selection is needed from the harness;
+    // this disposable name never creates harness resources.
     const network = await new Harness(randomBytes(8).toString('hex')).network();
     const container = 'caddy-ui-csp-' + randomUUID();
     await scope.acquire(() => exec('docker', ['create', '--name', container,
