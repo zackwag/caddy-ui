@@ -68,8 +68,7 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
     const { t } = useTranslation();
     const [range, setRange] = useState(RANGES[2]);
     const [autoRefresh, setAutoRefresh] = useState(true);
-    const [entries, setEntries] = useState(null);
-    const [intervalMs, setIntervalMs] = useState(0);
+    const [{ entries, intervalMs, now }, setSnapshot] = useState(() => ({ entries: null, intervalMs: 0, now: Date.now() }));
     const [error, setError] = useState(null);
     const [focus, setFocus] = useState(null);
     const target = route || upstream;
@@ -80,7 +79,15 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
             const since = Date.now() - range.ms;
             const param = route ? `route=${encodeURIComponent(route)}` : `upstream=${encodeURIComponent(upstream)}`;
             apiFetch(`/health/history?${param}&since=${since}`, {}, onUnauth)
-                .then(data => { if (!cancelled) { setEntries(data.entries); setIntervalMs(data.intervalMs || 0); setError(null); } })
+                .then(data => {
+                    if (cancelled) return;
+                    // Keep the window and its data together. Unrelated renders
+                    // should not move the window or invalidate its summary.
+                    const now = Date.now();
+                    setSnapshot({ entries: data.entries, intervalMs: data.intervalMs || 0, now });
+                    setFocus(current => current && current.incidentEnd > now - range.ms && current.start < now ? current : null);
+                    setError(null);
+                })
                 .catch(e => { if (!cancelled) setError(e); });
         };
         load();
@@ -89,7 +96,6 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
         return () => { cancelled = true; clearInterval(timer); };
     }, [upstream, route, range, autoRefresh, onUnauth]);
 
-    const now = Date.now();
     const overviewStart = now - range.ms;
     const rangeStart = focus ? Math.max(focus.start, overviewStart) : overviewStart;
     const rangeEnd = focus ? Math.max(rangeStart + 1, Math.min(focus.end, now)) : now;
@@ -103,7 +109,7 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
         start: formatActivityTime(incident.start), duration: formatDuration(incident.end - incident.start),
     });
     function inspectIncident(incident) {
-        setFocus({ start: Math.max(overviewStart, incident.start - 5 * 60_000), end: Math.min(now, incident.end + 5 * 60_000) });
+        setFocus({ start: Math.max(overviewStart, incident.start - 5 * 60_000), end: Math.min(now, incident.end + 5 * 60_000), incidentEnd: incident.end });
     }
 
     return (
@@ -152,7 +158,7 @@ export default function RouteHistoryModal({ title, upstream, route, onUnauth, on
                             <button className="btn btn-ghost btn--sm" onClick={() => setFocus(null)}>{t("routeHistory.backToOverview")}</button>
                         </div>}
                         <div className="history-timeline-wrap">
-                            <div className="history-timeline" aria-label={t("routeHistory.observedTimeline")}>
+                            <div className="history-timeline" role="img" aria-label={t("routeHistory.observedTimeline")}>
                                 {history.segments.map((seg, i) => (
                                     <div
                                         key={i}

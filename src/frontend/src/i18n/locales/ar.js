@@ -421,10 +421,7 @@ export default {
         "autoRefresh": "تحديث تلقائي",
         "segmentTitle": "{{status}} — من {{start}} إلى {{end}}",
         "now": "الآن",
-        "uptime": "التوافر",
-        "checks": "الفحوص",
-        "activity": "النشاط",
-        "noChanges": "لا توجد تغييرات في الحالة خلال هذه الفترة"
+        "uptime": "التوافر"
     },
     "routes": {
         "editRoute": "تعديل المسار",

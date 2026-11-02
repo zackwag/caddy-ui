@@ -468,9 +468,6 @@ export default {
         segmentTitle: '{{status}} — {{start}} bis {{end}}',
         now: 'Jetzt',
         uptime: 'Verfügbarkeit',
-        checks: 'Prüfungen',
-        activity: 'Aktivität',
-        noChanges: 'Keine Statusänderungen in diesem Zeitraum',
     },
 
     routes: {
