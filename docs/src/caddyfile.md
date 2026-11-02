@@ -57,6 +57,57 @@ the same name.
 Attribution identifies the credential used to submit a change. It is not proof
 of which person used that credential, and local history is not tamper-proof.
 
+## Changes made outside caddy/ui
+
+The backend checks every instance once a minute, whether or not anyone has the
+UI open, and logs configuration changes it can't explain. Manual Caddyfile
+edits, automation and direct admin API calls are all detected:
+
+- The Caddyfile is fingerprinted with a SHA-256 hash of its text.
+- The running config is fingerprinted with the `ETag` Caddy sends for
+  `GET /config/` (Caddy 2.6 and later), or with a hash of the response when
+  there isn't one.
+
+caddy/ui keeps the state it expects separate from the state it observes. The
+expected state comes from the startup baseline and from caddy/ui's own changes
+once they read back as verified (see
+[configuration change verification](api.md#configuration-change-verification)).
+A change that didn't verify, for example one that timed out, is accepted only
+when a later check finds the file it wrote and a running config that matches
+it. Anything else is reported as
+`Configuration changed outside caddy-ui`, naming the instance and whether the
+`file`, the running config (`live`) or both changed. Observing a change never
+makes it the expected state, so it stays reported until the configuration
+returns to the expected state or caddy/ui saves a new one.
+
+A route add, edit or deletion updates only that route in the expected running
+configuration, whether or not the operation also writes the Caddyfile. An
+unrelated external edit remains unexplained. A full save or reload instead uses
+the adapter's complete intended configuration. File expectations use the text
+that was verified, rather than a later read that could include another edit.
+
+To attribute route changes, the monitor retains one expected configuration
+snapshot per instance in memory. Normal checks compare fingerprints; when a
+fingerprint differs, the observed JSON can be compared with this expected result.
+These snapshots aren't included in drift history, diagnostics or logs.
+
+Each distinct unexplained state is logged once, so an edit that stays in
+place doesn't repeat every minute. Failed checks are logged separately as
+`Configuration drift check unavailable`, once per outage, and never count as
+changes. Logs contain short fingerprints, never configuration text. The 20
+most recent unexplained changes per instance are kept in memory for later
+history.
+
+Limitations:
+
+- Only the main Caddyfile is fingerprinted. An edit to an imported file shows
+  up only once Caddy reloads it and the running config changes.
+- A change that's reverted within a minute can go unnoticed.
+- The expected state isn't persisted. Restarting the backend establishes a new
+  baseline, so changes made while it was stopped aren't reported.
+- An unexplained change doesn't prove unauthorized access. It may be
+  legitimate maintenance or automation.
+
 ## Caddyfile Titles
 
 When enabled, route titles are stored as `#` comments inside each site block in your Caddyfile instead of in `route-notes.json`. This keeps titles co-located with the routes they describe and follows caddy/ui's principle of using the Caddyfile as the source of truth.

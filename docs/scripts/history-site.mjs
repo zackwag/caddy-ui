@@ -65,7 +65,7 @@ function resolverPage(assets, tag = '') {
 </main><script type="module" src="${assets}resolve.js" data-docs-version="${escape(tag)}"></script></body></html>\n`;
 }
 
-export function publishSite({ root, archive, developmentBook, output, base = '/caddy-ui/', developmentCommit, grouping, older = [], inventory }) {
+export function publishSite({ root, archive, developmentBook, output, base = '/caddy-ui/', developmentCommit, grouping, older = [], inventory, requireCollected = false }) {
     siteBase(base);
     if (!/^[a-f0-9]{40}$/.test(developmentCommit)) throw new Error('Development source must be a commit ID');
     const manifest = JSON.parse(readFileSync(join(archive, 'backfill.json'), 'utf8'));
@@ -86,6 +86,10 @@ export function publishSite({ root, archive, developmentBook, output, base = '/c
         if (!inventory.releases.some(current => current.tag === release.tag && current.commit === release.commit)) {
             throw new Error(`Archived release was changed or removed: ${release.tag}`);
         }
+    }
+    if (requireCollected) {
+        const missing = inventory.releases.filter(release => !manifest.results.some(result => result.tag === release.tag && result.commit === release.commit));
+        if (missing.length) throw new Error(`Archive collection has not covered: ${missing.map(release => release.tag).join(', ')}`);
     }
     for (const release of older) {
         if (!legacyTag.test(release.tag) || !/^[a-f0-9]{40}$/.test(release.commit)) throw new Error('Invalid legacy release');
@@ -157,14 +161,18 @@ export function publishSite({ root, archive, developmentBook, output, base = '/c
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     try {
-        const args = options(process.argv.slice(2), ['repo', 'archive', 'development', 'output', 'base', 'inventory']);
+        const args = options(process.argv.slice(2), ['repo', 'archive', 'development', 'output', 'base', 'inventory', 'require-collected']);
+        if (args['require-collected'] !== undefined && !['true', 'false'].includes(args['require-collected'])) {
+            throw new Error('--require-collected must be true or false');
+        }
         const root = resolve(args.repo || fileURLToPath(new URL('../..', import.meta.url)));
         const archive = resolve(args.archive || root + '/.docs-history');
         const manifest = JSON.parse(readFileSync(join(archive, 'backfill.json'), 'utf8'));
         const inventory = args.inventory ? JSON.parse(readFileSync(resolve(args.inventory), 'utf8')) : manifest.inventory;
         const catalog = publishSite({ root, archive, developmentBook: resolve(args.development || root + '/docs/book'),
             output: resolve(args.output || root + '/.docs-site'), base: args.base || '/caddy-ui/', developmentCommit: git(root, ['rev-parse', 'HEAD']),
-            grouping: JSON.parse(readFileSync(join(root, 'docs/history/groups.json'), 'utf8')), older: legacyReleases(root, inventory), inventory });
+            grouping: JSON.parse(readFileSync(join(root, 'docs/history/groups.json'), 'utf8')), older: legacyReleases(root, inventory), inventory,
+            requireCollected: args['require-collected'] === 'true' });
         console.log(`Published development documentation and ${catalog.releases.length} release entries (${Object.keys(catalog.books).length} shared books).`);
     } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

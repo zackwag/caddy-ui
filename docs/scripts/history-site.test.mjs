@@ -104,3 +104,24 @@ test('HTML decoration uses actual tags and fixes the mdBook 404 base for project
     assert(html.includes('const example = "</body>";'));
 });
 
+test('release publication requires collection evidence and never replaces the site with an uncollected release', t => {
+    const f = fixture(t);
+    publishSite({ ...f, requireCollected: true });
+    const catalogPath = join(f.output, 'documentation.json');
+    const previous = readFileSync(catalogPath, 'utf8');
+    const manifest = JSON.parse(readFileSync(join(f.archive, 'backfill.json'), 'utf8'));
+    const inventory = structuredClone(manifest.inventory);
+    const release = { ...inventory.releases[0], tag: 'v2.20.3', commit: 'b'.repeat(40), images: { frontend: null, backend: null } };
+    inventory.releases.push(release);
+    assert.throws(() => publishSite({ ...f, inventory, requireCollected: true }), /has not covered: v2.20.3/);
+    assert.equal(readFileSync(catalogPath, 'utf8'), previous);
+    // A recorded historical rendering failure is still an explicit fallback;
+    // a release the collector never attempted cannot masquerade as one.
+    manifest.inventory = inventory;
+    manifest.inventoryFingerprint = createHash('sha256').update(JSON.stringify(inventory)).digest('hex');
+    manifest.results.push({ tag: release.tag, commit: release.commit, status: 'failed', error: 'Historical rendering failed' });
+    writeFileSync(join(f.archive, 'backfill.json'), JSON.stringify(manifest));
+    const catalog = publishSite({ ...f, inventory, requireCollected: true });
+    assert.equal(catalog.releases.find(entry => entry.tag === release.tag).snapshot, null);
+});
+
