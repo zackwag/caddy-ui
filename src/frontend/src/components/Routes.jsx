@@ -24,63 +24,20 @@ function MiniCodeMirror({ value, onChange, theme }) {
     useEffect(() => {
         if (!containerRef.current) return;
         let view;
+        let cancelled = false;
 
         async function init() {
-            const { EditorView, keymap, lineNumbers, highlightActiveLineGutter, drawSelection, highlightSpecialChars } = await import("@codemirror/view");
-            const { EditorState } = await import("@codemirror/state");
-            const { defaultKeymap, historyKeymap, history } = await import("@codemirror/commands");
-            const { StreamLanguage, syntaxHighlighting, indentOnInput, bracketMatching } = await import("@codemirror/language");
-            const { classHighlighter } = await import("@lezer/highlight");
-            const { caddyfile } = await import("../lib/caddyfileMode.js");
-
-            const isDark = theme === 'dark';
-
-            // Colors read from the CSS theme variables (see styles.js) rather than
-            // being hardcoded per-theme here, so a new theme needs no changes in
-            // this file -- only a new entry in the THEMES registry.
-            const editorTheme = EditorView.theme({
-                "&": { background: "var(--editor-bg)", color: "var(--text)", fontSize: "13px", fontFamily: "'IBM Plex Mono', monospace" },
-                ".cm-content": { padding: "12px", caretColor: "var(--accent)", lineHeight: "1.7" },
-                ".cm-gutters": { background: "var(--editor-gutter)", color: "var(--muted)", border: "none", borderRight: "1px solid var(--editor-border)", paddingRight: "8px" },
-                ".cm-activeLineGutter": { background: "var(--editor-active-gutter)" },
-                ".cm-activeLine": { background: "var(--editor-active-line)" },
-                ".cm-cursor": { borderLeftColor: "var(--accent)" },
-                ".cm-selectionBackground, ::selection": { background: "var(--editor-selection) !important" },
-                ".cm-line": { padding: "0 4px" },
-                ".tok-keyword": { color: "var(--accent)" },
-                ".tok-string": { color: "var(--warn)" },
-                ".tok-comment": { color: "var(--muted)", fontStyle: "italic" },
-                ".tok-number": { color: "var(--accent2)" },
-                ".tok-operator": { color: "var(--text)" },
-                ".tok-variableName": { color: "var(--danger)" },
-                ".tok-typeName": { color: "var(--accent)" },
-                ".tok-atom": { color: "var(--warn)" },
-                ".tok-propertyName": { color: "var(--accent2)" },
-                ".tok-variableName2": { color: "var(--accent3)" },
-                "& .cm-scroller": { overflow: "auto" },
-            }, { dark: isDark });
-
-            const startState = EditorState.create({
-                doc: value,
-                extensions: [
-                    lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(),
-                    history(), drawSelection(), indentOnInput(), bracketMatching(),
-                    syntaxHighlighting(classHighlighter),
-                    StreamLanguage.define(caddyfile), editorTheme,
-                    keymap.of([...defaultKeymap, ...historyKeymap]),
-                    EditorView.updateListener.of(update => {
-                        if (update.docChanged) onChangeRef.current(update.state.doc.toString());
-                    }),
-                    EditorView.lineWrapping,
-                ],
+            const { createCaddyfileEditor } = await import("../utils/caddyfileEditor.js");
+            if (cancelled) return;
+            view = createCaddyfileEditor({
+                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "12px",
+                onChange: doc => onChangeRef.current(doc),
             });
-
-            view = new EditorView({ state: startState, parent: containerRef.current });
             viewRef.current = view;
         }
 
         init();
-        return () => { view?.destroy(); viewRef.current = null; };
+        return () => { cancelled = true; view?.destroy(); viewRef.current = null; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [theme]);
 

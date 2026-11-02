@@ -94,6 +94,9 @@ test('saved versions show stable attribution, preserve unknown external edits an
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
     await page.locator('.modal--confirm').getByRole('button', { name: 'Restore', exact: true }).click();
     await page.getByText(/^Restored from/).waitFor();
+    // The editor closes History once the restored file is reloaded, which can
+    // land after the toast. Opening it again before then would toggle it shut.
+    await page.getByRole('group', { name: 'Version details' }).waitFor({ state: 'detached' });
     const restored = (await stack.api('/caddyfile/history')).data;
     assert.notEqual(restored[0].filename, first.filename);
     assert.equal(restored[0].actor.id, first.actor.id);
