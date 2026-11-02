@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.8.0](https://github.com/zackwag/caddy-ui/compare/v3.7.4...v3.8.0) (2026-11-02)
+
+
+### Features
+
+* detect external Caddy configuration changes against verified state ([#456](https://github.com/zackwag/caddy-ui/issues/456)) ([eb299ad](https://github.com/zackwag/caddy-ui/commit/eb299ad4ab4078f6c8d4f50d70c611e6ffa2274a))
+
+
+### Bug Fixes
+
+* **ci:** amend release-please commit with Docker Hub docs to avoid double push ([#512](https://github.com/zackwag/caddy-ui/issues/512)) ([0c644e0](https://github.com/zackwag/caddy-ui/commit/0c644e0be11877dbec8348b2ba22f10ac3de75d0))
+* **ci:** revert amend — release-please closes its PR when the commit SHA changes ([98b4bb8](https://github.com/zackwag/caddy-ui/commit/98b4bb84d1f0933e18e9bc042abb138d6eb58834))
+* **ci:** revert release-please commit amend ([#513](https://github.com/zackwag/caddy-ui/issues/513)) ([98b4bb8](https://github.com/zackwag/caddy-ui/commit/98b4bb84d1f0933e18e9bc042abb138d6eb58834))
+* **dev:** drop the drift fixture's own closed-connection retry ([#510](https://github.com/zackwag/caddy-ui/issues/510)) ([b23895c](https://github.com/zackwag/caddy-ui/commit/b23895c6ea8c2df90295cdb70298226406174e58))
+* make admin API route edits conditional on the config they read ([#501](https://github.com/zackwag/caddy-ui/issues/501)) ([89e75ad](https://github.com/zackwag/caddy-ui/commit/89e75ad91b5a8fe524f33e934928a6f9933d238e))
+* reject editor saves when the Caddyfile changed since it was loaded ([#502](https://github.com/zackwag/caddy-ui/issues/502)) ([5b1326f](https://github.com/zackwag/caddy-ui/commit/5b1326ff5d66fdc0ddb0edad919e516389e15bc5))
+* resend admin API reads on connections Caddy closes during a reload ([#509](https://github.com/zackwag/caddy-ui/issues/509)) ([dc7f9c8](https://github.com/zackwag/caddy-ui/commit/dc7f9c88284464a20bfdb175b287bf62da08d4f4))
+* treat timed-out configuration writes as uncertain ([#455](https://github.com/zackwag/caddy-ui/issues/455)) ([9581207](https://github.com/zackwag/caddy-ui/commit/9581207a0317cdd85b84de1170adccae684b0187))
+
+
+### Miscellaneous Chores
+
+* **dev:** restore complete Dev Container setup for both Linux architectures ([9c8edb2](https://github.com/zackwag/caddy-ui/commit/9c8edb2a6ef8c51957943de194414bfa8d5fd6af))
+* **dev:** restore the Dev Container setup with ARM64 mdBook support ([#511](https://github.com/zackwag/caddy-ui/issues/511)) ([9c8edb2](https://github.com/zackwag/caddy-ui/commit/9c8edb2a6ef8c51957943de194414bfa8d5fd6af))
+
 ## [3.7.4](https://github.com/zackwag/caddy-ui/compare/v3.7.3...v3.7.4) (2026-10-28)
 
 
