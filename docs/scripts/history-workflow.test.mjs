@@ -27,8 +27,8 @@ test('the reusable archive serializes writers without replacing a second pending
     assert.match(archiveWorkflow, /^ {2}cancel-in-progress: false$/m);
 });
 
-test('documentation preserves pending publications but cancels stale PR builds', () => {
-    assert.match(workflow, /^ {2}queue: max$/m);
+test('documentation cancels stale PR builds without queuing', () => {
+    assert.doesNotMatch(workflow, /^ {2}queue:/m);
     assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
     const pinnedWorkflow = job('archive').match(/documentation-history\.yml@([a-f0-9]{40})/)[1];
     const pinnedTooling = job('archive').match(/tooling_ref: ([a-f0-9]{40})/)[1];
