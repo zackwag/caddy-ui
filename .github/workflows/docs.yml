@@ -41,7 +41,7 @@ concurrency:
   group: documentation-${{ github.ref }}-${{ inputs.archive_history && 'archive' || 'site' }}
   # Preserve pending release/manual requests when more pushes arrive.
   queue: max
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   archive:
