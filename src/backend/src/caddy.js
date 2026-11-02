@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import logger from './logger.js';
 
 export const CADDY_ADMIN_URL = (process.env.CADDY_ADMIN_URL || 'http://caddy:2019').replace(/\/+$/, '');
@@ -7,7 +8,25 @@ const HEADERS = {
     'Origin': 'http://0.0.0.0:2019',
 };
 
-const TIMEOUT_MS = 10000;
+let timeoutMs = 10000;
+// How long a write that already timed out may keep running before caddy-ui
+// stops waiting for it. Stopping doesn't prove Caddy didn't apply it.
+const LATE_SETTLEMENT_LIMIT_MS = 60000;
+
+// For tests, which can't wait for the real timeout.
+export function setRequestTimeout(ms) {
+    timeoutMs = ms;
+}
+
+// Caddy didn't answer in time. The request may still complete, so callers must
+// treat the outcome as unknown: neither applied nor rejected, and not retried.
+export class CaddyTimeoutError extends Error {
+    constructor(label, ms) {
+        super(`Caddy API timeout after ${ms}ms: ${label}`);
+        this.name = 'CaddyTimeoutError';
+        this.code = 'CADDY_TIMEOUT';
+    }
+}
 
 // Counts configuration writes per admin API, so observations.js can tell a
 // read that may predate a write from one that can't. Bumped once a write
@@ -24,44 +43,111 @@ export function markConfigChanged(adminUrl) {
     configGenerations.set(base, configGeneration(base) + 1);
 }
 
+// Writes per admin API whose requests haven't settled, including ones that
+// already timed out. Until they settle, the running config may still change.
+const unsettledWrites = new Map();
+
+export function hasUnsettledWrites(adminUrl) {
+    return unsettledWrites.has(adminUrl || CADDY_ADMIN_URL);
+}
+
+// A configuration write as a fetch whose settlement, however late, invalidates
+// observations again. A write that timed out can still complete in Caddy, and
+// reads made in between would otherwise keep the old config until they expire.
+function configWrite(base, label, url, options) {
+    const request = fetch(url, { ...options, signal: AbortSignal.timeout(LATE_SETTLEMENT_LIMIT_MS) });
+    const tracked = { timedOut: false };
+    unsettledWrites.set(base, (unsettledWrites.get(base) || 0) + 1);
+    const settled = () => {
+        const remaining = unsettledWrites.get(base) - 1;
+        if (remaining) unsettledWrites.set(base, remaining);
+        else unsettledWrites.delete(base);
+    };
+    request.finally(settled).catch(() => {});
+    request.then(
+        response => {
+            markConfigChanged(base);
+            if (tracked.timedOut) logger.warn('Caddy write completed after its timeout', { label, adminUrl: base, status: response.status });
+        },
+        error => {
+            markConfigChanged(base);
+            if (tracked.timedOut) logger.warn('Caddy write failed after its timeout', { label, adminUrl: base, error: error.name });
+        },
+    );
+    return withTimeout(request, timeoutMs, label).catch(error => {
+        if (error instanceof CaddyTimeoutError) tracked.timedOut = true;
+        throw error;
+    });
+}
+
+// Caddy replaces its admin server on every config load and closes the old
+// server's idle keep-alive connections. A request sent on one of them just as
+// it closes fails with UND_ERR_SOCKET ("other side closed"), or ECONNRESET
+// when the connection is reset rather than closed. Right after a
+// write, that's the readback, which then looked unavailable although the
+// change applied. A request that doesn't change Caddy's state is sent once
+// more on a fresh connection. A write is never resent: Caddy may already have
+// applied it (see CaddyTimeoutError).
+export function isClosedConnection(error) {
+    return ['UND_ERR_SOCKET', 'ECONNRESET'].includes(error?.cause?.code);
+}
+
+async function fetchIdempotent(url, options) {
+    try {
+        return await fetch(url, options);
+    } catch (error) {
+        if (!isClosedConnection(error) || options.signal?.aborted) {
+            throw error;
+        }
+        logger.debug('Caddy closed an idle admin connection, sending the read again', { url });
+        return fetch(url, options);
+    }
+}
+
 export function withTimeout(promise, ms, label) {
     return Promise.race([
         promise,
         new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`Caddy API timeout after ${ms}ms: ${label}`)), ms)
+            setTimeout(() => reject(new CaddyTimeoutError(label, ms)), ms)
         ),
     ]);
 }
 
-async function caddyRequest(method, path, body, adminUrl) {
+// Resolves to the parsed body and the response's ETag. `ifMatch` makes a write
+// conditional: Caddy refuses it with 412 when the config at the ETag's path has
+// changed. Caddy releases without ETags send no ETag, and an absent one sends
+// no condition.
+async function caddyRequest(method, path, body, adminUrl, { ifMatch } = {}) {
     const base = adminUrl || CADDY_ADMIN_URL;
     const url = `${base}${path}`;
     const start = Date.now();
     logger.debug(`Caddy API request`, { method, path, adminUrl: base });
 
     try {
-        const res = await withTimeout(
-            fetch(url, {
-                method,
-                headers: HEADERS,
-                body: body !== undefined ? JSON.stringify(body) : undefined,
-            }),
-            TIMEOUT_MS,
-            `${method} ${path}`
-        );
+        const headers = ifMatch ? { ...HEADERS, 'If-Match': ifMatch } : HEADERS;
+        const options = { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined };
+        const label = `${method} ${path}`;
+        const res = method === 'GET'
+            ? await withTimeout(fetchIdempotent(url, options), timeoutMs, label)
+            : await configWrite(base, label, url, options);
 
         const elapsed = Date.now() - start;
 
         if (!res.ok) {
             const text = await res.text();
-            logger.error(`Caddy API error`, { method, path, status: res.status, elapsed, body: text.slice(0, 200) });
+            // A failed precondition is Caddy guarding a concurrent change, not a fault
+            const log = res.status === 412 ? logger.warn : logger.error;
+            log.call(logger, `Caddy API error`, { method, path, status: res.status, elapsed, body: text.slice(0, 200) });
             throw Object.assign(new Error(`Caddy API error: ${res.status} ${text}`), { status: res.status });
         }
 
         logger.debug(`Caddy API response`, { method, path, status: res.status, elapsed });
+        const etag = res.headers.get('etag');
         const text = await res.text();
-        if (!text) return null;
-        try { return JSON.parse(text); } catch { return text; }
+        if (!text) {
+            return { value: null, etag };
+        }
+        try { return { value: JSON.parse(text), etag }; } catch { return { value: text, etag }; }
     } catch (err) {
         const elapsed = Date.now() - start;
         if (!err.message.includes('Caddy API error')) {
@@ -73,11 +159,16 @@ async function caddyRequest(method, path, body, adminUrl) {
     }
 }
 
-export const caddyGet = (path, adminUrl) => caddyRequest('GET', path, undefined, adminUrl);
-export const caddyPut = (path, body, adminUrl) => caddyRequest('PUT', path, body, adminUrl);
-export const caddyPost = (path, body, adminUrl) => caddyRequest('POST', path, body, adminUrl);
-export const caddyPatch = (path, body, adminUrl) => caddyRequest('PATCH', path, body, adminUrl);
-export const caddyDelete = (path, adminUrl) => caddyRequest('DELETE', path, undefined, adminUrl);
+const valueOf = response => response.value;
+
+export const caddyGet = (path, adminUrl) => caddyRequest('GET', path, undefined, adminUrl).then(valueOf);
+// A read whose ETag can make a later write conditional on what was read:
+// { value, etag }, with etag null when Caddy sends none.
+export const caddyGetTagged = (path, adminUrl) => caddyRequest('GET', path, undefined, adminUrl);
+export const caddyPut = (path, body, adminUrl, options) => caddyRequest('PUT', path, body, adminUrl, options).then(valueOf);
+export const caddyPost = (path, body, adminUrl, options) => caddyRequest('POST', path, body, adminUrl, options).then(valueOf);
+export const caddyPatch = (path, body, adminUrl, options) => caddyRequest('PATCH', path, body, adminUrl, options).then(valueOf);
+export const caddyDelete = (path, adminUrl, options) => caddyRequest('DELETE', path, undefined, adminUrl, options).then(valueOf);
 
 // A read for configuration readback. Unlike caddyGet, its deadline covers the
 // body as well as the headers, a body that isn't a JSON object or null is
@@ -86,7 +177,7 @@ export const caddyDelete = (path, adminUrl) => caddyRequest('DELETE', path, unde
 // HTTP status when there was one.
 export async function caddyReadJson(path, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
-    const res = await fetch(`${base}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const res = await fetchIdempotent(`${base}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) {
         await res.body?.cancel();
         throw Object.assign(new Error(`Caddy readback failed: ${res.status}`), { status: res.status });
@@ -98,6 +189,25 @@ export async function caddyReadJson(path, adminUrl) {
     return value;
 }
 
+// The whole running config with a fingerprint of it: Caddy's ETag when it sends
+// one (Caddy 2.6+), otherwise a hash of the response body. Equal fingerprints
+// mean the same config. The signal covers both headers and body so a stalled
+// response can't hold the instance queue beyond the deadline.
+export async function caddyGetConfig(adminUrl) {
+    const base = adminUrl || CADDY_ADMIN_URL;
+    const signal = AbortSignal.timeout(timeoutMs);
+    const res = await fetchIdempotent(`${base}/config/`, { headers: HEADERS, signal });
+    const text = await res.text();
+    if (!res.ok) {
+        throw Object.assign(new Error(`Caddy API error: ${res.status}`), { status: res.status });
+    }
+    const etag = res.headers.get('etag');
+    return {
+        config: text ? JSON.parse(text) : null,
+        fingerprint: etag ? `etag:${etag}` : `sha256:${createHash('sha256').update(text).digest('hex')}`,
+    };
+}
+
 // Adapts Caddyfile text to JSON the same way POST /load does, without
 // changing the running config. Rejections carry Caddy's message as `stderr`
 // so validation can report it like `caddy adapt` output. The signal keeps the
@@ -105,13 +215,14 @@ export async function caddyReadJson(path, adminUrl) {
 export async function caddyAdapt(caddyfileContent, adminUrl) {
     const base = adminUrl || CADDY_ADMIN_URL;
     const res = await withTimeout(
-        fetch(`${base}/adapt?adapter=caddyfile`, {
+        // Adapting doesn't change the running config, so it's retried like a read
+        fetchIdempotent(`${base}/adapt?adapter=caddyfile`, {
             method: 'POST',
             headers: { ...HEADERS, 'Content-Type': 'text/caddyfile' },
             body: caddyfileContent,
-            signal: AbortSignal.timeout(TIMEOUT_MS),
+            signal: AbortSignal.timeout(timeoutMs),
         }),
-        TIMEOUT_MS,
+        timeoutMs,
         'POST /adapt'
     );
     const text = await res.text();
@@ -128,15 +239,11 @@ export async function caddyLoad(caddyfileContent, adminUrl) {
     logger.info(`Caddy reload initiated`, { adminUrl: base });
 
     try {
-        const res = await withTimeout(
-            fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
-                body: caddyfileContent,
-            }),
-            TIMEOUT_MS,
-            'POST /load'
-        );
+        const res = await configWrite(base, 'POST /load', url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
+            body: caddyfileContent,
+        });
 
         const elapsed = Date.now() - start;
 

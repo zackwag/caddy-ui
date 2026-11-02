@@ -4,6 +4,9 @@ The mdBook site is authored as individual Markdown pages in `docs/src/`.
 `SUMMARY.md` defines their sidebar order and nesting. New contributors should
 start with [documentation onboarding](src/contributing-documentation.md).
 
+Historical release collection and backfill commands are documented in
+[historical documentation collection](history/README.md).
+
 The root README remains canonical for environment variables, API endpoints, the
 Compose example, and all content selected for Docker Hub. Book reference pages
 use mdBook's built-in `{{#include}}` syntax with named `ANCHOR` / `ANCHOR_END`
@@ -101,8 +104,15 @@ npm test --prefix docs
 
 ## GitHub Pages
 
-The Documentation workflow builds and uploads a preview artifact on PRs. Pushes
-to `main` build and publish the book. Select **GitHub Actions** under the repository's
+The Documentation workflow builds and uploads a preview artifact on PRs and forks.
+In the upstream repository, pushes to `main`, successful Release runs and daily
+catch-up runs assemble and publish the development book alongside the preserved
+release books. Historical books are downloaded and verified from the public
+archive in `juscghwe/caddy-ui`; collection and archive writes stay in that fork.
+See [archive ownership and publication](history/README.md#crawl-future-releases)
+for configuration, failure behavior and local versioned-site previews.
+
+Select **GitHub Actions** under the repository's
 **Settings → Pages → Build and deployment → Source** before deploying.
 
 The workflow derives the site path from the repository name for project Pages
@@ -110,5 +120,5 @@ sites, including renamed forks. A user/organization Pages repository uses `/`.
 For a custom domain, set `site-url` in `book.toml` to its serving path and remove
 the workflow's `MDBOOK_OUTPUT__HTML__SITE_URL` override.
 
-Pages deployment does not run from PRs. Repository Pages access and any configured
+Pages deployment does not run from PRs or forks. Repository Pages access and any configured
 `github-pages` environment approval are required for deployment.

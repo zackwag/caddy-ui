@@ -1,0 +1,138 @@
+name: Historical documentation archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: Allow the initial archive to be created if none exists
+        type: boolean
+        default: false
+      retry_failed:
+        description: Retry failed books; verified successful snapshots stay unchanged
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      tooling_ref:
+        description: Pinned tooling commit when called from a separate default-branch workflow
+        type: string
+        default: ''
+      bootstrap:
+        type: boolean
+        default: false
+      retry_failed:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: historical-documentation-archive
+  # Keep every pending writer; the default single slot replaces older requests.
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    # Storage belongs to the owner's fork. PR code never receives a write token.
+    if: github.repository == 'juscghwe/caddy-ui' && github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.tooling_ref || github.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: Install archive tooling
+        run: npm ci --prefix docs --ignore-scripts
+
+      - name: Restore and verify the persistent archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOOTSTRAP: ${{ inputs.bootstrap || false }}
+        run: node docs/scripts/history-archive.mjs restore --repository "$GITHUB_REPOSITORY" --bootstrap "$BOOTSTRAP"
+
+      - name: Discover upstream releases and image publications
+        env:
+          INVENTORY_FILE: ${{ runner.temp }}/documentation-releases.json
+        run: |
+          git fetch https://github.com/zackwag/caddy-ui.git --tags refs/heads/main:refs/remotes/upstream/main refs/heads/versions:refs/remotes/upstream/versions
+          node docs/scripts/history-inventory.mjs --to refs/remotes/upstream/main --output "$INVENTORY_FILE"
+
+      - name: Install mdBook
+        env:
+          MDBOOK_VERSION: '0.5.4'
+          MDBOOK_SHA256: '3f28de05dafca9d0f2eab99c662116b0e37b89b1d96a08f8f430b9eeae958cd7'
+        run: |
+          curl --fail --location --retry 3 \
+            "https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/mdbook-v${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            --output "$RUNNER_TEMP/mdbook.tar.gz"
+          echo "$MDBOOK_SHA256  $RUNNER_TEMP/mdbook.tar.gz" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/mdbook-bin"
+          tar -xzf "$RUNNER_TEMP/mdbook.tar.gz" -C "$RUNNER_TEMP/mdbook-bin"
+          echo "$RUNNER_TEMP/mdbook-bin" >> "$GITHUB_PATH"
+
+      - name: Check whether any historical render is needed
+        id: rendering
+        env:
+          INVENTORY_FILE: ${{ runner.temp }}/documentation-releases.json
+          RETRY_FAILED: ${{ inputs.retry_failed || false }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+          import { requiresBuild } from './docs/scripts/history-backfill.mjs';
+          const { releases } = JSON.parse(readFileSync(process.env.INVENTORY_FILE, 'utf8'));
+          const previous = existsSync('.docs-history/backfill.json')
+              ? JSON.parse(readFileSync('.docs-history/backfill.json', 'utf8')).results : [];
+          const needed = releases.some(release => requiresBuild(previous.find(result => result.tag === release.tag),
+              { reuse: true, retryFailed: process.env.RETRY_FAILED === 'true' }));
+          appendFileSync(process.env.GITHUB_OUTPUT, `needed=${needed}\n`);
+          JS
+
+      - name: Install historical rendering support
+        if: steps.rendering.outputs.needed == 'true'
+        run: |
+          npm ci --prefix dev --ignore-scripts
+          npm exec --prefix dev -- playwright install --with-deps chromium
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          import { chromium } from './dev/node_modules/playwright/index.mjs';
+          appendFileSync(process.env.GITHUB_ENV, `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=${chromium.executablePath()}\n`);
+          JS
+
+      - name: Test archive and historical tooling
+        run: npm test --prefix docs
+
+      - name: Build new historical books
+        env:
+          INVENTORY_FILE: ${{ runner.temp }}/documentation-releases.json
+          RETRY_FAILED: ${{ inputs.retry_failed || false }}
+        run: node docs/scripts/history-crawl.mjs --inventory "$INVENTORY_FILE" --retry-failed "$RETRY_FAILED"
+
+      - name: Preserve verified books as release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RETRY_FAILED: ${{ inputs.retry_failed || false }}
+        run: node docs/scripts/history-archive.mjs publish --repository "$GITHUB_REPOSITORY" --source-commit "$(git rev-parse HEAD)" --force "$RETRY_FAILED"
+
+      - name: Retain diagnostics even when a build or upload fails
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: documentation-history-diagnostics
+          include-hidden-files: true
+          if-no-files-found: ignore
+          path: |
+            .docs-history/backfill.json
+            .docs-history/groups.json
+            .docs-history/report.md
+            .docs-history/logs

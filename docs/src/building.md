@@ -36,7 +36,7 @@ Node runtime and copied Caddy image, and the frontend's Node build stage and Ngi
 runtime. Dependency and application layers can still use the existing GitHub
 Actions build cache when their inputs are unchanged.
 
-Refreshing `node:24-alpine`, for example, picks up updates available under that
+Refreshing `node:26-alpine`, for example, picks up updates available under that
 tag; it does not upgrade the Dockerfile to another Node major. Runtime upgrades
 require a separate change and validation.
 

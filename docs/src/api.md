@@ -31,6 +31,7 @@ is one of:
 | `unavailable` | The readback couldn't be made or interpreted. Nothing is known either way. |
 | `not-applied` | The change deliberately wasn't applied: a force save that Caddy rejected. |
 | `unchanged` | The operation didn't touch this representation. |
+| `uncertain` | Applying timed out and the readback didn't show the change yet. Caddy may still apply or reject it. |
 
 A `mismatch` or `unavailable` result doesn't fail the request, because the
 change was already made. The response keeps its success status and adds
@@ -47,6 +48,85 @@ values.
 | `PUT /api/caddyfile?validate=false` rejected by Caddy | Writes the Caddyfile only | Exact text | `not-applied` |
 | `POST /api/routes`, `PATCH /api/routes/:id`, `DELETE /api/routes/:id` | Writes the Caddyfile block and changes the route through the admin API | Exact text, or `unchanged` for a route without a Caddyfile block | The route's `/id/` object equals the sent route, or is gone after a delete |
 | `POST /api/caddyfile/reloads` | Reloads the file on disk | `unchanged` | Running config equals Caddy's adaptation of that file |
+
+### Changes that time out
+
+Admin API calls time out after 10 seconds, but a timeout doesn't stop Caddy
+from finishing the request. caddy/ui therefore treats a timed-out change as
+uncertain rather than rejected:
+
+- This applies only after dispatching a write. Route-creation preflight reads
+  finish inside the change queue before the Caddyfile is written; if a read
+  fails or times out, no route mutation is sent and the file stays unchanged.
+- The new Caddyfile stays on disk instead of being rolled back. If Caddy applies
+  the change late, the file and running config agree. If it never does, the
+  file is ahead of the running config, as after a force save, and **Reload**
+  applies it.
+- The request isn't retried, and Docker-mode instances don't fall back to
+  `caddy reload`, since either could apply the change twice.
+- One readback runs immediately. If it already matches, the result is
+  `verified`; otherwise `live` is `uncertain` with
+  `warningCode: "CADDY_APPLY_UNCERTAIN"`. The history version records an
+  unknown outcome.
+- caddy/ui keeps waiting for the timed-out request in the background for up to
+  60 seconds. When it settles, successfully or not, cached reads of the
+  configuration are invalidated so the UI shows the result. A read made in
+  between may show the old configuration; even without that invalidation,
+  cached reads expire after 5 seconds.
+
+caddy/ui can't tell whether Caddy completes a request it stopped waiting for.
+The application log records when a timed-out write later completes or fails.
+
+### Admin API route edits and concurrent changes
+
+`POST /api/routes`, `PATCH /api/routes/:id` and `DELETE /api/routes/:id` read
+Caddy's config and then change it. Each write sends `If-Match` with the ETag of
+the read it's based on, so Caddy applies it only if that part of the config is
+unchanged:
+
+- Adding a route uses the ETag of `/config/apps/http/servers`, read in the
+  change queue to check that the primary server exists.
+- Updating or deleting a route uses the ETag of its `/id/` object. Caddy
+  reports that ETag against the route's position in its server's route list,
+  so a route inserted or removed ahead of it also counts as a change.
+
+If another client changed that part of the config in between, Caddy refuses
+the write with `412`. caddy/ui restores the Caddyfile, as for any rejected
+change, and returns `409` with `{ "code": "CONFIG_CHANGED" }`. It doesn't
+retry, since a retry would apply the edit to a state nobody reviewed. The
+Routes page reloads the list and closes an edit based on the old state.
+
+Caddy versions that don't send ETags (before 2.6) get the same writes without
+`If-Match`, as before. Changes applied by reloading the Caddyfile aren't
+guarded this way, because Caddy's `/load` ignores `If-Match`.
+
+### Editor saves and concurrent edits
+
+`GET /api/caddyfile` returns an `ETag` of the file text it served, a SHA-256
+in the form `"sha256:<hex>"`. The response is never cached.
+
+`PUT /api/caddyfile` accepts that value in `If-Match`. The backend compares it
+with the file it's about to replace, inside the same per-instance queue as
+other caddy/ui changes. If the file changed since it was served, for example
+by a manual edit on the host, automation or a save from another browser tab,
+the save returns `409` with `{ "code": "CADDYFILE_CHANGED" }` and changes
+nothing: no write, no reload and no history version.
+
+- A weak ETag (`W/"..."`) matches its strong form, since nginx weakens ETags
+  when it compresses a response.
+- `If-Match: *` matches any existing file.
+- A save without `If-Match` behaves as before. Restore and import don't send
+  it, since they replace the file deliberately.
+
+The editor sends `If-Match` with every save, including a force save. When a
+save is refused, it shows the current file and lets you compare it with your
+edits, load it in place of your edits or overwrite it with your edits.
+Overwriting sends the ETag of the file you were shown, so a file that changed
+again is refused again.
+
+The check can't stop an external write that lands between the backend's read
+and its write. That window is small, and the readback after the save reports
+it as a file `mismatch`.
 
 Checks run in the same per-instance queue as other changes, so they never
 compare against another caddy/ui change in progress. They can't rule out a

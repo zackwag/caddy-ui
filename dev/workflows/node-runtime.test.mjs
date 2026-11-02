@@ -18,6 +18,11 @@ for (const component of ['backend', 'frontend']) {
     });
 }
 
+test('the example Dev Container uses the tested Node major', () => {
+    const container = JSON.parse(readFileSync(new URL('.devcontainer/devcontainer.example.json', root), 'utf8'));
+    assert.match(container.image, new RegExp(`^node:${version}(?=[.\\s-]|$)`), 'Dev Container image follows .node-version');
+});
+
 test('package manifests do not declare a different Node runtime', () => {
     const manifests = ['package.json', 'src/backend/package.json', 'src/frontend/package.json', 'dev/package.json', 'docs/package.json'];
     for (const manifest of manifests) {
@@ -29,10 +34,9 @@ test('package manifests do not declare a different Node runtime', () => {
     }
 });
 
-test('workflow Node setup reads the production runtime except for the explicit manual Node 26 trial', () => {
+test('workflow Node setup consistently reads the production runtime file', () => {
     const directory = new URL('.github/workflows/', root);
     let setups = 0;
-    let trials = 0;
     for (const file of readdirSync(directory).filter(file => /\.ya?ml$/.test(file))) {
         const document = parse(readFileSync(new URL(file, directory), 'utf8'));
         for (const [name, job] of Object.entries(document.jobs)) {
@@ -40,21 +44,10 @@ test('workflow Node setup reads the production runtime except for the explicit m
                 if (!step.uses?.startsWith('actions/setup-node@')) continue;
                 setups++;
                 const location = `${file}/${name}`;
-                if (file === 'node26-trial.yml') {
-                    trials++;
-                    assert.deepEqual(Object.keys(document.on).sort(), ['workflow_call', 'workflow_dispatch']);
-                    assert.equal(document.permissions.contents, 'read', 'the trial cannot publish');
-                    assert.equal(name, 'compatibility');
-                    assert.equal(job.if, "github.event_name == 'workflow_dispatch'", 'the trial requires a manual request');
-                    assert.equal(step.with?.['node-version'], 26, 'the exception is only for the Node 26 candidate');
-                    assert.equal(step.with?.['node-version-file'], undefined);
-                    continue;
-                }
                 assert.equal(step.with?.['node-version-file'], '.node-version', `${location}: uses the shared runtime`);
                 assert.equal(step.with?.['node-version'], undefined, `${location}: cannot override the runtime file`);
             }
         }
     }
     assert(setups > 0, 'workflow Node setup was found');
-    assert.equal(trials, 1, 'exactly one setup selects the manual candidate runtime');
 });

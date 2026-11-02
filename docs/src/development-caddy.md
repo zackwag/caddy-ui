@@ -7,7 +7,7 @@ data separate from production. The root npm package contains development scripts
 
 ## Prerequisites and startup
 
-Use Node.js 24 (the major recorded in `.node-version`), npm, and a running Docker
+Use Node.js 26 (the major recorded in `.node-version`), npm, and a running Docker
 Engine or Docker Desktop. This matches the production Node major used by CI.
 The Docker CLI must be on PATH and `docker info` must succeed for your user.
 The harness and backend Docker exec use the same Docker CLI context. Discovery
@@ -225,9 +225,15 @@ Install `src/backend`, `src/frontend` and `dev` dependencies as shown above, the
 ```sh
 npm run test:dev-caddy
 npm run test:dev-caddy:integration
-npm exec --prefix dev -- playwright install chromium
+npm exec --prefix dev -- playwright install --with-deps chromium
 npm run test:dev-caddy:e2e
 ```
+
+On Linux, including Dev Containers, `--with-deps` installs the system libraries
+Chromium needs and may request sudo. Downloading the browser alone can leave it
+unable to start, with errors such as `libnspr4.so: cannot open shared object file`.
+Rerun the install command above after a Playwright upgrade or in an existing
+container whose browser dependencies have not been installed.
 
 Integration checks also exercise the real backend's registration API: creating or
 removing a Docker container does not create or remove its UI registration. The

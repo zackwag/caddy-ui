@@ -35,6 +35,14 @@ try {
     }
     const editor = page.getByLabel('Try translation');
     await go('dashboard.status', 'dashboard-online');
+    const previewFrame = page.frames().find(frame => frame !== page.mainFrame());
+    assert.ok(previewFrame, 'Preview frame must be attached before checking bundled fonts');
+    for (const target of [page.mainFrame(), previewFrame]) {
+        assert.equal(await target.evaluate(async () => {
+            const faces = await Promise.all(['IBM Plex Sans', 'IBM Plex Mono'].map(family => document.fonts.load(`400 12px "${family}"`)));
+            return faces.every(fonts => fonts.length > 0 && fonts.every(font => font.status === 'loaded'));
+        }), true, 'Workbench and preview frame must load their bundled fonts');
+    }
     assert.equal(await frame().locator('[data-preview-key="dashboard.status"]').count(), 2);
     assert.ok((await frame().locator('body').innerText()).includes('Playground HTTP'));
     assert.equal(await page.locator('nav[aria-label="Translation keys"] button').count(), flattenCatalog(en).length);

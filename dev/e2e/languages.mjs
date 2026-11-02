@@ -3,7 +3,7 @@ import { before, test } from 'node:test';
 import ar from '../../src/frontend/src/i18n/locales/ar.js';
 import de from '../../src/frontend/src/i18n/locales/de.js';
 import en from '../../src/frontend/src/i18n/locales/en.js';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
+import { prepareBrowserTests, useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
 
 before(prepareBrowserTests, { timeout: 35000 });
 const options = { timeout: 120000 };
@@ -18,6 +18,39 @@ async function select(page, locale) {
         await document.fonts.ready;
     });
 }
+
+test('IBM Plex families and existing weights load from the UI origin without external requests', options, async t => {
+    const { page, context, origin, urls } = await useAuthBrowserFixture(t);
+    const external = [];
+    await context.route('**/*', route => {
+        if (new URL(route.request().url()).origin !== origin) {
+            external.push(route.request().url());
+            return route.abort();
+        }
+        return route.continue();
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: 'Create administrator', exact: true }).waitFor();
+    const expected = [
+        ['IBM Plex Sans', '300'], ['IBM Plex Sans', '400'], ['IBM Plex Sans', '500'],
+        ['IBM Plex Mono', '400'], ['IBM Plex Mono', '500'], ['IBM Plex Mono', '600'],
+    ];
+    const loaded = await page.evaluate(async expected => {
+        await document.fonts.ready;
+        return Promise.all(expected.map(async ([family, weight]) => {
+            const faces = await document.fonts.load(`${weight} 16px "${family}"`, 'AäéЖΩ');
+            return faces.length > 0 && faces.every(face => face.status === 'loaded'
+                && face.family.includes(family) && face.weight === weight && face.display === 'swap');
+        }));
+    }, expected);
+    assert.deepEqual(loaded, expected.map(() => true), 'Every original family/weight must have a loaded font face');
+    assert((await page.locator('body').evaluate(element => getComputedStyle(element).fontFamily)).includes('IBM Plex Sans'));
+    for (const family of ['ibm-plex-sans', 'ibm-plex-mono']) {
+        assert(urls.some(url => url.includes(family) && url.includes('.woff2')), `${family} must be requested locally`);
+    }
+    assert.deepEqual(external, [], 'No third-party service may be needed after reload');
+    assert(urls.every(url => new URL(url).origin === origin), 'Initial load must also stay on the UI origin');
+});
 
 test('reviewed Arabic and German work without opt-in, with a bundled font only for Arabic', options, async t => {
     const { stack, page, origin, waitForView } = await useBrowserFixture(t, { additionalLanguages: '' });

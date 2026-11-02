@@ -68,10 +68,9 @@ Spanish (Spain) in the UI language picker. Only human-reviewed strings are
 included; missing translations fall back to English. This catalog is separate
 from Mexican Spanish (`es-mx`) and is not enabled by default.
 
-Default availability is an explicit maintainer decision, recorded in
-`REVIEWED_LANGUAGES` in `src/backend/src/languages.js`; it is not inferred from
-translation coverage. Bundled fonts load automatically when their language is
-selected.
+Default availability is an explicit maintainer decision, recorded in `REVIEWED_LANGUAGES` in `src/backend/src/languages.js`; it is not inferred from translation coverage.
+
+The application and translation playground bundle IBM Plex Sans (weights 300/400/500) and IBM Plex Mono (400/500/600), including their SIL Open Font License notices. Fonts are served locally with `font-display: swap`; browsers do not contact Google Fonts. Noto Sans Arabic loads on demand when Arabic is selected.
 
 ### Visual translation playground
 

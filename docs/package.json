@@ -4,6 +4,12 @@
     "type": "module",
     "scripts": {
         "test": "node --test scripts/*.test.mjs",
+        "history:inventory": "node scripts/history-inventory.mjs",
+        "history:backfill": "node scripts/history-backfill.mjs",
+        "history:crawl": "node scripts/history-crawl.mjs",
+        "history:site": "node scripts/history-site.mjs",
+        "test:history:browser": "node scripts/history-site.browser.mjs",
+        "history:report": "node scripts/history-report.mjs",
         "test:screenshots": "node --test screenshots/capture.integration.mjs"
     },
     "dependencies": {

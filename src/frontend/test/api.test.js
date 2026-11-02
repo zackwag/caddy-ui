@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiFetch, authRequest, fetchAuthStatus, getInstanceId, onInstanceSelectionReset, resetAuthContext, setInstanceId } from '../src/utils/api.js';
+import { apiFetch, apiRequest, authRequest, fetchAuthStatus, getInstanceId, onInstanceSelectionReset, resetAuthContext, setInstanceId } from '../src/utils/api.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const storage = new Map();
@@ -15,6 +15,14 @@ beforeEach(() => {
 afterEach(() => { resetAuthContext(); vi.unstubAllGlobals(); });
 
 describe('cookie authentication client', () => {
+    it('resolves the response headers with the body, for validators sent back as If-Match', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('example.com {\n}\n', {
+            headers: { 'Content-Type': 'text/plain', ETag: 'W/"sha256:abc"' },
+        })));
+        const { body, headers } = await apiRequest('/caddyfile');
+        expect(body).toBe('example.com {\n}\n');
+        expect(headers.get('ETag')).toBe('W/"sha256:abc"');
+    });
     it('reports network loss while establishing CSRF context without sending a mutation', async () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
         await expect(apiFetch('/settings', { method: 'PUT' })).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
