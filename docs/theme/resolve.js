@@ -1,4 +1,4 @@
-import { documentationTarget, resolveDocumentation } from './versions-model.js';
+import { documentationOptions, documentationTarget, resolveDocumentation } from './versions-model.js';
 
 const site = new URL('../', import.meta.url);
 const content = document.getElementById('docs-resolution');
@@ -41,8 +41,7 @@ async function resolve() {
         const select = document.createElement('select');
         select.id = 'docs-version';
         label.htmlFor = select.id;
-        for (const [value, text] of [['', 'Choose a version…'], ['dev', 'Development'],
-            ...catalog.releases.map(release => [release.tag, release.tag + (release.snapshot ? '' : ' (release notes)')])]) {
+        for (const [value, text] of [['', 'Choose a version…'], ...documentationOptions(catalog)]) {
             const option = element('option', text); option.value = value; select.append(option);
         }
         select.addEventListener('change', () => {

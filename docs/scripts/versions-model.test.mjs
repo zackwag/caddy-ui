@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { documentationTarget, resolveDocumentation } from '../theme/versions-model.js';
+import { defaultDocumentation, documentationOptions, documentationTarget, resolveDocumentation } from '../theme/versions-model.js';
 
 test('resolver distinguishes released books, component publications, old/missing books, and development builds', () => {
     const catalog = { repository: 'zackwag/caddy-ui', development: { path: 'dev/', pages: ['index.html'] },
@@ -24,4 +24,21 @@ test('resolver distinguishes released books, component publications, old/missing
     const missing = documentationTarget(catalog, '2.20.0', { page: '../../escape.html', hash: '#unsafe' });
     assert(missing.href.includes('/index.html?'));
     assert(!missing.href.endsWith('#unsafe'));
+});
+
+test('the selector puts the latest release first, Development second, and keeps older releases in order', () => {
+    const catalog = { releases: [{ tag: 'v3.7.4', snapshot: 'new' }, { tag: 'v3.7.3', snapshot: 'old' }, { tag: 'v3.7.2', snapshot: null }] };
+    assert.deepEqual(documentationOptions(catalog), [
+        ['v3.7.4', 'v3.7.4'], ['dev', 'Development'], ['v3.7.3', 'v3.7.3'], ['v3.7.2', 'v3.7.2 (release notes)'],
+    ]);
+    assert.deepEqual(documentationOptions({ releases: [] }), [['dev', 'Development']]);
+});
+
+test('unversioned visits prefer the latest available book without sending readers to release notes', () => {
+    const catalog = { repository: 'zackwag/caddy-ui', books: { stable: { path: 'books/stable/', pages: ['index.html', 'about.html'] } },
+        releases: [{ tag: 'v3.7.4', snapshot: null }, { tag: 'v3.7.3', snapshot: 'stable' }] };
+    assert.equal(defaultDocumentation(catalog, { page: 'about.html', hash: '#overview' }).href, 'books/stable/about.html?version=v3.7.3#overview');
+    assert.equal(defaultDocumentation(catalog, { page: 'not-present.html', hash: '#overview' }).href, 'books/stable/index.html?version=v3.7.3&missing=not-present.html');
+    catalog.releases[1].snapshot = null;
+    assert.equal(defaultDocumentation(catalog), null, 'without a release book the root remains readable');
 });
