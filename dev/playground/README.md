@@ -139,7 +139,7 @@ stays in the frame's memory router; status-refresh and sign-out callbacks are in
 sidebar uses a finite-height production shell to keep frame sizing stable. Update notices
 and the multiple-instance switcher need their own capture scenarios and are not counted.
 
-Six route-management and history states add another 31 distinct keys. `routes-overview`
+Six route-management and history states add another 40 distinct keys. `routes-overview`
 mounts production `Routes` with captured Caddy routes, labels, notes, maintenance, TLS and
 health reads. `routes-columns` opens its actual column menu and hides ID through the real
 checkbox handler; these preferences stay inside the frame. `routes-add` opens the production

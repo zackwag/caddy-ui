@@ -69,8 +69,11 @@ const routeControls = ['routes.filterPlaceholder', 'routes.onlineSummary', 'rout
 const routeTable = ['routes.status', 'routes.domain', 'routes.title', 'routes.upstream', 'routes.server',
     'routes.id', 'routes.serverFilterTitle', 'routes.noUpstream', 'routes.enableMaintenance', 'routes.editRoute'];
 const historyKeys = ['routeHistory.noDataYet', 'routeHistory.autoRefresh', 'routeHistory.noData',
-    'routeHistory.segmentTitle', 'routeHistory.now', 'routeHistory.uptime', 'routeHistory.checks',
-    'routeHistory.activity', 'routeHistory.noChanges', 'common.close'];
+    'routeHistory.online', 'routeHistory.offline', 'routeHistory.segmentTitle', 'routeHistory.now',
+    'routeHistory.successfulChecks', 'routeHistory.outages', 'routeHistory.estimatedDowntime',
+    'routeHistory.longestOutage', 'routeHistory.incidents', 'routeHistory.noOutages',
+    'routeHistory.markerHint', 'routeHistory.observedTimeline', 'routeHistory.observationSummary',
+    'routeHistory.unobserved', 'routeHistory.estimateHint', 'common.close'];
 
 const caddyfileControls = ['caddyfile.sortEntries', 'caddyfile.history', 'caddyfile.import',
     'caddyfile.reload', 'caddyfile.forceSaveTitle'];

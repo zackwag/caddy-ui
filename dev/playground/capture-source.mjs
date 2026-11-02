@@ -12,7 +12,7 @@ export const sourceInputs = ['src/backend/src', 'src/backend/package.json', 'src
     'src/frontend/src/components/Instances.jsx',
     'src/frontend/src/components/CaddyFile.jsx', 'src/frontend/src/components/PaneDivider.jsx',
     'src/frontend/src/utils/lineDiff.js', 'src/frontend/src/utils/routes.js', 'src/frontend/src/utils/logSource.js',
-    'src/frontend/src/utils/api.js', 'src/frontend/src/utils/format.js'];
+    'src/frontend/src/utils/api.js', 'src/frontend/src/utils/format.js', 'src/frontend/src/utils/uptimeHistory.js'];
 
 export async function sourceFingerprint() {
     async function files(directory) {
