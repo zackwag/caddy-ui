@@ -118,6 +118,8 @@ export default {
         refreshStatus: 'Refresh status',
         selectInstance: 'Select instance',
         signOut: 'Sign out',
+        documentation: 'Documentation',
+        opensInNewTab: 'Opens in a new tab',
         updatePartFrontend: 'frontend {{version}}',
         updatePartBackend: 'backend {{version}}',
         availableUpdates: 'Available: {{parts}}',

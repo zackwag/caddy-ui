@@ -6,6 +6,13 @@ by **Development**, then older releases.
 The header identifies the selected version. Some releases share the same book
 because their documentation is identical; each release remains selectable.
 
+In caddy/ui, **Documentation** beside the version in the sidebar footer opens
+documentation in a new tab for your installed frontend and backend versions.
+When they need different books, the documentation site lets you choose the
+component. The frontend version is always supplied, using `dev` for local builds.
+If the backend version is unavailable, it is omitted rather than assumed to
+match the frontend.
+
 **Development** follows ongoing work on `main`. It can describe features that are
 not available in a released image. Select it explicitly or open `/dev/` to read
 the development book.

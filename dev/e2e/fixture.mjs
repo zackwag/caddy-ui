@@ -91,7 +91,7 @@ export async function useBrowserFixture(t, options) {
 }
 
 // Real backend and frontend, with an empty instance registry: auth needs no Docker.
-export async function useAuthBrowserFixture(t, legacy = false, { https = false, configurePasskeys = true, httpsHostname = 'localhost' } = {}) {
+export async function useAuthBrowserFixture(t, legacy = false, { https = false, configurePasskeys = true, httpsHostname = 'localhost', frontendVersion } = {}) {
     const root = resolve(import.meta.dirname, '../..');
     const secret = () => randomBytes(24).toString('base64url');
     const scope = new FixtureScope(t.signal);
@@ -127,6 +127,7 @@ export async function useAuthBrowserFixture(t, legacy = false, { https = false, 
         return server;
     }, async value => { value.closeAllConnections(); await new Promise(resolve => value.close(resolve)); });
     vite = await scope.acquire(() => createServer({ root: join(root, 'src/frontend'),
+        ...(frontendVersion === undefined ? {} : { define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(frontendVersion) } }),
         server: { middlewareMode: true, hmr: false, ws: { server: proxy } }, cacheDir: join(directory, 'vite-cache'),
     }), value => value.close());
     // HTTP scenarios use an untrustworthy origin; HTTPS pins only this fixture's certificate.
