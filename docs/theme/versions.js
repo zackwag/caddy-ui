@@ -27,6 +27,8 @@ async function showVersions() {
     box.append(label, control, note);
     let footer = sidebar.parentElement.querySelector('.sidebar-footer');
     if (!footer) {
+        // Preserved historical books can predate the shared sidebar footer.
+        // Supply the same license link without changing their stored snapshots.
         footer = element('div', '', 'sidebar-footer');
         const license = element('a', 'MIT License');
         license.href = 'https://github.com/zackwag/caddy-ui/blob/main/LICENSE';
@@ -47,6 +49,8 @@ async function showVersions() {
         // Keep explicit Development and archived-book URLs stable. Only bare
         // root chapter URLs default to a collected release, retaining chapters
         // and anchors when that release contains them.
+        // This client-side redirect waits for the catalogue, so Development
+        // content may paint briefly. Keep it readable if the catalogue fails.
         if (book === 'development' && script.dataset.docsBase === '' && !parameters.has('version')) {
             const target = defaultDocumentation(catalog, { page, hash: location.hash });
             if (target) {

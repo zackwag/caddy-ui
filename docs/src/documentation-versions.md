@@ -15,6 +15,10 @@ with an available book. Explicit links to a release or Development keep their
 selected version. If no release book is available, the development book stays
 readable.
 
+The redirect runs in the browser after the version catalogue loads, so an
+unversioned visit can briefly display Development before opening the release
+book. If the catalogue cannot load, the current page remains readable.
+
 Switching versions keeps your current chapter when the selected book contains it.
 Otherwise, the book opens its home page and explains that the chapter is unavailable.
 Search stays within the selected book.
