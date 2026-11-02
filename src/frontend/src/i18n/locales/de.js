@@ -467,7 +467,6 @@ export default {
         autoRefresh: 'Automatisch aktualisieren',
         segmentTitle: '{{status}} — {{start}} bis {{end}}',
         now: 'Jetzt',
-        uptime: 'Verfügbarkeit',
     },
 
     routes: {

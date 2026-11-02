@@ -563,7 +563,6 @@ export default {
         autoRefresh: 'Auto-refresh',
         segmentTitle: '{{status}} — {{start}} to {{end}}',
         now: 'Now',
-        uptime: 'Uptime',
         successfulChecks: 'Successful checks',
         outages: 'Outages',
         estimatedDowntime: 'Est. downtime',
