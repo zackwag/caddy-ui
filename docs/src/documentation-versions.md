@@ -7,8 +7,9 @@ because their documentation is identical; each release remains selectable.
 In caddy/ui, **Documentation** beside the version in the sidebar footer opens
 documentation in a new tab for your installed frontend and backend versions.
 When they need different books, the documentation site lets you choose the
-component. If a component version is unavailable, the link supplies only the
-known version rather than assuming both components match.
+component. The frontend version is always supplied, using `dev` for local builds.
+If the backend version is unavailable, it is omitted rather than assumed to
+match the frontend.
 
 **Development** follows ongoing work on `main`. It can describe features that are
 not available in a released image. The existing documentation home page and its

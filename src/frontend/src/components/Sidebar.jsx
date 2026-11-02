@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { PixelIcon, UtilityIcon } from "./Icons.jsx";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -27,6 +27,7 @@ const NAV = [
 
 export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, onLogout, onSecurity, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange, instanceListVersion }) {
     const { t } = useTranslation();
+    const newTabDescriptionId = useId();
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
     const [instances, setInstances] = useState([]);
@@ -140,15 +141,17 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                         target="_blank"
                         rel="noreferrer"
                         title={t("sidebar.availableUpdates", { parts: updateParts.join(" · ") })}
+                        aria-describedby={newTabDescriptionId}
                     >
                         {t("sidebar.updateAvailable")} <UtilityIcon name="external" />
                     </a>
                 )}
-                <div className="sidebar-version" title={backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.versionDetails", { frontend: displayVersion(FRONTEND_VERSION), backend: displayVersion(backendVersion) }) : undefined}>
-                    <span className="sidebar-version-label">{displayVersion(FRONTEND_VERSION)}{backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.backendVersion", { version: displayVersion(backendVersion) }) : ""}</span>
+                <span id={newTabDescriptionId} className="sr-only">{t("sidebar.opensInNewTab")}</span>
+                <div className="sidebar-version">
+                    <span className="sidebar-version-label" title={backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.versionDetails", { frontend: displayVersion(FRONTEND_VERSION), backend: displayVersion(backendVersion) }) : undefined}>{displayVersion(FRONTEND_VERSION)}{backendVersion && backendVersion !== FRONTEND_VERSION ? t("sidebar.backendVersion", { version: displayVersion(backendVersion) }) : ""}</span>
                     <span className="sidebar-documentation-group">
                         <span aria-hidden="true">·</span>
-                        <a className="sidebar-documentation" href={documentationUrl} target="_blank" rel="noopener noreferrer">{t("sidebar.documentation")}</a>
+                        <a className="sidebar-documentation" href={documentationUrl} target="_blank" rel="noopener noreferrer" aria-describedby={newTabDescriptionId}>{t("sidebar.documentation")}</a>
                     </span>
                 </div>
             </div>

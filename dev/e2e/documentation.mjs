@@ -50,11 +50,12 @@ async function fixture(t, frontend) {
     await context.route('https://github.com/zackwag/caddy-ui/releases/tag/v1.13', route =>
         route.fulfill({ contentType: 'text/html', body: '<h1>Release notes v1.13</h1>' }));
 
-    let backend;
-    await page.route('**/api/version?*', route => backend === undefined ? route.abort('failed') : route.fulfill({ json: { version: backend, update: null } }));
+    let backend, update;
+    await page.route('**/api/version?*', route => backend === undefined ? route.abort('failed') : route.fulfill({ json: { version: backend, update } }));
     const link = page.getByRole('link', { name: 'Documentation', exact: true });
-    async function selectBackend(version) {
+    async function selectBackend(version, availableUpdate = null) {
         backend = version;
+        update = availableUpdate;
         await page.reload({ waitUntil: 'domcontentloaded' });
         await page.locator('.shell').waitFor();
         await page.waitForFunction(({ frontend, backend }) => {
@@ -69,6 +70,11 @@ async function fixture(t, frontend) {
         assert.equal(destination.username + destination.password + destination.hash, '');
         assert.equal(await link.getAttribute('target'), '_blank');
         assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
+        const description = await link.getAttribute('aria-describedby');
+        assert(description);
+        assert.equal(description, await page.locator('.nav-footer .sr-only').getAttribute('id'));
+        assert.equal(await page.locator('.nav-footer .sr-only').innerText(), 'Opens in a new tab');
+        assert.equal(await link.evaluate(node => node.closest('[title]')), null, 'The version tooltip must not wrap Documentation');
     }
     async function open({ keyboard = false } = {}) {
         const opened = context.waitForEvent('page');
@@ -84,7 +90,11 @@ async function fixture(t, frontend) {
 test('sidebar Documentation uses independent versions, opens a new tab and remains usable on mobile and by keyboard', options, async t => {
     const { page, link, requests, selectBackend, open } = await fixture(t, '3.7.4');
     for (const backend of ['3.7.4', '3.7.3', undefined, '', '1.13']) {
-        await selectBackend(backend);
+        await selectBackend(backend, backend === '3.7.3' ? { frontend: '3.8.0' } : null);
+        if (backend === '3.7.3') {
+            assert.equal(await page.locator('.sidebar-version-label').getAttribute('title'), 'frontend v3.7.4 · backend v3.7.3');
+            assert.equal(await page.locator('.sidebar-update-badge').getAttribute('aria-describedby'), await link.getAttribute('aria-describedby'));
+        }
         const applicationUrl = page.url();
         if (backend === '3.7.4') {
             const background = await link.evaluate(node => getComputedStyle(node).backgroundColor);
