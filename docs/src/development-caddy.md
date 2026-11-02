@@ -14,6 +14,15 @@ The harness and backend Docker exec use the same Docker CLI context. Discovery
 separately uses `DOCKER_SOCKET` (default `/var/run/docker.sock`); it does not
 support remote/TLS Docker contexts. The harness targets local Docker Engines.
 
+For a Dev Container, copy `.devcontainer/devcontainer.example.json` to
+`.devcontainer/devcontainer.json` and rebuild the container. The example uses
+Node.js 26 on Debian Trixie with the host Docker socket. Its Docker feature sets
+`moby: false` because Moby packages are unavailable for Trixie. It installs all
+four npm packages, Chromium with its Linux libraries, and mdBook 0.5.4 for the
+container's x86-64 or ARM64 architecture. mdBook is added to PATH, and port 3000
+is forwarded for a local documentation preview. Personal Dev Container
+configuration remains ignored by Git.
+
 From the repository root:
 
 ```sh
