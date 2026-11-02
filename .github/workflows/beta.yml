@@ -1,0 +1,144 @@
+name: Beta
+run-name: "Beta${{ inputs.pr && format(' (PR #{0})', inputs.pr) || (inputs.ref && format(' ({0})', inputs.ref)) || '' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or tag to build from (defaults to the selected branch)"
+        required: false
+        type: string
+      pr:
+        description: "Pull request number to build instead, including PRs from forks (overrides ref)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  # refs/pull/<n>/head lives in this repo, so fork PRs check out without
+  # adding the fork as a remote
+  BUILD_REF: ${{ inputs.pr && format('refs/pull/{0}/head', inputs.pr) || inputs.ref || github.ref }}
+
+jobs:
+  docker-backend:
+    runs-on: ubuntu-latest
+    outputs:
+      version: beta-${{ steps.sha.outputs.short }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.BUILD_REF }}
+
+      - name: Resolve short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Older tags and PR branches may still use the pre-migration layout.
+      - name: Resolve build context
+        id: context
+        run: |
+          path=./src/backend
+          if [ ! -f "$path/Dockerfile" ]; then path=./backend; fi
+          test -f "$path/Dockerfile"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: zackwag/caddy-ui-backend
+          tags: |
+            type=raw,value=beta
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ steps.context.outputs.path }}
+          push: true
+          pull: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=beta-${{ steps.sha.outputs.short }}
+          cache-from: type=gha,scope=beta-backend
+          cache-to: type=gha,scope=beta-backend,mode=max
+
+  docker-frontend:
+    runs-on: ubuntu-latest
+    outputs:
+      version: beta-${{ steps.sha.outputs.short }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.BUILD_REF }}
+
+      - name: Resolve short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Older tags and PR branches may still use the pre-migration layout.
+      - name: Resolve build context
+        id: context
+        run: |
+          path=./src/frontend
+          if [ ! -f "$path/Dockerfile" ]; then path=./frontend; fi
+          test -f "$path/Dockerfile"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: zackwag/caddy-ui-frontend
+          tags: |
+            type=raw,value=beta
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ steps.context.outputs.path }}
+          push: true
+          pull: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=beta-${{ steps.sha.outputs.short }}
+          cache-from: type=gha,scope=beta-frontend
+          cache-to: type=gha,scope=beta-frontend,mode=max
+
+  versions:
+    runs-on: ubuntu-latest
+    needs: [docker-backend, docker-frontend]
+    if: always() && !cancelled()
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Feeds the backend's update check (src/backend/src/updateCheck.js); only
+      # images that actually pushed are recorded
+      - name: Record pushed images in versions.json
+        env:
+          BACKEND: ${{ needs.docker-backend.result == 'success' && needs.docker-backend.outputs.version || '' }}
+          FRONTEND: ${{ needs.docker-frontend.result == 'success' && needs.docker-frontend.outputs.version || '' }}
+        run: |
+          ARGS=()
+          if [ -n "$BACKEND" ]; then ARGS+=("backend=$BACKEND"); fi
+          if [ -n "$FRONTEND" ]; then ARGS+=("frontend=$FRONTEND"); fi
+          if [ ${#ARGS[@]} -eq 0 ]; then
+            echo "No images pushed; nothing to record."
+            exit 0
+          fi
+          .github/scripts/publish-versions.sh beta "${ARGS[@]}"

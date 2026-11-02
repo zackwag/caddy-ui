@@ -1,0 +1,31 @@
+{
+    "name": "caddy-ui-development",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev:with-caddy": "node dev/dev-caddy/dev.mjs",
+        "dev:instances": "node dev/dev-caddy/cli.mjs",
+        "test:dev-caddy": "npm test --prefix dev --",
+        "test:workflows": "npm run test:workflows --prefix dev --",
+        "test:dev-caddy:integration": "npm run test:integration --prefix dev --",
+        "test:dev-caddy:e2e": "npm run test:e2e --prefix dev --",
+        "lint:dev-caddy": "npm run lint --prefix dev --",
+        "docs:screenshots": "node docs/screenshots/screenshot.mjs",
+        "docs:screenshots:capture": "node docs/screenshots/capture.mjs",
+        "docs:history:inventory": "node docs/scripts/history-inventory.mjs",
+        "docs:history:backfill": "node docs/scripts/history-backfill.mjs",
+        "docs:history:crawl": "node docs/scripts/history-crawl.mjs",
+        "docs:history:site": "node docs/scripts/history-site.mjs",
+        "test:docs:history:browser": "npm run test:history:browser --prefix docs --",
+        "docs:history:report": "node docs/scripts/history-report.mjs",
+        "test:playground": "npm run test:playground --prefix dev --",
+        "i18n:preview": "npm run i18n:preview --prefix dev --",
+        "i18n:preview:build": "npm run i18n:preview:build --prefix dev --",
+        "i18n:preview:capture": "npm run i18n:preview:capture --prefix dev --",
+        "i18n:preview:check-capture": "npm run i18n:preview:check-capture --prefix dev --",
+        "i18n:preview:check-browser": "npm run i18n:preview:check-browser --prefix dev --",
+        "test:cross-site:browser": "npm run test:cross-site:browser --prefix dev --",
+        "dev:cloud-metadata": "npm run dev:cloud-metadata --prefix dev --",
+        "test:cloud-metadata": "npm run test:cloud-metadata --prefix dev --"
+    }
+}

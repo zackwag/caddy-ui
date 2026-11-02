@@ -1,0 +1,178 @@
+.workbench {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    padding: 24px;
+    color: var(--text);
+    background: var(--bg);
+}
+.workbench header,
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.workbench header > div {
+    flex: 1;
+}
+.workbench h1 {
+    font-size: 24px;
+}
+.workbench h2 {
+    overflow-wrap: anywhere;
+    margin-bottom: 16px;
+}
+.workbench p {
+    margin: 10px 0;
+}
+.workbench button,
+.workbench select,
+.workbench input,
+.workbench textarea {
+    font: inherit;
+}
+.workbench header button,
+.actions button,
+.workbench select {
+    padding: 8px 12px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    cursor: pointer;
+}
+.workspace {
+    display: grid;
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 24px;
+    margin-top: 24px;
+}
+.workbench aside {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+.workbench aside > :not(nav) {
+    flex-shrink: 0;
+}
+.workbench .detail {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+.workbench input,
+.workbench textarea {
+    width: 100%;
+    padding: 12px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+}
+.workbench label {
+    display: block;
+    margin-bottom: 8px;
+}
+.workbench nav {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+.workbench nav button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px;
+    background: transparent;
+    border: 0;
+    color: var(--text);
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+.workbench nav button[aria-pressed='true'] {
+    background: var(--surface);
+    color: var(--accent);
+}
+.workbench small {
+    display: block;
+    color: var(--muted);
+}
+.preview-indicator {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-inline-start: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: middle;
+}
+.workbench .preview-legend { color: var(--muted); font-size: 12px; }
+.preview-legend .preview-indicator { margin-inline-start: 0; }
+.gallery {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+}
+.gallery article,
+.editors section,
+.empty {
+    padding: 16px;
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    background: var(--surface);
+}
+.workbench h3 {
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+.preview-state { min-width: 0; }
+.preview-state iframe { display: block; width: 100%; border: 1px solid var(--border2); border-radius: 6px; background: var(--bg); }
+.preview-context { font-size: 13px; }
+.preview-context summary { cursor: pointer; margin-top: 12px; }
+.preview-context pre { max-height: 260px; overflow: auto; }
+.scenario-selector { margin-bottom: 16px; }
+.scenario-selector select { display: block; max-width: 100%; margin-top: 8px; }
+.capture-source { color: var(--muted); }
+.editors {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+}
+.workbench pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+}
+.workbench textarea {
+    resize: vertical;
+    margin-bottom: 12px;
+}
+@media (max-width: 760px) {
+    .workspace,
+    .editors {
+        grid-template-columns: 1fr;
+    }
+    .workspace {
+        flex: none;
+    }
+    .workbench .detail {
+        overflow: visible;
+        scrollbar-gutter: auto;
+    }
+    .workbench nav {
+        flex: none;
+        max-height: 220px;
+    }
+    .workbench {
+        padding: 16px;
+        overflow-y: auto;
+    }
+}

@@ -1,0 +1,63 @@
+name: Localization preview data
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/backend/src/**'
+      - 'src/backend/package*.json'
+      - 'src/frontend/src/components/Dashboard.jsx'
+      - 'src/frontend/src/components/Notifications.jsx'
+      - 'src/frontend/src/components/Metrics.jsx'
+      - 'src/frontend/src/components/Logs.jsx'
+      - 'src/frontend/src/components/TLS.jsx'
+      - 'src/frontend/src/components/Sidebar.jsx'
+      - 'src/frontend/src/components/Routes.jsx'
+      - 'src/frontend/src/components/CaddyFile.jsx'
+      - 'src/frontend/src/components/Instances.jsx'
+      - 'src/frontend/src/components/UpstreamUptime.jsx'
+      - 'src/frontend/src/components/PaneDivider.jsx'
+      - 'src/frontend/src/utils/lineDiff.js'
+      - 'src/frontend/src/utils/routes.js'
+      - 'src/frontend/src/utils/logSource.js'
+      - 'src/frontend/src/components/RouteHistoryModal.jsx'
+      - 'src/frontend/src/hooks/useInstanceStatus.js'
+      - 'src/frontend/src/utils/api.js'
+      - 'src/frontend/src/utils/format.js'
+      - 'dev/playground/capture*'
+      - 'dev/dev-caddy/harness.mjs'
+      - '.github/workflows/localization-preview-data.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Capture real Caddy states
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: src/backend/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci --prefix src/backend
+      - name: Prepare disposable Caddy
+        run: |
+          docker info
+          docker pull caddy:2.10.2-alpine
+      - name: Capture real responses and clean up
+        run: npm run i18n:preview:capture
+      - name: Publish reviewable capture
+        uses: actions/upload-artifact@v7
+        with:
+          name: localization-preview-${{ github.sha }}
+          path: dev/playground/captures/dashboard.json
+          if-no-files-found: error
+          retention-days: 30

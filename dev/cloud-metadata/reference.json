@@ -1,0 +1,45 @@
+{
+  "status": "Provider-documented reference; not a runtime policy or exhaustive registry",
+  "verified_on": "2026-10-16",
+  "endpoints": [
+    {
+      "provider": "AWS EC2",
+      "host": "169.254.169.254",
+      "url": "http://169.254.169.254/latest/meta-data/",
+      "documentation": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html"
+    },
+    {
+      "provider": "AWS EC2",
+      "host": "fd00:ec2::254",
+      "url": "http://[fd00:ec2::254]/latest/meta-data/",
+      "notes": "Requires the IPv6 IMDS endpoint on supported Nitro instances and subnets.",
+      "documentation": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html"
+    },
+    {
+      "provider": "Google Compute Engine",
+      "host": "metadata.google.internal",
+      "url": "http://metadata.google.internal/computeMetadata/v1/",
+      "documentation": "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata#metadata_server_endpoints"
+    },
+    {
+      "provider": "Google Compute Engine",
+      "host": "169.254.169.254",
+      "url": "http://169.254.169.254/computeMetadata/v1/",
+      "documentation": "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata#metadata_server_endpoints"
+    },
+    {
+      "provider": "Google Compute Engine",
+      "host": "fd20:ce::254",
+      "url": "http://[fd20:ce::254]/computeMetadata/v1/",
+      "notes": "Documented for IPv6-only instances; absent from this cloud-init extraction.",
+      "documentation": "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata#metadata_server_endpoints"
+    },
+    {
+      "provider": "Alibaba ECS",
+      "host": "100.100.100.200",
+      "url": "http://100.100.100.200/latest/meta-data/",
+      "notes": "No standard IPv6 endpoint established by the linked documentation; none inferred.",
+      "documentation": "https://www.alibabacloud.com/help/en/ecs/user-guide/view-instance-metadata/"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+    "name": "caddy-ui",
+    "image": "node:26-trixie",
+    "remoteUser": "node",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "username": "node"
+        },
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "moby": false
+        }
+    },
+    "postCreateCommand": {
+        "installDependencies": "npm --prefix src/backend ci && npm --prefix src/frontend ci && npm --prefix dev ci && npm --prefix docs ci --ignore-scripts && npm exec --prefix dev -- playwright install --with-deps chromium",
+        "installMdbook": "set -eu; case \"$(uname -m)\" in x86_64|amd64) mdbook_target=x86_64-unknown-linux-gnu ;; aarch64|arm64) mdbook_target=aarch64-unknown-linux-musl ;; *) echo \"Unsupported mdBook architecture: $(uname -m)\" >&2; exit 1 ;; esac; mdbook_archive=\"$(mktemp)\"; trap 'rm -f \"$mdbook_archive\"' EXIT; mkdir -p \"$HOME/.local/bin\"; curl -fL \"https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-$mdbook_target.tar.gz\" -o \"$mdbook_archive\"; tar --no-same-owner -xzf \"$mdbook_archive\" -C \"$HOME/.local/bin\" mdbook"
+    },
+    "remoteEnv": {
+        "PATH": "${containerEnv:PATH}:/home/node/.local/bin",
+        "REMOTE_CONTAINERS": "true",
+        "CADDY_UI_DEV_HOST": "0.0.0.0"
+    },
+    "forwardPorts": [
+        3001,
+        5173,
+        3000
+    ],
+    "appPort": [
+        "15173:5173"
+    ],
+    "portsAttributes": {
+        "3000": {
+            "label": "mdBook preview",
+            "onAutoForward": "openBrowser"
+        },
+        "3001": {
+            "label": "caddy-ui backend",
+            "onAutoForward": "silent"
+        },
+        "5173": {
+            "label": "caddy-ui frontend",
+            "onAutoForward": "openBrowser"
+        }
+    }
+}

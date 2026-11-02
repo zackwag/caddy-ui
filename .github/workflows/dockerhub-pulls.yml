@@ -1,0 +1,35 @@
+name: Docker Hub pull history
+
+on:
+  schedule:
+    # Daily at 00:17 UTC; avoid the busiest top-of-hour scheduling window.
+    - cron: '17 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dockerhub-pull-history
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    # Forks can try it manually without duplicating the upstream daily worker.
+    if: github.repository == 'zackwag/caddy-ui' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The worktree publisher uses this job's short-lived token to push,
+          # matching the existing versions-branch publication workflow.
+          persist-credentials: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: Collect and publish pull history
+        run: bash .github/scripts/dockerhub-pulls/publish.sh

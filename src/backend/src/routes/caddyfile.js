@@ -1,0 +1,601 @@
+import { Router } from 'express';
+import { mkdir, readdir, rename } from 'fs/promises';
+import { dirname, join } from 'path';
+import { CaddyTimeoutError, caddyAdapt, caddyLoad, markConfigChanged } from '../caddy.js';
+import { describeReadError, readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
+import { execInInstance } from '../docker.js';
+import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
+import logger from '../logger.js';
+import { AppError, asAppError } from '../AppError.js';
+import { sendAppError } from '../errorReporting.js';
+import { createCaddyfileHistory } from '../caddyfileHistory.js';
+import { getAuthentication } from '../middleware/auth.js';
+import { caddyfileEntries, trailingComments } from '../caddyfileBlocks.js';
+import { runExclusive } from '../instanceQueue.js';
+import { fingerprintText, recordLocalChange } from '../configDrift.js';
+import { NOT_APPLIED, UNCHANGED, verificationWarning, verifyAfterTimeout, verifyFile, verifyLiveConfig } from '../configVerification.js';
+
+const router = Router();
+const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
+const history = createCaddyfileHistory(HISTORY_PATH);
+
+function instanceHistoryDir(instanceId) {
+    return history.directory(instanceId);
+}
+
+// Snapshots in the root of HISTORY_PATH belong to the 'default' instance. If
+// the instances list no longer has one -- e.g. it was replaced by an instance
+// added through the UI -- those snapshots would silently vanish from the UI.
+// With exactly one instance they can only be its history, so move them into
+// its folder; with several it's ambiguous, so leave them and say so. Pure so
+// it's testable: returns the filenames to move into `targetId`'s folder.
+function planLegacyHistoryMigration(instances, rootFiles, targetFiles) {
+    const legacy = rootFiles.filter(f => f.startsWith('Caddyfile-'));
+    if (!legacy.length || instances.some(i => i.id === DEFAULT_INSTANCE_ID)) return null;
+    if (instances.length !== 1) return { targetId: null, moves: [], orphaned: legacy.length };
+    const existing = new Set(targetFiles);
+    return { targetId: instances[0].id, moves: legacy.filter(f => !existing.has(f)), orphaned: 0 };
+}
+
+// Runs once at startup. Never deletes: snapshots past MAX_HISTORY are pruned
+// by the next save, as usual.
+async function migrateLegacyHistory() {
+    try {
+        const rootFiles = await readdir(HISTORY_PATH).catch(() => []);
+        const instances = getInstances();
+        const targetId = instances.length === 1 ? instances[0].id : null;
+        const targetFiles = targetId ? await readdir(instanceHistoryDir(targetId)).catch(() => []) : [];
+        const plan = planLegacyHistoryMigration(instances, rootFiles, targetFiles);
+        if (!plan) return;
+        if (plan.orphaned) {
+            logger.warn('Caddyfile snapshots from the old default instance were left in place: more than one instance exists, so it is unclear which one they belong to', { dir: HISTORY_PATH, count: plan.orphaned });
+            return;
+        }
+        await ensureHistoryDir(plan.targetId);
+        const dir = instanceHistoryDir(plan.targetId);
+        for (const file of plan.moves) await rename(join(HISTORY_PATH, file), join(dir, file));
+        logger.info('Moved Caddyfile snapshots from the old default instance', { instanceId: plan.targetId, count: plan.moves.length });
+    } catch (err) {
+        logger.warn('Failed to migrate Caddyfile history', { error: err.message });
+    }
+}
+
+async function ensureHistoryDir(instanceId) {
+    try {
+        await mkdir(instanceHistoryDir(instanceId), { recursive: true });
+    } catch { }
+}
+
+async function fmtCaddyfile(content, containerName) {
+    try {
+        const { stdout } = await execInInstance(containerName, 'caddy', ['fmt', '-'], content);
+        return stdout || content;
+    } catch (err) {
+        logger.warn('caddy fmt failed', { error: err.message });
+        return content;
+    }
+}
+
+// Distinguish "Docker/caddy binary isn't reachable from this container" from a
+// genuine Caddyfile error reported by `caddy adapt`.
+function isDockerUnavailable(err) {
+    if (!err) return false;
+    if (err.code === null || err.code === undefined || err.code === 'ENOENT') return true;
+    const msg = `${err.stderr || ''} ${err.stdout || ''} ${err.message || ''}`.toLowerCase();
+    return /cannot connect to the docker daemon|is the docker daemon running|no such container|permission denied while trying to connect|docker:? (?:command )?not found|executable file not found|not found in \$path/.test(msg);
+}
+
+async function adaptViaAdminApi(content, adminUrl) {
+    return caddyAdapt(content, adminUrl);
+}
+
+// Adapt through the caddy binary in the Caddy container, writing the buffer to a
+// temp file next to the real Caddyfile so relative `import` paths resolve.
+//
+// Runs as separate array-argument exec calls (no shell) rather than a single
+// interpolated `sh -c` script, since configPath -- and therefore tmp -- isn't
+// validated against shell metacharacters and previously would have let a
+// crafted instance config break out of the script's quoting.
+async function adaptViaCaddyBinary(content, configPath, containerName) {
+    const tmp = join(dirname(configPath), `.caddy-ui-adapt-${process.pid}-${Date.now()}.tmp`);
+    await writeContainerFile(containerName, tmp, content);
+    try {
+        const { stdout } = await execInInstance(containerName, 'caddy', ['adapt', '--config', tmp, '--adapter', 'caddyfile']);
+        return stdout;
+    } finally {
+        await removeContainerPath(containerName, tmp).catch(() => { });
+    }
+}
+
+async function validateCaddyfile(content, { adminUrl, configPath, containerName }) {
+    try {
+        await adaptViaAdminApi(content, adminUrl);
+        return;
+    } catch (adminErr) {
+        try {
+            await adaptViaCaddyBinary(content, configPath, containerName);
+            logger.info('Caddyfile validated via caddy binary (admin API adapt failed)');
+            return;
+        } catch (caddyErr) {
+            if (isDockerUnavailable(caddyErr)) throw adminErr;
+            throw caddyErr;
+        }
+    }
+}
+
+// Reloads through the container rather than caddy.js, so it marks the
+// change itself for observations.js.
+async function reloadViaCaddyBinary(configPath, containerName, adminUrl) {
+    try {
+        await execInInstance(containerName, 'caddy', ['reload', '--config', configPath, '--adapter', 'caddyfile']);
+    } finally {
+        markConfigChanged(adminUrl);
+    }
+}
+
+// Resolves to how the config was applied, 'admin' or 'binary', so verification
+// can adapt the same way.
+async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
+    try {
+        await caddyLoad(content, adminUrl);
+        return 'admin';
+    } catch (loadErr) {
+        // In local mode the bundled binary would resolve {$VAR} placeholders
+        // from caddy-ui's environment rather than Caddy's, and it would post to
+        // the same admin API that just failed, so there's nothing to fall back to.
+        // After a timeout the load may still complete, so reloading again would
+        // apply the change twice.
+        if (!containerName || loadErr instanceof CaddyTimeoutError) throw loadErr;
+        try {
+            await reloadViaCaddyBinary(configPath, containerName, adminUrl);
+            logger.info('Caddy reloaded via caddy binary (admin /load failed)');
+            return 'binary';
+        } catch (caddyErr) {
+            if (isDockerUnavailable(caddyErr)) throw loadErr;
+            throw caddyErr;
+        }
+    }
+}
+
+// Reads the file a change would replace: null when there is no file yet, so a
+// rollback removes it. Any other read failure stops the change, since the
+// previous content couldn't be restored.
+async function readPreviousCaddyfile(configPath, containerName) {
+    try {
+        return await readContainerFile(containerName, configPath);
+    } catch (err) {
+        if (describeReadError(err) === 'not found') return null;
+        throw new AppError('CADDYFILE_READ_FAILED', { cause: err, context: { configPath } });
+    }
+}
+
+// The editor's validator for the Caddyfile text it was served. Caddy's ETag
+// can't stand in: it describes the running config, and /load ignores it.
+function caddyfileETag(text) {
+    return `"${fingerprintText(text)}"`;
+}
+
+// The ETags an If-Match header lists, or null without one. A weak ETag counts
+// as its strong form: nginx weakens ETags when it compresses a response, and
+// the tag is still the hash of the uncompressed text.
+function ifMatchTags(header) {
+    if (!header) {
+        return null;
+    }
+    return header.split(',').map(tag => tag.trim().replace(/^W\//, '')).filter(Boolean);
+}
+
+// Whether the file a change would replace is one the client said it was based
+// on. `*` accepts any existing file; no file matches nothing else.
+function matchesCaddyfile(tags, previous) {
+    if (previous === null) {
+        return false;
+    }
+    return tags.includes('*') || tags.includes(caddyfileETag(previous));
+}
+
+async function restoreCaddyfile(previous, { configPath, containerName }) {
+    if (previous === null) await removeContainerPath(containerName, configPath);
+    else await writeContainerFile(containerName, configPath, previous);
+}
+
+// The one path for changing an instance's Caddyfile, so disk and the running
+// config stay in agreement: preserve the previous file, write, apply and commit
+// the saved version. Restore the previous file if writing or applying fails. `apply`
+// defaults to reloading Caddy from the new content; admin API edits pass their
+// own live change instead. Throws:
+// - CADDYFILE_READ_FAILED / CADDYFILE_WRITE_FAILED: nothing changed
+// - CADDYFILE_CHANGED: `ifMatch` (ETags from an If-Match header) doesn't name
+//   the file the change would replace, so nothing was written or recorded
+// - CADDYFILE_CHANGE_REJECTED: applying failed and the previous file was restored
+//   (an AppError thrown by a custom apply keeps its own code)
+// - CADDYFILE_ROLLBACK_FAILED: the previous file couldn't be restored, so the
+//   file on disk is not what Caddy is running
+// With rollback: false (the editor's force save), a failed apply leaves the
+// new file in place and resolves to { applied: false, error }. An apply that
+// timed out may still complete in Caddy, so it never restores the previous
+// file or retries: it keeps the new file, resolves with live: 'uncertain'
+// unless a readback already shows it applied, and records the history
+// version with an unknown outcome.
+// Function changes run inside the queue against the latest file. Post-apply
+// history failures return warning fields rather than rejecting an applied edit.
+// The result's `verification` reads back the file and the live config (see
+// configVerification.js). A custom `apply` must pass `verify`, which checks
+// the part of the live config it changed; a reload checks the whole config.
+// `expectLive` projects that mutation onto the last expected config for drift
+// attribution. A scoped verifier alone cannot approve the whole live config.
+// Verification never rejects a saved change: it adds warning fields.
+function saveCaddyfileChange(instance, content, options = {}) {
+    return queueCaddyfileChange(instance, save => save(content, options));
+}
+
+function queueCaddyfileChange(instance, operation) {
+    return runExclusive(instance.id, () => operation((change, options) => applyCaddyfileChange(instance, change, options)));
+}
+
+function adaptedConfig(content, instance, via) {
+    if (via === 'binary') {
+        return async () => JSON.parse(await adaptViaCaddyBinary(content, instance.configPath, instance.containerName));
+    }
+    return () => caddyAdapt(content, instance.adminUrl);
+}
+
+async function verifyChange(instance, content, { applied, uncertain, live }) {
+    const file = await verifyFile(instance, content);
+    if (!applied && !uncertain) {
+        return { file, live: NOT_APPLIED };
+    }
+    return { file, live: uncertain ? await verifyAfterTimeout(live) : await live() };
+}
+
+async function applyCaddyfileChange(instance, change, { apply, verify, expectLive, onApplied, rollback = true, actor = null, action = 'caddyfile.save', ifMatch = null } = {}) {
+    if (apply && !verify) {
+        throw new TypeError('A custom apply must say how to verify it');
+    }
+    const { configPath, containerName, id } = instance;
+    const context = { instanceId: id, configPath };
+    const previous = await readPreviousCaddyfile(configPath, containerName);
+    // Checked against the file read inside the queue, so no other caddy/ui
+    // change can land between this check and the write
+    if (ifMatch && !matchesCaddyfile(ifMatch, previous)) {
+        throw new AppError('CADDYFILE_CHANGED', { context });
+    }
+    if (typeof change === 'function' && previous === null) throw new AppError('CADDYFILE_READ_FAILED', { context });
+    const content = typeof change === 'function' ? await change(previous) : change;
+    if (typeof content !== 'string') throw new TypeError('A Caddyfile change must produce text');
+    try { await history.preserve(id, previous); }
+    catch (cause) { throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context }); }
+
+    const restore = async (stage, cause) => {
+        try {
+            await restoreCaddyfile(previous, instance);
+        } catch (restoreErr) {
+            logger.error('Could not restore the previous Caddyfile', { ...context, stage, error: restoreErr.message });
+            throw new AppError('CADDYFILE_ROLLBACK_FAILED', { cause, context: { ...context, stage, restoreError: restoreErr.message } });
+        }
+    };
+
+    try {
+        await writeContainerFile(containerName, configPath, content);
+    } catch (err) {
+        await restore('write', err);
+        throw new AppError('CADDYFILE_WRITE_FAILED', { cause: err, context });
+    }
+
+    let result;
+    let via = null;
+    try {
+        if (apply) await apply(content);
+        else via = await reloadCaddy(content, instance);
+        result = { applied: true };
+    } catch (err) {
+        if (err instanceof CaddyTimeoutError) {
+            result = { applied: false, uncertain: true, error: err };
+            logger.warn('Caddy did not confirm the change in time; keeping the new Caddyfile', { ...context, error: err.message });
+        } else if (!rollback) result = { applied: false, error: err };
+        else {
+            await restore('apply', err);
+            logger.warn('Caddy rejected the change, previous Caddyfile restored', { ...context, error: err.message });
+            // A custom apply names a more specific rejection, such as CONFIG_CHANGED
+            if (err instanceof AppError) {
+                throw err;
+            }
+            throw new AppError('CADDYFILE_CHANGE_REJECTED', { cause: err, context });
+        }
+    }
+    // State kept beside the file (maintenance) follows the file, which an
+    // uncertain apply keeps.
+    if ((result.applied || result.uncertain) && onApplied) await onApplied();
+    let expected;
+    const adapt = adaptedConfig(content, instance, via);
+    const live = verify || (() => verifyLiveConfig(instance, async () => {
+        expected = await adapt();
+        return expected;
+    }));
+    result.verification = await verifyChange(instance, content, { applied: result.applied, uncertain: result.uncertain, live });
+    await recordLocalChange(instance, { content, verification: result.verification, verifyLive: live,
+        expectLive: expectLive || (() => expected) });
+    const warnings = [];
+    const outcome = result.applied ? 'applied' : result.uncertain ? 'unknown' : 'saved-unapplied';
+    try { await history.record(id, content, { actor, action, outcome }); }
+    catch (cause) {
+        warnings.push({ warning: 'The Caddyfile was saved, but its history version could not be recorded.', warningCode: 'CADDYFILE_HISTORY_COMMIT_FAILED' });
+        logger.warn('Could not record saved Caddyfile history', { ...context, applied: result.applied,
+            code: 'CADDYFILE_HISTORY_COMMIT_FAILED', error: cause.message });
+    }
+    const verificationIssue = verificationWarning(result.verification);
+    if (verificationIssue) {
+        // A mismatch or an uncertain apply outranks a history failure: the
+        // running config may not be what the user saved.
+        if (verificationIssue.warningCode !== 'CONFIG_VERIFICATION_UNAVAILABLE') {
+            warnings.unshift(verificationIssue);
+        } else {
+            warnings.push(verificationIssue);
+        }
+    }
+    if (warnings.length) {
+        result.warning = warnings.map(entry => entry.warning).join(' ');
+        result.warningCode = warnings[0].warningCode;
+    }
+    return result;
+}
+
+// Response fields for a saved change: any warning and the verification result.
+function changeResultFields(result) {
+    return {
+        ...(result?.warning ? { warning: result.warning, warningCode: result.warningCode } : {}),
+        ...(result?.verification ? { verification: result.verification } : {}),
+    };
+}
+
+function parseSiteBlocks(content) {
+    const entries = caddyfileEntries(content);
+    const blocks = [];
+    const loose = [];
+
+    for (const entry of entries) {
+        // Comments directly above an entry move with it.
+        const lines = [...entry.leading, ...entry.text.split('\n')];
+        if (entry.block) {
+            blocks.push({ header: content.slice(entry.lineStart, entry.block.start + 1).trim(), lines });
+        } else {
+            // Top-level line that is not a site block, e.g. `import
+            // conf.d/*.caddy`. Keep it verbatim instead of dropping it.
+            loose.push(lines.join('\n'));
+        }
+    }
+
+    return { blocks, loose, trailing: trailingComments(content, entries) };
+}
+
+function sortCaddyfile(content) {
+    const bom = content.startsWith('\ufeff') ? '\ufeff' : '';
+    const { blocks, loose, trailing } = parseSiteBlocks(content.slice(bom.length));
+    const globalBlocks = [];
+    const snippetBlocks = [];
+    const httpBlocks = [];
+    const internalBlocks = [];
+    const publicBlocks = [];
+
+    for (const block of blocks) {
+        const h = block.header.toLowerCase();
+        if (h === '{') globalBlocks.push(block);
+        // Snippets must be defined before a site imports them.
+        else if (h.startsWith('(')) snippetBlocks.push(block);
+        else if (h.startsWith('http://')) httpBlocks.push(block);
+        else if (h.includes('.internal')) internalBlocks.push(block);
+        else publicBlocks.push(block);
+    }
+
+    const sortByHeader = (a, b) => a.header.localeCompare(b.header);
+    publicBlocks.sort(sortByHeader);
+    internalBlocks.sort(sortByHeader);
+    httpBlocks.sort(sortByHeader);
+
+    const sorted = [...snippetBlocks, ...publicBlocks, ...internalBlocks, ...httpBlocks];
+    const parts = globalBlocks.map(block => block.lines.join('\n'));
+    if (loose.length) parts.push(loose.join('\n'));
+    for (const block of sorted) parts.push(block.lines.join('\n'));
+    if (trailing.length) parts.push(trailing.join('\n'));
+
+    return bom + parts.join('\n\n').trimEnd() + '\n';
+}
+
+// GET /api/caddyfile
+// GET /api/caddyfile?download=true
+router.get('/', async (req, res) => {
+    const { configPath, containerName } = req.instance;
+    let content;
+    try {
+        content = await readContainerFile(containerName, configPath);
+    } catch (error) {
+        return sendAppError(res, asAppError(error, 'CADDYFILE_READ_FAILED', { instanceId: req.instance.id, configPath }));
+    }
+    // The editor sends this back as If-Match, so a save can't overwrite edits
+    // made since it loaded the file. Never cached: the file changes outside caddy/ui.
+    res.setHeader('ETag', caddyfileETag(content));
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.query.download === 'true') {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);
+        res.setHeader('Content-Type', 'text/plain');
+        res.send(content);
+        return;
+    }
+    res.type('text/plain').send(content);
+});
+
+// GET /api/caddyfile/history
+router.get('/history', async (req, res) => {
+    try {
+        res.json(await history.list(req.instance.id, actor => getAuthentication().resolveActor(actor)));
+    } catch (err) {
+        sendAppError(res, asAppError(err, 'CADDYFILE_HISTORY_READ_FAILED', { instanceId: req.instance.id }));
+    }
+});
+
+// GET /api/caddyfile/history/:filename
+router.get('/history/:filename', async (req, res) => {
+    const { filename } = req.params;
+    if (!history.validFilename(filename)) {
+        return res.status(400).json({ error: 'Invalid filename' });
+    }
+    const { content } = await history.read(req.instance.id, filename);
+    res.type('text/plain').send(content);
+});
+
+// DELETE /api/caddyfile/history/:filename
+router.delete('/history/:filename', async (req, res) => {
+    const { filename } = req.params;
+    if (!history.validFilename(filename)) {
+        return res.status(400).json({ error: 'Invalid filename' });
+    }
+    await history.remove(req.instance.id, filename);
+    res.json({ ok: true });
+});
+
+// POST /api/caddyfile/validations
+router.post('/validations', async (req, res) => {
+    const content = req.body;
+    if (!content || typeof content !== 'string') {
+        return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
+    }
+
+    const fmt = req.query.fmt === 'true';
+    logger.info(`Validating Caddyfile`, { bytes: content.length, fmt });
+
+    try {
+        await validateCaddyfile(content, req.instance);
+        logger.info(`Caddyfile adapt validation passed`);
+    } catch (err) {
+        const output = ((err.stdout || '') + (err.stderr || '')).trim();
+        const lines = output.split('\n').filter(Boolean);
+        const warnings = lines.filter(l => l.toLowerCase().includes('warn'));
+        const errors = lines.filter(l => l.toLowerCase().includes('error'));
+        logger.warn(`Caddyfile adapt validation failed`, { errors });
+        return res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message], warnings });
+    }
+
+    let formatted = null;
+    if (fmt) {
+        try {
+            formatted = await fmtCaddyfile(content, req.instance.containerName);
+            logger.info(`Caddyfile fmt passed`);
+        } catch (err) {
+            logger.warn(`Caddyfile fmt failed`, { error: err.message });
+            return res.status(422).json({ valid: false, errors: [`caddy fmt failed: ${err.message}`], warnings: [] });
+        }
+    }
+
+    res.json({ valid: true, warnings: [], ...(formatted ? { formatted } : {}) });
+});
+
+// POST /api/caddyfile/reloads
+// Queued with saves, so its readback can't observe another change mid-write.
+router.post('/reloads', async (req, res) => {
+    logger.info(`Caddyfile reload requested`);
+    const result = await queueCaddyfileChange(req.instance, async () => {
+        const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
+        let via;
+        try {
+            via = await reloadCaddy(content, req.instance);
+        } catch (err) {
+            if (!(err instanceof CaddyTimeoutError)) throw err;
+        }
+        let expected;
+        const adapt = adaptedConfig(content, req.instance, via);
+        const live = () => verifyLiveConfig(req.instance, async () => {
+            expected = await adapt();
+            return expected;
+        });
+        const verification = { file: UNCHANGED, live: via ? await live() : await verifyAfterTimeout(live) };
+        await recordLocalChange(req.instance, { content, verification, verifyLive: live, expectLive: () => expected });
+        return { verification, ...verificationWarning(verification) };
+    });
+    res.json({ ok: true, message: 'Caddy reloaded from disk', ...changeResultFields(result) });
+});
+
+// PUT /api/caddyfile
+router.put('/', async (req, res) => {
+    const content = req.body;
+    if (!content || typeof content !== 'string') {
+        return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
+    }
+
+    const restoring = req.query.action === 'restore';
+    const fmt = !restoring && req.query.fmt !== 'false';
+    const sort = !restoring && req.query.sort !== 'false';
+    const skipValidation = req.query.validate === 'false';
+    logger.info(`Saving Caddyfile`, { bytes: content.length, fmt, sort, skipValidation });
+
+    const { containerName } = req.instance;
+
+    if (skipValidation) {
+        logger.warn(`Caddyfile save requested without validation (force save)`);
+    } else {
+        try {
+            await validateCaddyfile(content, req.instance);
+            logger.info(`Caddyfile pre-save validation passed`);
+        } catch (err) {
+            const output = ((err.stdout || '') + (err.stderr || '')).trim();
+            const lines = output.split('\n').filter(Boolean);
+            const errors = lines.filter(l => l.toLowerCase().includes('error'));
+            logger.warn(`Caddyfile pre-save validation failed`, { errors });
+            return res.status(422).json({ valid: false, errors: errors.length ? errors : [err.message] });
+        }
+    }
+
+    let final = content;
+    if (fmt) {
+        try {
+            final = await fmtCaddyfile(final, containerName);
+            logger.info(`Caddyfile formatted`);
+        } catch (err) {
+            logger.warn(`caddy fmt failed`, { error: err.message });
+            return res.status(422).json({ valid: false, errors: [`caddy fmt failed: ${err.message}`] });
+        }
+    }
+    if (sort) {
+        // Sorting is cosmetic: a file Caddy accepted but the scanner can't
+        // structure is saved as written rather than rejected.
+        try {
+            final = sortCaddyfile(final);
+            logger.info(`Caddyfile sorted`);
+        } catch (err) {
+            if (!(err instanceof SyntaxError)) throw err;
+            logger.warn(`Caddyfile sort skipped`, { error: err.message });
+        }
+    }
+
+    let result;
+    try {
+        // A force save keeps the file even when Caddy rejects it
+        const action = ['restore', 'import'].includes(req.query.action) ? `caddyfile.${req.query.action}` : 'caddyfile.save';
+        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: getAuthentication().getActor(req), action,
+            ifMatch: ifMatchTags(req.get('If-Match')) });
+    } catch (err) {
+        if (!(err instanceof AppError)) throw err;
+        res.locals.appError = err;
+        const detail = err.cause?.message || err.message;
+        const errors = [err.code === 'CADDYFILE_CHANGE_REJECTED' || err.code === 'CADDYFILE_ROLLBACK_FAILED' ? `Caddy reload failed: ${detail}` : detail];
+        return res.status(err.status).json({ valid: false, code: err.code, errors });
+    }
+    if (result.uncertain) {
+        return res.json({ ok: true, message: 'Caddyfile saved. Caddy did not confirm the reload in time.', ...changeResultFields(result) });
+    }
+    if (!result.applied) {
+        logger.warn(`Caddy reload failed after force save; file left on disk`, { error: result.error.message });
+        return res.json({
+            ok: true,
+            message: 'Caddyfile written to disk. Caddy reload failed — changes apply on the next restart or manual reload.',
+            ...changeResultFields(result),
+            warning: [result.error.message, result.warning].filter(Boolean).join(' '),
+        });
+    }
+
+    logger.info(`Caddyfile saved`, { bytes: final.length });
+    res.json({ ok: true, message: 'Caddyfile saved and reloaded', ...changeResultFields(result) });
+});
+
+export default router;
+export { changeResultFields, migrateLegacyHistory, parseSiteBlocks, planLegacyHistoryMigration, queueCaddyfileChange, saveCaddyfileChange, sortCaddyfile, validateCaddyfile };

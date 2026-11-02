@@ -1,0 +1,620 @@
+{
+  "schema_version": 1,
+  "upstream": "https://github.com/canonical/cloud-init.git",
+  "revision": "2e29ad07daced32d3fac1cb2aa93b817fe12b291",
+  "comparison": "Exact normalized host presence, not provider coverage or runtime policy",
+  "reference": {
+    "status": "Provider-documented reference; not a runtime policy or exhaustive registry",
+    "verified_on": "2026-10-16",
+    "endpoints": [
+      {
+        "provider": "AWS EC2",
+        "host": "169.254.169.254",
+        "url": "http://169.254.169.254/latest/meta-data/",
+        "documentation": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html"
+      },
+      {
+        "provider": "AWS EC2",
+        "host": "fd00:ec2::254",
+        "url": "http://[fd00:ec2::254]/latest/meta-data/",
+        "notes": "Requires the IPv6 IMDS endpoint on supported Nitro instances and subnets.",
+        "documentation": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html"
+      },
+      {
+        "provider": "Google Compute Engine",
+        "host": "metadata.google.internal",
+        "url": "http://metadata.google.internal/computeMetadata/v1/",
+        "documentation": "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata#metadata_server_endpoints"
+      },
+      {
+        "provider": "Google Compute Engine",
+        "host": "169.254.169.254",
+        "url": "http://169.254.169.254/computeMetadata/v1/",
+        "documentation": "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata#metadata_server_endpoints"
+      },
+      {
+        "provider": "Google Compute Engine",
+        "host": "fd20:ce::254",
+        "url": "http://[fd20:ce::254]/computeMetadata/v1/",
+        "notes": "Documented for IPv6-only instances; absent from this cloud-init extraction.",
+        "documentation": "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata#metadata_server_endpoints"
+      },
+      {
+        "provider": "Alibaba ECS",
+        "host": "100.100.100.200",
+        "url": "http://100.100.100.200/latest/meta-data/",
+        "notes": "No standard IPv6 endpoint established by the linked documentation; none inferred.",
+        "documentation": "https://www.alibabacloud.com/help/en/ecs/user-guide/view-instance-metadata/"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "cloudinit/sources/DataSourceAkamai.py",
+      "sha256": "4fa125cd58f99270822e5981d836d2fb4efb47699810b43da0523426b1a35016"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceAliYun.py",
+      "sha256": "43088e11b766cac937cf6d097824a29601bd2cf76f5d780cbf0b793646da6747"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceAltCloud.py",
+      "sha256": "5c9968e2fd94bbb85186e96f5c97d2198366ca4f6fea729cea438f85e4b5ebc4"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceAzure.py",
+      "sha256": "0da7aaa8008e72aaae78948b4251ca7ac5d778d1dd6e24a2960ca24eb0cf85c1"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceBigstep.py",
+      "sha256": "73fa79597dd160ec5d0d21c659fb769ee1ecb1a13200b8133d326ab52b55e982"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceCloudCIX.py",
+      "sha256": "292080b93fd6b67102e1a38f780c2375193c99d86d0f57824aac7ab6f5503723"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceCloudSigma.py",
+      "sha256": "9d1f1be3c6f093515d946663127876757da9654976b58f6a5ca748033d34ae51"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceCloudStack.py",
+      "sha256": "c7d8320f0c8d969175f6c8f5142697076f974cd82eafab3c30863f206e993c7a"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceConfigDrive.py",
+      "sha256": "3cd1509bd4bba493551a737425f9c57ff09d1d6409b51336979e94a47ac3d47b"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceDigitalOcean.py",
+      "sha256": "56cbf9414f26b7f25044c2c7004fab66592ea880730b947f680cfe046b12f7ae"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceEc2.py",
+      "sha256": "de184f12477dc5c42f00d2791b6d9aa560b551048684cb1c4426ba9333705cbd"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceExoscale.py",
+      "sha256": "30a8f3faa422cc5967a3129ce8e6af3fce6f5d48c1218d11ea2b4cd088da8aa2"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceGCE.py",
+      "sha256": "867892e68a01180d020766e0b99ad0dd28aee814c6cd68fb5cc58be3fba8a6a1"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceHetzner.py",
+      "sha256": "e73c3726da74c14e493df3e1a824133edf9237f7200605700f6e3bfc027eadf4"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceIBMCloud.py",
+      "sha256": "18d960e520795ffa88c3085792bc1f36367fc6f6ccfc691497dd86f05419da2f"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceLXD.py",
+      "sha256": "b1588547dcf1693c46c404a1dc365cc2eb4312f2b9f2a3f19d7a049226f0ffa1"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceMAAS.py",
+      "sha256": "56c12cff643846bb5ad90355c17f4c7924aeebcf8b8fd11851dd493c36ae50d3"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceNWCS.py",
+      "sha256": "8842ec0802fefa429aad0de8de5616a3ac5b113a6fdb2e82e2c84a5e9613f15a"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceNoCloud.py",
+      "sha256": "5073a4d72ca3e4d9a184ce81965934c2d011b779cb28bec0962a4f80dedf090e"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceNone.py",
+      "sha256": "3252ebbf794620aadae196819853e95a85c2c009c54a304e82395dab6c0d53db"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceOVF.py",
+      "sha256": "a31b5926cd124f40cd7df8040b3a472b689e5e53469017ea9b621c795c16e9fd"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceOpenNebula.py",
+      "sha256": "d43783e4de68c99f63a0774001041dda18c8f82e3e484769a62ee27b6d9da1eb"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceOpenStack.py",
+      "sha256": "619fd614f0a78dc85ee3302e9a13b4fdab662ffb5ac3add3e81f4a572b9f03a5"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceOracle.py",
+      "sha256": "c024ab37efb26de9121e7395f4b4fccaf517ba7972de75aebbf141348a760813"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceRbxCloud.py",
+      "sha256": "cab8b1f9aacd37f3a794175009e290f52dd45c95dbaf5406f3bddb1bac054b0d"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceScaleway.py",
+      "sha256": "afd22076269e65ba4deb5ffd0cfba3ddd86078cfd42fdab399134b8f0bdd434e"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceSmartOS.py",
+      "sha256": "fef948742842f7d8aea77514b6ca61ce25cb19003cbe0c277558b677bef6464b"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceUpCloud.py",
+      "sha256": "a5d5d0690f5f2381c929bc6f3e4c0c87964e750a6e139023ac9d65562165cc89"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceVMware.py",
+      "sha256": "292537c2008e5f5b8b11a11eb1c651bc0ffd75206fee8a67dc64a5ff3003cdb7"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceVultr.py",
+      "sha256": "cb5b5822cb9a9c41f153096a5b82d911822adc7fb9764b4cc0b90fc52e05b7e9"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceWSL.py",
+      "sha256": "ba6ecda143f926b5def984aaa0788cbe8e6a2069dd50957065e868d67a49a01d"
+    },
+    {
+      "path": "cloudinit/sources/__init__.py",
+      "sha256": "f4ed7e6a50623a4ddd17f37ef295866cdb767f7f73d5e79f69d5353a498e2697"
+    },
+    {
+      "path": "cloudinit/sources/azure/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloudinit/sources/azure/certs.py",
+      "sha256": "7445cbaa07b99f2439f719853a5a5fb0c8fa1efaf13879611856670f0cbb8f50"
+    },
+    {
+      "path": "cloudinit/sources/azure/errors.py",
+      "sha256": "eda4f5e76b4d8c54caa4ac4188a52567c4aaeb883325ea22107f118940bab433"
+    },
+    {
+      "path": "cloudinit/sources/azure/identity.py",
+      "sha256": "694d5cd723c506c9f4285d5969bab17fef7edc3a5542371902e03b65f4c19c35"
+    },
+    {
+      "path": "cloudinit/sources/azure/imds.py",
+      "sha256": "f1d32b146752975cd32f0697ad8be4880ae7e6d886e8b97aa217c1014c57aa76"
+    },
+    {
+      "path": "cloudinit/sources/azure/kvp.py",
+      "sha256": "e7f5a4f9693109d5ed66dce8d5f5b6d5338bf576357121f8f022e746f90cfd6d"
+    },
+    {
+      "path": "cloudinit/sources/helpers/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloudinit/sources/helpers/akamai.py",
+      "sha256": "d08c700c02e670402879f5252a3a8c574bc06a22d2e6f0b39ae3df3ddccddbbc"
+    },
+    {
+      "path": "cloudinit/sources/helpers/aliyun.py",
+      "sha256": "3f363f323adb641856f87cb07568df6d5cc71ae0f4c6696b1aade975bad97e84"
+    },
+    {
+      "path": "cloudinit/sources/helpers/azure.py",
+      "sha256": "53b553b823e353166359e5f425c8aa2e6be211bde3677cf2b7b3d57053d851db"
+    },
+    {
+      "path": "cloudinit/sources/helpers/cloudsigma.py",
+      "sha256": "f6dd60e69df6df9010dc39b97050a5fbf415e30bf41b2e138aaf5ba0b8ca7735"
+    },
+    {
+      "path": "cloudinit/sources/helpers/digitalocean.py",
+      "sha256": "8297781205a91e682434967c538bab9af5cd2292398fe9ebea474f1ba76a0369"
+    },
+    {
+      "path": "cloudinit/sources/helpers/ec2.py",
+      "sha256": "359c1c7faab3bb7787980fb1aa7cab806f210f45661805da734dc12b82cec1a3"
+    },
+    {
+      "path": "cloudinit/sources/helpers/hetzner.py",
+      "sha256": "434fc9eb8a11e24f4c553dec15dc30c8f3644b38d467a3b482700d63f74b1243"
+    },
+    {
+      "path": "cloudinit/sources/helpers/netlink.py",
+      "sha256": "91d47e5014f89c0f1ea36b7d669a9df3f685c1e566bf116196695db5e03f28e7"
+    },
+    {
+      "path": "cloudinit/sources/helpers/openstack.py",
+      "sha256": "05570632d0912c2a586c26270214e9524f7acc3bcd1cae3e8ce1c156b1cd1553"
+    },
+    {
+      "path": "cloudinit/sources/helpers/upcloud.py",
+      "sha256": "c54366710004bce25340b703b4bde38c2d50feb168d126fb64ed3aafa682f26d"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/boot_proto.py",
+      "sha256": "c88e99fc9d78dafbdd5fbac84de04ab419acca949a9eeadef066fa76a39da6aa"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/config.py",
+      "sha256": "57ab460caf4182c0f8a4d8161211e690d774de373699575c08d15745a7c25054"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/config_custom_script.py",
+      "sha256": "128aaf68e2b64eee5b67313d1adc2df1703032ade74efc497ac717aa597c41aa"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/config_file.py",
+      "sha256": "1ffc040f1a2263569883b8a6aac1f1d1391161e8b44eec7fb88497a14db2b470"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/config_nic.py",
+      "sha256": "727e5f27e1609b7be2f4880ce27b6217ee6d3ac88be53060b0aa498d7321311d"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/config_passwd.py",
+      "sha256": "5e1e70ee61b122da62058d5255a3f7cc175cb8378d1ae7cb3fd0d559305c6f56"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/config_source.py",
+      "sha256": "46f5d7bad0c0371fc012f3b92c02d7ca321203fdf2b0be85b47e7659db6a2962"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/guestcust_error.py",
+      "sha256": "c238b15fda3e07d4e137183671434f1fd53e572600f627ead4f82152df249a2e"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/guestcust_event.py",
+      "sha256": "3f47a5ea5fa6250543ad194de47381910f855ddee0785700408897a97776acc7"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/guestcust_state.py",
+      "sha256": "ea8cbd97bab0da111c7a397ac5054865c90d93a9a0776ec5cc77dea6d203c1cd"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/guestcust_util.py",
+      "sha256": "39e5d854e476e51b4f3683c60011cd011b0614f1f0c09fe3872c2f3799c849de"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/nic.py",
+      "sha256": "420ab40caff241996cc9ce13b11b7f1a20a4de45a5cef70f2c7bf40c9d195680"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vmware/imc/nic_base.py",
+      "sha256": "c808c63f880cbc3bad33af39426f554f403b0055350e043454736261a8831e30"
+    },
+    {
+      "path": "cloudinit/sources/helpers/vultr.py",
+      "sha256": "e609fcab99750389a92211903f9c09261053863892e3c2c5d3766209714ae60f"
+    }
+  ],
+  "candidates": [
+    {
+      "host": "100.100.100.200",
+      "in_reference": true,
+      "observations": [
+        {
+          "url_literal": "http://100.100.100.200",
+          "path": "cloudinit/sources/DataSourceAliYun.py",
+          "line": 24,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceAliYun.py#L24"
+        },
+        {
+          "url_literal": "http://100.100.100.200",
+          "path": "cloudinit/sources/helpers/aliyun.py",
+          "line": 14,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/helpers/aliyun.py#L14"
+        },
+        {
+          "url_literal": "http://100.100.100.200",
+          "path": "cloudinit/sources/helpers/aliyun.py",
+          "line": 98,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/helpers/aliyun.py#L98"
+        }
+      ]
+    },
+    {
+      "host": "169.254.169.254",
+      "in_reference": true,
+      "observations": [
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/DataSourceAkamai.py",
+          "line": 23,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceAkamai.py#L23"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/DataSourceCloudCIX.py",
+          "line": 11,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceCloudCIX.py#L11"
+        },
+        {
+          "url_literal": "http://169.254.169.254/metadata/v1.json",
+          "path": "cloudinit/sources/DataSourceDigitalOcean.py",
+          "line": 18,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceDigitalOcean.py#L18"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/DataSourceEc2.py",
+          "line": 87,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceEc2.py#L87"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/DataSourceExoscale.py",
+          "line": 13,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceExoscale.py#L13"
+        },
+        {
+          "url_literal": "http://169.254.169.254/hetzner/v1/",
+          "path": "cloudinit/sources/DataSourceHetzner.py",
+          "line": 42,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceHetzner.py#L42"
+        },
+        {
+          "url_literal": "http://169.254.169.254/api/v1",
+          "path": "cloudinit/sources/DataSourceNWCS.py",
+          "line": 15,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceNWCS.py#L15"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/DataSourceOpenStack.py",
+          "line": 81,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceOpenStack.py#L81"
+        },
+        {
+          "url_literal": "http://169.254.169.254/opc/v{version}/",
+          "path": "cloudinit/sources/DataSourceOracle.py",
+          "line": 49,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceOracle.py#L49"
+        },
+        {
+          "url_literal": "http://169.254.169.254/metadata/v1.json",
+          "path": "cloudinit/sources/DataSourceUpCloud.py",
+          "line": 18,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceUpCloud.py#L18"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/DataSourceVultr.py",
+          "line": 16,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceVultr.py#L16"
+        },
+        {
+          "url_literal": "http://169.254.169.254/metadata",
+          "path": "cloudinit/sources/azure/imds.py",
+          "line": 18,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/azure/imds.py#L18"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/helpers/ec2.py",
+          "line": 146,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/helpers/ec2.py#L146"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/helpers/ec2.py",
+          "line": 187,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/helpers/ec2.py#L187"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/helpers/ec2.py",
+          "line": 237,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/helpers/ec2.py#L237"
+        },
+        {
+          "url_literal": "http://169.254.169.254",
+          "path": "cloudinit/sources/helpers/ec2.py",
+          "line": 266,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/helpers/ec2.py#L266"
+        }
+      ]
+    },
+    {
+      "host": "169.254.42.42",
+      "in_reference": false,
+      "observations": [
+        {
+          "url_literal": "http://169.254.42.42",
+          "path": "cloudinit/sources/DataSourceScaleway.py",
+          "line": 31,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceScaleway.py#L31"
+        }
+      ]
+    },
+    {
+      "host": "fd00:42::42",
+      "in_reference": false,
+      "observations": [
+        {
+          "url_literal": "http://[fd00:42::42]",
+          "path": "cloudinit/sources/DataSourceScaleway.py",
+          "line": 31,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceScaleway.py#L31"
+        }
+      ]
+    },
+    {
+      "host": "fd00:a9fe:a9fe::1",
+      "in_reference": false,
+      "observations": [
+        {
+          "url_literal": "http://[fd00:a9fe:a9fe::1]",
+          "path": "cloudinit/sources/DataSourceAkamai.py",
+          "line": 24,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceAkamai.py#L24"
+        }
+      ]
+    },
+    {
+      "host": "fd00:c1::a9fe:a9fe",
+      "in_reference": false,
+      "observations": [
+        {
+          "url_literal": "http://[fd00:c1::a9fe:a9fe]/opc/v{version}/",
+          "path": "cloudinit/sources/DataSourceOracle.py",
+          "line": 50,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceOracle.py#L50"
+        }
+      ]
+    },
+    {
+      "host": "fd00:ec2::254",
+      "in_reference": true,
+      "observations": [
+        {
+          "url_literal": "http://[fd00:ec2::254]",
+          "path": "cloudinit/sources/DataSourceEc2.py",
+          "line": 88,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceEc2.py#L88"
+        }
+      ]
+    },
+    {
+      "host": "metadata.google.internal",
+      "in_reference": true,
+      "observations": [
+        {
+          "url_literal": "http://metadata.google.internal/computeMetadata/v1/",
+          "path": "cloudinit/sources/DataSourceGCE.py",
+          "line": 19,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceGCE.py#L19"
+        },
+        {
+          "url_literal": "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes",
+          "path": "cloudinit/sources/DataSourceGCE.py",
+          "line": 22,
+          "source": "https://github.com/canonical/cloud-init/blob/2e29ad07daced32d3fac1cb2aa93b817fe12b291/cloudinit/sources/DataSourceGCE.py#L22"
+        }
+      ]
+    }
+  ],
+  "reference_only": [
+    {
+      "provider": "Google Compute Engine",
+      "host": "fd20:ce::254",
+      "url": "http://[fd20:ce::254]/computeMetadata/v1/",
+      "notes": "Documented for IPv6-only instances; absent from this cloud-init extraction.",
+      "documentation": "https://docs.cloud.google.com/compute/docs/metadata/querying-metadata#metadata_server_endpoints"
+    }
+  ],
+  "manual_review": [
+    {
+      "path": "cloudinit/sources/DataSourceCloudStack.py",
+      "line": 52,
+      "expression": "f\"http://{self.virtual_router_address}:8080\""
+    },
+    {
+      "path": "cloudinit/sources/DataSourceCloudStack.py",
+      "line": 238,
+      "expression": "f\"http://{self.vr_addr}/\""
+    },
+    {
+      "path": "cloudinit/sources/DataSourceHetzner.py",
+      "line": 41,
+      "expression": "f\"http://[fe80::a9fe:a9fe%25{net.find_fallback_nic()}]/hetzner/v1/\""
+    },
+    {
+      "path": "cloudinit/sources/DataSourceLXD.py",
+      "line": 34,
+      "expression": "http://lxd"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceNoCloud.py",
+      "line": 319,
+      "expression": "http://"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceNoCloud.py",
+      "line": 319,
+      "expression": "https://"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceNoCloud.py",
+      "line": 398,
+      "expression": "http://"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceNoCloud.py",
+      "line": 399,
+      "expression": "https://"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceOVF.py",
+      "line": 138,
+      "expression": "http://"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceOVF.py",
+      "line": 138,
+      "expression": "https://"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceOVF.py",
+      "line": 367,
+      "expression": "http://schemas.dmtf.org/ovf/environment/1"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceOpenStack.py",
+      "line": 78,
+      "expression": "http://[fe80::a9fe:a9fe%25{iface}]"
+    },
+    {
+      "path": "cloudinit/sources/DataSourceScaleway.py",
+      "line": 132,
+      "expression": "http://"
+    },
+    {
+      "path": "cloudinit/sources/azure/errors.py",
+      "line": 48,
+      "expression": "https://aka.ms/linuxprovisioningerror"
+    },
+    {
+      "path": "cloudinit/sources/helpers/azure.py",
+      "line": 692,
+      "expression": "http://{}/machine?comp=health"
+    },
+    {
+      "path": "cloudinit/sources/helpers/azure.py",
+      "line": 799,
+      "expression": "http://{}/machine/?comp=goalstate"
+    },
+    {
+      "path": "cloudinit/sources/helpers/azure.py",
+      "line": 972,
+      "expression": "http://schemas.dmtf.org/ovf/environment/1"
+    },
+    {
+      "path": "cloudinit/sources/helpers/azure.py",
+      "line": 973,
+      "expression": "http://schemas.microsoft.com/windowsazure"
+    }
+  ]
+}

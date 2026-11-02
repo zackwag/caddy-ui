@@ -1,0 +1,124 @@
+# Documentation
+
+The mdBook site is authored as individual Markdown pages in `docs/src/`.
+`SUMMARY.md` defines their sidebar order and nesting. New contributors should
+start with [documentation onboarding](src/contributing-documentation.md).
+
+Historical release collection and backfill commands are documented in
+[historical documentation collection](history/README.md).
+
+The root README remains canonical for environment variables, API endpoints, the
+Compose example, and all content selected for Docker Hub. Book reference pages
+use mdBook's built-in `{{#include}}` syntax with named `ANCHOR` / `ANCHOR_END`
+regions in `README.md`. Edit the shared source there; write detailed explanations
+and contribution guides in the book. The project-tree preprocessor generates the
+repository overview during each build; no separate preparation command is needed.
+
+## Build and preview
+
+Install the prebuilt [mdBook 0.5.4 binary](https://github.com/rust-lang/mdBook/releases/tag/v0.5.4)
+for your environment and put it on your `PATH`. Install Node.js 22.12 or newer, then
+install the pinned Mermaid dependency once (repeat after lockfile changes):
+
+```sh
+npm ci --prefix docs --ignore-scripts
+```
+
+No Rust toolchain or extra mdBook plugin binary is needed. Mermaid's standalone
+browser bundle is copied into the book, so published diagrams work offline.
+
+From the repository root:
+
+```sh
+npm run i18n:coverage --prefix src/frontend
+mdbook build docs
+mdbook serve docs --hostname 127.0.0.1 --port 3000
+```
+
+Open `http://localhost:3000`. For a devcontainer, use `--hostname 0.0.0.0` and
+forward port 3000 in VS Code. Changes to the book and its included README sections
+are rebuilt automatically by the running server.
+
+Check changed pages, navigation, links, code examples, and light/dark themes.
+If you edited Docker Hub source blocks, also run
+`node .github/scripts/dockerhub-docs.mjs --dry-run` with Node.js from the repository root.
+
+## Styling and assets
+
+Screenshots live in `docs/src/screenshots/`; the root README also references them.
+The localization coverage SVG is generated into `docs/src/assets/` by the
+documentation workflow so mdBook copies it into the site; it is not checked in.
+Generate it locally with `npm run i18n:coverage --prefix src/frontend`.
+The book's favicon is copied from the frontend logo. `docs/theme/palettes.css`
+contains the frontend's default VT2026 and CoarseEverywhere color tokens copied
+at migration time. Keep those tokens in sync when changing the frontend defaults.
+`docs/theme/caddy-ui.css` maps those tokens to mdBook controls and layout rules.
+Fonts use the frontend families with local system fallbacks.
+
+Source pages and assets are checked in; generated screenshots, the coverage
+graph, rendered `docs/book/` output, and installed `node_modules/` are ignored
+by Git. Mermaid code fences render as diagrams and follow the light/dark
+theme. Invalid diagrams fall back to readable source and report the error in
+the browser console.
+
+## Generated screenshots
+
+The documentation workflow renders the production frontend with captured API
+responses. To generate the same screenshots locally, run from the repository root:
+
+```sh
+npm ci --prefix src/frontend
+npm ci --prefix dev
+npm run build --prefix src/frontend
+npm exec --prefix dev -- playwright install chromium
+npm run docs:screenshots
+```
+
+Screenshots are written to `docs/src/screenshots/`. Rendering uses recorded data
+without a running backend. Playwright belongs to the dev package. A system browser
+can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
+
+Refreshing the recorded data uses `npm run docs:screenshots:capture` and requires
+backend dependencies plus a working local Docker Engine. It creates and cleans up
+its own disposable Caddy resources. Review the changed capture separately from
+image generation; do not edit generated responses by hand.
+
+## Generated project structure
+
+`docs/src/project-structure.md` contains a `{{#project-structure}}` placeholder.
+`docs/scripts/project-structure.mjs` expands it during `mdbook build` and `serve`,
+using tracked and new non-ignored repository files. Deleted files disappear;
+dependencies, generated output, and ignored files are excluded.
+
+Add annotations in `docs/project-structure-notes.json`, using repository-relative
+paths as keys and a trailing slash for directories. Existing annotations survive
+every build because the preprocessor never rewrites that file. Notes for absent
+paths remain stored but are not displayed; update their keys when renaming files.
+Explanations outside the placeholder in the Markdown page are also preserved.
+Source directories are watched during `mdbook serve`; run a build after changing
+files outside those watched directories.
+
+```sh
+npm test --prefix docs
+```
+
+## GitHub Pages
+
+The Documentation workflow builds and uploads a preview artifact on PRs and forks.
+In the upstream repository, pushes to `main`, successful Release runs and daily
+catch-up runs assemble and publish the development book alongside the preserved
+release books. Historical books are downloaded and verified from the public
+archive in `juscghwe/caddy-ui`; collection and archive writes stay in that fork.
+See [archive ownership and publication](history/README.md#crawl-future-releases)
+for configuration, failure behavior and local versioned-site previews.
+
+Select **GitHub Actions** under the repository's
+**Settings → Pages → Build and deployment → Source** before deploying.
+
+The workflow derives the site path from the repository name for project Pages
+sites, including renamed forks. A user/organization Pages repository uses `/`.
+For a custom domain, set `site-url` in `book.toml` to its serving path and remove
+the workflow's `MDBOOK_OUTPUT__HTML__SITE_URL` override.
+
+Pages deployment does not run from PRs or forks. Repository Pages access and any configured
+`github-pages` environment approval are required for deployment.

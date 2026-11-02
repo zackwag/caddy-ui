@@ -1,0 +1,97 @@
+import assert from 'node:assert/strict';
+import { before, test } from 'node:test';
+import ar from '../../src/frontend/src/i18n/locales/ar.js';
+import de from '../../src/frontend/src/i18n/locales/de.js';
+import en from '../../src/frontend/src/i18n/locales/en.js';
+import { prepareBrowserTests, useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
+
+before(prepareBrowserTests, { timeout: 35000 });
+const options = { timeout: 120000 };
+const isArabicFont = url => url.includes('noto-sans-arabic') && url.includes('.woff2');
+
+async function select(page, locale) {
+    await page.locator('.language-picker-select').selectOption(locale);
+    await page.waitForFunction(locale => document.documentElement.lang === locale
+        && document.querySelector('.language-picker-select')?.value === locale, locale);
+    await page.evaluate(async () => {
+        document.body.getBoundingClientRect();
+        await document.fonts.ready;
+    });
+}
+
+test('IBM Plex families and existing weights load from the UI origin without external requests', options, async t => {
+    const { page, context, origin, urls } = await useAuthBrowserFixture(t);
+    const external = [];
+    await context.route('**/*', route => {
+        if (new URL(route.request().url()).origin !== origin) {
+            external.push(route.request().url());
+            return route.abort();
+        }
+        return route.continue();
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: 'Create administrator', exact: true }).waitFor();
+    const expected = [
+        ['IBM Plex Sans', '300'], ['IBM Plex Sans', '400'], ['IBM Plex Sans', '500'],
+        ['IBM Plex Mono', '400'], ['IBM Plex Mono', '500'], ['IBM Plex Mono', '600'],
+    ];
+    const loaded = await page.evaluate(async expected => {
+        await document.fonts.ready;
+        return Promise.all(expected.map(async ([family, weight]) => {
+            const faces = await document.fonts.load(`${weight} 16px "${family}"`, 'AäéЖΩ');
+            return faces.length > 0 && faces.every(face => face.status === 'loaded'
+                && face.family.includes(family) && face.weight === weight && face.display === 'swap');
+        }));
+    }, expected);
+    assert.deepEqual(loaded, expected.map(() => true), 'Every original family/weight must have a loaded font face');
+    assert((await page.locator('body').evaluate(element => getComputedStyle(element).fontFamily)).includes('IBM Plex Sans'));
+    for (const family of ['ibm-plex-sans', 'ibm-plex-mono']) {
+        assert(urls.some(url => url.includes(family) && url.includes('.woff2')), `${family} must be requested locally`);
+    }
+    assert.deepEqual(external, [], 'No third-party service may be needed after reload');
+    assert(urls.every(url => new URL(url).origin === origin), 'Initial load must also stay on the UI origin');
+});
+
+test('reviewed Arabic and German work without opt-in, with a bundled font only for Arabic', options, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t, { additionalLanguages: '' });
+    assert.deepEqual((await stack.api('/languages')).data, { languages: ['en', 'ar', 'de'], fonts: ['ar'] });
+    assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'ar' } })).status, 200);
+    assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'de' } })).status, 200);
+    assert.equal((await stack.api('/settings', { method: 'PUT', body: { language: 'es-mx' } })).status, 400);
+    // The page loaded before these saves, and its settings request can land
+    // between them and briefly apply Arabic. Reload so it reads only German.
+    const fonts = [];
+    page.on('request', request => { if (isArabicFont(request.url())) fonts.push(request.url()); });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForView('.language-picker-select');
+    assert.deepEqual(fonts, []);
+    await select(page, 'de');
+    assert.equal(await page.locator('.page-title').innerText(), de.pages.dashboard);
+    assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
+    assert.deepEqual(fonts, []);
+    await select(page, 'ar');
+    assert.equal(await page.locator('.page-title').innerText(), ar.pages.dashboard);
+    assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+    assert.equal(await page.locator('.language-picker-select option[value="de"]').count(), 1);
+    assert.equal(await page.locator('.language-picker-select option[value="es-mx"]').count(), 0);
+    assert.equal(fonts.length, 1);
+    assert.equal(new URL(fonts[0]).origin, origin);
+    assert.equal(await page.evaluate(() => [...document.fonts].some(font => font.family.includes('Noto Sans Arabic') && font.status === 'loaded')), true);
+    await select(page, 'en');
+    assert.equal(await page.locator('.page-title').innerText(), en.pages.dashboard);
+    assert.equal(await page.locator('html').getAttribute('dir'), 'ltr');
+    await select(page, 'ar');
+    assert.equal(fonts.length, 1);
+});
+
+test('a failed font download preserves translated UI and language switching', options, async t => {
+    const { page, waitForView } = await useBrowserFixture(t, { additionalLanguages: '' });
+    await page.route('**/*noto-sans-arabic*.woff2*', route => route.abort('failed'));
+    await waitForView('.language-picker-select');
+    await select(page, 'ar');
+    assert.equal(await page.locator('.page-title').innerText(), ar.pages.dashboard);
+    assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+    assert.equal(await page.evaluate(() => [...document.fonts].some(font => font.family.includes('Noto Sans Arabic') && font.status === 'error')), true);
+    await select(page, 'en');
+    assert.equal(await page.locator('.page-title').innerText(), en.pages.dashboard);
+});

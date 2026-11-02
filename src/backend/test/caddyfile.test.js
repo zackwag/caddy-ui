@@ -1,0 +1,234 @@
+import { describe, expect, it } from 'vitest';
+import { parseSiteBlocks, planLegacyHistoryMigration, sortCaddyfile } from '../src/routes/caddyfile.js';
+
+describe('parseSiteBlocks', () => {
+    it('parses a single site block', () => {
+        const content = `app.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const { blocks } = parseSiteBlocks(content);
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].header).toBe('app.example.com {');
+    });
+
+    it('parses multiple site blocks', () => {
+        const content = `app.example.com {
+    reverse_proxy localhost:8080
+}
+
+other.example.com {
+    reverse_proxy localhost:9090
+}`;
+        const { blocks } = parseSiteBlocks(content);
+        expect(blocks).toHaveLength(2);
+        expect(blocks[0].header).toBe('app.example.com {');
+        expect(blocks[1].header).toBe('other.example.com {');
+    });
+
+    it('handles nested braces', () => {
+        const content = `app.example.com {
+    handle /api/* {
+        reverse_proxy localhost:8080
+    }
+}`;
+        const { blocks } = parseSiteBlocks(content);
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].lines).toHaveLength(5);
+    });
+
+    it('skips empty lines and comments', () => {
+        const content = `# This is a comment
+
+app.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const { blocks } = parseSiteBlocks(content);
+        expect(blocks).toHaveLength(1);
+    });
+
+    it('returns empty blocks and loose for empty input', () => {
+        const { blocks, loose } = parseSiteBlocks('');
+        expect(blocks).toEqual([]);
+        expect(loose).toEqual([]);
+    });
+
+    it('returns empty blocks for only comments', () => {
+        const { blocks } = parseSiteBlocks('# just a comment\n# another');
+        expect(blocks).toEqual([]);
+    });
+
+    it('captures top-level import lines as loose', () => {
+        const content = `import conf.d/*.caddy
+
+app.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const { blocks, loose } = parseSiteBlocks(content);
+        expect(blocks).toHaveLength(1);
+        expect(loose).toHaveLength(1);
+        expect(loose[0]).toContain('import conf.d/*.caddy');
+    });
+});
+
+describe('sortCaddyfile', () => {
+    it('sorts public blocks before internal blocks', () => {
+        const content = `grafana.internal {
+    reverse_proxy localhost:3000
+}
+
+app.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const result = sortCaddyfile(content);
+        const appIdx = result.indexOf('app.example.com');
+        const grafanaIdx = result.indexOf('grafana.internal');
+        expect(appIdx).toBeLessThan(grafanaIdx);
+    });
+
+    it('sorts internal blocks before http:// blocks', () => {
+        const content = `http://redirect.example.com {
+    redir https://example.com
+}
+
+grafana.internal {
+    reverse_proxy localhost:3000
+}`;
+        const result = sortCaddyfile(content);
+        const internalIdx = result.indexOf('grafana.internal');
+        const httpIdx = result.indexOf('http://redirect.example.com');
+        expect(internalIdx).toBeLessThan(httpIdx);
+    });
+
+    it('preserves the global block at the top', () => {
+        const content = `{
+    email admin@example.com
+}
+
+beta.example.com {
+    reverse_proxy localhost:9090
+}
+
+app.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const result = sortCaddyfile(content);
+        expect(result.indexOf('{')).toBe(0);
+        expect(result.indexOf('email admin@example.com')).toBeGreaterThan(0);
+        const appIdx = result.indexOf('app.example.com');
+        const betaIdx = result.indexOf('beta.example.com');
+        expect(appIdx).toBeLessThan(betaIdx);
+    });
+
+    it('alphabetizes blocks within each category', () => {
+        const content = `charlie.example.com {
+    reverse_proxy localhost:3000
+}
+
+alpha.example.com {
+    reverse_proxy localhost:1000
+}
+
+bravo.example.com {
+    reverse_proxy localhost:2000
+}`;
+        const result = sortCaddyfile(content);
+        const alphaIdx = result.indexOf('alpha.example.com');
+        const bravoIdx = result.indexOf('bravo.example.com');
+        const charlieIdx = result.indexOf('charlie.example.com');
+        expect(alphaIdx).toBeLessThan(bravoIdx);
+        expect(bravoIdx).toBeLessThan(charlieIdx);
+    });
+
+    it('preserves top-level import lines', () => {
+        const content = `import conf.d/*.caddy
+
+beta.example.com {
+    reverse_proxy localhost:9090
+}
+
+alpha.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const result = sortCaddyfile(content);
+        expect(result).toContain('import conf.d/*.caddy');
+        const alphaIdx = result.indexOf('alpha.example.com');
+        const betaIdx = result.indexOf('beta.example.com');
+        expect(alphaIdx).toBeLessThan(betaIdx);
+    });
+
+    it('ends with a trailing newline', () => {
+        const content = `app.example.com {
+    reverse_proxy localhost:8080
+}`;
+        const result = sortCaddyfile(content);
+        expect(result.endsWith('\n')).toBe(true);
+        expect(result.endsWith('\n\n')).toBe(false);
+    });
+});
+
+describe('sortCaddyfile with literal braces and comments', () => {
+    const heredocSite = 'b.example.com {\n    respond <<BODY\n}\n{\nBODY\n}';
+
+    it('keeps a heredoc containing braces inside its site block', () => {
+        const result = sortCaddyfile(heredocSite + '\n\na.example.com {\n    respond "a"\n}\n');
+        expect(result).toBe('a.example.com {\n    respond "a"\n}\n\n' + heredocSite + '\n');
+    });
+
+    it('does not count braces in quoted values or comments', () => {
+        const quoted = 'b.example.com {\n    respond "}"\n    # stray {\n}';
+        const result = sortCaddyfile(quoted + '\n\na.example.com {\n    respond "a"\n}\n');
+        expect(result).toBe('a.example.com {\n    respond "a"\n}\n\n' + quoted + '\n');
+    });
+
+    it('moves top-level comments with the block below them and keeps trailing comments', () => {
+        const content = '# Beta service\nb.example.com {\n    respond "b"\n}\n\n# Alpha service\na.example.com {\n    respond "a"\n}\n\n# end of file\n';
+        expect(sortCaddyfile(content)).toBe('# Alpha service\na.example.com {\n    respond "a"\n}\n\n# Beta service\nb.example.com {\n    respond "b"\n}\n\n# end of file\n');
+    });
+
+    it('keeps a global block with a trailing comment first and snippets before sites', () => {
+        const content = '﻿z.example.com {\n    import common\n}\n\n{ # options\n    admin off\n}\n\n(common) {\n    respond "ok"\n}\n';
+        expect(sortCaddyfile(content)).toBe('﻿{ # options\n    admin off\n}\n\n(common) {\n    respond "ok"\n}\n\nz.example.com {\n    import common\n}\n');
+    });
+
+    it('recognizes a site header followed by a comment', () => {
+        const { blocks, loose } = parseSiteBlocks('app.example.com { # main site\n    respond "ok"\n}\n');
+        expect(loose).toEqual([]);
+        expect(blocks[0].header).toBe('app.example.com {');
+    });
+
+    it('rejects input it cannot structure instead of reordering it', () => {
+        expect(() => sortCaddyfile('a.example.com {\n    respond <<BODY\n}\n')).toThrow(SyntaxError);
+    });
+});
+
+describe('planLegacyHistoryMigration', () => {
+    const caddy = { id: 'caddy' };
+    const root = ['caddy', 'Caddyfile-2026-08-04T15-49-09', 'Caddyfile-2026-09-21T15-24-01'];
+
+    it('moves root snapshots into the only instance when no default instance exists', () => {
+        expect(planLegacyHistoryMigration([caddy], root, ['Caddyfile-2026-09-22T19-51-00']))
+            .toEqual({ targetId: 'caddy', moves: ['Caddyfile-2026-08-04T15-49-09', 'Caddyfile-2026-09-21T15-24-01'], orphaned: 0 });
+    });
+
+    it('leaves root snapshots alone while a default instance owns them', () => {
+        expect(planLegacyHistoryMigration([{ id: 'default' }, caddy], root, [])).toBeNull();
+    });
+
+    it('does nothing when there are no root snapshots', () => {
+        expect(planLegacyHistoryMigration([caddy], ['caddy'], [])).toBeNull();
+    });
+
+    it('skips snapshots that already exist in the target folder', () => {
+        expect(planLegacyHistoryMigration([caddy], root, ['Caddyfile-2026-08-04T15-49-09']).moves)
+            .toEqual(['Caddyfile-2026-09-21T15-24-01']);
+    });
+
+    it('reports them as orphaned when several instances could own them', () => {
+        expect(planLegacyHistoryMigration([caddy, { id: 'edge' }], root, []))
+            .toEqual({ targetId: null, moves: [], orphaned: 2 });
+    });
+
+    it('reports them as orphaned when no instances exist', () => {
+        expect(planLegacyHistoryMigration([], root, []).orphaned).toBe(2);
+    });
+});
