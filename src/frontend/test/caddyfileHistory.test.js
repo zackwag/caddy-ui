@@ -26,6 +26,7 @@ describe('configuration save notifications', () => {
     it.each([
         ['CONFIG_VERIFICATION_MISMATCH', 'errors.configVerificationMismatch'],
         ['CONFIG_VERIFICATION_UNAVAILABLE', 'errors.configVerificationUnavailable'],
+        ['CADDY_APPLY_UNCERTAIN', 'errors.caddyApplyUncertain'],
         ['CADDYFILE_HISTORY_COMMIT_FAILED', 'errors.caddyfileHistoryCommitFailed'],
         [undefined, 'errors.operationWarning'],
         ['UNKNOWN_WARNING', 'errors.operationWarning'],

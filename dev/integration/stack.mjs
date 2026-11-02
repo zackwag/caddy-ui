@@ -218,10 +218,10 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
             }
             return requestContext;
         }
-        async function api(path, { method = 'GET', body, instanceId = 'default', plain = false } = {}) {
+        async function api(path, { method = 'GET', body, instanceId = 'default', plain = false, headers = {} } = {}) {
             const response = await fetch(url + '/api' + path, {
                 method,
-                headers: { ...await csrfContext(), 'X-Instance-Id': instanceId, ...(body === undefined ? {} : { 'Content-Type': plain ? 'text/plain' : 'application/json' }) },
+                headers: { ...await csrfContext(), 'X-Instance-Id': instanceId, ...(body === undefined ? {} : { 'Content-Type': plain ? 'text/plain' : 'application/json' }), ...headers },
                 ...(body === undefined ? {} : { body: plain ? body : JSON.stringify(body) }),
                 signal: AbortSignal.any([scope.signal, AbortSignal.timeout(15000)]),
             });
@@ -231,13 +231,13 @@ export async function createTestStack(scope, { project = randomBytes(8).toString
                 requestContext = undefined;
             }
             const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : await response.text();
-            return { status: response.status, requestId: response.headers.get('X-Request-ID'), data };
+            return { status: response.status, requestId: response.headers.get('X-Request-ID'), headers: response.headers, data };
         }
         const credentials = { username: 'integration-administrator', password: randomBytes(24).toString('base64url') };
         const enrollment = await api('/auth/setup', { method: 'POST', body: credentials });
         if (enrollment.status !== 200) throw new Error('Integration administrator setup failed');
         return {
-            harness, directory, url, instances, close, api, credentials,
+            harness, directory, url, instances, close, api, credentials, backend,
             async create(name) {
                 const info = await scope.run(() => harness.create(name));
                 await waitForHttp(info.httpUrl + '/health', { signal: scope.signal });

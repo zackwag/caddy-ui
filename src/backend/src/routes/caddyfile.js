@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { mkdir, readdir, rename } from 'fs/promises';
 import { dirname, join } from 'path';
-import { caddyAdapt, caddyLoad, markConfigChanged } from '../caddy.js';
+import { CaddyTimeoutError, caddyAdapt, caddyLoad, markConfigChanged } from '../caddy.js';
 import { describeReadError, readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
 import { execInInstance } from '../docker.js';
 import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
@@ -11,12 +11,13 @@ import { sendAppError } from '../errorReporting.js';
 import { createCaddyfileHistory } from '../caddyfileHistory.js';
 import { getAuthentication } from '../middleware/auth.js';
 import { caddyfileEntries, trailingComments } from '../caddyfileBlocks.js';
-import { NOT_APPLIED, UNCHANGED, verificationWarning, verifyFile, verifyLiveConfig } from '../configVerification.js';
+import { runExclusive } from '../instanceQueue.js';
+import { fingerprintText, recordLocalChange } from '../configDrift.js';
+import { NOT_APPLIED, UNCHANGED, verificationWarning, verifyAfterTimeout, verifyFile, verifyLiveConfig } from '../configVerification.js';
 
 const router = Router();
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
 const history = createCaddyfileHistory(HISTORY_PATH);
-const pendingChanges = new Map();
 
 function instanceHistoryDir(instanceId) {
     return history.directory(instanceId);
@@ -142,7 +143,9 @@ async function reloadCaddy(content, { adminUrl, configPath, containerName }) {
         // In local mode the bundled binary would resolve {$VAR} placeholders
         // from caddy-ui's environment rather than Caddy's, and it would post to
         // the same admin API that just failed, so there's nothing to fall back to.
-        if (!containerName) throw loadErr;
+        // After a timeout the load may still complete, so reloading again would
+        // apply the change twice.
+        if (!containerName || loadErr instanceof CaddyTimeoutError) throw loadErr;
         try {
             await reloadViaCaddyBinary(configPath, containerName, adminUrl);
             logger.info('Caddy reloaded via caddy binary (admin /load failed)');
@@ -166,6 +169,31 @@ async function readPreviousCaddyfile(configPath, containerName) {
     }
 }
 
+// The editor's validator for the Caddyfile text it was served. Caddy's ETag
+// can't stand in: it describes the running config, and /load ignores it.
+function caddyfileETag(text) {
+    return `"${fingerprintText(text)}"`;
+}
+
+// The ETags an If-Match header lists, or null without one. A weak ETag counts
+// as its strong form: nginx weakens ETags when it compresses a response, and
+// the tag is still the hash of the uncompressed text.
+function ifMatchTags(header) {
+    if (!header) {
+        return null;
+    }
+    return header.split(',').map(tag => tag.trim().replace(/^W\//, '')).filter(Boolean);
+}
+
+// Whether the file a change would replace is one the client said it was based
+// on. `*` accepts any existing file; no file matches nothing else.
+function matchesCaddyfile(tags, previous) {
+    if (previous === null) {
+        return false;
+    }
+    return tags.includes('*') || tags.includes(caddyfileETag(previous));
+}
+
 async function restoreCaddyfile(previous, { configPath, containerName }) {
     if (previous === null) await removeContainerPath(containerName, configPath);
     else await writeContainerFile(containerName, configPath, previous);
@@ -177,28 +205,32 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 // defaults to reloading Caddy from the new content; admin API edits pass their
 // own live change instead. Throws:
 // - CADDYFILE_READ_FAILED / CADDYFILE_WRITE_FAILED: nothing changed
+// - CADDYFILE_CHANGED: `ifMatch` (ETags from an If-Match header) doesn't name
+//   the file the change would replace, so nothing was written or recorded
 // - CADDYFILE_CHANGE_REJECTED: applying failed and the previous file was restored
+//   (an AppError thrown by a custom apply keeps its own code)
 // - CADDYFILE_ROLLBACK_FAILED: the previous file couldn't be restored, so the
 //   file on disk is not what Caddy is running
 // With rollback: false (the editor's force save), a failed apply leaves the
-// new file in place and resolves to { applied: false, error }.
+// new file in place and resolves to { applied: false, error }. An apply that
+// timed out may still complete in Caddy, so it never restores the previous
+// file or retries: it keeps the new file, resolves with live: 'uncertain'
+// unless a readback already shows it applied, and records the history
+// version with an unknown outcome.
 // Function changes run inside the queue against the latest file. Post-apply
 // history failures return warning fields rather than rejecting an applied edit.
 // The result's `verification` reads back the file and the live config (see
 // configVerification.js). A custom `apply` must pass `verify`, which checks
 // the part of the live config it changed; a reload checks the whole config.
+// `expectLive` projects that mutation onto the last expected config for drift
+// attribution. A scoped verifier alone cannot approve the whole live config.
 // Verification never rejects a saved change: it adds warning fields.
 function saveCaddyfileChange(instance, content, options = {}) {
     return queueCaddyfileChange(instance, save => save(content, options));
 }
 
 function queueCaddyfileChange(instance, operation) {
-    const queued = (pendingChanges.get(instance.id) || Promise.resolve()).catch(() => {})
-        .then(() => operation((change, options) => applyCaddyfileChange(instance, change, options)));
-    pendingChanges.set(instance.id, queued);
-    const cleanup = () => { if (pendingChanges.get(instance.id) === queued) pendingChanges.delete(instance.id); };
-    void queued.then(cleanup, cleanup);
-    return queued;
+    return runExclusive(instance.id, () => operation((change, options) => applyCaddyfileChange(instance, change, options)));
 }
 
 function adaptedConfig(content, instance, via) {
@@ -208,21 +240,26 @@ function adaptedConfig(content, instance, via) {
     return () => caddyAdapt(content, instance.adminUrl);
 }
 
-async function verifyChange(instance, content, { applied, via, verify }) {
+async function verifyChange(instance, content, { applied, uncertain, live }) {
     const file = await verifyFile(instance, content);
-    if (!applied) {
+    if (!applied && !uncertain) {
         return { file, live: NOT_APPLIED };
     }
-    return { file, live: verify ? await verify() : await verifyLiveConfig(instance, adaptedConfig(content, instance, via)) };
+    return { file, live: uncertain ? await verifyAfterTimeout(live) : await live() };
 }
 
-async function applyCaddyfileChange(instance, change, { apply, verify, onApplied, rollback = true, actor = null, action = 'caddyfile.save' } = {}) {
+async function applyCaddyfileChange(instance, change, { apply, verify, expectLive, onApplied, rollback = true, actor = null, action = 'caddyfile.save', ifMatch = null } = {}) {
     if (apply && !verify) {
         throw new TypeError('A custom apply must say how to verify it');
     }
     const { configPath, containerName, id } = instance;
     const context = { instanceId: id, configPath };
     const previous = await readPreviousCaddyfile(configPath, containerName);
+    // Checked against the file read inside the queue, so no other caddy/ui
+    // change can land between this check and the write
+    if (ifMatch && !matchesCaddyfile(ifMatch, previous)) {
+        throw new AppError('CADDYFILE_CHANGED', { context });
+    }
     if (typeof change === 'function' && previous === null) throw new AppError('CADDYFILE_READ_FAILED', { context });
     const content = typeof change === 'function' ? await change(previous) : change;
     if (typeof content !== 'string') throw new TypeError('A Caddyfile change must produce text');
@@ -252,17 +289,35 @@ async function applyCaddyfileChange(instance, change, { apply, verify, onApplied
         else via = await reloadCaddy(content, instance);
         result = { applied: true };
     } catch (err) {
-        if (!rollback) result = { applied: false, error: err };
+        if (err instanceof CaddyTimeoutError) {
+            result = { applied: false, uncertain: true, error: err };
+            logger.warn('Caddy did not confirm the change in time; keeping the new Caddyfile', { ...context, error: err.message });
+        } else if (!rollback) result = { applied: false, error: err };
         else {
             await restore('apply', err);
             logger.warn('Caddy rejected the change, previous Caddyfile restored', { ...context, error: err.message });
+            // A custom apply names a more specific rejection, such as CONFIG_CHANGED
+            if (err instanceof AppError) {
+                throw err;
+            }
             throw new AppError('CADDYFILE_CHANGE_REJECTED', { cause: err, context });
         }
     }
-    if (result.applied && onApplied) await onApplied();
-    result.verification = await verifyChange(instance, content, { applied: result.applied, via, verify });
+    // State kept beside the file (maintenance) follows the file, which an
+    // uncertain apply keeps.
+    if ((result.applied || result.uncertain) && onApplied) await onApplied();
+    let expected;
+    const adapt = adaptedConfig(content, instance, via);
+    const live = verify || (() => verifyLiveConfig(instance, async () => {
+        expected = await adapt();
+        return expected;
+    }));
+    result.verification = await verifyChange(instance, content, { applied: result.applied, uncertain: result.uncertain, live });
+    await recordLocalChange(instance, { content, verification: result.verification, verifyLive: live,
+        expectLive: expectLive || (() => expected) });
     const warnings = [];
-    try { await history.record(id, content, { actor, action, outcome: result.applied ? 'applied' : 'saved-unapplied' }); }
+    const outcome = result.applied ? 'applied' : result.uncertain ? 'unknown' : 'saved-unapplied';
+    try { await history.record(id, content, { actor, action, outcome }); }
     catch (cause) {
         warnings.push({ warning: 'The Caddyfile was saved, but its history version could not be recorded.', warningCode: 'CADDYFILE_HISTORY_COMMIT_FAILED' });
         logger.warn('Could not record saved Caddyfile history', { ...context, applied: result.applied,
@@ -270,9 +325,9 @@ async function applyCaddyfileChange(instance, change, { apply, verify, onApplied
     }
     const verificationIssue = verificationWarning(result.verification);
     if (verificationIssue) {
-        // A mismatch outranks a history failure: the running config may not be
-        // what the user saved.
-        if (verificationIssue.warningCode === 'CONFIG_VERIFICATION_MISMATCH') {
+        // A mismatch or an uncertain apply outranks a history failure: the
+        // running config may not be what the user saved.
+        if (verificationIssue.warningCode !== 'CONFIG_VERIFICATION_UNAVAILABLE') {
             warnings.unshift(verificationIssue);
         } else {
             warnings.push(verificationIssue);
@@ -356,6 +411,10 @@ router.get('/', async (req, res) => {
     } catch (error) {
         return sendAppError(res, asAppError(error, 'CADDYFILE_READ_FAILED', { instanceId: req.instance.id, configPath }));
     }
+    // The editor sends this back as If-Match, so a save can't overwrite edits
+    // made since it loaded the file. Never cached: the file changes outside caddy/ui.
+    res.setHeader('ETag', caddyfileETag(content));
+    res.setHeader('Cache-Control', 'no-store');
     if (req.query.download === 'true') {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         res.setHeader('Content-Disposition', `attachment; filename="Caddyfile-${timestamp}"`);
@@ -437,8 +496,20 @@ router.post('/reloads', async (req, res) => {
     logger.info(`Caddyfile reload requested`);
     const result = await queueCaddyfileChange(req.instance, async () => {
         const content = await readContainerFile(req.instance.containerName, req.instance.configPath);
-        const via = await reloadCaddy(content, req.instance);
-        const verification = { file: UNCHANGED, live: await verifyLiveConfig(req.instance, adaptedConfig(content, req.instance, via)) };
+        let via;
+        try {
+            via = await reloadCaddy(content, req.instance);
+        } catch (err) {
+            if (!(err instanceof CaddyTimeoutError)) throw err;
+        }
+        let expected;
+        const adapt = adaptedConfig(content, req.instance, via);
+        const live = () => verifyLiveConfig(req.instance, async () => {
+            expected = await adapt();
+            return expected;
+        });
+        const verification = { file: UNCHANGED, live: via ? await live() : await verifyAfterTimeout(live) };
+        await recordLocalChange(req.instance, { content, verification, verifyLive: live, expectLive: () => expected });
         return { verification, ...verificationWarning(verification) };
     });
     res.json({ ok: true, message: 'Caddy reloaded from disk', ...changeResultFields(result) });
@@ -500,13 +571,17 @@ router.put('/', async (req, res) => {
     try {
         // A force save keeps the file even when Caddy rejects it
         const action = ['restore', 'import'].includes(req.query.action) ? `caddyfile.${req.query.action}` : 'caddyfile.save';
-        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: getAuthentication().getActor(req), action });
+        result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: getAuthentication().getActor(req), action,
+            ifMatch: ifMatchTags(req.get('If-Match')) });
     } catch (err) {
         if (!(err instanceof AppError)) throw err;
         res.locals.appError = err;
         const detail = err.cause?.message || err.message;
         const errors = [err.code === 'CADDYFILE_CHANGE_REJECTED' || err.code === 'CADDYFILE_ROLLBACK_FAILED' ? `Caddy reload failed: ${detail}` : detail];
         return res.status(err.status).json({ valid: false, code: err.code, errors });
+    }
+    if (result.uncertain) {
+        return res.json({ ok: true, message: 'Caddyfile saved. Caddy did not confirm the reload in time.', ...changeResultFields(result) });
     }
     if (!result.applied) {
         logger.warn(`Caddy reload failed after force save; file left on disk`, { error: result.error.message });
