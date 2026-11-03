@@ -134,11 +134,11 @@ async function exerciseEditor(page, root, label) {
     assert.equal(replaced[2], '\tc', `${label}: the caret follows the kept indentation`);
     await undoAll();
 
-    // Tab at a caret inserts four spaces there (#430)
+    // Tab at a caret inserts a literal tab without rewriting existing spaces.
     await caretAt(3, { end: true });
     await page.keyboard.press('Tab');
     await page.keyboard.type('d');
-    assert.equal((await text()).split('\n')[2], '    respond ok    d', `${label}: Tab inserts four spaces`);
+    assert.equal((await text()).split('\n')[2], '    respond ok\td', `${label}: Tab inserts a literal tab`);
     assert(await focused(), `${label}: Tab keeps focus in the editor`);
     await undoAll();
 
@@ -148,7 +148,7 @@ async function exerciseEditor(page, root, label) {
     await page.keyboard.press('Shift+ArrowDown');
     await page.keyboard.press('Shift+ArrowDown');
     await page.keyboard.press('Tab');
-    assert.equal(await text(), 'site.test {\n    \treverse_proxy app:3000\n        respond ok\n}', `${label}: Tab indents the selected lines`);
+    assert.equal(await text(), 'site.test {\n\t\treverse_proxy app:3000\n\t    respond ok\n}', `${label}: Tab indents the selected lines with tabs`);
     await page.keyboard.press('Shift+Tab');
     assert.equal(await text(), SITE, `${label}: Shift+Tab outdents them again`);
     await caretAt(1);
@@ -161,17 +161,17 @@ async function exerciseEditor(page, root, label) {
 
     // Brackets complete, and Enter between braces opens an indented body with
     // the closing brace aligned to its opening line (#431)
-    await caretAt(3, { end: true });
+    await caretAt(2, { end: true });
     await page.keyboard.press('Enter');
     await page.keyboard.type('handle {');
-    assert.equal((await text()).split('\n')[3], '    handle {}', `${label}: { gains its closing brace`);
+    assert.equal((await text()).split('\n')[2], '\thandle {}', `${label}: { gains its closing brace`);
     await page.keyboard.press('Enter');
     await page.keyboard.type('respond (a) [b]');
-    assert.equal(await text(), 'site.test {\n\treverse_proxy app:3000\n    respond ok\n    handle {\n        respond (a) [b]\n    }\n}',
-        `${label}: Enter opens the block, and typed closing brackets step over their completions`);
+    assert.equal(await text(), 'site.test {\n\treverse_proxy app:3000\n\thandle {\n\t\trespond (a) [b]\n\t}\n    respond ok\n}',
+        `${label}: Enter adds a tab inside the tab-indented block, and typed closing brackets step over their completions`);
     await page.keyboard.type(' (');
     await page.keyboard.press('Backspace');
-    assert.equal((await text()).split('\n')[4], '        respond (a) [b] ', `${label}: Backspace removes a completed pair`);
+    assert.equal((await text()).split('\n')[3], '\t\trespond (a) [b] ', `${label}: Backspace removes a completed pair`);
     await undoAll();
 
     // In comments and quoted text a bracket is just text
@@ -182,6 +182,49 @@ async function exerciseEditor(page, root, label) {
     await page.keyboard.type('respond "{');
     assert.equal((await text()).split('\n')[3], '    respond "{', `${label}: no completion in a quoted token`);
     await undoAll();
+
+    // A pair can be completed as code and then become literal text. Its
+    // original completion must not swallow a closer or delete a second char.
+    for (const context of [
+        { name: 'comment', prefix: '# ' },
+        { name: 'quoted token', prefix: '"' },
+        { name: 'backtick token', prefix: '`' },
+        { name: 'heredoc', prefix: '<<EOF', newline: true },
+    ]) {
+        for (const [opening, closing] of [['(', ')'], ['[', ']'], ['{', '}']]) {
+            const literalLine = `    respond ok ${context.prefix}${context.newline ? '\n    ' : ''}`;
+            async function preparePair() {
+                await caretAt(3, { end: true });
+                await page.keyboard.type(' ' + opening);
+                await page.keyboard.press('ArrowLeft');
+                await page.keyboard.type(context.prefix);
+                if (context.newline) await page.keyboard.press('Enter');
+                await page.keyboard.press('ArrowRight');
+                assert.equal(await text(), SITE.replace('    respond ok', literalLine + opening + closing));
+            }
+            await preparePair();
+            await page.keyboard.type(closing);
+            assert.equal(await text(), SITE.replace('    respond ok', literalLine + opening + closing + closing),
+                `${label}: typing ${closing} inserts text in a ${context.name}`);
+            await undoAll();
+            await preparePair();
+            await page.keyboard.press('Backspace');
+            assert.equal(await text(), SITE.replace('    respond ok', literalLine + closing),
+                `${label}: Backspace removes only the preceding character in a ${context.name}`);
+            await undoAll();
+        }
+    }
+
+    // Pairs already present in literal text have the same single-character
+    // Backspace behavior, without any completion metadata.
+    await caretAt(3, { end: true });
+    await page.keyboard.insertText(' "{}"');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('Backspace');
+    assert.equal((await text()).split('\n')[2], '    respond ok "}"', `${label}: Backspace preserves the other bracket of a loaded literal pair`);
+    await undoAll();
+
 
     // Keyboard-only ways out: Escape then Tab, or the tab focus mode toggle
     await content.focus();
@@ -198,7 +241,7 @@ async function exerciseEditor(page, root, label) {
     await caretAt(1);
     await page.keyboard.press('Tab');
     assert(await focused(), `${label}: turning tab focus mode off makes Tab indent again`);
-    assert.equal((await text()).split('\n')[0], '    site.test {', label);
+    assert.equal((await text()).split('\n')[0], '\tsite.test {', label);
     await undoAll();
 }
 

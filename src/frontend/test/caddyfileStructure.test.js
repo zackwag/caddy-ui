@@ -96,6 +96,7 @@ describe('Caddyfile structure', () => {
         expect(blockClosedAt(structure, text.indexOf('{host}') + 5)).toBe(null);
     });
 
+
     it('folds from the end of an opening line to its closing brace, for closed blocks only', () => {
         const foldsOf = text => {
             const structure = scanCaddyfile(text);

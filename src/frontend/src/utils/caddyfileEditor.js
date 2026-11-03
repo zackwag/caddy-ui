@@ -1,7 +1,7 @@
 // The CodeMirror setup shared by the full Caddyfile editor and the route
 // site-block editor, so both edit the same way. Components import this module
 // dynamically, which keeps CodeMirror out of the main bundle.
-import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import { closeBrackets, deleteBracketPair } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, foldService, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { EditorState, Prec } from '@codemirror/state';
@@ -14,18 +14,41 @@ import { foldRangeOf, isLiteralAt } from './caddyfileStructure.js';
 // Typing one of these inserts its closing partner, and typing that partner
 // next to it steps over it. Quotes aren't paired: Caddyfile text uses them
 // sparingly, and an apostrophe in `respond` text would gain a stray partner.
-const BRACKETS = ['(', '[', '{'];
+const BRACKET_PAIRS = new Map([['(', ')'], ['[', ']'], ['{', '}']]);
+const BRACKETS = [...BRACKET_PAIRS.keys()];
+const BRACKET_CHARACTERS = new Set([...BRACKETS, ...BRACKET_PAIRS.values()]);
 
 // Inside a comment, quoted token or heredoc a bracket is text, so it's typed
-// as is instead of being paired. This runs ahead of closeBrackets.
+// as is instead of being paired or stepping over an earlier completion. This
+// includes pairs created before their surrounding text became a literal.
 const literalBrackets = Prec.high(EditorView.inputHandler.of((view, from, to, text) => {
-    if (!BRACKETS.includes(text) || !isLiteralAt(structureOf(view.state.doc), from)) {
+    if (!BRACKET_CHARACTERS.has(text) || !isLiteralAt(structureOf(view.state.doc), from)) {
         return false;
     }
     // eslint-disable-next-line i18next/no-literal-string -- CodeMirror user event name, not UI copy
     view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length }, userEvent: 'input.type', scrollIntoView: true });
     return true;
 }));
+
+function deleteCodeBracketPair(view) {
+    const { state } = view;
+    // Ordinary Backspace must not require a full structure scan. Only inspect
+    // context when every caret is between one of the configured bracket pairs.
+    if (state.readOnly || !state.selection.ranges.every(range => range.empty && range.from > 0
+        && BRACKET_PAIRS.get(state.doc.sliceString(range.from - 1, range.from)) === state.doc.sliceString(range.from, range.from + 1))) {
+        return false;
+    }
+    const structure = structureOf(state.doc);
+    if (state.selection.ranges.some(range => isLiteralAt(structure, range.from))) {
+        return false;
+    }
+    return deleteBracketPair(view);
+}
+
+// Let the default Backspace delete one character in literals; paired deletion
+// is only appropriate in code, regardless of how the pair was inserted.
+// eslint-disable-next-line i18next/no-literal-string -- CodeMirror key name, not UI copy
+const bracketKeymap = [{ key: 'Backspace', run: deleteCodeBracketPair }];
 
 // Global, site, snippet, matcher and nested directive blocks fold from their
 // opening line, using the same structure as indentation. A block needs at least
@@ -93,7 +116,7 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t 
             syntaxHighlighting(classHighlighter),
             StreamLanguage.define(caddyfile), editorTheme({ dark, padding }),
             indentation,
-            keymap.of([...closeBracketsKeymap, ...indentationKeymap, ...foldKeymap, ...defaultKeymap, ...historyKeymap]),
+            keymap.of([...bracketKeymap, ...indentationKeymap, ...foldKeymap, ...defaultKeymap, ...historyKeymap]),
             EditorView.updateListener.of(update => {
                 if (update.docChanged) {
                     onChange(update.state.doc.toString());

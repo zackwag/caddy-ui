@@ -125,6 +125,7 @@ export function blockClosedAt(structure, pos) {
     return structure.blocks.find(block => block.close === pos) ?? null;
 }
 
+
 // The foldable range for a line whose code ends with a block's `{`: from the
 // end of that line (keeping a trailing comment visible) to the block's `}`.
 // Null when the line opens no block or its block isn't closed yet, so
