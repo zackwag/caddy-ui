@@ -142,15 +142,18 @@ blog.{$DOMAIN} {
 
 ## Editing keys
 
-The Caddyfile editor and the route editor's site-block editor handle these keys the same way. Opening either editor never changes the file: only your own edits do.
+The Caddyfile editor and the route editor's site-block editor handle these keys the same way. New indentation levels use literal tabs, matching `caddy fmt`. Existing tabs and spaces are preserved, and opening either editor never changes the file: only your own edits do. Tab display width affects their appearance, not the characters stored in the Caddyfile.
 
 | Key | Effect |
 | --- | --- |
-| Enter | Starts the new line with the same leading whitespace as the current one, tabs or spaces, character for character. |
-| Tab | Inserts four spaces at the caret. With text selected, indents every selected line by four spaces. |
+| Enter | Starts the new line with the same leading whitespace as the current one, tabs or spaces, character for character. After a block's opening `{`, it indents one level more. Between `{` and `}`, it opens the block: the caret goes on an indented line and `}` moves to its own line, aligned with the opening line. |
+| `{`, `[`, `(` | Inserts the matching closing bracket after the caret. Typing that closing bracket next steps over it, and Backspace between an empty pair removes both. In comments, quoted text and heredocs, brackets are typed as text. |
+| Tab | Inserts one tab at the caret. With text selected, adds one tab before every selected line. |
 | Shift+Tab | Removes one level of indentation from the current or selected lines, leaving any remaining tabs or spaces as they are. |
 
 A selection that ends at the very start of a line doesn't include that line. Each indentation change is a single undo step.
+
+The editors find blocks the way Caddy does: a block opens at a `{` that stands alone as a token and closes at a lone `}`. Placeholders such as `{host}`, environment references such as `{$SITE}`, escaped `\{` and braces inside comments, quoted text or heredocs don't count, and an unfinished block never stops you from typing. Whether a complete Caddyfile is valid is still decided by Caddy when you save.
 
 Since Tab indents, it doesn't move focus out of the editor. To leave the editor with the keyboard, press Escape and then Tab (or Shift+Tab) within two seconds. To make Tab move focus until you switch back, press Ctrl+M (Shift+Alt+M on macOS).
 
