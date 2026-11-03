@@ -4,7 +4,7 @@
 import { closeBrackets, deleteBracketPair } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, foldService, indentOnInput, syntaxHighlighting } from '@codemirror/language';
-import { EditorState, Prec } from '@codemirror/state';
+import { Compartment, EditorState, Prec } from '@codemirror/state';
 import { EditorView, drawSelection, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers } from '@codemirror/view';
 import { classHighlighter } from '@lezer/highlight';
 import { caddyfile } from '../lib/caddyfileMode.js';
@@ -105,10 +105,11 @@ function editorTheme({ dark, padding }) {
 // rewrites the document on load, and folding never changes it: content only
 // changes through the user's own edits.
 export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t }) {
+    const phrasesCompartment = new Compartment();
     const state = EditorState.create({
         doc,
         extensions: [
-            EditorState.phrases.of(editorPhrases(t)),
+            phrasesCompartment.of(EditorState.phrases.of(editorPhrases(t))),
             lineNumbers(), caddyfileFolding, foldGutter(), codeFolding(), highlightActiveLineGutter(), highlightSpecialChars(),
             history(), drawSelection(), indentOnInput(), bracketMatching(),
             EditorState.languageData.of(() => [{ closeBrackets: { brackets: BRACKETS } }]),
@@ -125,5 +126,7 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t 
             EditorView.lineWrapping,
         ],
     });
-    return new EditorView({ state, parent });
+    const view = new EditorView({ state, parent });
+    view.updatePhrases = (t) => view.dispatch({ effects: phrasesCompartment.reconfigure(EditorState.phrases.of(editorPhrases(t))) });
+    return view;
 }

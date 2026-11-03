@@ -39,8 +39,10 @@ function MiniCodeMirror({ value, onChange, theme }) {
 
         init();
         return () => { cancelled = true; view?.destroy(); viewRef.current = null; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme or language change; including `value` would tear it down on every keystroke
-    }, [theme, i18n.language]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme change; including `value` would tear it down on every keystroke
+    }, [theme]);
+
+    useEffect(() => { viewRef.current?.updatePhrases?.(t); }, [i18n.language, t]);
 
     useEffect(() => {
         const view = viewRef.current;
