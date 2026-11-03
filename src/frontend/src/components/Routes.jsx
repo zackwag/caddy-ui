@@ -15,17 +15,21 @@ import { getRouteCheckHost, getRouteHost, getRouteTitle, getRouteUpstreams } fro
 // eslint-disable-next-line i18next/no-literal-string -- Example hostname
 const DOMAIN_PLACEHOLDER = "app.example.com";
 
-function MiniCodeMirror({ value, onChange, onSave, theme }) {
+function MiniCodeMirror({ value, onChange, onSave, onQuit, isModified, theme }) {
     const { t, i18n } = useTranslation();
     const containerRef = useRef(null);
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
+    const onQuitRef = useRef(onQuit);
+    const isModifiedRef = useRef(isModified);
     // Set from the Caddyfile editor's toolbar; read once when the modal opens
     const [vimMode] = useEditorVim();
 
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
     useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+    useEffect(() => { onQuitRef.current = onQuit; }, [onQuit]);
+    useEffect(() => { isModifiedRef.current = isModified; }, [isModified]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -37,8 +41,8 @@ function MiniCodeMirror({ value, onChange, onSave, theme }) {
             if (cancelled) return;
             const created = await createCaddyfileEditor({
                 parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "12px", vimMode,
-                onChange: doc => onChangeRef.current(doc), t,
-                onSave: () => onSaveRef.current?.(),
+                onChange: doc => onChangeRef.current(doc), onSave: () => onSaveRef.current?.(), t,
+                onQuit: () => onQuitRef.current?.(), isModified: () => isModifiedRef.current?.() ?? false,
             });
             if (cancelled) { created.destroy(); return; }
             view = created;
@@ -112,7 +116,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
                     <>
                         <div className="modal-section-label">{t("routes.caddyfile")}</div>
                         <div className="editor-wrap" style={{ marginBottom: 16 }}>
-                            <MiniCodeMirror value={content} onChange={setContent} onSave={() => { if (canSave && !saving) handleSave(); }} theme={theme} />
+                            <MiniCodeMirror value={content} onChange={setContent} onSave={() => { if (canSave && !saving) handleSave(); }} onQuit={onClose} isModified={() => title !== (initialNote || "") || content !== (initialContent || "")} theme={theme} />
                         </div>
                     </>
                 ) : isCaddyfileManaged && inMaintenance ? (

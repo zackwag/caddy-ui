@@ -160,6 +160,28 @@ The editors find blocks the way Caddy does: a block opens at a `{` that stands a
 
 Since Tab indents, it doesn't move focus out of the editor. To leave the editor with the keyboard, press Escape and then Tab (or Shift+Tab) within two seconds. To make Tab move focus until you switch back, press Ctrl+M (Shift+Alt+M on macOS).
 
+### Vim mode
+
+The **vim mode** checkbox in the Caddyfile editor's toolbar turns on vim keybindings in both editors. It's off by default and is remembered per browser, not shared with other browsers or devices. A status bar under the editor shows the current mode. Switching vim mode on or off keeps your text and its undo history.
+
+Vim mode follows the editing rules above where they overlap:
+
+| Key | Effect |
+| --- | --- |
+| `o`, `O` | Open a line the way Enter does: existing indentation is kept as it is, and a line opened inside a new block is indented one level. |
+| `gc`, `gcc` | Comment or uncomment lines with `#`. |
+| Tab | In insert mode, indents as above, and with a visual selection, indents the selected lines. In normal mode it moves focus out of the editor without changing anything. |
+
+| Command | Caddyfile editor | Route editor |
+| --- | --- | --- |
+| `:w` | Saves | Saves and closes |
+| `:wq` | Saves | Saves and closes |
+| `:x` | Saves | Saves and closes if there are changes, otherwise just closes |
+| `:q` | Not available | Closes if there are no changes |
+| `:q!` | Not available | Closes and discards changes |
+
+Vim mode uses [`@replit/codemirror-vim`](https://github.com/replit/codemirror-vim), and its other keys and commands work as that package provides.
+
 ## Caddyfile Syntax Highlighting
 
 The editor's Caddyfile highlighting is a [CodeMirror 6](https://codemirror.net/) `StreamLanguage` mode generated from [**zackwag/caddyfile-codemirror**](https://github.com/zackwag/caddyfile-codemirror), a small companion repo that stays in sync — automatically, every day — with the Caddyfile keyword vocabulary (directives, global options, subdirectives, matcher names, and plugin vocabulary) from [**Sean Whalen**](https://github.com/seanthegeek)'s [**rouge-lexer-caddyfile**](https://github.com/seanthegeek/rouge-lexer-caddyfile), the [Rouge](http://rouge.jneen.net/) lexer Jekyll/GitHub Pages uses to highlight ` ```caddyfile ` code blocks. That gem is the actual research into Caddy's (and its most-downloaded plugins') documented syntax; the CodeMirror mode is a hand-written translation of its grammar into CodeMirror's token-stream API.

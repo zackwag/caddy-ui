@@ -401,3 +401,158 @@ test('vim mode is a local preference, and :w saves from both editors', { timeout
     await modal.waitFor({ state: 'detached' });
     assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:90\n/, ':w saved the route');
 });
+
+test('vim mode keeps undo history when toggled, and follows the editors\' indentation, comment, Tab and quit rules', { timeout: 120000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    const content = editor.locator('.cm-content');
+    const status = editor.locator('.cm-vim-panel');
+    const toggle = editor.getByLabel(en.caddyfile.vimMode);
+    const focused = () => content.evaluate(element => element === document.activeElement);
+    const lines = async () => (await visibleText(editor)).split('\n');
+    // Vim's undo, one step at a time, back to `expected`
+    async function undoTo(expected, label) {
+        const visited = [await visibleText(editor)];
+        for (let i = 0; i < 5 && visited.at(-1) !== expected; i++) {
+            await page.keyboard.type('u');
+            visited.push(await visibleText(editor));
+        }
+        assert.equal(visited.at(-1), expected, `${label}: u restores the document, through ${JSON.stringify(visited)}`);
+    }
+
+    await content.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(SITE);
+
+    // An edit made before vim is turned on can be undone with vim, and a vim
+    // edit after it's turned off with the plain editor (#461 review)
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type('X');
+    await toggle.check();
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await content.focus();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('u');
+    assert.equal(await visibleText(editor), SITE, 'u undoes the edit made before vim was on');
+    await page.keyboard.press('Control+r');
+    assert.equal(await visibleText(editor), `${SITE}X`, '<C-r> redoes it');
+    await page.keyboard.type('ggx');
+    const vimEdited = `${SITE.slice(1)}X`;
+    assert.equal(await visibleText(editor), vimEdited);
+    await toggle.uncheck();
+    await status.waitFor({ state: 'detached' });
+    assert.equal(await visibleText(editor), vimEdited, 'Turning vim off keeps the text');
+    await content.focus();
+    await page.keyboard.press('ControlOrMeta+z');
+    assert.equal(await visibleText(editor), `${SITE}X`, 'The plain editor undoes the vim edit');
+    await page.keyboard.press('ControlOrMeta+z');
+    assert.equal(await visibleText(editor), SITE);
+    await toggle.check();
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await content.focus();
+    await page.keyboard.press('Escape');
+
+    // o and O open a line the way Enter does: a new block is indented, and
+    // existing indentation is kept as it is, spaces included
+    await page.keyboard.type('ggoZ');
+    await page.keyboard.press('Escape');
+    assert.equal((await lines())[1], '\tZ', 'o indents inside a new block');
+    await undoTo(SITE, 'o');
+    await page.keyboard.type('ggjjoZ');
+    await page.keyboard.press('Escape');
+    assert.equal((await lines())[3], '    Z', 'o keeps space indentation');
+    await undoTo(SITE, 'o');
+
+    // gc comments with # after the indentation, and toggles back
+    await page.keyboard.type('ggjgcc');
+    assert.equal((await lines())[1], '\t# reverse_proxy app:3000', 'gcc comments the line');
+    await page.keyboard.type('gcc');
+    assert.equal(await visibleText(editor), SITE, 'gcc again uncomments it');
+
+    // Tab indents in insert mode, but in normal mode it moves focus without editing
+    await page.keyboard.type('ggjA');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Escape');
+    assert.equal((await lines())[1], '\treverse_proxy app:3000\t', 'Tab indents in insert mode');
+    assert(await focused(), 'Tab in insert mode keeps focus');
+    await undoTo(SITE, 'Insert-mode Tab');
+    await page.keyboard.press('Tab');
+    assert(!await focused(), 'Tab in normal mode moves focus out of the editor');
+    assert.equal(await visibleText(editor), SITE, 'Tab in normal mode changes nothing');
+    await content.focus();
+    await page.keyboard.press('Escape');
+
+    // There's nothing to close here: :q isn't a command, and :x saves
+    await page.keyboard.type(':q');
+    await page.keyboard.press('Enter');
+    await status.filter({ hasText: 'Not an editor command ":q"' }).waitFor();
+    await editor.getByLabel('caddy fmt').uncheck();
+    await editor.getByLabel(en.caddyfile.sortEntries).uncheck();
+    await toggle.uncheck();
+    await content.focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(original);
+    await toggle.check();
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await content.focus();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('Gi# saved with :x');
+    await page.keyboard.press('Escape');
+    await page.keyboard.type(':x');
+    await page.keyboard.press('Enter');
+    await editor.locator('.editor-hint--desktop').filter({ hasText: en.caddyfile.upToDate }).waitFor();
+    assert.equal((await stack.api('/caddyfile')).data, `${original}# saved with :x`, ':x saved the Caddyfile');
+
+    // The route editor can be closed: :q refuses to discard changes, :q! does,
+    // :x without changes only closes, and :x and :wq save and close
+    const withSite = `${original.trimEnd()}\n\neditor-vim-quit.test {\n\treverse_proxy 127.0.0.1:9\n}\n`;
+    const seeded = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: withSite, plain: true });
+    assert.equal(seeded.status, 200, JSON.stringify(seeded.data));
+    await page.goto(origin + '/routes', { waitUntil: 'domcontentloaded' });
+    await waitForView('tr:has-text("editor-vim-quit.test")');
+    const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
+    async function openRoute() {
+        await page.locator('tr').filter({ hasText: 'editor-vim-quit.test' }).getByTitle(en.routes.editRoute).click();
+        await modal.locator('.cm-vim-panel').filter({ hasText: '--NORMAL--' }).waitFor();
+        await modal.locator('.cm-content').click();
+        await page.keyboard.press('Escape');
+    }
+    async function ex(command) {
+        await page.keyboard.type(`:${command}`);
+        await page.keyboard.press('Enter');
+    }
+    async function editPort(digit) {
+        await page.keyboard.type(`ggj$a${digit}`);
+        await page.keyboard.press('Escape');
+    }
+
+    await openRoute();
+    await ex('q');
+    await modal.waitFor({ state: 'detached' });
+    await openRoute();
+    await editPort('0');
+    await ex('q');
+    await modal.locator('.cm-vim-panel').filter({ hasText: 'E37: No write since last change' }).waitFor();
+    assert(await modal.isVisible(), ':q with changes leaves the modal open');
+    await ex('q!');
+    await modal.waitFor({ state: 'detached' });
+    assert.equal((await stack.api('/caddyfile')).data, withSite, ':q! discarded the change');
+    await openRoute();
+    await ex('x');
+    await modal.waitFor({ state: 'detached' });
+    assert.equal((await stack.api('/caddyfile')).data, withSite, ':x without changes saves nothing');
+    await openRoute();
+    await editPort('0');
+    await ex('x');
+    await modal.waitFor({ state: 'detached' });
+    assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:90\n/, ':x saved the route');
+    await waitForView('tr:has-text("editor-vim-quit.test")');
+    await openRoute();
+    await editPort('1');
+    await ex('wq');
+    await modal.waitFor({ state: 'detached' });
+    assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:901\n/, ':wq saved the route');
+});
