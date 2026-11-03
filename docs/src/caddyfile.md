@@ -150,6 +150,9 @@ The Caddyfile editor and the route editor's site-block editor handle these keys 
 | `{`, `[`, `(` | Inserts the matching closing bracket after the caret. Typing that closing bracket next steps over it, and Backspace between an empty pair removes both. In comments, quoted text and heredocs, brackets are typed as text. |
 | Tab | Inserts one tab at the caret. With text selected, adds one tab before every selected line. |
 | Shift+Tab | Removes one level of indentation from the current or selected lines, leaving any remaining tabs or spaces as they are. |
+| Ctrl+Shift+[ (Cmd+Alt+[ on macOS) | Folds the block at the caret. Ctrl+Shift+] (Cmd+Alt+]) unfolds it. Ctrl+Alt+[ and Ctrl+Alt+] fold and unfold every block. |
+
+Global options, sites, snippets, named matchers and nested directive blocks can also be folded and unfolded with the arrows beside the line numbers. A block needs at least one line between its braces to fold, and an unfinished block doesn't fold until its closing brace is typed. Folding only changes what's shown: the file you save always has every line.
 
 A selection that ends at the very start of a line doesn't include that line. Each indentation change is a single undo step.
 
