@@ -118,6 +118,48 @@ async function exerciseEditor(page, root, label) {
     assert.equal((await text()).split('\n')[3], '    respond "{', `${label}: no completion in a quoted token`);
     await undoAll();
 
+    // A pair can be completed as code and then become literal text. Its
+    // original completion must not swallow a closer or delete a second char.
+    for (const context of [
+        { name: 'comment', prefix: '# ' },
+        { name: 'quoted token', prefix: '"' },
+        { name: 'backtick token', prefix: '`' },
+        { name: 'heredoc', prefix: '<<EOF', newline: true },
+    ]) {
+        for (const [opening, closing] of [['(', ')'], ['[', ']'], ['{', '}']]) {
+            const literalLine = `    respond ok ${context.prefix}${context.newline ? '\n    ' : ''}`;
+            async function preparePair() {
+                await caretAt(3, { end: true });
+                await page.keyboard.type(' ' + opening);
+                await page.keyboard.press('ArrowLeft');
+                await page.keyboard.type(context.prefix);
+                if (context.newline) await page.keyboard.press('Enter');
+                await page.keyboard.press('ArrowRight');
+                assert.equal(await text(), SITE.replace('    respond ok', literalLine + opening + closing));
+            }
+            await preparePair();
+            await page.keyboard.type(closing);
+            assert.equal(await text(), SITE.replace('    respond ok', literalLine + opening + closing + closing),
+                `${label}: typing ${closing} inserts text in a ${context.name}`);
+            await undoAll();
+            await preparePair();
+            await page.keyboard.press('Backspace');
+            assert.equal(await text(), SITE.replace('    respond ok', literalLine + closing),
+                `${label}: Backspace removes only the preceding character in a ${context.name}`);
+            await undoAll();
+        }
+    }
+
+    // Pairs already present in literal text have the same single-character
+    // Backspace behavior, without any completion metadata.
+    await caretAt(3, { end: true });
+    await page.keyboard.insertText(' "{}"');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('Backspace');
+    assert.equal((await text()).split('\n')[2], '    respond ok "}"', `${label}: Backspace preserves the other bracket of a loaded literal pair`);
+    await undoAll();
+
     // Keyboard-only ways out: Escape then Tab, or the tab focus mode toggle
     await content.focus();
     await page.keyboard.press('Escape');
