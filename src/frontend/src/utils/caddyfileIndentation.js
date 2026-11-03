@@ -1,11 +1,11 @@
 import { indentMore } from '@codemirror/commands';
-import { indentUnit } from '@codemirror/language';
+import { getIndentUnit, indentUnit } from '@codemirror/language';
 import { EditorSelection } from '@codemirror/state';
 import { blockClosedAt, blockOpenedBefore, scanCaddyfile } from './caddyfileStructure.js';
 
-// New indentation is four spaces per level. Existing indentation is never
-// converted: `caddy fmt` writes tabs, and only the lines being edited change.
-export const INDENT = '    ';
+// New indentation follows `caddy fmt`: one tab per level. Existing whitespace
+// is preserved; the tab's displayed width does not change its stored character.
+export const INDENT = '\t';
 
 // Documents are immutable, so each version is scanned at most once.
 const structures = new WeakMap();
@@ -18,7 +18,7 @@ export function structureOf(doc) {
     return structure;
 }
 
-// Tab at a caret inserts one level of spaces there. With text selected it
+// Tab at a caret inserts one tab there. With text selected it
 // indents every selected line instead, using CodeMirror's own command, which
 // skips a line the selection only touches at its start.
 export function insertIndentation({ state, dispatch }) {
@@ -56,7 +56,7 @@ export function removeIndentation({ state, dispatch }) {
     if (state.readOnly) {
         return false;
     }
-    const width = state.facet(indentUnit).length;
+    const width = getIndentUnit(state);
     const changes = [];
     for (const line of selectedLines(state)) {
         let column = 0;
@@ -79,8 +79,8 @@ export function removeIndentation({ state, dispatch }) {
 // Enter starts the new line with the same leading whitespace as the line it
 // splits, character for character, so a tab-indented line continues with a
 // tab. CodeMirror's own newline command rebuilds indentation from columns in
-// the indent unit, which would turn those tabs into spaces. Blocks add to that:
-// - After a block's `{`, the new line is indented one level (four spaces) more.
+// the indent unit, which can normalize existing mixed whitespace. Blocks add to that:
+// - After a block's `{`, the new line is indented one level (one tab) more.
 // - Between `{` and its `}`, the brace moves to a line of its own, aligned
 //   with the opening line, and the caret goes on an indented line between.
 // - A `}` moved to a new line aligns with the line that opened its block.
