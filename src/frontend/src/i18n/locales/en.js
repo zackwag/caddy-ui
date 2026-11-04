@@ -672,6 +672,7 @@ export default {
         foldBlock: 'Fold block',
         unfoldBlock: 'Unfold block',
         foldedBlock: 'Folded block',
+        completionLabel: 'Completions',
         validating: 'Validating...',
         validate: 'Validate',
         history: 'History',

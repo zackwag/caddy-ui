@@ -32,7 +32,7 @@ function MiniCodeMirror({ value, onChange, theme }) {
             if (cancelled) return;
             view = createCaddyfileEditor({
                 parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "12px",
-                onChange: doc => onChangeRef.current(doc), t,
+                onChange: doc => onChangeRef.current(doc), t, siteBlock: true,
             });
             viewRef.current = view;
         }

@@ -1,7 +1,7 @@
 // The CodeMirror setup shared by the full Caddyfile editor and the route
 // site-block editor, so both edit the same way. Components import this module
 // dynamically, which keeps CodeMirror out of the main bundle.
-import { closeBrackets, deleteBracketPair } from '@codemirror/autocomplete';
+import { autocompletion, closeBrackets, deleteBracketPair } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, foldService, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
@@ -9,6 +9,7 @@ import { EditorView, drawSelection, highlightActiveLineGutter, highlightSpecialC
 import { classHighlighter } from '@lezer/highlight';
 import { caddyfile } from '../lib/caddyfileMode.js';
 import { indentation, indentationKeymap, structureOf } from './caddyfileIndentation.js';
+import { createCompletionSource } from './caddyfileCompletions.js';
 import { foldRangeOf, isLiteralAt } from './caddyfileStructure.js';
 
 // Typing one of these inserts its closing partner, and typing that partner
@@ -97,6 +98,9 @@ function editorTheme({ dark, padding }) {
         '.cm-foldGutter .cm-gutterElement': { color: 'var(--muted)', padding: '0 4px', cursor: 'pointer' },
         '.cm-foldGutter .cm-gutterElement:hover': { color: 'var(--accent)' },
         '.cm-foldPlaceholder': { background: 'var(--editor-active-line)', border: '1px solid var(--editor-border)', color: 'var(--muted)', borderRadius: '3px', margin: '0 2px', padding: '0 4px' },
+        '.cm-tooltip': { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' },
+        '.cm-tooltip-autocomplete ul li': { padding: '2px 8px' },
+        '.cm-tooltip-autocomplete ul li[aria-selected]': { background: 'var(--accent)', color: 'var(--on-accent)' },
     }, { dark });
 }
 
@@ -104,7 +108,7 @@ function editorTheme({ dark, padding }) {
 // after each edit, and `t` translates the editor's own labels. Nothing here
 // rewrites the document on load, and folding never changes it: content only
 // changes through the user's own edits.
-export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t }) {
+export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t, siteBlock = false }) {
     const phrasesCompartment = new Compartment();
     const state = EditorState.create({
         doc,
@@ -114,6 +118,7 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t 
             history(), drawSelection(), indentOnInput(), bracketMatching(),
             EditorState.languageData.of(() => [{ closeBrackets: { brackets: BRACKETS } }]),
             literalBrackets, closeBrackets(),
+            autocompletion({ override: [createCompletionSource(siteBlock)], activateOnTyping: true }),
             syntaxHighlighting(classHighlighter),
             StreamLanguage.define(caddyfile), editorTheme({ dark, padding }),
             indentation,

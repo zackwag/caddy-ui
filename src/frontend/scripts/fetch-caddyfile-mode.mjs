@@ -20,7 +20,13 @@ const outPath = fileURLToPath(new URL("../src/lib/caddyfileMode.js", import.meta
 try {
     const res = await fetch(SOURCE_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
+    let text = await res.text();
+    // The upstream file declares DIRECTIVES, GLOBAL_OPTIONS, SUBDIRECTIVES
+    // and MATCHERS as module-scoped consts. Re-export them so the
+    // autocomplete source can use the same vocabulary without duplication.
+    if (!text.includes('export {')) {
+        text += '\nexport { DIRECTIVES, GLOBAL_OPTIONS, SUBDIRECTIVES, MATCHERS };\n';
+    }
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, text);
     console.log(`[fetch-caddyfile-mode] updated src/lib/caddyfileMode.js from ${SOURCE_URL}`);
