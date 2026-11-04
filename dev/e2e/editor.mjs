@@ -282,3 +282,61 @@ test('the Caddyfile and route editors share indentation, bracket completion, fol
     await modal.waitFor({ state: 'detached' });
     assert.equal((await stack.api('/caddyfile')).data, withSite, 'Nothing was saved');
 });
+
+test('route autocomplete uses the complete site block returned by the backend', { timeout: 90000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    const withSite = `${original.trimEnd()}\n\nautocomplete.test {\n\t\n\treverse_proxy 127.0.0.1:9\n}\n`;
+    const saved = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: withSite, plain: true });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+
+    await page.goto(origin + '/routes', { waitUntil: 'domcontentloaded' });
+    await waitForView('tr:has-text("autocomplete.test")');
+    await page.locator('tr').filter({ hasText: 'autocomplete.test' }).getByTitle(en.routes.editRoute).click();
+    const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
+    await modal.locator('.cm-editor').waitFor();
+    assert.match(await visibleText(modal), /^autocomplete\.test \{\n/);
+
+    await modal.locator('.cm-content').focus();
+    await page.keyboard.press('ControlOrMeta+Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('End');
+    await page.keyboard.type('re');
+    await modal.getByRole('option', { name: 'reverse_proxy', exact: true }).click();
+    assert.equal((await visibleText(modal)).split('\n')[1], '\treverse_proxy', 'The completion inserts a directive in the site body');
+
+    await modal.getByRole('button', { name: en.common.close, exact: true }).click();
+    assert.equal((await stack.api('/caddyfile')).data, withSite, 'Completing a directive does not save the route');
+});
+
+test('explicit autocomplete only offers names at directive positions', { timeout: 90000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    await page.clock.install();
+
+    async function completeAfter(line) {
+        await editor.locator('.cm-content').focus();
+        await page.keyboard.press('ControlOrMeta+a');
+        await page.keyboard.insertText(`autocomplete.test {\n${line}\n}`);
+        await page.keyboard.press('ControlOrMeta+Home');
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('End');
+        await page.keyboard.press('Control+Space');
+        // Advance CodeMirror's completion timers before asserting absence.
+        await page.clock.runFor(500);
+    }
+
+    for (const line of ['\t', '\tre']) {
+        await completeAfter(line);
+        assert.equal(await editor.getByRole('option', { name: 'reverse_proxy', exact: true }).count(), 1, 'Blank and partially typed directive names still complete');
+        await page.keyboard.press('Escape');
+    }
+    for (const line of ['\tencode ', '\tencode gz', '\tencode gzip ', '\t@']) {
+        await completeAfter(line);
+        assert.equal(await editor.locator('.cm-tooltip-autocomplete').count(), 0, `No directive completions after ${JSON.stringify(line)}`);
+    }
+    assert.equal((await stack.api('/caddyfile')).data, original, 'Requesting completions does not save the Caddyfile');
+});

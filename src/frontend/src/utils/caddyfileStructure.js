@@ -126,6 +126,64 @@ export function blockClosedAt(structure, pos) {
 }
 
 
+/* eslint-disable i18next/no-literal-string -- internal context labels, not UI copy */
+
+// handle, handle_path, handle_errors and route accept directives, not subdirectives.
+const DIRECTIVE_BLOCKS = new Set(['handle', 'handle_path', 'handle_errors', 'route']);
+
+// Finds the first non-whitespace word on the line containing `offset`.
+function firstWordOnLine(text, offset) {
+    let lineStart = text.lastIndexOf('\n', offset - 1) + 1;
+    const lineEnd = text.indexOf('\n', lineStart);
+    const line = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd);
+    const match = line.match(/^\s*(\S+)/);
+    return match ? match[1] : '';
+}
+
+// Classifies the caret's editing context from the block structure.
+// Returns 'global' | 'directive' | 'subdirective' | 'none'.
+// Both editors include site addresses and their surrounding braces.
+export function contextKind(structure, text, pos) {
+    const { blocks } = structure;
+
+    // Collect blocks that contain `pos`, innermost last.
+    const containing = blocks.filter(
+        b => b.open < pos && (b.close === null || pos <= b.close)
+    );
+
+    if (!containing.length) {
+        // Outside any block is the address level, not a directive position.
+        return 'none';
+    }
+
+    // Is the outermost containing block the global options block?
+    // The global block is `{` on a line by itself (optionally with whitespace
+    // or a comment) as the first block in the file.
+    const outermost = containing[0];
+    const isGlobal = blocks[0] === outermost
+        && /^\s*\{/.test(text.slice(text.lastIndexOf('\n', outermost.open) + 1, outermost.open + 1));
+
+    if (containing.length === 1) {
+        if (isGlobal) {
+            return 'global';
+        }
+        // Inside a site block in the full editor.
+        return 'directive';
+    }
+
+    // Inside a block that isn't the site block itself. Check whether the
+    // innermost containing block's directive accepts full directives.
+    const inner = containing[containing.length - 1];
+    const parentWord = firstWordOnLine(text, inner.open);
+    if (DIRECTIVE_BLOCKS.has(parentWord)) {
+        return 'directive';
+    }
+
+    return 'subdirective';
+}
+
+/* eslint-enable i18next/no-literal-string */
+
 // The foldable range for a line whose code ends with a block's `{`: from the
 // end of that line (keeping a trailing comment visible) to the block's `}`.
 // Null when the line opens no block or its block isn't closed yet, so
