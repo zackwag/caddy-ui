@@ -25,7 +25,7 @@ test('independent suites can start together and all contribute to the existing T
     assert.equal(workflow.jobs.browser.strategy['fail-fast'], false);
 });
 
-test('the split retains tooling, integration, capture and both browser groups', () => {
+test('the split retains tooling, integration, capture and all three browser groups', () => {
     for (const command of ['npm run lint:dev-caddy', 'npm run test:playground', 'npm run test:dev-caddy', 'npm run test:workflows']) {
         assert(commands(workflow.jobs.tooling).includes(command), command);
     }
@@ -33,7 +33,11 @@ test('the split retains tooling, integration, capture and both browser groups', 
     assert(commands(workflow.jobs.capture).includes('npm run test:screenshots --prefix docs'));
     const groups = workflow.jobs.browser.strategy.matrix.include;
     assert.deepEqual(groups.map(group => group.command).sort(), [
-        'npm run test:dev-caddy:e2e:auth', 'npm run test:dev-caddy:e2e:configuration',
+        'npm run test:dev-caddy:e2e:auth', 'npm run test:dev-caddy:e2e:configuration:1',
+        'npm run test:dev-caddy:e2e:configuration:2',
+    ]);
+    assert.deepEqual(groups.map(group => [group.suite, group.docker]), [
+        ['authentication', false], ['configuration-1', true], ['configuration-2', true],
     ]);
     assert(commands(workflow.jobs.browser).includes('${{ matrix.command }}'));
     assert(!commands(workflow.jobs.integration).some(command => command.includes('playwright install')));
@@ -43,7 +47,10 @@ test('the split retains tooling, integration, capture and both browser groups', 
 test('browser groups preserve every file from the full local suite exactly once', () => {
     const files = command => command.split(/\s+/).filter(argument => argument.endsWith('.mjs'));
     const complete = files(development.scripts['test:e2e']);
-    const grouped = ['test:e2e:auth', 'test:e2e:configuration'].flatMap(name => {
+    const shards = ['test:e2e:configuration:1', 'test:e2e:configuration:2'];
+    assert.deepEqual(shards.flatMap(name => files(development.scripts[name])).sort(),
+        files(development.scripts['test:e2e:configuration']).sort(), 'configuration shards preserve the combined local command');
+    const grouped = ['test:e2e:auth', ...shards].flatMap(name => {
         assert(development.scripts[name].includes('--test-concurrency=1'));
         return files(development.scripts[name]);
     });

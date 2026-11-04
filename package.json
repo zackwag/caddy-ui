@@ -11,6 +11,8 @@
         "test:dev-caddy:e2e": "npm run test:e2e --prefix dev --",
         "test:dev-caddy:e2e:auth": "npm run test:e2e:auth --prefix dev --",
         "test:dev-caddy:e2e:configuration": "npm run test:e2e:configuration --prefix dev --",
+        "test:dev-caddy:e2e:configuration:1": "npm run test:e2e:configuration:1 --prefix dev --",
+        "test:dev-caddy:e2e:configuration:2": "npm run test:e2e:configuration:2 --prefix dev --",
         "lint:dev-caddy": "npm run lint --prefix dev --",
         "docs:screenshots": "node docs/screenshots/screenshot.mjs",
         "docs:screenshots:capture": "node docs/screenshots/capture.mjs",

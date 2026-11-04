@@ -245,11 +245,13 @@ Rerun the install command above after a Playwright upgrade or in an existing
 container whose browser dependencies have not been installed.
 
 CI runs tooling, integration, documentation capture and browser checks as
-independent jobs. Browser files are divided between authentication and
+independent jobs. Browser files are divided between authentication and two
 configuration runners, with serial execution within each group. To run one group
 locally, use `npm run test:dev-caddy:e2e:auth` (no Docker) or
-`npm run test:dev-caddy:e2e:configuration` (real Caddy required). The full command
-above retains every browser scenario.
+`npm run test:dev-caddy:e2e:configuration:1` or
+`npm run test:dev-caddy:e2e:configuration:2` (real Caddy required).
+`npm run test:dev-caddy:e2e:configuration` runs both shards' files locally in one
+serial suite. The full command above retains every browser scenario.
 
 Integration checks also exercise the real backend's registration API: creating or
 removing a Docker container does not create or remove its UI registration. The

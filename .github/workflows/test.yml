@@ -160,8 +160,12 @@ jobs:
           - suite: authentication
             command: npm run test:dev-caddy:e2e:auth
             docker: false
-          - suite: configuration
-            command: npm run test:dev-caddy:e2e:configuration
+          # Keep scenario files intact; balance shards using dev/ci/README.md.
+          - suite: configuration-1
+            command: npm run test:dev-caddy:e2e:configuration:1
+            docker: true
+          - suite: configuration-2
+            command: npm run test:dev-caddy:e2e:configuration:2
             docker: true
     steps:
       - name: Check out repository

@@ -8,14 +8,27 @@ runtime, dependency lockfiles, integration tests and browser scenarios.
 
 ## Suites measured
 
-The full browser command is unchanged. Its 13 entry-point files are split into
-non-overlapping groups, with serial file execution within each group:
+The full browser command is unchanged. Its 13 entry-point files are split across
+three workers, with serial file execution within each group:
 
 | Group | Files | Passing scenarios |
 | --- | --- | ---: |
 | Authentication | `cross-site.mjs`, `auth.mjs`, `totp.mjs` | 16 |
-| Configuration | `error-logging.mjs`, `languages.mjs`, `api-tokens.mjs`, `history.mjs`, `verification.mjs`, `content-security-policy.mjs`, `xss.mjs`, `documentation.mjs`, `uptime-history.mjs`, `editor.mjs` | 37 |
-| Full browser suite | Union of both groups | 53 |
+| Configuration 1 | `error-logging.mjs`, `history.mjs`, `content-security-policy.mjs`, `editor.mjs` | 19 |
+| Configuration 2 | `languages.mjs`, `api-tokens.mjs`, `verification.mjs`, `xss.mjs`, `documentation.mjs`, `uptime-history.mjs` | 18 |
+| Full browser suite | Union of all three groups | 53 |
+
+Scenario files and assertions stay unchanged. The configuration files are
+assigned by their measured runtimes: 95.4 seconds in shard 1 and 95.1 seconds in
+shard 2 in the two-worker fork sample below. Those sums include scenario fixture
+setup/teardown but exclude job preparation and test-file hooks; they are inputs
+to the assignment, not measured runtimes for the new workers.
+
+`test:dev-caddy:e2e:configuration` remains the combined local command. CI runs
+only its `:1` and `:2` shards, alongside authentication. Workflow contracts check
+both the combined configuration command and the full browser inventory for
+missing or duplicate files. Future contributors can keep scenarios organized by
+behavior and adjust only the file assignments when balancing workers.
 
 The runs also cover 28 real-Caddy integration tests, one documentation
 capture/replay scenario, 37 lifecycle/readiness tests, 22 playground tests,
@@ -23,12 +36,12 @@ capture/replay scenario, 37 lifecycle/readiness tests, 22 playground tests,
 contract tests for its own split and aggregate gate: workflow checks increase
 from 32 in the baseline to 36 after the change.
 
-Both layouts use `.node-version` (26), Node 26.13.0 in the measured logs,
+All layouts use `.node-version` (26), Node 26.13.0 in the measured logs,
 Playwright 1.64.1 and `ubuntu-latest`. Every `setup-node` step reads the shared
 runtime file, including the new jobs. Application assertions, fixture source,
 Caddy images and browser versions are unchanged by this branch.
 
-## Current hosted comparison
+## Two-worker hosted comparison
 
 All three runs below passed on their first attempt. The first two are an explicit
 before/after pair on the same fork using `workflow_dispatch`. The third is the
@@ -51,7 +64,7 @@ The baseline's combined integration job took 335 seconds. Its steps included
 17 seconds of capture/replay and 240 seconds of browser scenarios. Other work
 in that job includes dependency installation, tooling checks and cleanup.
 
-The parallel fork run's complete job durations were:
+The two-worker parallel fork run's complete job durations were:
 
 | Job | Duration |
 | --- | ---: |
@@ -66,7 +79,7 @@ The parallel fork run's complete job durations were:
 | Frontend lint | 15 s |
 | Required Test gate | 4 s |
 
-Configuration remains the critical job: its browser step took 196 seconds,
+Configuration was the critical job: its browser step took 196 seconds,
 compared with 40 seconds for authentication. Chromium preparation took 19 and
 18 seconds respectively; capture's combined Caddy/Chromium preparation took
 19 seconds. The split overlaps the remaining work with configuration rather
@@ -86,11 +99,11 @@ and the gate; it excludes queue time and is **not a billing calculation**.
 Step times omit checkout, Node setup and cleanup unless explicitly named.
 Browser scenario times include fixture acquisition and teardown.
 
-The gate waits for application tests/lint, tooling, integration, capture and both
-browser groups, and rejects failed, cancelled or skipped dependencies. Each
+The gate waits for application tests/lint, tooling, integration, capture and all
+three browser groups, and rejects failed, cancelled or skipped dependencies. Each
 runner owns its checkout, dependencies, services and temporary files.
 Authentication does not prepare Docker; integration does not install Chromium.
-The split adds four worker jobs and repeats some setup, so runner availability
+The three-worker split adds five worker jobs and repeats some setup, so runner availability
 and download variability can offset the wall-clock benefit.
 
 Earlier October measurements in the PR discussion used older suites and Node 22.
