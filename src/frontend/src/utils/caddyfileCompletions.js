@@ -46,14 +46,11 @@ export function createCompletionSource() {
             return null;
         }
 
-        // Only complete at the start of a token on the line (first word
-        // position or after leading whitespace). Skip if the caret follows
-        // a non-whitespace, non-word character on the same line.
+        // Both typed and empty prefixes must be the first token on the line.
+        // Ctrl+Space after a directive's arguments isn't a name completion.
+        const from = word ? word.from : pos;
         const line = state.doc.lineAt(pos);
-        const before = line.text.slice(0, pos - line.from);
-        if (word && before.slice(0, word.from - line.from).trim().length > 0) {
-            // The word isn't the first token on its line — could be an
-            // argument, not a directive name. Don't offer completions.
+        if (state.doc.sliceString(line.from, from).trim().length > 0) {
             return null;
         }
 
@@ -64,7 +61,7 @@ export function createCompletionSource() {
         }
 
         return {
-            from: word ? word.from : pos,
+            from,
             options,
             validFor: /^[a-zA-Z_]\w*$/,
         };

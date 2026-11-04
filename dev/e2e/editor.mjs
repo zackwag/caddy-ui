@@ -308,3 +308,35 @@ test('route autocomplete uses the complete site block returned by the backend', 
     await modal.getByRole('button', { name: en.common.close, exact: true }).click();
     assert.equal((await stack.api('/caddyfile')).data, withSite, 'Completing a directive does not save the route');
 });
+
+test('explicit autocomplete only offers names at directive positions', { timeout: 90000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    await page.clock.install();
+
+    async function completeAfter(line) {
+        await editor.locator('.cm-content').focus();
+        await page.keyboard.press('ControlOrMeta+a');
+        await page.keyboard.insertText(`autocomplete.test {\n${line}\n}`);
+        await page.keyboard.press('ControlOrMeta+Home');
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('End');
+        await page.keyboard.press('Control+Space');
+        // Advance CodeMirror's completion timers before asserting absence.
+        await page.clock.runFor(500);
+    }
+
+    for (const line of ['\t', '\tre']) {
+        await completeAfter(line);
+        assert.equal(await editor.getByRole('option', { name: 'reverse_proxy', exact: true }).count(), 1, 'Blank and partially typed directive names still complete');
+        await page.keyboard.press('Escape');
+    }
+    for (const line of ['\tencode ', '\tencode gz', '\tencode gzip ', '\t@']) {
+        await completeAfter(line);
+        assert.equal(await editor.locator('.cm-tooltip-autocomplete').count(), 0, `No directive completions after ${JSON.stringify(line)}`);
+    }
+    assert.equal((await stack.api('/caddyfile')).data, original, 'Requesting completions does not save the Caddyfile');
+});
