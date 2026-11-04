@@ -26,7 +26,7 @@ test('collection dispatches once and polls only the returned run ID', async () =
         'repos/juscghwe/caddy-ui/actions/workflows/docs.yml/dispatches', '-f', 'ref=main',
         '-f', 'inputs[archive_history]=true', '-F', 'return_run_details=true'] });
     assert(calls.slice(1).every(call => call.args[1] === 'repos/juscghwe/caddy-ui/actions/runs/42'));
-    assert(messages.at(-1).includes('https://github.com/juscghwe/caddy-ui/actions/runs/42'));
+    assert.equal(messages.at(-1), 'Archive collection completed: https://github.com/juscghwe/caddy-ui/actions/runs/42');
 });
 
 test('ambiguous or invalid dispatch responses never cause a second dispatch', async () => {
