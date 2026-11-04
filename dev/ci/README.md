@@ -41,6 +41,43 @@ Playwright 1.64.1 and `ubuntu-latest`. Every `setup-node` step reads the shared
 runtime file, including the new jobs. Application assertions, fixture source,
 Caddy images and browser versions are unchanged by this branch.
 
+## Three-worker follow-up
+
+The three-worker change was measured at
+`0772a9af553ca1bd973bdc2b75ad77124b5e9008`, using the same upstream application,
+scenario and dependency sources as the two-worker samples below. Both fresh
+first-attempt runs passed, including all 53 browser tests (16 + 19 + 18):
+
+| Run | Created → Test gate completed | Initial queue | Sum of job execution |
+| --- | ---: | ---: | ---: |
+| [41905888739 — fork](https://github.com/juscghwe/caddy-ui/actions/runs/41905888739) | 451 s (7m31s) | 4 s | 1105 s (18m25s) |
+| [41905858916 — upstream PR](https://github.com/zackwag/caddy-ui/actions/runs/41905858916) | 440 s (7m20s) | 3 s | 957 s (15m57s) |
+
+The configuration **test steps** are now balanced, while dependency installation
+dominated the complete runs:
+
+| Step | Fork | Upstream PR |
+| --- | ---: | ---: |
+| Configuration 1 browser scenarios | 86 s | 95 s |
+| Configuration 2 browser scenarios | 92 s | 90 s |
+| Authentication browser scenarios | 60 s | 43 s |
+| Configuration 1 Chromium/system preparation | 23 s | 27 s |
+| Configuration 2 Chromium/system preparation | 167 s | 15 s |
+| Authentication Chromium/system preparation | 357 s | 27 s |
+| Capture Caddy/Chromium preparation | 39 s | 397 s |
+
+For comparison, the earlier combined configuration browser step took 196 seconds
+on the fork and 184 seconds on upstream. Whole-file sharding reduced that test
+critical path, but these three-worker runs were **slower overall** than the
+two-worker samples. They do not establish an end-to-end speed improvement.
+
+The fork authentication runner downloaded 21.9 MB of APT packages in 5m39s at
+64.4 kB/s. Upstream's capture runner downloaded the same amount in 6m21s at
+57.4 kB/s, then passed its scenario in 20 seconds. The fork browser runners
+restored their npm cache, so these delays cannot be explained as npm cache
+misses. System-package preparation is the next optimization target; increasing
+worker count alone does not make that preparation predictable.
+
 ## Two-worker hosted comparison
 
 All three runs below passed on their first attempt. The first two are an explicit
