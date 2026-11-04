@@ -1,129 +1,128 @@
 # Regression workflow timing
 
-This is the initial measurement and parallel-job follow-up for
-[#436](https://github.com/zackwag/caddy-ui/issues/436). It preserves the suites and
-the existing aggregate `Test` check. Hosted after-change measurements are still
-needed before claiming a GitHub Actions speedup or closing the investigation.
+The comparison for [#436](https://github.com/zackwag/caddy-ui/issues/436) and
+[#442](https://github.com/zackwag/caddy-ui/pull/442) was refreshed on 2026-11-04
+against upstream `main` at `b9b84e7cca88fcb7b3ca1e2f305a428f3fc486b1`.
+The parallel workflow is rebased onto that snapshot, including its current
+runtime, dependency lockfiles, integration tests and browser scenarios.
 
-## Hosted baseline
+## Suites measured
 
-Three successful first-attempt Test runs from 2026-10-22 used the same sequential
-integration-job layout on `ubuntu-latest`, Node 22 (22.23.3 in the sampled log),
-and freshly installed Playwright Chromium. They are observational samples from
-different PR commits, not repeated controlled trials of identical source.
+The full browser command is unchanged. Its 13 entry-point files are split into
+non-overlapping groups, with serial file execution within each group:
 
-| Run | Commit | Created → aggregate completed | Initial queue | Sum of job execution | Integration critical job |
-| --- | --- | ---: | ---: | ---: | ---: |
-| [39856879842](https://github.com/zackwag/caddy-ui/actions/runs/39856879842) | `9023012296ccd3263cbe66ec8e8d042c1b85dc4d` | 221 s | 3 s | 299 s | 211 s |
-| [39856706824](https://github.com/zackwag/caddy-ui/actions/runs/39856706824) | `749170ee33dc2e7e7cafc6ee47809f6ab8c05f15` | 240 s | 4 s | 309 s | 229 s |
-| [39856238727](https://github.com/zackwag/caddy-ui/actions/runs/39856238727) | `48422327edb932302500d08aae8e03cef3afc1ea` | 228 s | 3 s | 296 s | 219 s |
+| Group | Files | Passing scenarios |
+| --- | --- | ---: |
+| Authentication | `cross-site.mjs`, `auth.mjs`, `totp.mjs` | 16 |
+| Configuration | `error-logging.mjs`, `languages.mjs`, `api-tokens.mjs`, `history.mjs`, `verification.mjs`, `content-security-policy.mjs`, `xss.mjs`, `documentation.mjs`, `uptime-history.mjs`, `editor.mjs` | 37 |
+| Full browser suite | Union of both groups | 53 |
 
-Initial queue is workflow creation to the earliest job start. Sum of job execution
-adds each job's start-to-completion interval; it excludes queue time, overlaps
-parallel work, and is not a billing calculation. Workflow elapsed time includes
-queueing, setup, tests, post-job work and the aggregate job.
+The runs also cover 28 real-Caddy integration tests, one documentation
+capture/replay scenario, 37 lifecycle/readiness tests, 22 playground tests,
+996 backend tests and 183 frontend tests. The parallel workflow adds four
+contract tests for its own split and aggregate gate: workflow checks increase
+from 32 in the baseline to 36 after the change.
 
-| Integration-job step | 39856879842 | 39856706824 | 39856238727 |
-| --- | ---: | ---: | ---: |
-| Application/dev dependency installation | 6 s | 9 s | 6 s |
-| Tooling lint, playground and lifecycle tests | 3 s | 4 s | 3 s |
-| Caddy/Chromium preparation | 38 s | 30 s | 35 s |
-| Real-Caddy integration scenarios | 21 s | 24 s | 25 s |
-| Authenticated documentation capture/replay | 16 s | 17 s | 17 s |
-| Browser scenarios, serial file execution | 118 s | 136 s | 128 s |
+Both layouts use `.node-version` (26), Node 26.13.0 in the measured logs,
+Playwright 1.64.1 and `ubuntu-latest`. Every `setup-node` step reads the shared
+runtime file, including the new jobs. Application assertions, fixture source,
+Caddy images and browser versions are unchanged by this branch.
 
-Step sums omit checkout, Node setup and cleanup. Capture/replay includes frontend
-builds and generated screenshots; the workflow does not time those subphases
-separately. Browser-test timings include fixture acquisition and teardown.
+## Current hosted comparison
 
-All three integration logs report `npm cache is not found`. The preinstalled Node
-tool cache was available; that is different from an npm download-cache hit.
-`npm ci` still installs dependencies on a cache hit.
+All three runs below passed on their first attempt. The first two are an explicit
+before/after pair on the same fork using `workflow_dispatch`. The third is the
+upstream PR validation of the same parallel commit.
 
-The additional failed sample
-[39860638991](https://github.com/zackwag/caddy-ui/actions/runs/39860638991), commit
-`1c55056399a9e18e5b63663fd63368685e60c6d7`, restored the npm cache but failed the
-real-example TLS scenario with `EPROTO` / TLS alert 80. Capture and browser steps
-then did not run. Its shorter elapsed time cannot establish a warm-cache speedup.
-This sample establishes neither a persistent flake nor the cost of repeated
-attempts; failed and retried runs need separate classification.
+| Layout | Run | Source commit | Created → Test gate completed | Initial queue | Sum of job execution |
+| --- | --- | --- | ---: | ---: | ---: |
+| Standard workflow, fork | [41899954813](https://github.com/juscghwe/caddy-ui/actions/runs/41899954813) | `b9b84e7cca88fcb7b3ca1e2f305a428f3fc486b1` | 347 s (5m47s) | 4 s | 441 s (7m21s) |
+| Parallel workflow, fork | [41900565452](https://github.com/juscghwe/caddy-ui/actions/runs/41900565452) | `fabd78f6f35774c87cb41b946e8318425899b557` | 244 s (4m04s) | 4 s | 526 s (8m46s) |
+| Parallel workflow, upstream PR | [41900199865](https://github.com/zackwag/caddy-ui/actions/runs/41900199865) | `fabd78f6f35774c87cb41b946e8318425899b557` | 241 s (4m01s) | 4 s | 514 s (8m34s) |
 
-## Change selected from the measurements
+The paired fork runs finished **103 seconds (29.7%) sooner** with parallel jobs,
+while summed runner execution increased **85 seconds (19.3%)**. These are
+observations from one pair, not an established typical speed improvement.
+The upstream result is corroborating validation on a different repository's
+runners, rather than another matched baseline/parallel pair.
 
-- Tooling, real-Caddy integration and documentation capture run on separate jobs.
-- Browser work is divided into authentication and configuration runners.
-- Browser files remain serial within each group; their union is the unchanged
-  full local browser suite, with no duplicated or omitted files.
-- Integration installs backend/dev dependencies and does not install Chromium.
-- Authentication scenarios do not prepare Docker. Configuration and capture do.
-- Each runner owns its checkout, dependencies, services and temporary files.
-- The aggregate check waits for all jobs, including existing application lint,
-  and rejects failed, cancelled or skipped dependencies.
+The baseline's combined integration job took 335 seconds. Its steps included
+18 seconds of Caddy/Chromium preparation, 36 seconds of integration tests,
+17 seconds of capture/replay and 240 seconds of browser scenarios. Other work
+in that job includes dependency installation, tooling checks and cleanup.
 
-This removes sequential waits rather than reducing coverage. It creates four
-additional worker jobs, increasing repeated setup and potentially total runner
-time. Limited runner availability can reduce or eliminate the wall-clock benefit.
-No extra job dependency forces the groups to queue behind one another.
+The parallel fork run's complete job durations were:
 
-The few-second tooling suite is not the principal bottleneck. Splitting the
-118–136 s browser workload and overlapping integration/capture with it provide
-the main opportunity. Moving tiny checks into more jobs indefinitely would not.
+| Job | Duration |
+| --- | ---: |
+| Development tooling | 24 s |
+| Real-Caddy integration | 47 s |
+| Documentation capture/replay | 53 s |
+| Browser — authentication | 76 s |
+| Browser — configuration | 232 s |
+| Backend tests | 43 s |
+| Frontend tests | 18 s |
+| Backend lint | 14 s |
+| Frontend lint | 15 s |
+| Required Test gate | 4 s |
 
-## Reproduce the hosted comparison
+Configuration remains the critical job: its browser step took 196 seconds,
+compared with 40 seconds for authentication. Chromium preparation took 19 and
+18 seconds respectively; capture's combined Caddy/Chromium preparation took
+19 seconds. The split overlaps the remaining work with configuration rather
+than eliminating browser or dependency setup.
 
-For each selected before/after run, retain its metadata, all job pages and logs:
+The baseline combined runner and both fork browser runners reported npm cache
+misses. This is distinct from the preinstalled Node tool cache, and `npm ci`
+still installs dependencies when a download cache is restored. Setup timings,
+queueing and runner-image details should remain part of future comparisons.
+
+## Measurement boundaries
+
+Elapsed time starts at workflow creation and ends at the aggregate `Test` job's
+completion. Initial queue is creation to the earliest job start. Summed job
+execution adds every job's start-to-completion interval, including post-job work
+and the gate; it excludes queue time and is **not a billing calculation**.
+Step times omit checkout, Node setup and cleanup unless explicitly named.
+Browser scenario times include fixture acquisition and teardown.
+
+The gate waits for application tests/lint, tooling, integration, capture and both
+browser groups, and rejects failed, cancelled or skipped dependencies. Each
+runner owns its checkout, dependencies, services and temporary files.
+Authentication does not prepare Docker; integration does not install Chromium.
+The split adds four worker jobs and repeats some setup, so runner availability
+and download variability can offset the wall-clock benefit.
+
+Earlier October measurements in the PR discussion used older suites and Node 22.
+They are historical observations and are not the baseline for the percentages
+above. Further first-attempt pairs, cache states and failed/retried runs should
+be recorded before claiming a consistent improvement or closing #436.
+
+## Reproduce the comparison
+
+Choose an upstream snapshot, synchronize the fork's `main` to it, and rebase
+`ci/parallel-test-jobs` onto that same snapshot. Verify that the application,
+scenario and dependency sources match; do not compare an older suite with a
+newer split. `npm run test:workflows` checks that every browser file in the full
+command appears in exactly one group and that the aggregate gate rejects
+unsuccessful jobs.
+
+Dispatch `.github/workflows/test.yml` on the fork's `main` for the standard layout
+and on `ci/parallel-test-jobs` for the parallel layout. Retain the returned run
+IDs, source SHAs, attempt numbers and conclusions. For example, collect the
+parallel run's metadata, every job page and logs with:
 
 ```sh
-gh api repos/zackwag/caddy-ui/actions/runs/RUN_ID > run.json
-gh api --paginate --slurp repos/zackwag/caddy-ui/actions/runs/RUN_ID/jobs > jobs.json
-gh run view RUN_ID --repo zackwag/caddy-ui --log > run.log
+ci_repository=juscghwe/caddy-ui
+ci_run=41900565452
+ci_attempt=1
+gh api "repos/$ci_repository/actions/runs/$ci_run" > run.json
+gh api --paginate --slurp "repos/$ci_repository/actions/runs/$ci_run/attempts/$ci_attempt/jobs?per_page=100" > jobs.json
+gh run view "$ci_run" --repo "$ci_repository" --attempt "$ci_attempt" --log > run.log
 ```
 
-Record the source SHA, attempt, conclusion, runner image, Node/Chromium versions,
-cache hits/misses and job/step `started_at` / `completed_at` timestamps. Compare
-creation-to-aggregate elapsed time and summed job execution separately. Include
-queue time and failed/retried attempts; do not compare a failed short run with a
-successful full run as a performance improvement.
-
-Compare representative successful hosted runs after the split, including cold
-and warm installs. Check whether extra setup or runner queueing offsets the saved
-serial work. Browser caching or further splitting should follow those results.
-There is no fixed percentage improvement established by the baseline alone.
-
-## Focused local validation
-
-Install the development dependencies and run `npm run test:workflows` to verify
-the job dependencies, browser-file inventory and aggregate failure behavior.
-This check starts no services. Full service/browser commands remain documented
-in `docs/src/development-caddy.md`.
-
-On the managed Linux environment (Node 24.19.0, system Chromium 154.0.8037.57,
-installed dependencies and a cached Caddy image), application/test source from
-`cbeaee5d5f471e0f147d7674b11070af617698da` and the grouped commands in `030cda1`
-were used. The unchanged full browser
-command passed 34 scenarios in 140.1 s including npm startup. A same-host
-concurrent experiment took 107.4 s, but authentication passed only 15/16 while
-configuration passed 18/18. The failure was a 10 s setup-form wait in the passkey
-origin-mismatch scenario. An isolated authentication-group run passed all 16
-in 39.6 s, without changing assertions or timeouts.
-
-Do not treat the failed concurrent experiment as a successful speedup. It shared
-CPU, filesystem and Docker network changes, unlike the independent hosted runners
-used by the workflow. It does not establish the cause of the setup timeout.
-These local runs validate commands and expose a validation limit; the hosted
-before/after comparison remains outstanding.
-
-The first local integration/capture attempts also encountered the sandbox's
-inherited container proxy settings: local example traffic failed or returned 403.
-The unchanged TLS example passed after a temporary Docker CLI adapter added only
-the owned fixture bridge and local fixture hostnames to container `NO_PROXY`.
-BusyBox wget still used the proxy despite that setting, so the adapter also
-removed proxy variables only for the exact capture traffic command whose names
-are mapped to loopback. With this setup, all 23 integration tests and the full
-documentation capture/replay test passed. That environment-only adapter is
-outside the repository; it changes no assertions, fixture source, image, registry
-credentials or external traffic's proxy settings. Hosted validation should use
-the workflow as committed, without this sandbox adapter.
-
-Additional local checks passed: 37 lifecycle/readiness tests, 22 playground tests,
-four workflow contract tests, development lint, actionlint and the mdBook build.
+Use the attempt-specific job endpoint so a rerun cannot silently replace the
+sample's jobs. Keep retries and failures separate from successful first attempts;
+for a rerun, use that attempt's start time rather than the original run creation
+time. Record runner/runtime versions, cache outcomes, job and step timestamps,
+and scenario counts alongside both elapsed time and summed execution.
