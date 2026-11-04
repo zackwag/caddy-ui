@@ -30,7 +30,7 @@
         "@fontsource/ibm-plex-sans": "5.3.0",
         "@lezer/highlight": "^1.2.5",
         "@simplewebauthn/browser": "14.0.0",
-        "i18next": "^26.5.10",
+        "i18next": "^26.6.0",
         "qrcode": "1.5.4",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
