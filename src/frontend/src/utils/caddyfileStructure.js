@@ -142,10 +142,8 @@ function firstWordOnLine(text, offset) {
 
 // Classifies the caret's editing context from the block structure.
 // Returns 'global' | 'directive' | 'subdirective' | 'none'.
-//
-// `siteBlock` is true for the route editor, where the doc is already
-// the body of a site block (no surrounding address/braces).
-export function contextKind(structure, text, pos, siteBlock) {
+// Both editors include site addresses and their surrounding braces.
+export function contextKind(structure, text, pos) {
     const { blocks } = structure;
 
     // Collect blocks that contain `pos`, innermost last.
@@ -154,20 +152,18 @@ export function contextKind(structure, text, pos, siteBlock) {
     );
 
     if (!containing.length) {
-        // Outside any block: in a site-block editor that's directive level;
-        // in the full editor it's the file level (addresses), no completions.
-        return siteBlock ? 'directive' : 'none';
+        // Outside any block is the address level, not a directive position.
+        return 'none';
     }
 
     // Is the outermost containing block the global options block?
     // The global block is `{` on a line by itself (optionally with whitespace
     // or a comment) as the first block in the file.
     const outermost = containing[0];
-    const isGlobal = !siteBlock
-        && blocks[0] === outermost
+    const isGlobal = blocks[0] === outermost
         && /^\s*\{/.test(text.slice(text.lastIndexOf('\n', outermost.open) + 1, outermost.open + 1));
 
-    if (containing.length === 1 && !siteBlock) {
+    if (containing.length === 1) {
         if (isGlobal) {
             return 'global';
         }
@@ -177,9 +173,7 @@ export function contextKind(structure, text, pos, siteBlock) {
 
     // Inside a block that isn't the site block itself. Check whether the
     // innermost containing block's directive accepts full directives.
-    const inner = siteBlock && containing.length === 1
-        ? containing[0]
-        : containing[containing.length - 1];
+    const inner = containing[containing.length - 1];
     const parentWord = firstWordOnLine(text, inner.open);
     if (DIRECTIVE_BLOCKS.has(parentWord)) {
         return 'directive';

@@ -282,3 +282,29 @@ test('the Caddyfile and route editors share indentation, bracket completion, fol
     await modal.waitFor({ state: 'detached' });
     assert.equal((await stack.api('/caddyfile')).data, withSite, 'Nothing was saved');
 });
+
+test('route autocomplete uses the complete site block returned by the backend', { timeout: 90000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    const withSite = `${original.trimEnd()}\n\nautocomplete.test {\n\t\n\treverse_proxy 127.0.0.1:9\n}\n`;
+    const saved = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: withSite, plain: true });
+    assert.equal(saved.status, 200, JSON.stringify(saved.data));
+
+    await page.goto(origin + '/routes', { waitUntil: 'domcontentloaded' });
+    await waitForView('tr:has-text("autocomplete.test")');
+    await page.locator('tr').filter({ hasText: 'autocomplete.test' }).getByTitle(en.routes.editRoute).click();
+    const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
+    await modal.locator('.cm-editor').waitFor();
+    assert.match(await visibleText(modal), /^autocomplete\.test \{\n/);
+
+    await modal.locator('.cm-content').focus();
+    await page.keyboard.press('ControlOrMeta+Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('End');
+    await page.keyboard.type('re');
+    await modal.getByRole('option', { name: 'reverse_proxy', exact: true }).click();
+    assert.equal((await visibleText(modal)).split('\n')[1], '\treverse_proxy', 'The completion inserts a directive in the site body');
+
+    await modal.getByRole('button', { name: en.common.close, exact: true }).click();
+    assert.equal((await stack.api('/caddyfile')).data, withSite, 'Completing a directive does not save the route');
+});

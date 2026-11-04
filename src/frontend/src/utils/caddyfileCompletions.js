@@ -33,8 +33,7 @@ function vocabularyFor(kind) {
 }
 
 // The CodeMirror CompletionSource wired into autocompletion().
-// `siteBlock` signals that the editor holds a site-block body.
-export function createCompletionSource(siteBlock) {
+export function createCompletionSource() {
     return function caddyfileCompletionSource(context) {
         const { state, pos } = context;
         const word = context.matchBefore(/[a-zA-Z_]\w*/);
@@ -58,7 +57,7 @@ export function createCompletionSource(siteBlock) {
             return null;
         }
 
-        const kind = contextKind(structure, state.doc.toString(), pos, siteBlock);
+        const kind = contextKind(structure, state.doc.toString(), pos);
         const options = vocabularyFor(kind);
         if (!options.length) {
             return null;

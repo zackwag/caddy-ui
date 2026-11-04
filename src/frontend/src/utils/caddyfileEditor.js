@@ -108,7 +108,7 @@ function editorTheme({ dark, padding }) {
 // after each edit, and `t` translates the editor's own labels. Nothing here
 // rewrites the document on load, and folding never changes it: content only
 // changes through the user's own edits.
-export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t, siteBlock = false }) {
+export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t }) {
     const phrasesCompartment = new Compartment();
     const state = EditorState.create({
         doc,
@@ -118,7 +118,7 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t,
             history(), drawSelection(), indentOnInput(), bracketMatching(),
             EditorState.languageData.of(() => [{ closeBrackets: { brackets: BRACKETS } }]),
             literalBrackets, closeBrackets(),
-            autocompletion({ override: [createCompletionSource(siteBlock)], activateOnTyping: true }),
+            autocompletion({ override: [createCompletionSource()], activateOnTyping: true }),
             syntaxHighlighting(classHighlighter),
             StreamLanguage.define(caddyfile), editorTheme({ dark, padding }),
             indentation,
