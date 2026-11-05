@@ -3,7 +3,6 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PaneDivider from "./PaneDivider.jsx";
-import { useEditorVim } from "../hooks/useEditorVim.js";
 import { apiFetch, apiRequest, getInstanceId } from "../utils/api.js";
 import { stateNotificationKey } from "../utils/notificationCenter.js";
 import { formatTs } from "../utils/format.js";
@@ -112,7 +111,7 @@ function CaddyfileDiff({ oldText, newText, previewRef, label }) {
     );
 }
 
-export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
+export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, onEditorVimChange }) {
     const { t } = useTranslation();
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
@@ -121,7 +120,6 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
     const [validating, setValidating] = useState(false);
     const [runFmt, setRunFmt] = useState(true);
     const [runSort, setRunSort] = useState(true);
-    const [editorVim, setEditorVim] = useEditorVim();
     const [historyOpen, setHistoryOpen] = useState(false);
     const [historyListOpen, setHistoryListOpen] = useState(false);
     const [editorShare, setEditorShare] = useState(60);
@@ -418,7 +416,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                             {t("caddyfile.sortEntries")}
                         </label>
                         <label className="editor-checkbox-label">
-                            <input type="checkbox" className="editor-checkbox" checked={editorVim} onChange={e => setEditorVim(e.target.checked)} />
+                            <input type="checkbox" className="editor-checkbox" checked={editorVim} onChange={e => onEditorVimChange(e.target.checked)} />
                             {t("caddyfile.vimMode")}
                         </label>
                         <span className="editor-hint editor-hint--mobile"><UtilityIcon name={isDirty ? "dot" : "check"} size={10} /> {t(isDirty ? "caddyfile.unsavedChanges" : "caddyfile.upToDate")}</span>

@@ -162,7 +162,7 @@ Since Tab indents, it doesn't move focus out of the editor. To leave the editor 
 
 ### Vim mode
 
-The **vim mode** checkbox in the Caddyfile editor's toolbar turns on vim keybindings in both editors. It's off by default and is remembered per browser, not shared with other browsers or devices. A status bar under the editor shows the current mode. Switching vim mode on or off keeps your text and its undo history.
+The **vim mode** checkbox in the Caddyfile editor's toolbar turns on vim keybindings in both editors. It's off by default and is saved in the server's `settings.json`, alongside theme and language preferences. The setting applies across browsers and devices when they load the app. A status bar under the editor shows the current mode. Switching vim mode on or off keeps your text and its undo history.
 
 Vim mode follows the editing rules above where they overlap:
 

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { before, test } from 'node:test';
 import en from '../../src/frontend/src/i18n/locales/en.js';
 import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
@@ -341,15 +343,16 @@ test('explicit autocomplete only offers names at directive positions', { timeout
     assert.equal((await stack.api('/caddyfile')).data, original, 'Requesting completions does not save the Caddyfile');
 });
 
-test('vim mode is a local preference, and :w saves from both editors', { timeout: 90000 }, async t => {
-    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+test('vim mode is a server preference, and :w saves from both editors', { timeout: 90000 }, async t => {
+    const { stack, page, context, origin, waitForView } = await useBrowserFixture(t);
     const original = (await stack.api('/caddyfile')).data;
     const withSite = `${original.trimEnd()}\n\neditor-vim.test {\n\treverse_proxy 127.0.0.1:9\n}\n`;
     const seeded = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: withSite, plain: true });
     assert.equal(seeded.status, 200, JSON.stringify(seeded.data));
     const text = root => root.locator('.cm-line').evaluateAll(lines => lines.map(line => line.textContent).join('\n'));
 
-    // Off by default: no status bar, and typing inserts text
+    // A stale browser preference cannot override the server's default.
+    await page.evaluate(() => localStorage.setItem('caddy_ui_editor_vim', 'true'));
     await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
     await waitForView('.cm-editor');
     const editor = page.locator('.editor-wrap');
@@ -360,11 +363,14 @@ test('vim mode is a local preference, and :w saves from both editors', { timeout
     // Keep the saved text exactly as typed
     await editor.getByLabel('caddy fmt').uncheck();
     await editor.getByLabel(en.caddyfile.sortEntries).uncheck();
+    const saved = page.waitForResponse(response => response.url() === origin + '/api/settings' && response.request().method() === 'PUT');
     await toggle.check();
+    assert.equal((await saved).status(), 200);
     const status = editor.locator('.cm-vim-panel');
     await status.filter({ hasText: '--NORMAL--' }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_editor_vim')), 'true', 'The preference is stored in this browser');
-    assert.equal((await stack.api('/settings')).data.editorVim, undefined, 'The preference is not a server setting');
+    assert.equal((await stack.api('/settings')).data.editorVim, true, 'The preference is available through the settings API');
+    const settingsFile = join(stack.directory, 'backend', 'settings.json');
+    assert.equal(JSON.parse(await readFile(settingsFile, 'utf8')).editorVim, true, 'The preference is persisted on disk');
 
     // Normal mode keys move rather than insert; O opens a line in insert mode
     await editor.locator('.cm-content').click();
@@ -400,6 +406,32 @@ test('vim mode is a local preference, and :w saves from both editors', { timeout
     await page.keyboard.press('Enter');
     await modal.waitFor({ state: 'detached' });
     assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:90\n/, ':w saved the route');
+
+    // A separate browser session loads the server setting without local state.
+    const otherContext = await context.browser().newContext();
+    try {
+        const csrf = await otherContext.request.get(origin + '/api/auth/csrf');
+        const login = await otherContext.request.post(origin + '/api/auth/sessions', {
+            headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken }, data: stack.credentials,
+        });
+        assert.equal(login.status(), 200, 'Second browser session login');
+        const otherPage = await otherContext.newPage();
+        otherPage.setDefaultTimeout(10000);
+        await otherPage.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+        await otherPage.locator('.cm-vim-panel').filter({ hasText: '--NORMAL--' }).waitFor();
+        assert.equal(await otherPage.evaluate(() => localStorage.getItem('caddy_ui_editor_vim')), null);
+        const disabled = otherPage.waitForResponse(response => response.url() === origin + '/api/settings' && response.request().method() === 'PUT');
+        await otherPage.getByLabel(en.caddyfile.vimMode).uncheck();
+        assert.equal((await disabled).status(), 200);
+        assert.equal((await stack.api('/settings')).data.editorVim, false);
+        assert.equal(JSON.parse(await readFile(settingsFile, 'utf8')).editorVim, false);
+    } finally {
+        await otherContext.close();
+    }
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    assert(!await toggle.isChecked(), 'Reloading picks up the change from the other session');
+    assert.equal(await editor.locator('.cm-vim-panel').count(), 0);
 });
 
 test('vim mode keeps undo history when toggled, and follows the editors\' indentation, comment, Tab and quit rules', { timeout: 120000 }, async t => {

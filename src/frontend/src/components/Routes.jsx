@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
-import { useEditorVim } from "../hooks/useEditorVim.js";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
 import { apiFetch, getInstanceId } from "../utils/api.js";
 import { formatPercent } from "../utils/format.js";
@@ -15,7 +14,7 @@ import { getRouteCheckHost, getRouteHost, getRouteTitle, getRouteUpstreams } fro
 // eslint-disable-next-line i18next/no-literal-string -- Example hostname
 const DOMAIN_PLACEHOLDER = "app.example.com";
 
-function MiniCodeMirror({ value, onChange, onSave, onQuit, isModified, theme }) {
+function MiniCodeMirror({ value, onChange, onSave, onQuit, isModified, theme, vimMode }) {
     const { t, i18n } = useTranslation();
     const containerRef = useRef(null);
     const viewRef = useRef(null);
@@ -23,8 +22,7 @@ function MiniCodeMirror({ value, onChange, onSave, onQuit, isModified, theme }) 
     const onSaveRef = useRef(onSave);
     const onQuitRef = useRef(onQuit);
     const isModifiedRef = useRef(isModified);
-    // Set from the Caddyfile editor's toolbar; read once when the modal opens
-    const [vimMode] = useEditorVim();
+    // Keep the current setting available while the editor module loads.
     const vimModeRef = useRef(vimMode);
 
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
@@ -69,7 +67,7 @@ function MiniCodeMirror({ value, onChange, onSave, onQuit, isModified, theme }) 
     return <div ref={containerRef} className="modal-editor-wrap" style={{ background: "var(--editor-bg)" }} />;
 }
 
-function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme }) {
+function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme, editorVim }) {
     const { t } = useTranslation();
     const [form, setForm] = useState({
         domain: route.domain || "",
@@ -119,7 +117,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
                     <>
                         <div className="modal-section-label">{t("routes.caddyfile")}</div>
                         <div className="editor-wrap" style={{ marginBottom: 16 }}>
-                            <MiniCodeMirror value={content} onChange={setContent} onSave={() => { if (canSave && !saving) handleSave(); }} onQuit={onClose} isModified={() => title !== (initialNote || "") || content !== (initialContent || "")} theme={theme} />
+                            <MiniCodeMirror value={content} onChange={setContent} onSave={() => { if (canSave && !saving) handleSave(); }} onQuit={onClose} isModified={() => title !== (initialNote || "") || content !== (initialContent || "")} theme={theme} vimMode={editorVim} />
                         </div>
                     </>
                 ) : isCaddyfileManaged && inMaintenance ? (
@@ -203,7 +201,7 @@ const STATUS_STYLE = {
     maintenance: { labelKey: "routes.maintenance", color: "var(--accent3)" },
 };
 
-export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes }) {
+export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, onRouteColumnsChange, routeChecks, routeCheckExcludes, editorVim }) {
     const { t } = useTranslation();
     const [searchParams] = useSearchParams();
     const [routes, setRoutes] = useState([]);
@@ -666,6 +664,7 @@ export default function Routes({ toast, onUnauth, confirm, theme, routeColumns, 
                     onDelete={() => deleteCaddyfileBlock(editModal.domain)}
                     onClose={() => setEditModal(null)}
                     theme={theme}
+                    editorVim={editorVim}
                 />
             )}
             {newModal && <NewRouteModal onSave={addRoute} onClose={() => setNewModal(false)} />}
