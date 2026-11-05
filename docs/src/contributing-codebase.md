@@ -98,7 +98,34 @@ its own scope. Keep `mode=max` on exports to cache intermediate stages and
 Real-Caddy integration and Chromium checks use the same root commands locally and
 in CI. Follow the [integration testing guide](development-caddy.md#automated-integration-and-browser-checks)
 for browser installation, fixture ownership and cleanup. The required `Test` check
-includes both application tests and the real-service/browser integration job.
+waits for application tests/lint, development tooling, real-Caddy integration,
+documentation capture, and all three browser groups. These jobs run independently;
+failures, cancellations and skipped required groups cannot produce a passing
+aggregate result. Existing application test/lint check names remain unchanged.
+
+The browser suite runs authentication and two configuration shards on separate
+CI runners. Each shard keeps existing scenario files intact and runs them
+serially. The full local command and combined configuration command remain
+available, or run a focused group:
+
+```sh
+npm run test:dev-caddy:e2e:auth
+npm run test:dev-caddy:e2e:configuration
+npm run test:dev-caddy:e2e:configuration:1
+npm run test:dev-caddy:e2e:configuration:2
+```
+
+Authentication uses local backend/browser fixtures without Docker. Configuration
+scenarios and documentation capture use isolated real-Caddy fixtures. Integration
+tests need Docker but do not install Chromium; tooling checks need neither.
+Workflow contract tests require only dev dependencies and run no services.
+When adding a browser file, include it in the full command and exactly one CI
+group; configuration files also belong in the combined configuration command.
+The workflow contracts reject omissions and duplicate assignments. Keep related
+scenarios organized by behavior rather than combining them to balance CI timing.
+
+See the [CI timing baseline and comparison guide](https://github.com/zackwag/caddy-ui/blob/main/dev/ci/README.md)
+for the measured bottleneck, runner-cost tradeoff and hosted follow-up measurements.
 
 When upgrading the production Node major, update `.node-version`, the Node
 stages in both Dockerfiles and `.devcontainer/devcontainer.example.json` together,
@@ -181,7 +208,8 @@ npm exec --prefix dev -- playwright install --with-deps chromium
 npm run test:cross-site:browser
 ```
 
-The same cases run through `npm run test:dev-caddy:e2e` in CI. They use the real
+The same cases run in CI's authentication group and the full local
+`npm run test:dev-caddy:e2e` command. They use the real
 backend middleware and local HTTP servers, with no request interception or
 injected browser headers. An IPv4-mapped loopback URL reproduces Chromium's
 untrustworthy HTTP destination behavior without an external LAN. Assertions check
