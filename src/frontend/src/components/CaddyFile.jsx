@@ -38,9 +38,14 @@ function CaddyfileCodeMirror({ value, onChange, onSave, theme, vimMode }) {
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
+    const vimModeRef = useRef(vimMode);
 
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
     useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+    useEffect(() => {
+        vimModeRef.current = vimMode;
+        viewRef.current?.setVimMode(vimMode);
+    }, [vimMode]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -50,20 +55,18 @@ function CaddyfileCodeMirror({ value, onChange, onSave, theme, vimMode }) {
         async function init() {
             const { createCaddyfileEditor } = await import("../utils/caddyfileEditor.js");
             if (cancelled) return;
-            const created = await createCaddyfileEditor({
-                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "16px", vimMode,
+            view = createCaddyfileEditor({
+                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "16px", vimMode: vimModeRef.current,
                 onChange: doc => onChangeRef.current(doc), t,
                 onSave: () => onSaveRef.current?.(),
             });
-            if (cancelled) { created.destroy(); return; }
-            view = created;
             viewRef.current = view;
         }
 
         init();
         return () => { cancelled = true; view?.destroy(); viewRef.current = null; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme or keymap change; including `value` would tear it down on every keystroke
-    }, [theme, vimMode]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme change; including `value` would tear it down on every keystroke
+    }, [theme]);
 
     useEffect(() => { viewRef.current?.updatePhrases?.(t); }, [i18n.language, t]);
 

@@ -25,11 +25,16 @@ function MiniCodeMirror({ value, onChange, onSave, onQuit, isModified, theme }) 
     const isModifiedRef = useRef(isModified);
     // Set from the Caddyfile editor's toolbar; read once when the modal opens
     const [vimMode] = useEditorVim();
+    const vimModeRef = useRef(vimMode);
 
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
     useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
     useEffect(() => { onQuitRef.current = onQuit; }, [onQuit]);
     useEffect(() => { isModifiedRef.current = isModified; }, [isModified]);
+    useEffect(() => {
+        vimModeRef.current = vimMode;
+        viewRef.current?.setVimMode(vimMode);
+    }, [vimMode]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -39,13 +44,11 @@ function MiniCodeMirror({ value, onChange, onSave, onQuit, isModified, theme }) 
         async function init() {
             const { createCaddyfileEditor } = await import("../utils/caddyfileEditor.js");
             if (cancelled) return;
-            const created = await createCaddyfileEditor({
-                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "12px", vimMode,
+            view = createCaddyfileEditor({
+                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "12px", vimMode: vimModeRef.current,
                 onChange: doc => onChangeRef.current(doc), onSave: () => onSaveRef.current?.(), t,
                 onQuit: () => onQuitRef.current?.(), isModified: () => isModifiedRef.current?.() ?? false,
             });
-            if (cancelled) { created.destroy(); return; }
-            view = created;
             viewRef.current = view;
         }
 

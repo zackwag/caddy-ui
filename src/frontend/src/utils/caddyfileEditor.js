@@ -186,11 +186,12 @@ const vimLanguageData = EditorState.languageData.of(() => [{ commentTokens: { li
 // vim later without rebuilding the editor, so undo history survives.
 export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t, vimMode = false, onSave, onQuit, isModified }) {
     const phrasesCompartment = new Compartment();
+    const vimCompartment = new Compartment();
     const state = EditorState.create({
         doc,
         extensions: [
             // Before the other keymaps, so vim sees keys first
-            vim ? vim({ status: true }) : [],
+            vimCompartment.of([]),
             phrasesCompartment.of(EditorState.phrases.of(editorPhrases(t))),
             lineNumbers(), caddyfileFolding, foldGutter(), codeFolding(), highlightActiveLineGutter(), highlightSpecialChars(),
             history(), drawSelection(), indentOnInput(), bracketMatching(),
@@ -211,12 +212,12 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t,
     });
     const view = new EditorView({ state, parent });
     view.updatePhrases = (t) => view.dispatch({ effects: phrasesCompartment.reconfigure(EditorState.phrases.of(editorPhrases(t))) });
-    // Vim loads on first use, so only the latest request applies once it has
-    let vimWanted = false;
+    // Vim loads on first use. Ignore stale requests and views closed meanwhile.
+    let vimRequest = 0;
     view.setVimMode = async (enabled) => {
-        vimWanted = enabled;
+        const request = ++vimRequest;
         const vim = enabled ? await loadVim() : null;
-        if (vimWanted === enabled) {
+        if (request === vimRequest && !view.destroyed) {
             view.dispatch({ effects: vimCompartment.reconfigure(vim ? [vim({ status: true }), vimLanguageData] : []) });
         }
     };
