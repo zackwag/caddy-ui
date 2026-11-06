@@ -23,5 +23,5 @@ jobs:
           days-before-stale: 14
           days-before-close: 7
           stale-issue-label: stale
-          exempt-issue-labels: pinned,enhancement,bug
+          exempt-issue-labels: pinned,enhancement,bug,design
           operations-per-run: 30
