@@ -108,6 +108,7 @@ function ExternalConfigurationDiff({ observation, mode, previewRef }) {
     return (
         <div ref={previewRef} className="history-preview history-external" role="region" aria-label={t('caddyfile.externalPreview')} tabIndex={0}>
             <p>{t('caddyfile.externalObservationHint')}</p>
+            {/* eslint-disable-next-line i18next/no-literal-string -- Internal configuration representation identifier, not user-facing text. */}
             {observation.representations.includes('file') && <p>{t('caddyfile.externalRestoreHint')}</p>}
             {observation.representations.length > 1 && <p>{t('caddyfile.externalRelationshipUnknown')}</p>}
             {observation.representations.map(representation => (
