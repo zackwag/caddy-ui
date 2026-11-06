@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
     firstTimeRun: true,
     theme: 'dark',
     language: null,
+    editorVim: false,
     darkPalette: 'vt2026',
     lightPalette: 'coarse-everywhere',
     routeColumns: { status: true, title: true, upstream: true, server: true, id: true },

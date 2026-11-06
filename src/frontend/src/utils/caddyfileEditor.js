@@ -8,7 +8,7 @@ import { Compartment, EditorState, Prec } from '@codemirror/state';
 import { EditorView, drawSelection, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers } from '@codemirror/view';
 import { classHighlighter } from '@lezer/highlight';
 import { caddyfile } from '../lib/caddyfileMode.js';
-import { indentation, indentationKeymap, structureOf } from './caddyfileIndentation.js';
+import { indentation, indentationKeymap, insertIndentation, insertNewlinePreservingIndent, structureOf } from './caddyfileIndentation.js';
 import { createCompletionSource } from './caddyfileCompletions.js';
 import { foldRangeOf, isLiteralAt } from './caddyfileStructure.js';
 
@@ -104,15 +104,94 @@ function editorTheme({ dark, padding }) {
     }, { dark });
 }
 
+// Save and quit handlers per editor. Vim ex commands are registered globally,
+// so each command looks up the editor it was typed in.
+const vimHandlers = new WeakMap();
+let vimLoaded;
+let vimEditorOf = () => null;
+
+/* eslint-disable i18next/no-literal-string -- Vim command names and messages, shown in vim's own English like its built-in ones */
+// In vim's message area, like its own errors. Throwing from a command would
+// show the message too, but also surface as an uncaught page error.
+function showVimMessage(cm, text) {
+    const message = document.createElement('div');
+    message.className = 'cm-vim-message';
+    message.style.color = 'var(--danger)';
+    message.textContent = text;
+    cm.openNotification(message, { bottom: true, duration: 15000 });
+}
+
+// `:w` and `:wq` save, and `:x` saves only with changes. Where the editor can
+// be closed (`onQuit`), saving is expected to close it, `:x` without changes
+// just closes, and `:q` refuses to discard changes unless it's `:q!`.
+function defineVimCommands(Vim) {
+    const handlersOf = cm => vimHandlers.get(cm.cm6) ?? {};
+    Vim.defineEx('write', 'w', cm => handlersOf(cm).onSave?.());
+    Vim.defineEx('wq', 'wq', cm => handlersOf(cm).onSave?.());
+    Vim.defineEx('xit', 'x', cm => {
+        const { onSave, onQuit, isModified } = handlersOf(cm);
+        if (!onQuit || isModified?.()) onSave?.();
+        else onQuit();
+    });
+    Vim.defineEx('quit', 'q', (cm, params) => {
+        const { onQuit, isModified } = handlersOf(cm);
+        if (!onQuit) showVimMessage(cm, `Not an editor command ":${params.input}"`);
+        else if (params.argString?.trim() !== '!' && isModified?.()) showVimMessage(cm, 'E37: No write since last change (add ! to override)');
+        else onQuit();
+    });
+}
+/* eslint-enable i18next/no-literal-string */
+
+// Loaded only when vim mode is on, and its commands are registered once per page.
+function loadVim() {
+    vimLoaded ??= import('@replit/codemirror-vim').then(({ vim, Vim, CodeMirror, getCM }) => {
+        vimEditorOf = getCM;
+        defineVimCommands(Vim);
+        // `o` and `O` open their line the way Enter does, so existing
+        // indentation is kept and a new block is indented. Tagged like the
+        // adapter's own newline, so undo groups it the same way.
+        CodeMirror.commands.newlineAndIndent = cm => insertNewlinePreservingIndent({
+            state: cm.cm6.state,
+            // eslint-disable-next-line i18next/no-literal-string -- CodeMirror user event name, not UI copy
+            dispatch: tr => cm.cm6.dispatch({ changes: tr.changes, selection: tr.selection, scrollIntoView: true, userEvent: 'input.type.compose.start' }),
+        });
+        return vim;
+    });
+    return vimLoaded;
+}
+
+// In vim's normal mode Tab is left to the browser, so it moves focus out of the
+// editor instead of changing text. Insert mode and visual selections indent.
+function vimLeavesTab(view) {
+    const state = vimEditorOf(view)?.state.vim;
+    return Boolean(state && !state.insertMode && !state.visualMode);
+}
+
+const editorIndentationKeymap = indentationKeymap.map(binding => binding.run === insertIndentation ? {
+    ...binding,
+    run: view => !vimLeavesTab(view) && binding.run(view),
+    shift: view => !vimLeavesTab(view) && binding.shift(view),
+} : binding);
+
+// `#` comments, used by vim's `gc`. Only while vim is on, so the plain editor's
+// keymap is unchanged.
+const vimLanguageData = EditorState.languageData.of(() => [{ commentTokens: { line: '#' } }]);
+
 // Creates an editor for `doc` in `parent`. `onChange` receives the full text
 // after each edit, and `t` translates the editor's own labels. Nothing here
 // rewrites the document on load, and folding never changes it: content only
-// changes through the user's own edits.
-export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t }) {
+// changes through the user's own edits. With `vimMode`, vim keybindings and a
+// mode status bar are added, and its save and quit commands call `onSave`,
+// `onQuit` and `isModified` (see defineVimCommands). `view.setVimMode` switches
+// vim later without rebuilding the editor, so undo history survives.
+export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t, vimMode = false, onSave, onQuit, isModified }) {
     const phrasesCompartment = new Compartment();
+    const vimCompartment = new Compartment();
     const state = EditorState.create({
         doc,
         extensions: [
+            // Before the other keymaps, so vim sees keys first
+            vimCompartment.of([]),
             phrasesCompartment.of(EditorState.phrases.of(editorPhrases(t))),
             lineNumbers(), caddyfileFolding, foldGutter(), codeFolding(), highlightActiveLineGutter(), highlightSpecialChars(),
             history(), drawSelection(), indentOnInput(), bracketMatching(),
@@ -122,7 +201,7 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t 
             syntaxHighlighting(classHighlighter),
             StreamLanguage.define(caddyfile), editorTheme({ dark, padding }),
             indentation,
-            keymap.of([...bracketKeymap, ...indentationKeymap, ...foldKeymap, ...defaultKeymap, ...historyKeymap]),
+            keymap.of([...bracketKeymap, ...editorIndentationKeymap, ...foldKeymap, ...defaultKeymap, ...historyKeymap]),
             EditorView.updateListener.of(update => {
                 if (update.docChanged) {
                     onChange(update.state.doc.toString());
@@ -133,5 +212,18 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t 
     });
     const view = new EditorView({ state, parent });
     view.updatePhrases = (t) => view.dispatch({ effects: phrasesCompartment.reconfigure(EditorState.phrases.of(editorPhrases(t))) });
+    // Vim loads on first use. Ignore stale requests and views closed meanwhile.
+    let vimRequest = 0;
+    view.setVimMode = async (enabled) => {
+        const request = ++vimRequest;
+        const vim = enabled ? await loadVim() : null;
+        if (request === vimRequest && !view.destroyed) {
+            view.dispatch({ effects: vimCompartment.reconfigure(vim ? [vim({ status: true }), vimLanguageData] : []) });
+        }
+    };
+    vimHandlers.set(view, { onSave, onQuit, isModified });
+    if (vimMode) {
+        view.setVimMode(true);
+    }
     return view;
 }

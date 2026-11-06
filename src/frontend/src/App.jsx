@@ -27,6 +27,7 @@ const DEFAULTS = {
     firstTimeRun: true,
     theme: 'dark',
     language: null,
+    editorVim: false,
     darkPalette: 'vt2026',
     lightPalette: 'coarse-everywhere',
     routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
@@ -64,6 +65,7 @@ export default function App() {
     const [enabledLanguages, setEnabledLanguages] = useState(['en']);
     const [languageReady, setLanguageReady] = useState(false);
     const [theme, setTheme] = useState(DEFAULTS.theme);
+    const [editorVim, setEditorVim] = useState(DEFAULTS.editorVim);
     const [darkPalette, setDarkPalette] = useState(DEFAULTS.darkPalette);
     const [lightPalette, setLightPalette] = useState(DEFAULTS.lightPalette);
     const [routeColumns, setRouteColumns] = useState(DEFAULTS.routeColumns);
@@ -148,6 +150,7 @@ export default function App() {
             const dk = validIds.has(s.darkPalette) ? s.darkPalette : DEFAULTS.darkPalette;
             const lt = validIds.has(s.lightPalette) ? s.lightPalette : DEFAULTS.lightPalette;
             setTheme(s.theme === 'light' ? 'light' : 'dark');
+            setEditorVim(s.editorVim === true);
             setDarkPalette(dk);
             setLightPalette(lt);
             setRouteColumns({ ...DEFAULTS.routeColumns, ...s.routeColumns });
@@ -203,6 +206,7 @@ export default function App() {
     };
 
     const changeDarkPalette = (id) => { setDarkPalette(id); persistSettings({ darkPalette: id }); };
+    const changeEditorVim = (enabled) => { setEditorVim(enabled); persistSettings({ editorVim: enabled }); };
     const changeLightPalette = (id) => { setLightPalette(id); persistSettings({ lightPalette: id }); };
     const changeRouteColumns = (cols) => { setRouteColumns(cols); persistSettings({ routeColumns: cols }); };
     const changeRouteChecks = (enabled) => { setRouteChecks(enabled); persistSettings({ routeChecks: enabled }); };
@@ -338,8 +342,8 @@ export default function App() {
                             <Routes>
                                 <Route path="/" element={<Navigate to={noInstances ? "/instances" : "/dashboard"} replace />} />
                                 <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
-                                <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} />} />
-                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} routeChecks={routeChecks} routeCheckExcludes={routeCheckExcludes} />} />
+                                <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} editorVim={editorVim} onEditorVimChange={changeEditorVim} />} />
+                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} routeChecks={routeChecks} routeCheckExcludes={routeCheckExcludes} editorVim={editorVim} />} />
                                 <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
                                 <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} noInstances={noInstances} />} />
                                 <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} routeChecks={routeChecks} onRouteChecksChange={changeRouteChecks} routeCheckExcludes={routeCheckExcludes} onRouteCheckExcludesChange={changeRouteCheckExcludes} />} />

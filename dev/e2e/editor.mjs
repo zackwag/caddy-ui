@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { before, test } from 'node:test';
 import en from '../../src/frontend/src/i18n/locales/en.js';
 import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
@@ -339,4 +341,250 @@ test('explicit autocomplete only offers names at directive positions', { timeout
         assert.equal(await editor.locator('.cm-tooltip-autocomplete').count(), 0, `No directive completions after ${JSON.stringify(line)}`);
     }
     assert.equal((await stack.api('/caddyfile')).data, original, 'Requesting completions does not save the Caddyfile');
+});
+
+test('vim mode is a server preference, and :w saves from both editors', { timeout: 90000 }, async t => {
+    const { stack, page, context, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    const withSite = `${original.trimEnd()}\n\neditor-vim.test {\n\treverse_proxy 127.0.0.1:9\n}\n`;
+    const seeded = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: withSite, plain: true });
+    assert.equal(seeded.status, 200, JSON.stringify(seeded.data));
+    const text = root => root.locator('.cm-line').evaluateAll(lines => lines.map(line => line.textContent).join('\n'));
+
+    // A stale browser preference cannot override the server's default.
+    await page.evaluate(() => localStorage.setItem('caddy_ui_editor_vim', 'true'));
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    assert.equal(await editor.locator('.cm-vim-panel').count(), 0, 'Vim mode is off by default');
+    const toggle = editor.getByLabel(en.caddyfile.vimMode);
+    assert(!await toggle.isChecked());
+
+    // Keep the saved text exactly as typed
+    await editor.getByLabel('caddy fmt').uncheck();
+    await editor.getByLabel(en.caddyfile.sortEntries).uncheck();
+    const saved = page.waitForResponse(response => response.url() === origin + '/api/settings' && response.request().method() === 'PUT');
+    await toggle.check();
+    assert.equal((await saved).status(), 200);
+    const status = editor.locator('.cm-vim-panel');
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    assert.equal((await stack.api('/settings')).data.editorVim, true, 'The preference is available through the settings API');
+    const settingsFile = join(stack.directory, 'backend', 'settings.json');
+    assert.equal(JSON.parse(await readFile(settingsFile, 'utf8')).editorVim, true, 'The preference is persisted on disk');
+
+    // Normal mode keys move rather than insert; O opens a line in insert mode
+    await editor.locator('.cm-content').click();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('ggjk');
+    assert.equal(await text(editor), withSite, 'Normal mode keys do not insert text');
+    await page.keyboard.type('O');
+    await status.filter({ hasText: '--INSERT--' }).waitFor();
+    await page.keyboard.type('# edited in vim');
+    await page.keyboard.press('Escape');
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    const edited = `# edited in vim\n${withSite}`;
+    assert.equal(await text(editor), edited);
+
+    // :w saves through the normal save flow
+    await page.keyboard.type(':w');
+    await page.keyboard.press('Enter');
+    await editor.locator('.editor-hint--desktop').filter({ hasText: en.caddyfile.upToDate }).waitFor();
+    assert.equal((await stack.api('/caddyfile')).data, edited, ':w saved the Caddyfile');
+
+    // The preference survives a reload and applies to the route editor
+    await page.goto(origin + '/routes', { waitUntil: 'domcontentloaded' });
+    await waitForView('tr:has-text("editor-vim.test")');
+    await page.locator('tr').filter({ hasText: 'editor-vim.test' }).getByTitle(en.routes.editRoute).click();
+    const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
+    await modal.locator('.cm-vim-panel').filter({ hasText: '--NORMAL--' }).waitFor();
+    await modal.locator('.cm-content').click();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('ggj$a0');
+    await page.keyboard.press('Escape');
+    assert.equal((await text(modal)).split('\n')[1], '\treverse_proxy 127.0.0.1:90', 'Vim edits the site block');
+    await page.keyboard.type(':w');
+    await page.keyboard.press('Enter');
+    await modal.waitFor({ state: 'detached' });
+    assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:90\n/, ':w saved the route');
+
+    // A separate browser session loads the server setting without local state.
+    const otherContext = await context.browser().newContext();
+    try {
+        const csrf = await otherContext.request.get(origin + '/api/auth/csrf');
+        const login = await otherContext.request.post(origin + '/api/auth/sessions', {
+            headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken }, data: stack.credentials,
+        });
+        assert.equal(login.status(), 200, 'Second browser session login');
+        const otherPage = await otherContext.newPage();
+        otherPage.setDefaultTimeout(10000);
+        await otherPage.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+        await otherPage.locator('.cm-vim-panel').filter({ hasText: '--NORMAL--' }).waitFor();
+        assert.equal(await otherPage.evaluate(() => localStorage.getItem('caddy_ui_editor_vim')), null);
+        const disabled = otherPage.waitForResponse(response => response.url() === origin + '/api/settings' && response.request().method() === 'PUT');
+        await otherPage.getByLabel(en.caddyfile.vimMode).uncheck();
+        assert.equal((await disabled).status(), 200);
+        assert.equal((await stack.api('/settings')).data.editorVim, false);
+        assert.equal(JSON.parse(await readFile(settingsFile, 'utf8')).editorVim, false);
+    } finally {
+        await otherContext.close();
+    }
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    assert(!await toggle.isChecked(), 'Reloading picks up the change from the other session');
+    assert.equal(await editor.locator('.cm-vim-panel').count(), 0);
+});
+
+test('vim mode keeps undo history when toggled, and follows the editors\' indentation, comment, Tab and quit rules', { timeout: 120000 }, async t => {
+    const { stack, page, origin, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    const content = editor.locator('.cm-content');
+    const status = editor.locator('.cm-vim-panel');
+    const toggle = editor.getByLabel(en.caddyfile.vimMode);
+    const focused = () => content.evaluate(element => element === document.activeElement);
+    const lines = async () => (await visibleText(editor)).split('\n');
+    // Vim's undo, one step at a time, back to `expected`
+    async function undoTo(expected, label) {
+        const visited = [await visibleText(editor)];
+        for (let i = 0; i < 5 && visited.at(-1) !== expected; i++) {
+            await page.keyboard.type('u');
+            visited.push(await visibleText(editor));
+        }
+        assert.equal(visited.at(-1), expected, `${label}: u restores the document, through ${JSON.stringify(visited)}`);
+    }
+
+    await content.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(SITE);
+
+    // An edit made before vim is turned on can be undone with vim, and a vim
+    // edit after it's turned off with the plain editor (#461 review)
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type('X');
+    await toggle.check();
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await content.focus();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('u');
+    assert.equal(await visibleText(editor), SITE, 'u undoes the edit made before vim was on');
+    await page.keyboard.press('Control+r');
+    assert.equal(await visibleText(editor), `${SITE}X`, '<C-r> redoes it');
+    await page.keyboard.type('ggx');
+    const vimEdited = `${SITE.slice(1)}X`;
+    assert.equal(await visibleText(editor), vimEdited);
+    await toggle.uncheck();
+    await status.waitFor({ state: 'detached' });
+    assert.equal(await visibleText(editor), vimEdited, 'Turning vim off keeps the text');
+    await content.focus();
+    await page.keyboard.press('ControlOrMeta+z');
+    assert.equal(await visibleText(editor), `${SITE}X`, 'The plain editor undoes the vim edit');
+    await page.keyboard.press('ControlOrMeta+z');
+    assert.equal(await visibleText(editor), SITE);
+    await toggle.check();
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await content.focus();
+    await page.keyboard.press('Escape');
+
+    // o and O open a line the way Enter does: a new block is indented, and
+    // existing indentation is kept as it is, spaces included
+    await page.keyboard.type('ggoZ');
+    await page.keyboard.press('Escape');
+    assert.equal((await lines())[1], '\tZ', 'o indents inside a new block');
+    await undoTo(SITE, 'o');
+    await page.keyboard.type('ggjjoZ');
+    await page.keyboard.press('Escape');
+    assert.equal((await lines())[3], '    Z', 'o keeps space indentation');
+    await undoTo(SITE, 'o');
+
+    // gc comments with # after the indentation, and toggles back
+    await page.keyboard.type('ggjgcc');
+    assert.equal((await lines())[1], '\t# reverse_proxy app:3000', 'gcc comments the line');
+    await page.keyboard.type('gcc');
+    assert.equal(await visibleText(editor), SITE, 'gcc again uncomments it');
+
+    // Tab indents in insert mode, but in normal mode it moves focus without editing
+    await page.keyboard.type('ggjA');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Escape');
+    assert.equal((await lines())[1], '\treverse_proxy app:3000\t', 'Tab indents in insert mode');
+    assert(await focused(), 'Tab in insert mode keeps focus');
+    await undoTo(SITE, 'Insert-mode Tab');
+    await page.keyboard.press('Tab');
+    assert(!await focused(), 'Tab in normal mode moves focus out of the editor');
+    assert.equal(await visibleText(editor), SITE, 'Tab in normal mode changes nothing');
+    await content.focus();
+    await page.keyboard.press('Escape');
+
+    // There's nothing to close here: :q isn't a command, and :x saves
+    await page.keyboard.type(':q');
+    await page.keyboard.press('Enter');
+    await status.filter({ hasText: 'Not an editor command ":q"' }).waitFor();
+    await editor.getByLabel('caddy fmt').uncheck();
+    await editor.getByLabel(en.caddyfile.sortEntries).uncheck();
+    await toggle.uncheck();
+    await content.focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(original);
+    await toggle.check();
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await content.focus();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('Gi# saved with :x');
+    await page.keyboard.press('Escape');
+    await page.keyboard.type(':x');
+    await page.keyboard.press('Enter');
+    await editor.locator('.editor-hint--desktop').filter({ hasText: en.caddyfile.upToDate }).waitFor();
+    assert.equal((await stack.api('/caddyfile')).data, `${original}# saved with :x`, ':x saved the Caddyfile');
+
+    // The route editor can be closed: :q refuses to discard changes, :q! does,
+    // :x without changes only closes, and :x and :wq save and close
+    const withSite = `${original.trimEnd()}\n\neditor-vim-quit.test {\n\treverse_proxy 127.0.0.1:9\n}\n`;
+    const seeded = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', body: withSite, plain: true });
+    assert.equal(seeded.status, 200, JSON.stringify(seeded.data));
+    await page.goto(origin + '/routes', { waitUntil: 'domcontentloaded' });
+    await waitForView('tr:has-text("editor-vim-quit.test")');
+    const modal = page.locator('.modal').filter({ hasText: en.routes.editRoute });
+    async function openRoute() {
+        await page.locator('tr').filter({ hasText: 'editor-vim-quit.test' }).getByTitle(en.routes.editRoute).click();
+        await modal.locator('.cm-vim-panel').filter({ hasText: '--NORMAL--' }).waitFor();
+        await modal.locator('.cm-content').click();
+        await page.keyboard.press('Escape');
+    }
+    async function ex(command) {
+        await page.keyboard.type(`:${command}`);
+        await page.keyboard.press('Enter');
+    }
+    async function editPort(digit) {
+        await page.keyboard.type(`ggj$a${digit}`);
+        await page.keyboard.press('Escape');
+    }
+
+    await openRoute();
+    await ex('q');
+    await modal.waitFor({ state: 'detached' });
+    await openRoute();
+    await editPort('0');
+    await ex('q');
+    await modal.locator('.cm-vim-panel').filter({ hasText: 'E37: No write since last change' }).waitFor();
+    assert(await modal.isVisible(), ':q with changes leaves the modal open');
+    await ex('q!');
+    await modal.waitFor({ state: 'detached' });
+    assert.equal((await stack.api('/caddyfile')).data, withSite, ':q! discarded the change');
+    await openRoute();
+    await ex('x');
+    await modal.waitFor({ state: 'detached' });
+    assert.equal((await stack.api('/caddyfile')).data, withSite, ':x without changes saves nothing');
+    await openRoute();
+    await editPort('0');
+    await ex('x');
+    await modal.waitFor({ state: 'detached' });
+    assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:90\n/, ':x saved the route');
+    await waitForView('tr:has-text("editor-vim-quit.test")');
+    await openRoute();
+    await editPort('1');
+    await ex('wq');
+    await modal.waitFor({ state: 'detached' });
+    assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:901\n/, ':wq saved the route');
 });
