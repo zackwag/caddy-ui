@@ -23,7 +23,8 @@ history for future write scopes without granting them any additional access.
 The previous file is preserved before writing. If it differs from the latest
 version, it becomes an **Unknown** baseline: a file edited outside the UI is not
 attributed to the administrator who next saves it. Old snapshots also remain
-Unknown. This does not add background file monitoring or change notifications.
+Unknown. Background detection also preserves observed external changes without
+waiting for a later save; see [external configuration history](#external-configuration-history).
 
 Rejected changes that roll back do not create an attributed saved version.
 Force saves kept on disk despite a failed reload are marked **Saved; Caddy
@@ -43,13 +44,14 @@ unchanged versions and keeps an in-memory identity registry with serialized writ
 Route, maintenance, logging and metrics edits transform the latest file inside
 a per-instance queue, preventing concurrent local commands from dropping each
 other's file changes. Editor saves and imports intentionally replace the full
-file. External file/API writers do not participate in this queue; continuous
-drift detection and stronger conflict checks remain separate follow-ups.
+file. Drift detection shares this queue; external file/API writers remain
+independent.
 
-Each instance retains up to 20 versions. New versions store content and metadata
+Each instance retains up to 20 saved versions and external observations in total.
+New versions store content and metadata
 together in atomic JSON files under `HISTORY_PATH`; older plain Caddyfile
-snapshots remain readable. Downloading a version through the history API still
-returns plain Caddyfile content. Include both `HISTORY_PATH` and `AUTH_PATH` in
+snapshots remain readable. Downloading a Caddyfile version through the history
+API returns plain file content. Include both `HISTORY_PATH` and `AUTH_PATH` in
 persistent storage and backups. Losing or resetting authentication storage creates
 a new account identity rather than assigning its history to a new account with
 the same name.
@@ -86,17 +88,63 @@ unrelated external edit remains unexplained. A full save or reload instead uses
 the adapter's complete intended configuration. File expectations use the text
 that was verified, rather than a later read that could include another edit.
 
-To attribute route changes, the monitor retains one expected configuration
-snapshot per instance in memory. Normal checks compare fingerprints; when a
-fingerprint differs, the observed JSON can be compared with this expected result.
-These snapshots aren't included in drift history, diagnostics or logs.
+To attribute route changes, the monitor retains the expected configuration and
+the last observed file and JSON in memory. The expected state determines whether
+a change is explained; the previous observation supplies the before side of a
+history diff. Observations never become verified expectations merely because
+they were recorded.
 
 Each distinct unexplained state is logged once, so an edit that stays in
 place doesn't repeat every minute. Failed checks are logged separately as
 `Configuration drift check unavailable`, once per outage, and never count as
-changes. Logs contain short fingerprints, never configuration text. The 20
-most recent unexplained changes per instance are kept in memory for later
-history.
+changes. Available representations can still be recorded while the other one
+is unreadable. Logs contain short fingerprints, never configuration text.
+
+### External configuration history
+
+The Caddyfile editor's History panel includes **External observation** entries
+attributed to **Unknown**. Each contains the previous and current observed
+Caddyfile text, live JSON, or both, with the instance and detection time.
+JSON object keys are ordered for readable diffs; array order is preserved.
+Detection time is not a known modification time. Changes made by an untracked
+process or directly through Caddy's admin API cannot be assigned to a person.
+
+Combined entries show both representations without claiming they have the same
+author or that the live JSON came from a successful reload of that file.
+Subsequent changes compare with the preceding observation, including returns to
+the expected state. A missing previous observation is labelled explicitly and
+the current content is shown without inventing an empty baseline.
+
+Checks also run before queued UI/API configuration writes. Polling and
+save-time discovery share their last observation, so the same detected
+transition is recorded once. Verified local changes update the tracked state
+without creating an external entry. Existing attribution for editor, route and
+other file-backed UI changes remains unchanged; API tokens still cannot write.
+
+External observations share the 20-entry retention limit and management-access
+restrictions of saved versions. Their complete before/after content is kept in
+atomic files with mode `0600`; newly created history directories use `0700`.
+Configuration content is excluded from list metadata, logs and notifications.
+Keep `HISTORY_PATH` on protected persistent storage: these files can contain
+credentials and other secrets. This is local investigation history, not a
+tamper-proof audit log.
+
+The panel offers Diff and Raw views. Entries that contain observed Caddyfile
+text can restore that file through the existing save/reload flow, with an
+explicit warning that this does not restore the recorded live JSON. JSON-only
+observations cannot use Restore. Reading a JSON-only entry through the plain
+Caddyfile endpoint is rejected; its before/after data is available through
+`GET /api/caddyfile/history/:filename/changes`. Viewing or recording history
+does not write to the file or live configuration. Caddy has no general inverse
+conversion from JSON to Caddyfile, and reconciliation is a separate operation.
+
+If recording an observed transition fails, the monitor logs a failure without
+accepting it as a verified state or advancing its last observation. Later
+checks retry. A local write stops if its pre-write check cannot preserve an
+external transition. An unreadable representation retains its last successful
+observation; recovery compares against that value. On backend startup, the
+first observations establish a new baseline; changes during downtime and
+intermediate states between polls cannot be reconstructed.
 
 Limitations:
 

@@ -1,10 +1,157 @@
 import assert from 'node:assert/strict';
-import { chmod, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { before, test } from 'node:test';
+import { caddyGet, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
+import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
 import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
 
 before(prepareBrowserTests, { timeout: 35000 });
+
+test('external file and admin API changes have independent Unknown-author diffs with protected access and retryable storage failures', { timeout: 120000 }, async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-external-history-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const entry = join(directory, 'backend.mjs');
+    const moduleUrl = file => pathToFileURL(resolve(import.meta.dirname, '../..', file)).href;
+    // Exercise the real monitor over the owned backend's IPC channel, without
+    // exposing a test endpoint or waiting a minute for each production poll.
+    await writeFile(entry, `
+        await import(${JSON.stringify(moduleUrl('src/backend/src/index.js'))});
+        const drift = await import(${JSON.stringify(moduleUrl('src/backend/src/configDrift.js'))});
+        const nativeFetch = globalThis.fetch;
+        let failRead = false;
+        globalThis.fetch = (url, options) => {
+            if (failRead && String(url).endsWith('/config/')) {
+                failRead = false;
+                return Promise.reject(new TypeError('Injected unavailable config read'));
+            }
+            return nativeFetch(url, options);
+        };
+        process.on('message', async message => {
+            if (message?.type !== 'test:history-check') return;
+            if (message.reset) drift.resetConfigDrift();
+            failRead = Boolean(message.failRead);
+            await drift.checkAllInstances();
+            process.send({ type: 'test:history-result', state: drift.getConfigDriftState('default') });
+        });
+    `);
+    const { stack, page, origin } = await useBrowserFixture(t, { backendEntry: entry });
+    const check = (options = {}) => new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => finish(new Error('History IPC check timed out')), 15000);
+        const listener = message => { if (message?.type === 'test:history-result') finish(null, message.state); };
+        function finish(error, state) {
+            clearTimeout(timeout);
+            stack.backend.removeListener('message', listener);
+            if (error) reject(error); else resolve(state);
+        }
+        stack.backend.on('message', listener);
+        stack.backend.send({ type: 'test:history-check', ...options }, error => { if (error) finish(error); });
+    });
+    await check({ reset: true });
+    const instance = stack.instances.get('alpha').instance;
+    const initial = (await stack.api('/caddyfile')).data;
+    const fileEdit = initial + '\n# external-file-history\n';
+    await writeContainerFile(instance.containerName, instance.configPath, fileEdit);
+    await check();
+    let entries = (await stack.api('/caddyfile/history')).data;
+    assert.equal(entries.length, 1, 'Polling records the file without a later UI save');
+    assert.deepEqual(entries[0].representations, ['file']);
+    assert.equal(entries[0].actor, null);
+    const fileObservation = (await stack.api(`/caddyfile/history/${entries[0].filename}/changes`)).data;
+    assert.equal(fileObservation.instanceId, 'default');
+    assert.equal(fileObservation.before.file, initial);
+    assert.equal(fileObservation.after.file, fileEdit);
+    const saved = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', plain: true, body: fileEdit + '# local save\n' });
+    assert.equal(saved.status, 200);
+    assert.equal((await stack.api('/routes', { method: 'POST', body: { domain: 'local-history.test', upstream: '127.0.0.1:9' } })).status, 201);
+    await check();
+    entries = (await stack.api('/caddyfile/history')).data;
+    assert.equal(entries.filter(entry => entry.kind === 'external').length, 1, 'Save-time discovery deduplicates polling; verified local writes keep their attribution');
+    assert.equal(entries[0].action, 'route.add');
+    assert.equal(entries[0].actor.name, stack.credentials.username);
+
+    const fileBeforeApi = await readContainerFile(instance.containerName, instance.configPath);
+    const liveBeforeApi = await caddyGet('/config/', instance.adminUrl);
+    const injection = '<img src=x onerror="window.historyInjection=true">';
+    const route = { '@id': 'external-history-route', match: [{ host: ['external-history.test'] }], handle: [{ handler: 'static_response', body: injection }] };
+    await caddyPost(`/config/apps/http/servers/${instance.serverName}/routes`, route, instance.adminUrl);
+    await check();
+    entries = (await stack.api('/caddyfile/history')).data;
+    const apiEntry = entries[0];
+    assert.deepEqual(apiEntry.representations, ['live']);
+    assert.equal(apiEntry.hasFile, false);
+    assert.equal(apiEntry.actor, null);
+    assert(!JSON.stringify(entries).includes(injection), 'List metadata does not contain configuration');
+    const changes = (await stack.api(`/caddyfile/history/${apiEntry.filename}/changes`)).data;
+    assert.deepEqual(JSON.parse(changes.before.live), liveBeforeApi);
+    assert.deepEqual(JSON.parse(changes.after.live), await caddyGet('/config/', instance.adminUrl));
+    assert.equal((await stack.api(`/caddyfile/history/${apiEntry.filename}`)).status, 409, 'JSON is not downloadable as a Caddyfile');
+    assert.equal(await readContainerFile(instance.containerName, instance.configPath), fileBeforeApi);
+    assert.equal((await fetch(stack.url + `/api/caddyfile/history/${apiEntry.filename}/changes`)).status, 401);
+    const token = await stack.api('/auth/tokens', { method: 'POST', body: { name: 'History access probe', scopes: ['status:read'], instanceIds: ['default'], expiresInDays: 1 } });
+    assert.equal(token.status, 201);
+    assert.equal((await fetch(stack.url + `/api/caddyfile/history/${apiEntry.filename}/changes`, { headers: { Authorization: 'Bearer ' + token.data.token } })).status, 403);
+
+    async function openLatest() {
+        await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+        await page.locator('.cm-editor').waitFor();
+        await page.getByRole('button', { name: /^History/ }).click();
+        await page.getByRole('region', { name: 'External configuration changes' }).waitFor();
+    }
+    await openLatest();
+    assert((await page.locator('.history-attribution').innerText()).includes('Detected '));
+    assert((await page.locator('.history-attribution').innerText()).includes('Unknown'));
+    assert(await page.getByRole('button', { name: 'Restore', exact: true }).isDisabled());
+    assert.equal(await page.getByRole('combobox', { name: 'Compare against' }).count(), 0);
+    assert.equal(await page.locator('.history-external img').count(), 0);
+    await page.getByRole('button', { name: 'Raw', exact: true }).click();
+    const rawConfig = JSON.parse(await page.locator('.history-external pre').innerText());
+    assert.equal(rawConfig.apps.http.servers[instance.serverName].routes.find(candidate => candidate['@id'] === route['@id']).handle[0].body, injection);
+    assert.equal(await page.evaluate(() => window.historyInjection), undefined);
+
+    await writeContainerFile(instance.containerName, instance.configPath, fileBeforeApi + '# combined external change\n');
+    await caddyPatch('/id/external-history-route', { ...route, handle: [{ handler: 'static_response', body: 'combined external' }] }, instance.adminUrl);
+    await check();
+    await openLatest();
+    await page.getByRole('heading', { name: 'Caddyfile', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Live configuration (JSON)', exact: true }).waitFor();
+    assert((await page.locator('.history-external').innerText()).includes('A shared cause or successful reload has not been established.'));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('.history-external').scrollIntoViewIfNeeded();
+    assert(await page.locator('.history-external').isVisible());
+    await page.screenshot({ path: '/tmp/caddy-ui-377-external-history.png' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    // Record missing baselines explicitly when a representation first becomes readable.
+    await check({ reset: true, failRead: true });
+    await check();
+    await openLatest();
+    assert((await page.locator('.history-external').innerText()).includes('The previous observation is unavailable.'));
+
+    const historyPath = join(stack.directory, 'backend/history');
+    const beforeFailure = (await stack.api('/caddyfile')).data;
+    const externalAfterFailure = beforeFailure + '# preserve across history failure\n';
+    await writeContainerFile(instance.containerName, instance.configPath, externalAfterFailure);
+    const countBeforeFailure = (await stack.api('/caddyfile/history')).data.length;
+    await chmod(historyPath, 0o500);
+    try {
+        await check();
+        assert.equal((await stack.api('/caddyfile/history')).data.length, countBeforeFailure);
+        const refused = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', plain: true, body: initial });
+        assert.equal(refused.status, 500);
+        assert.equal(refused.data.code, 'CADDYFILE_HISTORY_WRITE_FAILED');
+        assert.equal(await readContainerFile(instance.containerName, instance.configPath), externalAfterFailure);
+    } finally { await chmod(historyPath, 0o700); }
+    await check();
+    await check();
+    entries = (await stack.api('/caddyfile/history')).data;
+    assert.equal(entries.length, countBeforeFailure + 1, 'Repair retries the transition once');
+    const repaired = (await stack.api(`/caddyfile/history/${entries[0].filename}/changes`)).data;
+    assert.equal(repaired.before.file, beforeFailure);
+    assert.equal(repaired.after.file, externalAfterFailure);
+});
 
 test('saved versions show stable attribution, preserve unknown external edits and restore as new commits', { timeout: 120000 }, async t => {
     const { stack, page, origin } = await useBrowserFixture(t);

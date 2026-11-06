@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routeExpectation } from '../src/configExpectation.js';
 
 const { files, live, instances, unsettled } = vi.hoisted(() => ({
@@ -28,6 +31,10 @@ vi.mock('../src/caddy.js', () => ({
 vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));
 
 const { default: logger } = await import('../src/logger.js');
+const historyRoot = await mkdtemp(join(tmpdir(), 'caddy-ui-drift-history-'));
+process.env.HISTORY_PATH = historyRoot;
+afterAll(async () => { await rm(historyRoot, { recursive: true, force: true }); delete process.env.HISTORY_PATH; });
+const { configurationHistory: history } = await import('../src/configurationHistory.js');
 const { DRIFT_HISTORY_LIMIT, checkAllInstances, getConfigDriftState, recordLocalChange, resetConfigDrift } = await import('../src/configDrift.js');
 
 const alpha = { id: 'alpha', name: 'Alpha', adminUrl: 'http://alpha:2019', configPath: '/alpha/Caddyfile', containerName: 'alpha' };
@@ -40,6 +47,7 @@ const reports = () => warn.mock.calls.filter(([message]) => message === 'Configu
 const changes = id => getConfigDriftState(id).changes;
 
 beforeEach(async () => {
+    await rm(historyRoot, { recursive: true, force: true });
     resetConfigDrift();
     files.clear();
     live.clear();
@@ -57,6 +65,90 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('configuration drift detection', () => {
+    it.each([
+        ['file', ['file']], ['live', ['live']], ['combined', ['file', 'live']],
+    ])('persists inspectable %s transitions without exposing their content in list metadata', async (kind, representations) => {
+        const beforeFile = files.get(alpha.configPath);
+        const beforeLive = structuredClone(live.get(alpha.adminUrl));
+        if (representations.includes('file')) files.set(alpha.configPath, 'external-secret.test {}\n');
+        if (representations.includes('live')) live.set(alpha.adminUrl, { external: 'external-secret' });
+        await checkAllInstances();
+        await checkAllInstances();
+        const entries = await history.list(alpha.id);
+        expect(entries).toHaveLength(1);
+        expect(entries[0]).toMatchObject({ actor: null, kind: 'external', instanceId: alpha.id, representations, hasFile: representations.includes('file') });
+        expect(JSON.stringify(entries)).not.toContain('external-secret');
+        const { external } = await history.read(alpha.id, entries[0].filename);
+        expect(external.instanceId).toBe(alpha.id);
+        expect(external.representations).toEqual(representations);
+        expect(Number.isFinite(Date.parse(external.detectedAt))).toBe(true);
+        if (representations.includes('file')) {
+            expect(external.before.file).toBe(beforeFile);
+            expect(external.after.file).toBe(files.get(alpha.configPath));
+        }
+        if (representations.includes('live')) {
+            expect(JSON.parse(external.before.live)).toEqual(beforeLive);
+            expect(JSON.parse(external.after.live)).toEqual(live.get(alpha.adminUrl));
+        }
+    });
+
+    it('diffs subsequent observations against each other, including a return to the expected configuration', async () => {
+        const original = files.get(alpha.configPath);
+        for (const content of ['first {}', 'second {}', original]) {
+            files.set(alpha.configPath, content);
+            await checkAllInstances();
+        }
+        const entries = (await history.list(alpha.id)).reverse();
+        const values = await Promise.all(entries.map(entry => history.read(alpha.id, entry.filename)));
+        expect(values.map(value => [value.external.before.file, value.external.after.file])).toEqual([
+            [original, 'first {}'], ['first {}', 'second {}'], ['second {}', original],
+        ]);
+    });
+
+    it('continues recording an available representation during an outage and explicitly marks a missing baseline', async () => {
+        resetConfigDrift();
+        live.delete(alpha.adminUrl);
+        await checkAllInstances();
+        files.set(alpha.configPath, 'during-outage {}');
+        await checkAllInstances();
+        live.set(alpha.adminUrl, { new: 'first readable config' });
+        await checkAllInstances();
+        const entries = await history.list(alpha.id);
+        expect(entries).toHaveLength(2);
+        const { external } = await history.read(alpha.id, entries[0].filename);
+        expect(external.representations).toEqual(['live']);
+        expect(external.before.live).toBeNull();
+        expect(JSON.parse(external.after.live)).toEqual({ new: 'first readable config' });
+    });
+
+    it('does not label a verified full save as external after the live baseline was unavailable', async () => {
+        resetConfigDrift();
+        live.delete(alpha.adminUrl);
+        await checkAllInstances();
+        const config = { verified: 'full save' };
+        files.set(alpha.configPath, 'verified full save {}');
+        live.set(alpha.adminUrl, config);
+        await recordLocalChange(alpha, { content: files.get(alpha.configPath), verification: verified, expectLive: () => config });
+        await checkAllInstances();
+        expect(await history.list(alpha.id)).toEqual([]);
+    });
+
+    it('retries a failed history write without adopting the observation or exposing configuration', async () => {
+        const expected = getConfigDriftState(alpha.id).expected;
+        files.set(alpha.configPath, 'private-history-content {}');
+        const record = vi.spyOn(history, 'recordExternal').mockRejectedValueOnce(Object.assign(new Error('sensitive content'), { code: 'EIO' }));
+        await checkAllInstances();
+        expect(getConfigDriftState(alpha.id).expected).toEqual(expected);
+        expect(await history.list(alpha.id)).toEqual([]);
+        expect(warn.mock.calls).toContainEqual(['Configuration drift check failed', expect.objectContaining({ code: 'CADDYFILE_HISTORY_WRITE_FAILED' })]);
+        expect(JSON.stringify(warn.mock.calls)).not.toContain('sensitive content');
+        await checkAllInstances();
+        expect(record).toHaveBeenCalledTimes(2);
+        const [entry] = await history.list(alpha.id);
+        expect((await history.read(alpha.id, entry.filename)).external.after.file).toBe('private-history-content {}');
+        expect(getConfigDriftState(alpha.id).expected).toEqual(expected);
+    });
+
     it('establishes a baseline at startup without reporting a change', () => {
         expect(info.mock.calls.filter(([message]) => message === 'Configuration baseline established')).toHaveLength(2);
         expect(reports()).toHaveLength(0);
@@ -276,6 +368,10 @@ describe('scoped route expectations', () => {
         await checkAllInstances();
         expect(reports()).toHaveLength(1);
         expect(reports()[0][1].representations).toEqual(['live']);
+        const [entry] = await history.list(alpha.id);
+        const { external } = await history.read(alpha.id, entry.filename);
+        const before = JSON.parse(external.before.live), after = JSON.parse(external.after.live);
+        expect(routesOf(before).filter(route => route['@id'] !== 'route-b')).toEqual(routesOf(after).filter(route => route['@id'] !== 'route-b'));
         // Reverting only the external edit reaches the projected expectation,
         // even though the legitimate local mutation remains in place.
         const other = routesOf(config).find(route => route['@id'] === 'route-b');

@@ -3,7 +3,7 @@ import { ERROR_MESSAGES } from './errorRegistry.js';
 // Only a version's own author is known; an arbitrary comparison can span many
 // saves. Keep attribution attached to each endpoint rather than to diff lines.
 export function historyComparison(entry, entries) {
-    return entry.parent && entries.some(candidate => candidate.filename === entry.parent) ? entry.parent : 'current';
+    return entry.parent && entries.some(candidate => candidate.filename === entry.parent && candidate.hasFile !== false) ? entry.parent : 'current';
 }
 
 export function historyActor(entry, t) {
