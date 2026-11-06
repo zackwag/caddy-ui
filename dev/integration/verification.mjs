@@ -163,7 +163,10 @@ test('editor saves refuse to overwrite a Caddyfile changed since it was loaded',
         method: 'PUT', body: content, plain: true, headers: ifMatch ? { 'If-Match': ifMatch } : {},
     });
     const live = async () => (await fetch(instance.adminUrl + '/config/')).json();
-    const versions = async () => (await stack.api('/caddyfile/history')).data.length;
+    const versions = async () => (await stack.api('/caddyfile/history')).data;
+    // Establish a tracked baseline before an external edit, independently of
+    // the monitor's startup scheduling.
+    assert.equal((await save(loaded.data, etag)).status, 200);
 
     // Someone edits the file on the host after the editor loaded it
     const external = loaded.data.replace('Caddy UI test instance:', 'external-edit:');
@@ -174,7 +177,15 @@ test('editor saves refuse to overwrite a Caddyfile changed since it was loaded',
     assert.equal(refused.data.code, 'CADDYFILE_CHANGED');
     assert.equal((await stack.api('/caddyfile')).data, external, 'the external edit is kept');
     assert.deepEqual(await live(), running, 'nothing was reloaded');
-    assert.equal(await versions(), saved, 'no history version was recorded');
+    const afterRefusal = await versions();
+    assert.deepEqual(afterRefusal.filter(entry => entry.kind !== 'external'), saved.filter(entry => entry.kind !== 'external'),
+        'the refused save creates no attributed version');
+    const observations = afterRefusal.filter(entry => entry.kind === 'external');
+    assert.equal(observations.length, 1, 'the external edit is independently preserved');
+    assert.equal(observations[0].actor, null);
+    const observation = (await stack.api(`/caddyfile/history/${observations[0].filename}/changes`)).data;
+    assert.equal(observation.before.file, loaded.data);
+    assert.equal(observation.after.file, external);
 
     // Based on the current file, including the weak form a compressing proxy sends
     const current = (await stack.api('/caddyfile')).headers.get('etag');
