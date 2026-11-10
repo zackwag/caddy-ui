@@ -1,7 +1,7 @@
 // The CodeMirror setup shared by the full Caddyfile editor and the route
 // site-block editor, so both edit the same way. Components import this module
 // dynamically, which keeps CodeMirror out of the main bundle.
-import { autocompletion, closeBrackets, deleteBracketPair } from '@codemirror/autocomplete';
+import { acceptCompletion, autocompletion, closeBrackets, deleteBracketPair, nextSnippetField, prevSnippetField } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, foldService, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
@@ -168,10 +168,13 @@ function vimLeavesTab(view) {
     return Boolean(state && !state.insertMode && !state.visualMode);
 }
 
+// Tab tries: accept the highlighted autocomplete item, advance to the
+// next snippet tab stop, then fall back to indentation. Shift+Tab tries
+// the previous snippet field, then dedent.
 const editorIndentationKeymap = indentationKeymap.map(binding => binding.run === insertIndentation ? {
     ...binding,
-    run: view => !vimLeavesTab(view) && binding.run(view),
-    shift: view => !vimLeavesTab(view) && binding.shift(view),
+    run: view => acceptCompletion(view) || nextSnippetField(view) || (!vimLeavesTab(view) && binding.run(view)),
+    shift: view => prevSnippetField(view) || (!vimLeavesTab(view) && binding.shift(view)),
 } : binding);
 
 // `#` comments, used by vim's `gc`. Only while vim is on, so the plain editor's
