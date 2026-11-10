@@ -168,12 +168,13 @@ function vimLeavesTab(view) {
     return Boolean(state && !state.insertMode && !state.visualMode);
 }
 
-// Tab tries: accept the highlighted autocomplete item, advance to the
-// next snippet tab stop, then fall back to indentation. Shift+Tab tries
-// the previous snippet field, then dedent.
+// Tab tries: advance to the next snippet tab stop (takes priority so
+// inserting a snippet that re-triggers autocomplete doesn't trap Tab),
+// accept the highlighted autocomplete item, then fall back to
+// indentation. Shift+Tab: previous snippet field, then dedent.
 const editorIndentationKeymap = indentationKeymap.map(binding => binding.run === insertIndentation ? {
     ...binding,
-    run: view => acceptCompletion(view) || nextSnippetField(view) || (!vimLeavesTab(view) && binding.run(view)),
+    run: view => nextSnippetField(view) || acceptCompletion(view) || (!vimLeavesTab(view) && binding.run(view)),
     shift: view => prevSnippetField(view) || (!vimLeavesTab(view) && binding.shift(view)),
 } : binding);
 
