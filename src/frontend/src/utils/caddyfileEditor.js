@@ -216,7 +216,11 @@ function showSnippetMenu(view, x, y, t) {
 
     const backdrop = document.createElement('div');
     backdrop.className = 'snippet-menu-backdrop';
-    backdrop.addEventListener('pointerdown', dismissSnippetMenu);
+    // mousedown, not pointerdown: a pointerdown on a menu item would
+    // dismiss before its click fires. Only the backdrop itself dismisses.
+    backdrop.addEventListener('mousedown', (e) => {
+        if (e.target === backdrop) dismissSnippetMenu();
+    });
 
     const menu = document.createElement('div');
     menu.className = 'snippet-menu';
@@ -287,9 +291,14 @@ function showSnippetMenu(view, x, y, t) {
 
 // Extension: intercepts right-click to show the snippet menu instead of the
 // browser's native context menu. Holds a reference to the current `t` function
-// so language changes take effect immediately.
+// so language changes take effect immediately. Safari shows its native menu on
+// mousedown (button 2), so both events are suppressed.
 function snippetContextMenu(tRef) {
     return EditorView.domEventHandlers({
+        mousedown(event) {
+            if (event.button === 2) event.preventDefault();
+            return false;
+        },
         contextmenu(event, view) {
             if (!view.dom.contains(event.target)) return false;
             event.preventDefault();
