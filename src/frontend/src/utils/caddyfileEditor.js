@@ -285,16 +285,16 @@ function showSnippetMenu(view, x, y, t) {
 
 /* eslint-enable i18next/no-literal-string */
 
-// Extension: intercepts right-click to show the snippet menu alongside the
+// Extension: intercepts right-click to show the snippet menu instead of the
 // browser's native context menu. Holds a reference to the current `t` function
 // so language changes take effect immediately.
 function snippetContextMenu(tRef) {
     return EditorView.domEventHandlers({
         contextmenu(event, view) {
-            // Only show when the click is inside the editor content area.
             if (!view.dom.contains(event.target)) return false;
+            event.preventDefault();
             showSnippetMenu(view, event.clientX, event.clientY, tRef.current);
-            return false; // don't prevent the native context menu
+            return true;
         },
     });
 }
