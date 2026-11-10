@@ -95,6 +95,7 @@
     },
     "beta": {
       "backend": [
+        "beta-e646260",
         "beta-12488fd",
         "beta-9a6c852",
         "beta-d349216",
@@ -107,6 +108,7 @@
         "beta-72d0051"
       ],
       "frontend": [
+        "beta-e646260",
         "beta-12488fd",
         "beta-9a6c852",
         "beta-d349216",
