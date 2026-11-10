@@ -40,4 +40,27 @@ describe('snippet templates', () => {
             expect(new Set(keys).size, cat.key).toBe(keys.length);
         }
     });
+
+    it('directive snippets start with the same keyword in both templates', () => {
+        for (const cat of SNIPPET_CATEGORIES) {
+            // Site blocks start with a tab-stop domain, not a directive keyword
+            if (cat.context === 'none') continue;
+            for (const snippet of cat.snippets) {
+                if (!snippet.snippetTemplate) continue;
+                const plainWord = snippet.template.split(/[\s\n{]/)[0];
+                const snippetWord = snippet.snippetTemplate.split(/[\s\n{]/)[0];
+                expect(snippetWord, `${cat.key}.${snippet.key}`).toBe(plainWord);
+            }
+        }
+    });
+
+    it('snippet templates contain at least one tab stop', () => {
+        for (const cat of SNIPPET_CATEGORIES) {
+            for (const snippet of cat.snippets) {
+                if (snippet.snippetTemplate) {
+                    expect(snippet.snippetTemplate, `${cat.key}.${snippet.key}`).toMatch(/#\{/);
+                }
+            }
+        }
+    });
 });
