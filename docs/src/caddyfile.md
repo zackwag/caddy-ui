@@ -160,6 +160,30 @@ The editors find blocks the way Caddy does: a block opens at a `{` that stands a
 
 Since Tab indents, it doesn't move focus out of the editor. To leave the editor with the keyboard, press Escape and then Tab (or Shift+Tab) within two seconds. To make Tab move focus until you switch back, press Ctrl+M (Shift+Alt+M on macOS).
 
+### Autocomplete
+
+Typing a directive name shows completions matching the current context: directives inside a site block, global options inside the global block, and subdirectives inside a directive block. Press Ctrl+Space to open the list manually.
+
+Completions with a detail suffix (e.g. `log — logGlobal`) are **snippet templates**. Selecting one inserts a multi-line template with pre-filled arguments. Tab moves the cursor to the next placeholder field and Shift+Tab moves back. The plain keyword completion (no suffix) inserts only the directive name.
+
+| Icon | Meaning |
+| --- | --- |
+| Key | Keyword completion — inserts the directive name only |
+| `abc` | Snippet completion — inserts a template with tab-stop placeholders |
+
+### Snippet context menu
+
+Right-clicking in the editor opens a menu of directive templates filtered by where the cursor is:
+
+| Context | Snippets shown |
+| --- | --- |
+| Top level (outside any block) | Site block templates: reverse proxy, redirect, file server, static response |
+| Inside a site block | Directive templates: reverse_proxy, redir, respond, header, encode, tls, log, handle, handle_path, basicauth, file_server |
+| Inside the global options block | Global option templates: email, admin, log, servers |
+| Inside a directive block | No menu (subdirective patterns vary too much by parent directive) |
+
+Selecting an item inserts the template at the click position. Multi-line templates inherit the current line's indentation; `caddy fmt` normalizes the rest on save. The menu dismisses on click-away or Escape, and arrow keys navigate between items.
+
 ### Vim mode
 
 The **vim mode** checkbox in the Caddyfile editor's toolbar turns on vim keybindings in both editors. It's off by default and is saved in the server's `settings.json`, alongside theme and language preferences. The setting applies across browsers and devices when they load the app. A status bar under the editor shows the current mode. Switching vim mode on or off keeps your text and its undo history.
