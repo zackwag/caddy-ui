@@ -1136,6 +1136,51 @@ export const css = `
   .cm-editor { min-height: 420px; font-family: 'IBM Plex Mono', monospace !important; }
   .cm-editor.cm-focused { outline: none; }
 
+  .snippet-menu-backdrop { position: fixed; inset: 0; z-index: 1000; }
+  .snippet-menu {
+    position: fixed;
+    z-index: 1001;
+    min-width: 200px;
+    max-width: 280px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    font-size: 13px;
+  }
+  .snippet-menu-heading {
+    padding: 6px 12px 2px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    user-select: none;
+  }
+  .snippet-menu-item {
+    display: block;
+    width: 100%;
+    padding: 5px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .snippet-menu-item:hover, .snippet-menu-item:focus-visible {
+    background: var(--accent);
+    color: var(--on-accent);
+    outline: none;
+  }
+
   .btn {
     display: inline-flex;
     align-items: center;

@@ -10,7 +10,8 @@ import { classHighlighter } from '@lezer/highlight';
 import { caddyfile } from '../lib/caddyfileMode.js';
 import { indentation, indentationKeymap, insertIndentation, insertNewlinePreservingIndent, structureOf } from './caddyfileIndentation.js';
 import { createCompletionSource } from './caddyfileCompletions.js';
-import { foldRangeOf, isLiteralAt } from './caddyfileStructure.js';
+import { contextKind, foldRangeOf, isLiteralAt } from './caddyfileStructure.js';
+import { snippetsForContext } from './caddyfileSnippets.js';
 
 // Typing one of these inserts its closing partner, and typing that partner
 // next to it steps over it. Quotes aren't paired: Caddyfile text uses them
@@ -177,6 +178,127 @@ const editorIndentationKeymap = indentationKeymap.map(binding => binding.run ===
 // keymap is unchanged.
 const vimLanguageData = EditorState.languageData.of(() => [{ commentTokens: { line: '#' } }]);
 
+// ---------- Snippet context menu ----------
+
+// Indents each line of `text` by `baseIndent`, except the first line (which
+// is placed at the insertion point and inherits whatever indentation is there).
+function indentSnippet(text, baseIndent) {
+    const lines = text.split('\n');
+    return lines.map((line, i) => i === 0 ? line : baseIndent + line).join('\n');
+}
+
+/* eslint-disable i18next/no-literal-string -- DOM construction: class names, attributes and selectors, not UI copy */
+
+// Removes an open snippet menu and its backdrop, if one exists.
+function dismissSnippetMenu() {
+    document.querySelector('.snippet-menu-backdrop')?.remove();
+}
+
+// Builds and shows the context menu at (x, y) for the given editor view.
+// `t` is the i18n translator for menu labels.
+function showSnippetMenu(view, x, y, t) {
+    dismissSnippetMenu();
+
+    const pos = view.posAtCoords({ x, y });
+    if (pos === null) return;
+
+    const { state } = view;
+    const structure = structureOf(state.doc);
+    const kind = contextKind(structure, state.doc.toString(), pos);
+
+    const categories = snippetsForContext(kind);
+    if (!categories.length) return;
+
+    // The current line's leading whitespace sets the base indent for
+    // multi-line snippets.
+    const line = state.doc.lineAt(pos);
+    const baseIndent = /^[ \t]*/.exec(line.text)[0];
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'snippet-menu-backdrop';
+    backdrop.addEventListener('pointerdown', dismissSnippetMenu);
+
+    const menu = document.createElement('div');
+    menu.className = 'snippet-menu';
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-label', t('caddyfile.insertSnippet'));
+
+    for (const category of categories) {
+        const heading = document.createElement('div');
+        heading.className = 'snippet-menu-heading';
+        heading.textContent = t(`caddyfile.snippetCategory.${category.key}`);
+        menu.appendChild(heading);
+
+        for (const snippet of category.snippets) {
+            const item = document.createElement('button');
+            item.className = 'snippet-menu-item';
+            item.setAttribute('role', 'menuitem');
+            item.textContent = t(`caddyfile.snippet.${snippet.key}`);
+            item.addEventListener('click', () => {
+                const text = indentSnippet(snippet.template, baseIndent);
+                // Insert at the beginning of the line for top-level blocks,
+                // or at the cursor position for directives/subdirectives.
+                const insertAt = kind === 'none' ? line.from : pos;
+                view.dispatch({ changes: { from: insertAt, insert: text }, selection: { anchor: insertAt + text.length }, userEvent: 'input.type', scrollIntoView: true });
+                view.focus();
+                dismissSnippetMenu();
+            });
+            menu.appendChild(item);
+        }
+    }
+
+    // Position relative to the viewport, clamped to stay visible.
+    const pad = 8;
+    const menuWidth = 220;
+    const left = Math.min(x, window.innerWidth - menuWidth - pad);
+    menu.style.left = `${Math.max(pad, left)}px`;
+    menu.style.top = `${Math.max(pad, y)}px`;
+
+    backdrop.appendChild(menu);
+    document.body.appendChild(backdrop);
+
+    // Reposition if the menu extends past the bottom of the viewport.
+    const rect = menu.getBoundingClientRect();
+    if (rect.bottom > window.innerHeight - pad) {
+        menu.style.top = `${Math.max(pad, window.innerHeight - rect.height - pad)}px`;
+    }
+
+    // Keyboard navigation: arrow keys move between items, Escape closes.
+    const items = [...menu.querySelectorAll('.snippet-menu-item')];
+    let focused = 0;
+    items[0]?.focus();
+    menu.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            dismissSnippetMenu();
+            view.focus();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            focused = (focused + 1) % items.length;
+            items[focused]?.focus();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            focused = (focused - 1 + items.length) % items.length;
+            items[focused]?.focus();
+        }
+    });
+}
+
+/* eslint-enable i18next/no-literal-string */
+
+// Extension: intercepts right-click to show the snippet menu alongside the
+// browser's native context menu. Holds a reference to the current `t` function
+// so language changes take effect immediately.
+function snippetContextMenu(tRef) {
+    return EditorView.domEventHandlers({
+        contextmenu(event, view) {
+            // Only show when the click is inside the editor content area.
+            if (!view.dom.contains(event.target)) return false;
+            showSnippetMenu(view, event.clientX, event.clientY, tRef.current);
+            return false; // don't prevent the native context menu
+        },
+    });
+}
+
 // Creates an editor for `doc` in `parent`. `onChange` receives the full text
 // after each edit, and `t` translates the editor's own labels. Nothing here
 // rewrites the document on load, and folding never changes it: content only
@@ -187,6 +309,7 @@ const vimLanguageData = EditorState.languageData.of(() => [{ commentTokens: { li
 export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t, vimMode = false, onSave, onQuit, isModified }) {
     const phrasesCompartment = new Compartment();
     const vimCompartment = new Compartment();
+    const tRef = { current: t };
     const state = EditorState.create({
         doc,
         extensions: [
@@ -201,6 +324,7 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t,
             syntaxHighlighting(classHighlighter),
             StreamLanguage.define(caddyfile), editorTheme({ dark, padding }),
             indentation,
+            snippetContextMenu(tRef),
             keymap.of([...bracketKeymap, ...editorIndentationKeymap, ...foldKeymap, ...defaultKeymap, ...historyKeymap]),
             EditorView.updateListener.of(update => {
                 if (update.docChanged) {
@@ -211,7 +335,10 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t,
         ],
     });
     const view = new EditorView({ state, parent });
-    view.updatePhrases = (t) => view.dispatch({ effects: phrasesCompartment.reconfigure(EditorState.phrases.of(editorPhrases(t))) });
+    view.updatePhrases = (newT) => {
+        tRef.current = newT;
+        view.dispatch({ effects: phrasesCompartment.reconfigure(EditorState.phrases.of(editorPhrases(newT))) });
+    };
     // Vim loads on first use. Ignore stale requests and views closed meanwhile.
     let vimRequest = 0;
     view.setVimMode = async (enabled) => {
