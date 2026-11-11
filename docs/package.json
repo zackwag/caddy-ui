@@ -13,7 +13,7 @@
         "test:screenshots": "node --test screenshots/capture.integration.mjs"
     },
     "dependencies": {
-        "mermaid": "12.2.0",
-        "parse5-sax-parser": "8.0.0"
+        "mermaid": "12.3.0",
+        "parse5-sax-parser": "8.0.1"
     }
 }
