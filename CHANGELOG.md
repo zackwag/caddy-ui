@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.9.1](https://github.com/zackwag/caddy-ui/compare/v3.9.0...v3.9.1) (2026-11-11)
+
+
+### Miscellaneous Chores
+
+* **deps:** bump express-rate-limit from 8.7.2 to 8.7.3 in /src/backend ([#548](https://github.com/zackwag/caddy-ui/issues/548)) ([ae47d68](https://github.com/zackwag/caddy-ui/commit/ae47d684046f6143f22e35ffc6caeab51f58e0e5))
+* **deps:** bump i18next from 26.6.0 to 27.0.1 in /src/frontend ([#537](https://github.com/zackwag/caddy-ui/issues/537)) ([81c66d4](https://github.com/zackwag/caddy-ui/commit/81c66d4c86a89b763830eee92120fd82034f94db))
+* **deps:** bump otpauth from 9.5.2 to 9.6.0 in /src/backend ([#552](https://github.com/zackwag/caddy-ui/issues/552)) ([1f9bc78](https://github.com/zackwag/caddy-ui/commit/1f9bc7840963fcd047a52268f2d0e7471b12df05))
+
 ## [3.9.0](https://github.com/zackwag/caddy-ui/compare/v3.8.0...v3.9.0) (2026-11-06)
 
 
