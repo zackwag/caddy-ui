@@ -14,6 +14,6 @@
     },
     "dependencies": {
         "mermaid": "12.3.0",
-        "parse5-sax-parser": "8.0.0"
+        "parse5-sax-parser": "8.0.1"
     }
 }
