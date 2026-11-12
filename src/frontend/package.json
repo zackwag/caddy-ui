@@ -32,11 +32,11 @@
         "@lezer/highlight": "^1.2.5",
         "@replit/codemirror-vim": "^6.4.0",
         "@simplewebauthn/browser": "14.0.0",
-        "i18next": "^26.6.0",
+        "i18next": "^27.0.1",
         "qrcode": "1.5.4",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
-        "react-i18next": "^17.1.10",
+        "react-i18next": "^18.0.0",
         "react-router-dom": "^7.18.5"
     },
     "devDependencies": {
@@ -46,8 +46,8 @@
         "eslint-plugin-i18next": "^6.1.5",
         "eslint-plugin-react-hooks": "^7.1.1",
         "eslint-plugin-react-refresh": "^0.5.7",
-        "globals": "^17.13.0",
-        "vite": "^8.3.5",
-        "vitest": "^5.0.5"
+        "globals": "^17.14.0",
+        "vite": "^8.3.6",
+        "vitest": "^5.1.0"
     }
 }
