@@ -5,7 +5,7 @@ import { autocompletion, closeBrackets, deleteBracketPair } from '@codemirror/au
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, foldService, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
-import { EditorView, drawSelection, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers } from '@codemirror/view';
+import { EditorView, ViewPlugin, drawSelection, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers } from '@codemirror/view';
 import { classHighlighter } from '@lezer/highlight';
 import { caddyfile } from '../lib/caddyfileMode.js';
 import { indentation, indentationKeymap, insertIndentation, insertNewlinePreservingIndent, structureOf } from './caddyfileIndentation.js';
@@ -187,45 +187,75 @@ function indentSnippet(text, baseIndent) {
     return lines.map((line, i) => i === 0 ? line : baseIndent + line).join('\n');
 }
 
-/* eslint-disable i18next/no-literal-string -- DOM construction: class names, attributes and selectors, not UI copy */
-
-// Removes an open snippet menu and its backdrop, if one exists.
-function dismissSnippetMenu() {
-    document.querySelector('.snippet-menu-backdrop')?.remove();
+// What the snippet menu would offer at viewport point (x, y), or null when
+// nothing applies there. Both right-click handlers use it, so the browser's
+// own menu is only suppressed where a snippet menu replaces it.
+function snippetMenuAt(view, x, y) {
+    const pos = view.posAtCoords({ x, y });
+    if (pos === null) {
+        return null;
+    }
+    const { doc } = view.state;
+    const kind = contextKind(structureOf(doc), doc.toString(), pos);
+    const categories = snippetsForContext(kind);
+    if (!categories.length) {
+        return null;
+    }
+    return { doc, pos, kind, categories, line: doc.lineAt(pos) };
 }
 
-// Builds and shows the context menu at (x, y) for the given editor view.
-// `t` is the i18n translator for menu labels.
-function showSnippetMenu(view, x, y, t) {
-    dismissSnippetMenu();
+// At most one menu is open per page, across all editors.
+let closeOpenSnippetMenu = null;
 
-    const pos = view.posAtCoords({ x, y });
-    if (pos === null) return;
+/* eslint-disable i18next/no-literal-string -- DOM construction: class names, attributes and selectors, not UI copy */
 
-    const { state } = view;
-    const structure = structureOf(state.doc);
-    const kind = contextKind(structure, state.doc.toString(), pos);
-
-    const categories = snippetsForContext(kind);
-    if (!categories.length) return;
-
+// Builds and shows the menu for `target` (from snippetMenuAt) at (x, y), and
+// returns a function that removes it. `t` translates the menu labels.
+function openSnippetMenu(view, target, x, y, t) {
+    closeOpenSnippetMenu?.();
+    const { doc, pos, kind, categories, line } = target;
     // The current line's leading whitespace sets the base indent for
     // multi-line snippets.
-    const line = state.doc.lineAt(pos);
     const baseIndent = /^[ \t]*/.exec(line.text)[0];
 
     const backdrop = document.createElement('div');
     backdrop.className = 'snippet-menu-backdrop';
-    // mousedown, not pointerdown: a pointerdown on a menu item would
-    // dismiss before its click fires. Only the backdrop itself dismisses.
-    backdrop.addEventListener('mousedown', (e) => {
-        if (e.target === backdrop) dismissSnippetMenu();
-    });
-
     const menu = document.createElement('div');
     menu.className = 'snippet-menu';
     menu.setAttribute('role', 'menu');
     menu.setAttribute('aria-label', t('caddyfile.insertSnippet'));
+
+    let closed = false;
+    function close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        backdrop.remove();
+        if (closeOpenSnippetMenu === close) {
+            closeOpenSnippetMenu = null;
+        }
+    }
+
+    // mousedown, not pointerdown: a pointerdown on a menu item would
+    // dismiss before its click fires. Only the backdrop itself dismisses.
+    backdrop.addEventListener('mousedown', (e) => {
+        if (e.target === backdrop) {
+            close();
+        }
+    });
+    // Keep focus where it is while clicking an item. Safari doesn't focus
+    // buttons on click, so the focused item would otherwise blur, and the
+    // focusout below would close the menu before the click lands.
+    menu.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+    });
+    // Focus leaving the menu (Tab, Shift+Tab, switching windows) closes it.
+    menu.addEventListener('focusout', (e) => {
+        if (!menu.contains(e.relatedTarget)) {
+            close();
+        }
+    });
 
     for (const category of categories) {
         const heading = document.createElement('div');
@@ -239,13 +269,19 @@ function showSnippetMenu(view, x, y, t) {
             item.setAttribute('role', 'menuitem');
             item.textContent = t(`caddyfile.snippet.${snippet.key}`);
             item.addEventListener('click', () => {
+                // The offsets below belong to the document the menu opened
+                // on. Any edit closes the menu, so this is only a backstop.
+                if (closed || view.destroyed || view.state.doc !== doc) {
+                    close();
+                    return;
+                }
+                close();
                 const text = indentSnippet(snippet.template, baseIndent);
                 // Insert at the beginning of the line for top-level blocks,
                 // or at the cursor position for directives/subdirectives.
                 const insertAt = kind === 'none' ? line.from : pos;
                 view.dispatch({ changes: { from: insertAt, insert: text }, selection: { anchor: insertAt + text.length }, userEvent: 'input.type', scrollIntoView: true });
                 view.focus();
-                dismissSnippetMenu();
             });
             menu.appendChild(item);
         }
@@ -260,6 +296,7 @@ function showSnippetMenu(view, x, y, t) {
 
     backdrop.appendChild(menu);
     document.body.appendChild(backdrop);
+    closeOpenSnippetMenu = close;
 
     // Reposition if the menu extends past the bottom of the viewport.
     const rect = menu.getBoundingClientRect();
@@ -270,40 +307,74 @@ function showSnippetMenu(view, x, y, t) {
     // Keyboard navigation: arrow keys move between items, Escape closes.
     const items = [...menu.querySelectorAll('.snippet-menu-item')];
     let focused = 0;
-    items[0]?.focus();
+    menu.addEventListener('focusin', (e) => {
+        const index = items.indexOf(e.target);
+        if (index >= 0) {
+            focused = index;
+        }
+    });
     menu.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            dismissSnippetMenu();
+            close();
             view.focus();
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();
-            focused = (focused + 1) % items.length;
-            items[focused]?.focus();
+            items[(focused + 1) % items.length]?.focus();
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            focused = (focused - 1 + items.length) % items.length;
-            items[focused]?.focus();
+            items[(focused - 1 + items.length) % items.length]?.focus();
         }
     });
+    items[0]?.focus();
+    return close;
 }
 
 /* eslint-enable i18next/no-literal-string */
 
-// Extension: intercepts right-click to show the snippet menu instead of the
-// browser's native context menu. Holds a reference to the current `t` function
-// so language changes take effect immediately. Safari shows its native menu on
-// mousedown (button 2), so both events are suppressed.
+// Extension: right-click shows the snippet menu in place of the browser's own,
+// wherever snippets apply. Elsewhere the native menu is left alone. Safari
+// shows its native menu on mousedown (button 2), so that is suppressed too.
+// The menu belongs to its editor: an edit or destroying the view closes it, so
+// a stale insertion offset can never be applied. `tRef` holds the current
+// translator, so language changes take effect immediately.
 function snippetContextMenu(tRef) {
-    return EditorView.domEventHandlers({
-        mousedown(event) {
-            if (event.button === 2) event.preventDefault();
-            return false;
-        },
-        contextmenu(event, view) {
-            if (!view.dom.contains(event.target)) return false;
-            event.preventDefault();
-            showSnippetMenu(view, event.clientX, event.clientY, tRef.current);
-            return true;
+    return ViewPlugin.fromClass(class {
+        constructor() {
+            this.close = null;
+        }
+
+        update(update) {
+            if (update.docChanged) {
+                this.dismiss();
+            }
+        }
+
+        destroy() {
+            this.dismiss();
+        }
+
+        dismiss() {
+            this.close?.();
+            this.close = null;
+        }
+    }, {
+        eventHandlers: {
+            mousedown(event, view) {
+                if (event.button === 2 && snippetMenuAt(view, event.clientX, event.clientY)) {
+                    event.preventDefault();
+                }
+                return false;
+            },
+            contextmenu(event, view) {
+                const target = snippetMenuAt(view, event.clientX, event.clientY);
+                if (!target) {
+                    return false;
+                }
+                event.preventDefault();
+                this.dismiss();
+                this.close = openSnippetMenu(view, target, event.clientX, event.clientY, tRef.current);
+                return true;
+            },
         },
     });
 }
