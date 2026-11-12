@@ -8,16 +8,15 @@ import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
 import logger from '../logger.js';
 import { AppError, asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
-import { createCaddyfileHistory } from '../caddyfileHistory.js';
+import { configurationHistory as history } from '../configurationHistory.js';
 import { getAuthentication } from '../middleware/auth.js';
 import { caddyfileEntries, trailingComments } from '../caddyfileBlocks.js';
 import { runExclusive } from '../instanceQueue.js';
-import { fingerprintText, recordLocalChange } from '../configDrift.js';
+import { checkInstance, fingerprintText, recordLocalChange } from '../configDrift.js';
 import { NOT_APPLIED, UNCHANGED, verificationWarning, verifyAfterTimeout, verifyFile, verifyLiveConfig } from '../configVerification.js';
 
 const router = Router();
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
-const history = createCaddyfileHistory(HISTORY_PATH);
 
 function instanceHistoryDir(instanceId) {
     return history.directory(instanceId);
@@ -206,7 +205,8 @@ async function restoreCaddyfile(previous, { configPath, containerName }) {
 // own live change instead. Throws:
 // - CADDYFILE_READ_FAILED / CADDYFILE_WRITE_FAILED: nothing changed
 // - CADDYFILE_CHANGED: `ifMatch` (ETags from an If-Match header) doesn't name
-//   the file the change would replace, so nothing was written or recorded
+//   the file the change would replace, so nothing was written or attributed to
+//   this operation (independent external discovery may already be preserved)
 // - CADDYFILE_CHANGE_REJECTED: applying failed and the previous file was restored
 //   (an AppError thrown by a custom apply keeps its own code)
 // - CADDYFILE_ROLLBACK_FAILED: the previous file couldn't be restored, so the
@@ -230,7 +230,13 @@ function saveCaddyfileChange(instance, content, options = {}) {
 }
 
 function queueCaddyfileChange(instance, operation) {
-    return runExclusive(instance.id, () => operation((change, options) => applyCaddyfileChange(instance, change, options)));
+    return runExclusive(instance.id, async () => {
+        // Preserve changes discovered since the last poll before a local write
+        // can replace either representation. No nested queue acquisition.
+        try { await checkInstance(instance, { report: false }); }
+        catch (cause) { throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context: { instanceId: instance.id } }); }
+        return operation((change, options) => applyCaddyfileChange(instance, change, options));
+    });
 }
 
 function adaptedConfig(content, instance, via) {
@@ -428,9 +434,24 @@ router.get('/', async (req, res) => {
 // GET /api/caddyfile/history
 router.get('/history', async (req, res) => {
     try {
+        res.setHeader('Cache-Control', 'no-store');
         res.json(await history.list(req.instance.id, actor => getAuthentication().resolveActor(actor)));
     } catch (err) {
         sendAppError(res, asAppError(err, 'CADDYFILE_HISTORY_READ_FAILED', { instanceId: req.instance.id }));
+    }
+});
+
+// GET /api/caddyfile/history/:filename/changes
+router.get('/history/:filename/changes', async (req, res) => {
+    const { filename } = req.params;
+    if (!history.validFilename(filename)) return res.status(400).json({ error: 'Invalid filename' });
+    try {
+        const value = await history.read(req.instance.id, filename);
+        if (!value.external) return res.status(404).json({ error: 'This version is not an external observation' });
+        res.setHeader('Cache-Control', 'no-store');
+        res.json(value.external);
+    } catch (error) {
+        sendAppError(res, asAppError(error, 'CADDYFILE_HISTORY_READ_FAILED', { instanceId: req.instance.id }));
     }
 });
 
@@ -441,6 +462,8 @@ router.get('/history/:filename', async (req, res) => {
         return res.status(400).json({ error: 'Invalid filename' });
     }
     const { content } = await history.read(req.instance.id, filename);
+    if (content === null) return res.status(409).json({ error: 'This observation contains live JSON, not a saved Caddyfile' });
+    res.setHeader('Cache-Control', 'no-store');
     res.type('text/plain').send(content);
 });
 

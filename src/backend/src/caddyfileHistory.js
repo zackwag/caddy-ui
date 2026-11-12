@@ -7,6 +7,19 @@ const FILENAME = /^Caddyfile-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{
 const validActor = actor => actor && ['user', 'api-token'].includes(actor.type)
     && typeof actor.id === 'string' && /^[a-f0-9-]{32,36}$/.test(actor.id);
 
+function validExternal(value) {
+    return value && typeof value.instanceId === 'string' && value.instanceId.length > 0
+        && typeof value.detectedAt === 'string' && Number.isFinite(Date.parse(value.detectedAt))
+        && Array.isArray(value.representations) && value.representations.length > 0
+        && new Set(value.representations).size === value.representations.length
+        && value.before && value.after
+        && [value.before, value.after].every(side => Object.keys(side).length === value.representations.length
+            && Object.keys(side).every(key => value.representations.includes(key)))
+        && value.representations.every(key => ['file', 'live'].includes(key)
+            && (value.before?.[key] === null || typeof value.before?.[key] === 'string')
+            && typeof value.after?.[key] === 'string');
+}
+
 async function atomicJson(directory, filename, value) {
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const temporary = join(directory, `.history-${randomUUID()}.tmp`);
@@ -96,23 +109,27 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
         if (!filename.endsWith('.json')) return { version: 0, content: raw, actor: null, parent: null,
             action: null, outcome: 'unknown', timestamp: `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z` };
         const value = JSON.parse(raw);
-        if (value.version !== 1 || typeof value.content !== 'string' || typeof value.timestamp !== 'string' || !Number.isFinite(Date.parse(value.timestamp))
+        if (![1, 2].includes(value.version) || !(typeof value.content === 'string' || (value.version === 2 && value.content === null))
+            || (value.version === 2 && (!validExternal(value.external) || value.actor !== null || value.action !== 'configuration.external'
+                || value.content !== (value.external.after.file ?? null)))
+            || typeof value.timestamp !== 'string' || !Number.isFinite(Date.parse(value.timestamp))
             || !['applied', 'saved-unapplied', 'unknown'].includes(value.outcome)
             || (value.actor !== null && !validActor(value.actor))
             || (value.action !== null && typeof value.action !== 'string')
             || (value.parent !== null && !validFilename(value.parent))) throw new Error('Invalid history version');
         return value;
     }
-    async function record(id, content, { actor = null, action = null, outcome = 'unknown' } = {}) {
+    async function record(id, content, { actor = null, action = null, outcome = 'unknown', external = null } = {}) {
         const latest = await latestReadable(id);
-        const previous = latest?.filename || null;
+        const previous = (await latestReadable(id, true))?.filename || null;
         const last = latest?.value;
         // Keep ordering deterministic even for several saves in one millisecond
         // or a clock adjustment, without overwriting any existing version.
         const timestamp = new Date(Math.max(now(), last ? Date.parse(last.timestamp) + 1 : 0)).toISOString();
         const filename = `Caddyfile-${timestamp.replace(/[:.]/g, '-')}-${randomUUID()}.json`;
         const reference = await remember(actor);
-        await atomicJson(directory(id), filename, { version: 1, timestamp, parent: previous, actor: reference, action, outcome, content });
+        await atomicJson(directory(id), filename, { version: external ? 2 : 1, timestamp, parent: previous, actor: reference, action, outcome, content,
+            ...(external ? { external } : {}) });
         try {
             for (const name of (await filenames(id)).slice(limit)) {
                 const path = historyPath(id, name);
@@ -125,9 +142,12 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
     function warnUnreadable(id, filename, error) {
         if (error.code !== 'ENOENT') logger.warn('Skipping unreadable Caddyfile history version', { instanceId: id, filename, code: error.code || 'INVALID_HISTORY_VERSION' });
     }
-    async function latestReadable(id) {
+    async function latestReadable(id, fileOnly = false) {
         for (const filename of await filenames(id)) {
-            try { return { filename, value: await read(id, filename) }; }
+            try {
+                const value = await read(id, filename);
+                if (!fileOnly || typeof value.content === 'string') return { filename, value };
+            }
             catch (error) { warnUnreadable(id, filename, error); }
         }
         return null;
@@ -140,7 +160,9 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
             if (metadata.get(path)?.stamp === stamp) return metadata.get(path).entry;
             try {
                 const value = await read(id, filename);
-                const entry = { timestamp: value.timestamp, parent: value.parent, actor: value.actor, action: value.action, outcome: value.outcome };
+                const entry = { timestamp: value.timestamp, parent: value.parent, actor: value.actor, action: value.action, outcome: value.outcome,
+                    ...(value.external ? { kind: 'external', instanceId: value.external.instanceId, hasFile: typeof value.content === 'string',
+                        detectedAt: value.external.detectedAt, representations: value.external.representations } : {}) };
                 metadata.set(path, { stamp, entry });
                 return entry;
             } catch (error) {
@@ -152,9 +174,14 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
     }
     return {
         directory, validFilename, read, record,
+        async recordExternal(id, external) {
+            const observation = { ...external, instanceId: id || 'default' };
+            if (!validExternal(observation)) throw new Error('Invalid external configuration observation');
+            return record(id, observation.after.file ?? null, { action: 'configuration.external', external: observation });
+        },
         async preserve(id, content) {
             if (content === null) return;
-            const latest = await latestReadable(id);
+            const latest = await latestReadable(id, true);
             if (!latest || latest.value.content !== content) await record(id, content);
         },
         async list(id, resolveActor = () => null) {

@@ -298,7 +298,7 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_UI_USER` | — | Legacy username for credential enrollment; ignored after stored credentials are initialized |
 | `AUTH_PATH` | `/etc/caddy-ui/auth.json` | Persistent administrator credential/recovery hashes and passkey records. Keep on a writable persistent volume, separate from UI settings. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
-| `HISTORY_PATH` | `/etc/caddy-ui/history` | Persistent Caddyfile versions and actor metadata; see the [history guide](https://zackwag.github.io/caddy-ui/caddyfile.html#saved-versions-and-attribution) |
+| `HISTORY_PATH` | `/etc/caddy-ui/history` | Sensitive saved Caddyfiles, external file/JSON observations and actor metadata; see the [history guide](https://zackwag.github.io/caddy-ui/caddyfile.html#saved-versions-and-attribution) |
 | `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://zackwag.github.io/caddy-ui/instances.html#multi-instance)) |
 | `JWT_SECRET` | — | Legacy configuration marker required alongside the legacy username/password before enrollment. No new JWTs are issued. |
 | `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |
@@ -527,8 +527,9 @@ See the [API reference](https://zackwag.github.io/caddy-ui/api.html) for endpoin
 | `PUT` | `/api/caddyfile` | Save, validate, format, and reload |
 | `POST` | `/api/caddyfile/validations` | Validate (and optionally format) without saving |
 | `POST` | `/api/caddyfile/reloads` | Reload Caddy from disk |
-| `GET` | `/api/caddyfile/history` | List all Caddyfile snapshots |
+| `GET` | `/api/caddyfile/history` | List saved Caddyfiles and external observations |
 | `GET` | `/api/caddyfile/history/:filename` | Read a specific snapshot |
+| `GET` | `/api/caddyfile/history/:filename/changes` | Read before/after file and live-JSON data for an external observation |
 | `DELETE` | `/api/caddyfile/history/:filename` | Delete a snapshot |
 | `GET` | `/api/routes` | List all routes across all HTTP servers |
 | `POST` | `/api/routes` | Add a reverse proxy route |

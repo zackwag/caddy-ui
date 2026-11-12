@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +23,23 @@ afterEach(async () => { await Promise.all(directories.splice(0).map(root => rm(r
 const user = () => ({ type: 'user', id: randomUUID(), name: 'Administrator' });
 
 describe('committed Caddyfile history', () => {
+    it('bounds sensitive external observations with the same retention as saved files and survives a restart', async () => {
+        const { root, history } = await fixture({ limit: 2 });
+        await history.record('alpha', 'saved file');
+        const external = { detectedAt: new Date().toISOString(), representations: ['live'], before: { live: null }, after: { live: '{"secret":"private"}' } };
+        await history.recordExternal('alpha', external);
+        const latest = await history.recordExternal('alpha', { ...external, before: external.after, after: { live: '{"secret":"changed"}' } });
+        const restarted = createCaddyfileHistory(root, { limit: 2 });
+        const entries = await restarted.list('alpha');
+        expect(entries).toHaveLength(2);
+        expect(entries[0]).toMatchObject({ filename: latest, actor: null, kind: 'external', hasFile: false });
+        expect(JSON.stringify(entries)).not.toContain('secret');
+        expect((await restarted.read('alpha', latest)).external.before.live).toBe(external.after.live);
+        expect((await restarted.read('alpha', latest)).content).toBeNull();
+        expect((await stat(join(root, 'alpha', latest))).mode & 0o777).toBe(0o600);
+        expect((await stat(join(root, 'alpha'))).mode & 0o777).toBe(0o700);
+    });
+
     it('preserves a baseline and commits the saved content with an identity reference', async () => {
         const { root, history } = await fixture();
         const actor = user();

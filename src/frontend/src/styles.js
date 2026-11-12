@@ -1095,6 +1095,9 @@ export const css = `
   .history-entry-actor { display: block; font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }
   .caddyfile-history-controls { flex-shrink: 0; --pane-content-reserve: 100; }
   .history-diff-stats { flex-shrink: 0; }
+  .history-preview.history-external { white-space: normal; }
+  .history-external pre { white-space: pre; font: inherit; margin: 0; }
+  .history-external section + section { margin-top: 20px; }
   .history-version-actions { margin-left: auto; flex-shrink: 0; }
   .history-preview:focus-visible, .history-versions:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .history-versions { min-width: 0; min-height: 0; overflow-y: auto; border-left: 1px solid var(--border); padding: 0 12px; }
