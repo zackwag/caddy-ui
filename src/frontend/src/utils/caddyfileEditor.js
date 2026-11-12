@@ -1,7 +1,7 @@
 // The CodeMirror setup shared by the full Caddyfile editor and the route
 // site-block editor, so both edit the same way. Components import this module
 // dynamically, which keeps CodeMirror out of the main bundle.
-import { autocompletion, closeBrackets, deleteBracketPair } from '@codemirror/autocomplete';
+import { acceptCompletion, autocompletion, closeBrackets, closeCompletion, deleteBracketPair, nextSnippetField, prevSnippetField } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { StreamLanguage, bracketMatching, codeFolding, foldGutter, foldKeymap, foldService, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { Compartment, EditorState, Prec } from '@codemirror/state';
@@ -168,10 +168,22 @@ function vimLeavesTab(view) {
     return Boolean(state && !state.insertMode && !state.visualMode);
 }
 
+// Accept a completion and dismiss the tooltip so activateOnTyping doesn't
+// re-trigger and interfere with snippet tab-stop navigation.
+function acceptAndCloseCompletion(view) {
+    if (!acceptCompletion(view)) return false;
+    closeCompletion(view);
+    return true;
+}
+
+// Tab tries: advance to the next snippet tab stop (takes priority so
+// inserting a snippet that re-triggers autocomplete doesn't trap Tab),
+// accept the highlighted autocomplete item, then fall back to
+// indentation. Shift+Tab: previous snippet field, then dedent.
 const editorIndentationKeymap = indentationKeymap.map(binding => binding.run === insertIndentation ? {
     ...binding,
-    run: view => !vimLeavesTab(view) && binding.run(view),
-    shift: view => !vimLeavesTab(view) && binding.shift(view),
+    run: view => nextSnippetField(view) || acceptAndCloseCompletion(view) || (!vimLeavesTab(view) && binding.run(view)),
+    shift: view => prevSnippetField(view) || (!vimLeavesTab(view) && binding.shift(view)),
 } : binding);
 
 // `#` comments, used by vim's `gc`. Only while vim is on, so the plain editor's
