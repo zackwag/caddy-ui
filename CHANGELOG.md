@@ -1,5 +1,37 @@
 # Changelog
 
+## [3.9.0](https://github.com/zackwag/caddy-ui/compare/v3.8.0...v3.9.0) (2026-11-06)
+
+
+### Features
+
+* context-sensitive autocomplete for Caddyfile editors ([#528](https://github.com/zackwag/caddy-ui/issues/528)) ([5513f7f](https://github.com/zackwag/caddy-ui/commit/5513f7f0da5b509461b4d63ccbdde2672ac5522e))
+* **editor:** add four-space Tab indentation and keep tabs on Enter ([#505](https://github.com/zackwag/caddy-ui/issues/505)) ([c8cbe19](https://github.com/zackwag/caddy-ui/commit/c8cbe199e3b017bb5b8f2cd6231e7d703e832aed))
+* **editor:** add opt-in vim mode to Caddyfile editors ([#461](https://github.com/zackwag/caddy-ui/issues/461)) ([2f39645](https://github.com/zackwag/caddy-ui/commit/2f39645cff3d9fad48067d1a5d0cc4e5408040a6))
+* **editor:** complete bracket pairs and indent new Caddyfile blocks ([#506](https://github.com/zackwag/caddy-ui/issues/506)) ([f36c84b](https://github.com/zackwag/caddy-ui/commit/f36c84b8496eae1dd2290bfbb3a5331359a94d16))
+* **editor:** fold Caddyfile blocks in both configuration editors ([#507](https://github.com/zackwag/caddy-ui/issues/507)) ([5f0610a](https://github.com/zackwag/caddy-ui/commit/5f0610af017d2973f4c0ae1b1a8cfb0ac2567e9a))
+* **ui:** make brief outages visible in uptime history ([#477](https://github.com/zackwag/caddy-ui/issues/477)) ([11f79b8](https://github.com/zackwag/caddy-ui/commit/11f79b8bd3855dd6d0f533dc2be96b46c11d3887))
+* **ui:** open version-matched documentation from the sidebar ([#500](https://github.com/zackwag/caddy-ui/issues/500)) ([0bd8bbb](https://github.com/zackwag/caddy-ui/commit/0bd8bbbb9b361d4a01cded44545b6fadc5c23f9d))
+
+
+### Bug Fixes
+
+* **ci:** drop queue: max from Documentation concurrency ([#516](https://github.com/zackwag/caddy-ui/issues/516)) ([7756a92](https://github.com/zackwag/caddy-ui/commit/7756a92a4ae67d6877a55fc47c042b3f6867d450))
+* **ci:** update docs workflow pin to reachable fork commit ([#529](https://github.com/zackwag/caddy-ui/issues/529)) ([b9b84e7](https://github.com/zackwag/caddy-ui/commit/b9b84e7cca88fcb7b3ca1e2f305a428f3fc486b1))
+
+
+### Documentation
+
+* align sidebar controls and open the latest release ([#499](https://github.com/zackwag/caddy-ui/issues/499)) ([b4f2087](https://github.com/zackwag/caddy-ui/commit/b4f2087d88e8aa6a9f99d10ffd828b6af6969036))
+
+
+### Miscellaneous Chores
+
+* **deps:** bump express-rate-limit from 8.7.1 to 8.7.2 in /src/backend ([#524](https://github.com/zackwag/caddy-ui/issues/524)) ([1b6f02f](https://github.com/zackwag/caddy-ui/commit/1b6f02f0fbf631ac9a5d46c2ce318b330e4338cb))
+* **deps:** bump i18next from 26.5.10 to 26.6.0 in /src/frontend ([#525](https://github.com/zackwag/caddy-ui/issues/525)) ([e572acc](https://github.com/zackwag/caddy-ui/commit/e572acc128ec4b681264f28b6105dc90ab1af596))
+* **deps:** bump react-i18next from 17.1.8 to 17.1.10 in /src/frontend ([#521](https://github.com/zackwag/caddy-ui/issues/521)) ([709e0fa](https://github.com/zackwag/caddy-ui/commit/709e0fae16976e8ff72fc5224da5c04098e36367))
+* **deps:** bump react-router-dom from 7.18.4 to 7.18.5 in /src/frontend ([#527](https://github.com/zackwag/caddy-ui/issues/527)) ([9a105ef](https://github.com/zackwag/caddy-ui/commit/9a105efaa9f7f03a102c8940f8b4836985716ac5))
+
 ## [3.8.0](https://github.com/zackwag/caddy-ui/compare/v3.7.4...v3.8.0) (2026-11-02)
 
 

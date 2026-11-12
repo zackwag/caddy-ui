@@ -31,13 +31,20 @@ const ACTION_KEYS = {
     'metrics.configure': 'caddyfile.actionMetrics',
 };
 
-function CaddyfileCodeMirror({ value, onChange, theme }) {
+function CaddyfileCodeMirror({ value, onChange, onSave, theme, vimMode }) {
     const { t, i18n } = useTranslation();
     const containerRef = useRef(null);
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
+    const onSaveRef = useRef(onSave);
+    const vimModeRef = useRef(vimMode);
 
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+    useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+    useEffect(() => {
+        vimModeRef.current = vimMode;
+        viewRef.current?.setVimMode(vimMode);
+    }, [vimMode]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -48,8 +55,9 @@ function CaddyfileCodeMirror({ value, onChange, theme }) {
             const { createCaddyfileEditor } = await import("../utils/caddyfileEditor.js");
             if (cancelled) return;
             view = createCaddyfileEditor({
-                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "16px",
+                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "16px", vimMode: vimModeRef.current,
                 onChange: doc => onChangeRef.current(doc), t,
+                onSave: () => onSaveRef.current?.(),
             });
             viewRef.current = view;
         }
@@ -124,7 +132,7 @@ function ExternalConfigurationDiff({ observation, mode, previewRef }) {
     );
 }
 
-export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
+export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, onEditorVimChange }) {
     const { t } = useTranslation();
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
@@ -426,7 +434,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
             style={{ "--editor-share": `${editorShare}fr`, "--history-share": `${100 - editorShare}fr` }}
         >
             <div id={EDITOR_PANE_ID} className="editor-wrap">
-                <CaddyfileCodeMirror value={content} onChange={setContent} theme={theme} />
+                <CaddyfileCodeMirror value={content} onChange={setContent} onSave={() => { if (!saving && isDirty) save(); }} theme={theme} vimMode={editorVim} />
                 <div ref={toolbarRef} className="editor-toolbar">
                     <div className="btn-row">
                         <label className="editor-checkbox-label">
@@ -436,6 +444,10 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm }) {
                         <label className="editor-checkbox-label">
                             <input type="checkbox" className="editor-checkbox" checked={runSort} onChange={e => setRunSort(e.target.checked)} />
                             {t("caddyfile.sortEntries")}
+                        </label>
+                        <label className="editor-checkbox-label">
+                            <input type="checkbox" className="editor-checkbox" checked={editorVim} onChange={e => onEditorVimChange(e.target.checked)} />
+                            {t("caddyfile.vimMode")}
                         </label>
                         <span className="editor-hint editor-hint--mobile"><UtilityIcon name={isDirty ? "dot" : "check"} size={10} /> {t(isDirty ? "caddyfile.unsavedChanges" : "caddyfile.upToDate")}</span>
                     </div>
