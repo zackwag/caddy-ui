@@ -1,8 +1,6 @@
 import { Router } from 'express';
-import { normalizeLanguageSetting } from '../languages.js';
-import { sanitizeHostList } from '../routeChecks.js';
-import { runRouteChecks } from '../routeMonitor.js';
-import { getSettings, saveSettings } from '../settings.js';
+import { runChecks } from '../monitoring.js';
+import { InvalidSettingError, getSettings, saveSettings, settingsUpdate } from '../settings.js';
 
 const router = Router();
 
@@ -11,29 +9,17 @@ router.get('/', (req, res) => {
 });
 
 router.put('/', async (req, res) => {
+    let updates;
     try {
-        const allowed = ['firstTimeRun', 'theme', 'language', 'editorVim', 'darkPalette', 'lightPalette', 'routeColumns', 'routeChecks', 'routeCheckExcludes'];
-        const updates = {};
-        for (const key of allowed) {
-            if (key in req.body) updates[key] = req.body[key];
-        }
-        if (Object.keys(updates).length === 0) {
-            return res.status(400).json({ error: 'No valid settings provided' });
-        }
-        if ('language' in updates) {
-            updates.language = normalizeLanguageSetting(updates.language);
-            if (updates.language === undefined) return res.status(400).json({ error: 'Unsupported language' });
-        }
-        if ('routeChecks' in updates) updates.routeChecks = updates.routeChecks === true;
-        if ('editorVim' in updates) updates.editorVim = updates.editorVim === true;
-        if ('routeCheckExcludes' in updates) updates.routeCheckExcludes = sanitizeHostList(updates.routeCheckExcludes);
-        const wasChecking = getSettings().routeChecks;
-        const settings = await saveSettings(updates);
-        if (settings.routeChecks && !wasChecking) runRouteChecks();
-        res.json(settings);
+        updates = settingsUpdate(req.body);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        if (!(err instanceof InvalidSettingError)) throw err;
+        return res.status(400).json({ error: err.message });
     }
+    const wasChecking = getSettings().routeChecks;
+    const settings = await saveSettings(updates);
+    if (settings.routeChecks && !wasChecking) runChecks('route');
+    res.json(settings);
 });
 
 export default router;

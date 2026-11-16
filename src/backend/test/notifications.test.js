@@ -1,12 +1,29 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { notificationsFixture } from './fixtures/notifications.mjs';
 
 const { sendWebhook } = vi.hoisted(() => ({ sendWebhook: vi.fn() }));
 vi.mock('../src/webhookTransport.js', () => ({ sendWebhook }));
 
+const instances = vi.hoisted(() => [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }]);
+vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));
+
+const logger = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
+vi.mock('../src/logger.js', () => ({ default: logger }));
+
+const triggers = overrides => ({
+    upstreamOffline: false, upstreamOnline: false, routeOffline: false, routeOnline: false,
+    certExpiring: false, updateAvailable: false, apiTokenExpiring: false, authentication: false, ...overrides,
+});
+const config = (overrides = {}) => ({
+    enabled: true, provider: 'ntfy', ntfy: { url: 'http://ntfy/caddy-alerts' }, debounceMinutes: 30, ...overrides,
+    triggers: triggers(overrides.triggers),
+});
+const titles = () => sendWebhook.mock.calls.map(([, request]) => request.headers.Title);
+
 describe('sendNotification', () => {
     async function loadNotifications() {
         vi.resetModules();
-        return import('../src/notifications.js');
+        return import('../src/notificationDelivery.js');
     }
 
     beforeEach(() => {
@@ -146,136 +163,135 @@ describe('sendNotification', () => {
     });
 });
 
-describe('routeTransitions', () => {
-    async function load() {
-        vi.resetModules();
-        return import('../src/notifications.js');
-    }
+describe('route transitions', () => {
+    const check = (host, online) => ({ target: host, online, label: host, failure: online ? undefined : 'HTTP 502' });
+    let notifications;
 
-    const check = (host, online) => ({ host, online, statusCode: online ? 200 : 502, error: null });
-
-    it('reports nothing on the first round', async () => {
-        const { routeTransitions } = await load();
-        const state = new Map();
-        expect(routeTransitions(state, 'a', [check('x.example.com', true), check('y.example.com', false)])).toEqual([]);
+    beforeEach(async () => {
+        sendWebhook.mockReset().mockResolvedValue(undefined);
+        notifications = await notificationsFixture({ config: config({ triggers: { routeOffline: true, routeOnline: true } }) });
     });
 
-    it('reports routes whose state changed since the last round', async () => {
-        const { routeTransitions } = await load();
-        const state = new Map();
-        routeTransitions(state, 'a', [check('x.example.com', true), check('y.example.com', false)]);
-        const changes = routeTransitions(state, 'a', [check('x.example.com', false), check('y.example.com', true)]);
-        expect(changes.map(c => [c.host, c.online])).toEqual([['x.example.com', false], ['y.example.com', true]]);
-        expect(routeTransitions(state, 'a', [check('x.example.com', false), check('y.example.com', true)])).toEqual([]);
+    afterEach(() => notifications.close());
+
+    const observe = (inst, ...checks) => notifications.notifyCheckResults('route', inst, checks);
+
+    it('reports nothing on the first round', async () => {
+        await observe(instances[0], check('x.example.com', true), check('y.example.com', false));
+        expect(sendWebhook).not.toHaveBeenCalled();
+    });
+
+    it('reports routes whose state changed since the last round, with why they failed', async () => {
+        await observe(instances[0], check('x.example.com', true));
+        await observe(instances[0], check('x.example.com', false));
+        await observe(instances[0], check('x.example.com', false));
+        await observe(instances[0], check('x.example.com', true));
+        expect(titles()).toEqual(['Route down', 'Route recovered']);
+        expect(sendWebhook.mock.calls[0][1].body).toBe('[Alpha] x.example.com is down: HTTP 502');
+    });
+
+    it('does not announce a recovery nobody was told about', async () => {
+        await observe(instances[0], check('y.example.com', false));
+        await observe(instances[0], check('y.example.com', true));
+        expect(sendWebhook).not.toHaveBeenCalled();
     });
 
     it('forgets routes missing from a round so they do not fire when they return', async () => {
-        const { routeTransitions } = await load();
-        const state = new Map();
-        routeTransitions(state, 'a', [check('x.example.com', true)]);
-        routeTransitions(state, 'a', []);
-        expect(routeTransitions(state, 'a', [check('x.example.com', false)])).toEqual([]);
+        await observe(instances[0], check('x.example.com', true));
+        await observe(instances[0]);
+        await observe(instances[0], check('x.example.com', false));
+        expect(sendWebhook).not.toHaveBeenCalled();
     });
 
-    it('keeps instances separate', async () => {
-        const { routeTransitions } = await load();
-        const state = new Map();
-        routeTransitions(state, 'a', [check('x.example.com', true)]);
-        routeTransitions(state, 'b', [check('x.example.com', false)]);
-        expect(routeTransitions(state, 'a', [check('x.example.com', true)])).toEqual([]);
-        expect(state.get('b#x.example.com')).toBe(false);
+    it('keeps instances and kinds separate', async () => {
+        await observe(instances[0], check('x.example.com', true));
+        await observe(instances[1], check('x.example.com', false));
+        await notifications.notifyCheckResults('upstream', instances[0], [{ target: 'x.example.com', online: false, label: 'x.example.com' }]);
+        await observe(instances[0], check('x.example.com', true));
+        expect(sendWebhook).not.toHaveBeenCalled();
     });
 });
 
-describe('notifyUpstreamChecks', () => {
-    const inst = { id: 'a', name: 'Alpha' };
-    const check = (upstream, online) => ({ domain: 'app.example.com', upstream, online });
-    const config = enabled => ({
-        enabled, provider: 'ntfy', ntfy: { url: 'http://ntfy/caddy-alerts' }, debounceMinutes: 30,
-        triggers: { upstreamOffline: true, upstreamOnline: true, certExpiring: false, updateAvailable: false },
-    });
+describe('upstream transitions', () => {
+    const inst = instances[0];
+    const check = (target, online) => ({ target, online, label: target });
+    const upstreamConfig = enabled => config({ enabled, triggers: { upstreamOffline: true, upstreamOnline: true } });
+    let notifications;
 
-    async function load() {
-        vi.resetModules();
-        return import('../src/notifications.js');
-    }
-
-    beforeEach(() => {
+    beforeEach(async () => {
         sendWebhook.mockReset().mockResolvedValue(undefined);
+        notifications = await notificationsFixture({ config: upstreamConfig(true) });
     });
+
+    afterEach(() => notifications.close());
+
+    const observe = (...checks) => notifications.notifyCheckResults('upstream', inst, checks);
 
     it('alerts on transitions in the monitor rounds it is given, not on the first', async () => {
-        const { notifyUpstreamChecks, updateMonitorConfig } = await load();
-        updateMonitorConfig(config(true));
-        try {
-            await notifyUpstreamChecks(inst, [check('app:3000', true)]);
-            expect(sendWebhook).not.toHaveBeenCalled();
-            await notifyUpstreamChecks(inst, [check('app:3000', false)]);
-            expect(sendWebhook).toHaveBeenCalledTimes(1);
-            expect(sendWebhook.mock.calls[0][1].headers.Title).toBe('Upstream offline');
-        } finally {
-            updateMonitorConfig(config(false));
-        }
+        await observe(check('app:3000', true));
+        expect(sendWebhook).not.toHaveBeenCalled();
+        await observe(check('app:3000', false));
+        expect(titles()).toEqual(['Upstream offline']);
+        expect(sendWebhook.mock.calls[0][1].body).toBe('[Alpha] app:3000 is unreachable');
     });
 
     it('continues sending Upstream offline alerts after one delivery fails', async () => {
-        const { notifyUpstreamChecks, updateMonitorConfig } = await load();
-        updateMonitorConfig(config(true));
-        try {
-            await notifyUpstreamChecks(inst, [check('first:3000', true), check('second:3000', true)]);
-            sendWebhook.mockRejectedValueOnce(new Error('ntfy responded 500'));
-            const changed = [check('first:3000', false), check('second:3000', false)];
+        await observe(check('first:3000', true), check('second:3000', true));
+        sendWebhook.mockRejectedValueOnce(new Error('ntfy responded 500'));
+        const changed = [check('first:3000', false), check('second:3000', false)];
 
-            await expect(notifyUpstreamChecks(inst, changed)).resolves.toBeUndefined();
-            expect(sendWebhook).toHaveBeenCalledTimes(2);
-            expect(sendWebhook.mock.calls[1][1].headers.Title).toBe('Upstream offline');
-            expect(sendWebhook.mock.calls[1][1].body).toContain('second:3000');
+        await expect(observe(...changed)).resolves.toBeUndefined();
+        expect(titles()).toEqual(['Upstream offline', 'Upstream offline']);
+        expect(sendWebhook.mock.calls[1][1].body).toContain('second:3000');
 
-            await notifyUpstreamChecks(inst, changed);
-            expect(sendWebhook).toHaveBeenCalledTimes(2);
-        } finally {
-            updateMonitorConfig(config(false));
-        }
+        await observe(...changed);
+        expect(sendWebhook).toHaveBeenCalledTimes(2);
     });
 
     it('continues sending Upstream recovered alerts after one delivery fails', async () => {
-        const { notifyUpstreamChecks, updateMonitorConfig, _test } = await load();
-        updateMonitorConfig(config(true));
-        try {
-            // Seed delivered offline state so recovery gate passes
-            _test.deliveredOffline.add(`${inst.id}:first:3000`);
-            _test.deliveredOffline.add(`${inst.id}:second:3000`);
-            await notifyUpstreamChecks(inst, [check('first:3000', false), check('second:3000', false)]);
-            sendWebhook.mockRejectedValueOnce(new Error('ntfy responded 500'));
-            const changed = [check('first:3000', true), check('second:3000', true)];
+        await observe(check('first:3000', true), check('second:3000', true));
+        await observe(check('first:3000', false), check('second:3000', false));
+        sendWebhook.mockClear().mockRejectedValueOnce(new Error('ntfy responded 500'));
+        const changed = [check('first:3000', true), check('second:3000', true)];
 
-            await expect(notifyUpstreamChecks(inst, changed)).resolves.toBeUndefined();
-            expect(sendWebhook).toHaveBeenCalledTimes(2);
-            expect(sendWebhook.mock.calls[1][1].headers.Title).toBe('Upstream recovered');
-            expect(sendWebhook.mock.calls[1][1].body).toContain('second:3000');
+        await expect(observe(...changed)).resolves.toBeUndefined();
+        expect(titles()).toEqual(['Upstream recovered', 'Upstream recovered']);
+        expect(sendWebhook.mock.calls[1][1].body).toContain('second:3000');
 
-            await notifyUpstreamChecks(inst, changed);
-            expect(sendWebhook).toHaveBeenCalledTimes(2);
-        } finally {
-            updateMonitorConfig(config(false));
-        }
+        await observe(...changed);
+        expect(sendWebhook).toHaveBeenCalledTimes(2);
     });
 
     it('tracks state while off, so turning alerts on does not report an old transition', async () => {
-        const { notifyUpstreamChecks, updateMonitorConfig } = await load();
-        await notifyUpstreamChecks(inst, [check('app:3000', true)]);
-        await notifyUpstreamChecks(inst, [check('app:3000', false)]);
-        updateMonitorConfig(config(true));
+        await notifications.configure(upstreamConfig(false));
+        await observe(check('app:3000', true));
+        await observe(check('app:3000', false));
+        await notifications.configure(upstreamConfig(true));
+        await observe(check('app:3000', false));
+        expect(sendWebhook).not.toHaveBeenCalled();
+    });
+
+    it('debounces repeated outages of the same upstream', async () => {
+        await observe(check('app:3000', true));
+        await observe(check('app:3000', false));
+        await observe(check('app:3000', true));
+        await observe(check('app:3000', false));
+        expect(titles()).toEqual(['Upstream offline', 'Upstream recovered']);
+    });
+
+    it('leaves the instance name out with a single instance', async () => {
+        const removed = instances.splice(1);
         try {
-            await notifyUpstreamChecks(inst, [check('app:3000', false)]);
-            expect(sendWebhook).not.toHaveBeenCalled();
+            await observe(check('app:3000', true));
+            await observe(check('app:3000', false));
+            expect(sendWebhook.mock.calls[0][1].body).toBe('app:3000 is unreachable');
         } finally {
-            updateMonitorConfig(config(false));
+            instances.push(...removed);
         }
     });
 });
 
-describe('notifyExpiringApiTokens', () => {
+describe('API token expiry reminders', () => {
     const DAY = 86_400_000;
     const now = Date.parse('2026-10-18T12:00:00Z');
     const token = (id, lifetimeDays, remainingDays) => ({
@@ -283,82 +299,67 @@ describe('notifyExpiringApiTokens', () => {
         createdAt: new Date(now - (lifetimeDays - remainingDays) * DAY).toISOString(),
         expiresAt: new Date(now + remainingDays * DAY).toISOString(),
     });
-    const config = enabled => ({
-        enabled, provider: 'ntfy', ntfy: { url: 'http://ntfy/caddy-alerts' }, debounceMinutes: 30,
-        triggers: { upstreamOffline: false, upstreamOnline: false, certExpiring: false, updateAvailable: false, apiTokenExpiring: true },
-    });
+    let notifications;
+    let tokens;
 
+    // Enabling notifications starts a round right away; runReminders joins it.
     async function load() {
-        vi.resetModules();
-        const notifications = await import('../src/notifications.js');
-        notifications.updateMonitorConfig(config(true));
+        notifications = await notificationsFixture({ config: config({ triggers: { apiTokenExpiring: true } }), apiTokens: () => tokens });
         return notifications;
     }
 
     beforeEach(() => {
+        vi.useFakeTimers({ now });
         sendWebhook.mockReset().mockResolvedValue(undefined);
+        tokens = [token('a', 90, 6.5)];
+    });
+
+    afterEach(async () => {
+        await notifications.close();
+        vi.useRealTimers();
     });
 
     it('alerts once per token when 7 days or less remain', async () => {
-        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
-        try {
-            await notifyExpiringApiTokens([token('a', 90, 6.5)], now);
-            await notifyExpiringApiTokens([token('a', 90, 6.5)], now);
-            expect(sendWebhook).toHaveBeenCalledTimes(1);
-            const [, request] = sendWebhook.mock.calls[0];
-            expect(request.headers.Title).toBe('API token expiring');
-            expect(request.body).toBe('API token "Token a" expires in 7 days (2026-10-25)');
-        } finally {
-            updateMonitorConfig(config(false));
-        }
+        const { runReminders } = await load();
+        await runReminders();
+        await runReminders();
+        expect(sendWebhook).toHaveBeenCalledTimes(1);
+        const [, request] = sendWebhook.mock.calls[0];
+        expect(request.headers.Title).toBe('API token expiring');
+        expect(request.body).toBe('API token "Token a" expires in 7 days (2026-10-25)');
     });
 
-    it.each(['ntfy responded 500', 'ntfy request timed out'])('retries after delivery fails: %s', async message => {
-        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
-        const tokens = [token('a', 90, 6.5)];
-        const error = new Error(message);
-        sendWebhook.mockRejectedValueOnce(error);
-        try {
-            await expect(notifyExpiringApiTokens(tokens, now)).rejects.toBe(error);
-            await notifyExpiringApiTokens(tokens, now + 30_000);
-            await notifyExpiringApiTokens(tokens, now + 60_000);
-            expect(sendWebhook).toHaveBeenCalledTimes(2);
-        } finally {
-            updateMonitorConfig(config(false));
-        }
+    it.each(['ntfy responded 500', 'ntfy request timed out'])('retries the next round after delivery fails: %s', async message => {
+        const error = logger.error.mockClear();
+        sendWebhook.mockRejectedValueOnce(new Error(message));
+        const { runReminders } = await load();
+        await runReminders();
+        expect(error).toHaveBeenCalledWith('Notification check failed', { category: 'api-tokens', error: message });
+        await runReminders();
+        await runReminders();
+        expect(sendWebhook).toHaveBeenCalledTimes(2);
     });
 
-    it.each(['success', 'failure'])('suppresses overlapping sends while delivery is pending, then handles %s', async outcome => {
-        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
-        const tokens = [token('a', 90, 6.5)];
-        const error = new Error('ntfy request timed out');
+    it.each(['success', 'failure'])('does not start an overlapping round while delivery is pending, then handles %s', async outcome => {
         let finish;
         sendWebhook.mockImplementationOnce(() => new Promise((resolve, reject) => {
-            finish = () => outcome === 'success' ? resolve() : reject(error);
+            finish = () => outcome === 'success' ? resolve() : reject(new Error('ntfy request timed out'));
         }));
-        const pending = notifyExpiringApiTokens(tokens, now);
-        const settled = pending.then(() => undefined, err => err);
-        try {
-            await notifyExpiringApiTokens(tokens, now + 30_000);
-            expect(sendWebhook).toHaveBeenCalledTimes(1);
-            finish();
-            expect(await settled).toBe(outcome === 'success' ? undefined : error);
-            await notifyExpiringApiTokens(tokens, now + 60_000);
-            expect(sendWebhook).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 2);
-        } finally {
-            finish();
-            await settled;
-            updateMonitorConfig(config(false));
-        }
+        const { runReminders } = await load();
+        const round = runReminders();
+        expect(runReminders()).toBe(round);
+        await vi.advanceTimersByTimeAsync(5 * 60_000);
+        expect(sendWebhook).toHaveBeenCalledTimes(1);
+        finish();
+        await round;
+        await runReminders();
+        expect(sendWebhook).toHaveBeenCalledTimes(outcome === 'success' ? 1 : 2);
     });
 
     it('skips tokens outside the window, already expired, or short-lived by choice', async () => {
-        const { notifyExpiringApiTokens, updateMonitorConfig } = await load();
-        try {
-            await notifyExpiringApiTokens([token('far', 90, 8), token('gone', 90, -1), token('short', 7, 3)], now);
-            expect(sendWebhook).not.toHaveBeenCalled();
-        } finally {
-            updateMonitorConfig(config(false));
-        }
+        tokens = [token('far', 90, 8), token('gone', 90, -1), token('short', 7, 3)];
+        const { runReminders } = await load();
+        await runReminders();
+        expect(sendWebhook).not.toHaveBeenCalled();
     });
 });

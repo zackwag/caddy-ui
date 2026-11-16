@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { notificationsFixture } from './fixtures/notifications.mjs';
 
 const { sendWebhook } = vi.hoisted(() => ({ sendWebhook: vi.fn() }));
 vi.mock('../src/webhookTransport.js', () => ({ sendWebhook }));
 
-const instances = [{ id: 'i1', name: 'Main', adminUrl: 'http://localhost:2019' }];
+const instances = vi.hoisted(() => [
+    { id: 'i1', name: 'Main', adminUrl: 'http://localhost:2019' },
+    { id: 'i10', name: 'Other', adminUrl: 'http://localhost:2020' },
+]);
 vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));
 
 vi.mock('../src/logger.js', () => ({
@@ -11,7 +15,7 @@ vi.mock('../src/logger.js', () => ({
 }));
 
 const inst = instances[0];
-const upstream = { upstream: '10.0.0.1:8080', domain: 'app.example.com' };
+const result = (target, online) => ({ target, online, label: `app.example.com (${target})` });
 
 function cfg(overrides = {}) {
     return {
@@ -30,25 +34,16 @@ describe('upstream notification retries', () => {
     beforeEach(async () => {
         vi.useFakeTimers();
         sendWebhook.mockReset().mockResolvedValue(undefined);
-        vi.resetModules();
-        notifications = await import('../src/notifications.js');
-        notifications.updateMonitorConfig(cfg());
+        notifications = await notificationsFixture({ config: cfg() });
     });
 
-    afterEach(() => {
-        notifications.updateMonitorConfig({ ...cfg(), enabled: false });
-        notifications.cancelAllPendingRetries();
-        notifications._test.upstreamState.clear();
-        notifications._test.deliveredOffline.clear();
+    afterEach(async () => {
+        await notifications.close();
         vi.useRealTimers();
     });
 
-    function seed(online) {
-        notifications._test.upstreamState.set('i1:10.0.0.1:8080', online);
-    }
-
-    function observe(online) {
-        return notifications.notifyUpstreamChecks(inst, [{ ...upstream, online }]);
+    function observe(online, owner = inst) {
+        return notifications.notifyCheckResults('upstream', owner, [result('10.0.0.1:8080', online)]);
     }
 
     function titles() {
@@ -62,148 +57,103 @@ describe('upstream notification retries', () => {
     }
 
     it('retries delivery up to 3 times on failure', async () => {
-        seed(true);
+        await observe(true);
         sendWebhook.mockRejectedValue(new Error('ntfy responded 500'));
 
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: false }]);
-        await vi.advanceTimersByTimeAsync(0);
+        await observe(false);
         expect(sendWebhook).toHaveBeenCalledTimes(1);
 
         await vi.advanceTimersByTimeAsync(30_000);
-        await vi.advanceTimersByTimeAsync(0);
         expect(sendWebhook).toHaveBeenCalledTimes(2);
 
         await vi.advanceTimersByTimeAsync(60_000);
-        await vi.advanceTimersByTimeAsync(0);
         expect(sendWebhook).toHaveBeenCalledTimes(3);
 
         // No more retries after max attempts
         await vi.advanceTimersByTimeAsync(120_000);
         expect(sendWebhook).toHaveBeenCalledTimes(3);
-        expect(notifications._test.pendingRetries.size).toBe(0);
     });
 
     it('stops retrying after successful delivery', async () => {
-        seed(true);
-        sendWebhook.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(undefined);
+        await observe(true);
+        sendWebhook.mockRejectedValueOnce(new Error('timeout'));
 
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: false }]);
-        await vi.advanceTimersByTimeAsync(0);
+        await observe(false);
         expect(sendWebhook).toHaveBeenCalledTimes(1);
 
         await vi.advanceTimersByTimeAsync(30_000);
-        await vi.advanceTimersByTimeAsync(0);
         expect(sendWebhook).toHaveBeenCalledTimes(2);
 
-        // No further retries after success
         await vi.advanceTimersByTimeAsync(120_000);
         expect(sendWebhook).toHaveBeenCalledTimes(2);
-        expect(notifications._test.pendingRetries.size).toBe(0);
     });
 
     it('cancels pending retry when upstream state changes', async () => {
-        seed(true);
+        await observe(true);
         sendWebhook.mockRejectedValue(new Error('timeout'));
+        await observe(false);
 
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: false }]);
-        await vi.advanceTimersByTimeAsync(0);
-        expect(notifications._test.pendingRetries.size).toBe(1);
-
-        // Upstream comes back online before retry fires — cancels the pending offline retry
+        // Upstream comes back online before the retry fires
         sendWebhook.mockResolvedValue(undefined);
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: true }]);
-        await vi.advanceTimersByTimeAsync(0);
-
-        // Old offline retry timer should not fire
+        await observe(true);
         await vi.advanceTimersByTimeAsync(120_000);
-        // Only the initial failed attempt + whatever the state change triggered
-        const offlineCalls = sendWebhook.mock.calls.filter(
-            ([, req]) => req.headers?.Title === 'Upstream offline'
-        );
-        expect(offlineCalls).toHaveLength(1);
+
+        expect(titles().filter(title => title === 'Upstream offline')).toHaveLength(1);
     });
 
     it('recovery alert requires a delivered offline alert', async () => {
-        seed(true);
-
-        // Go offline — delivery succeeds
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: false }]);
-        await vi.advanceTimersByTimeAsync(0);
-        expect(sendWebhook).toHaveBeenCalledTimes(1);
-        expect(notifications._test.deliveredOffline.has('i1:10.0.0.1:8080')).toBe(true);
-
-        // Go back online — recovery should fire
-        sendWebhook.mockClear();
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: true }]);
-        await vi.advanceTimersByTimeAsync(0);
-
-        expect(sendWebhook).toHaveBeenCalledTimes(1);
-        expect(sendWebhook.mock.calls[0][1].headers.Title).toBe('Upstream recovered');
+        await observe(true);
+        await observe(false);
+        await observe(true);
+        expect(titles()).toEqual(['Upstream offline', 'Upstream recovered']);
     });
 
     it('suppresses recovery alert when offline was never delivered', async () => {
-        seed(true);
+        await observe(true);
         sendWebhook.mockRejectedValue(new Error('fail'));
+        await observe(false);
+        await vi.advanceTimersByTimeAsync(90_000);
+        expect(sendWebhook).toHaveBeenCalledTimes(3);
 
-        // Go offline — all delivery attempts fail
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: false }]);
-        await vi.advanceTimersByTimeAsync(0);
-        await vi.advanceTimersByTimeAsync(30_000);
-        await vi.advanceTimersByTimeAsync(0);
-        await vi.advanceTimersByTimeAsync(60_000);
-        await vi.advanceTimersByTimeAsync(0);
-
-        expect(notifications._test.deliveredOffline.has('i1:10.0.0.1:8080')).toBe(false);
-
-        // Go back online
         sendWebhook.mockClear().mockResolvedValue(undefined);
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: true }]);
-        await vi.advanceTimersByTimeAsync(0);
-
-        const recoveryCalls = sendWebhook.mock.calls.filter(
-            ([, req]) => req.headers?.Title === 'Upstream recovered'
-        );
-        expect(recoveryCalls).toHaveLength(0);
+        await observe(true);
+        expect(sendWebhook).not.toHaveBeenCalled();
     });
 
     it('discards pending retries when trigger is disabled', async () => {
-        seed(true);
+        await observe(true);
         sendWebhook.mockRejectedValue(new Error('fail'));
+        await observe(false);
 
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: false }]);
-        await vi.advanceTimersByTimeAsync(0);
-        expect(notifications._test.pendingRetries.size).toBe(1);
-
-        notifications.updateMonitorConfig(cfg({
+        await notifications.configure(cfg({
             triggers: { upstreamOffline: false, upstreamOnline: false, certExpiring: false, updateAvailable: false, apiTokenExpiring: false },
         }));
+        await vi.advanceTimersByTimeAsync(120_000);
 
-        expect(notifications._test.pendingRetries.size).toBe(0);
+        expect(sendWebhook).toHaveBeenCalledTimes(1);
     });
 
-    it('discards pending retries when monitor is stopped', async () => {
-        seed(true);
+    it('discards pending retries when notifications are disabled', async () => {
+        await observe(true);
         sendWebhook.mockRejectedValue(new Error('fail'));
+        await observe(false);
 
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: false }]);
-        await vi.advanceTimersByTimeAsync(0);
-        expect(notifications._test.pendingRetries.size).toBe(1);
+        await notifications.configure(cfg({ enabled: false }));
+        await vi.advanceTimersByTimeAsync(120_000);
 
-        notifications.updateMonitorConfig({ ...cfg(), enabled: false });
-        expect(notifications._test.pendingRetries.size).toBe(0);
+        expect(sendWebhook).toHaveBeenCalledTimes(1);
     });
 
     it('discards pending retry when upstream disappears', async () => {
-        seed(true);
+        await observe(true);
         sendWebhook.mockRejectedValue(new Error('fail'));
-
-        await notifications.notifyUpstreamChecks(inst, [{ ...upstream, online: false }]);
-        await vi.advanceTimersByTimeAsync(0);
-        expect(notifications._test.pendingRetries.size).toBe(1);
+        await observe(false);
 
         // Next round has no upstreams for this instance
-        await notifications.notifyUpstreamChecks(inst, []);
-        expect(notifications._test.pendingRetries.has('i1:10.0.0.1:8080')).toBe(false);
+        await notifications.notifyCheckResults('upstream', inst, []);
+        await vi.advanceTimersByTimeAsync(120_000);
+
+        expect(sendWebhook).toHaveBeenCalledTimes(1);
     });
 
     it('does not revive a cancelled delivery after stop, recovery and restart', async () => {
@@ -211,12 +161,11 @@ describe('upstream notification retries', () => {
         const delivery = deferred();
         sendWebhook.mockImplementationOnce(() => delivery.promise);
         const sending = observe(false);
-        notifications.updateMonitorConfig(cfg({ enabled: false }));
+        await notifications.configure(cfg({ enabled: false }));
         await observe(true);
-        notifications.updateMonitorConfig(cfg());
+        await notifications.configure(cfg());
         delivery.reject(new Error('late provider failure'));
         await sending;
-        expect(notifications._test.pendingRetries.size).toBe(0);
         await vi.advanceTimersByTimeAsync(120_000);
         expect(titles()).toEqual(['Upstream offline']);
     });
@@ -226,10 +175,10 @@ describe('upstream notification retries', () => {
         const delivery = deferred();
         sendWebhook.mockImplementationOnce(() => delivery.promise);
         const sending = observe(false);
-        notifications.updateMonitorConfig(cfg({ enabled: false }));
+        await notifications.configure(cfg({ enabled: false }));
         delivery.resolve();
         await sending;
-        notifications.updateMonitorConfig(cfg());
+        await notifications.configure(cfg());
         await observe(true);
         await observe(false);
         expect(titles()).toEqual(['Upstream offline', 'Upstream offline']);
@@ -240,25 +189,27 @@ describe('upstream notification retries', () => {
         const old = deferred(), replacement = deferred();
         sendWebhook.mockImplementationOnce(() => old.promise);
         const sendingOld = observe(false);
-        notifications.updateMonitorConfig(cfg({ enabled: false }));
+        await notifications.configure(cfg({ enabled: false }));
         await observe(true);
-        notifications.updateMonitorConfig(cfg());
+        await notifications.configure(cfg());
         sendWebhook.mockImplementationOnce(() => replacement.promise);
         const sendingReplacement = observe(false);
-        const key = `${inst.id}:${upstream.upstream}`;
-        const pending = notifications._test.pendingRetries.get(key);
-        expect(pending).toBeDefined();
-        if (success) old.resolve();
-        else old.reject(new Error('cancelled provider failure'));
+        if (success) {
+            old.resolve();
+        } else {
+            old.reject(new Error('cancelled provider failure'));
+        }
         await sendingOld;
-        const pendingAfterOldCompletion = notifications._test.pendingRetries.get(key);
-        const deliveredAfterOldCompletion = notifications._test.deliveredOffline.has(key);
-        replacement.resolve();
+
+        // The replacement still owns the retry, so its failure is retried
+        replacement.reject(new Error('replacement failure'));
         await sendingReplacement;
-        expect(pendingAfterOldCompletion).toBe(pending);
-        expect(deliveredAfterOldCompletion).toBe(false);
-        expect(notifications._test.pendingRetries.size).toBe(0);
-        expect(notifications._test.deliveredOffline.has(key)).toBe(true);
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(titles()).toEqual(['Upstream offline', 'Upstream offline', 'Upstream offline']);
+
+        // and its eventual delivery makes the recovery announceable
+        await observe(true);
+        expect(titles().at(-1)).toBe('Upstream recovered');
     });
 
     it('does not revive an in-flight retry after recovery cancels it', async () => {
@@ -272,7 +223,6 @@ describe('upstream notification retries', () => {
         retry.reject(new Error('late retry failure'));
         await vi.advanceTimersByTimeAsync(120_000);
         expect(titles()).toEqual(['Upstream offline', 'Upstream offline']);
-        expect(notifications._test.pendingRetries.size).toBe(0);
     });
 
     it('retains recovery eligibility after a failed recovery and another flap', async () => {
@@ -283,7 +233,6 @@ describe('upstream notification retries', () => {
         await observe(false);
         await observe(true);
         expect(titles()).toEqual(['Upstream offline', 'Upstream recovered', 'Upstream recovered']);
-        expect(notifications._test.deliveredOffline.size).toBe(0);
     });
 
     it.each(['offline', 'online'])('discards only the disabled %s trigger before it is re-enabled', async type => {
@@ -295,21 +244,21 @@ describe('upstream notification retries', () => {
         sendWebhook.mockRejectedValueOnce(new Error('provider failed'));
         await observe(type === 'online');
         const trigger = type === 'offline' ? 'upstreamOffline' : 'upstreamOnline';
-        notifications.updateMonitorConfig(cfg({ triggers: { ...cfg().triggers, [trigger]: false } }));
-        notifications.updateMonitorConfig(cfg());
+        await notifications.configure(cfg({ triggers: { ...cfg().triggers, [trigger]: false } }));
+        await notifications.configure(cfg());
         await vi.advanceTimersByTimeAsync(120_000);
         expect(titles()).toEqual([type === 'offline' ? 'Upstream offline' : 'Upstream recovered']);
     });
 
     it('preserves recovery retries when only the offline trigger is disabled', async () => {
-        const observeBoth = (first, second) => notifications.notifyUpstreamChecks(inst, [
-            { ...upstream, online: first }, { upstream: 'other:8080', online: second },
+        const observeBoth = (first, second) => notifications.notifyCheckResults('upstream', inst, [
+            result('10.0.0.1:8080', first), result('other:8080', second),
         ]);
         await observeBoth(true, true);
         await observeBoth(false, true);
         sendWebhook.mockRejectedValue(new Error('provider failed'));
         await observeBoth(true, false);
-        notifications.updateMonitorConfig(cfg({ triggers: { ...cfg().triggers, upstreamOffline: false } }));
+        await notifications.configure(cfg({ triggers: { ...cfg().triggers, upstreamOffline: false } }));
         sendWebhook.mockResolvedValue(undefined);
         await vi.advanceTimersByTimeAsync(30_000);
         expect(titles()).toEqual(['Upstream offline', 'Upstream recovered', 'Upstream offline', 'Upstream recovered']);
@@ -318,7 +267,7 @@ describe('upstream notification retries', () => {
     it('forgets delivery history and cooldown when an upstream disappears', async () => {
         await observe(true);
         await observe(false);
-        await notifications.notifyUpstreamChecks(inst, []);
+        await notifications.notifyCheckResults('upstream', inst, []);
         await observe(true);
         expect(titles()).toEqual(['Upstream offline']);
         await observe(false);
@@ -330,22 +279,34 @@ describe('upstream notification retries', () => {
         const delivery = deferred();
         sendWebhook.mockImplementationOnce(() => delivery.promise);
         const sending = observe(false);
-        await notifications.notifyUpstreamChecks(inst, []);
+        await notifications.notifyCheckResults('upstream', inst, []);
         delivery.resolve();
         await sending;
+        await observe(false);
         await observe(true);
         expect(titles()).toEqual(['Upstream offline']);
-        expect(notifications._test.deliveredOffline.size).toBe(0);
+    });
+
+    it('stops delivering once the instance is removed', async () => {
+        await observe(true);
+        sendWebhook.mockRejectedValue(new Error('provider failed'));
+        await observe(false);
+        instances.splice(0, 1);
+        try {
+            await vi.advanceTimersByTimeAsync(120_000);
+            expect(sendWebhook).toHaveBeenCalledTimes(1);
+        } finally {
+            instances.unshift(inst);
+        }
     });
 
     it.each([true, false])('releases instance history and pending work with delivered=%s', async delivered => {
         await observe(true);
-        if (!delivered) sendWebhook.mockRejectedValueOnce(new Error('provider failed'));
+        if (!delivered) {
+            sendWebhook.mockRejectedValueOnce(new Error('provider failed'));
+        }
         await observe(false);
-        notifications.releaseInstanceNotifications(inst.id);
-        expect(notifications._test.upstreamState.size).toBe(0);
-        expect(notifications._test.deliveredOffline.size).toBe(0);
-        expect(notifications._test.pendingRetries.size).toBe(0);
+        notifications.forgetInstanceNotifications(inst.id);
         await vi.advanceTimersByTimeAsync(120_000);
         expect(titles()).toEqual(['Upstream offline']);
         await observe(false);
@@ -355,11 +316,11 @@ describe('upstream notification retries', () => {
     });
 
     it('does not release a different instance with a similar id prefix', async () => {
-        const other = { id: 'i10', name: 'Other' };
-        await notifications.notifyUpstreamChecks(other, [{ ...upstream, online: true }]);
-        await notifications.notifyUpstreamChecks(other, [{ ...upstream, online: false }]);
-        notifications.releaseInstanceNotifications(inst.id);
-        await notifications.notifyUpstreamChecks(other, [{ ...upstream, online: true }]);
+        const other = instances[1];
+        await observe(true, other);
+        await observe(false, other);
+        notifications.forgetInstanceNotifications(inst.id);
+        await observe(true, other);
         expect(titles()).toEqual(['Upstream offline', 'Upstream recovered']);
     });
 });

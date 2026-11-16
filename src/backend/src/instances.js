@@ -1,6 +1,5 @@
-import { mkdir, readFile, writeFile } from 'fs/promises';
-import { dirname } from 'path';
 import { AppError } from './AppError.js';
+import { createJsonStore } from './jsonFile.js';
 import logger from './logger.js';
 
 const INSTANCES_PATH = process.env.INSTANCES_PATH || '/etc/caddy-ui/instances.json';
@@ -8,9 +7,6 @@ const INSTANCES_PATH = process.env.INSTANCES_PATH || '/etc/caddy-ui/instances.js
 // The bootstrap instance's id when no instances.json exists yet. Requests that
 // omit X-Instance-Id, or send this id, select it or else the first instance.
 export const DEFAULT_INSTANCE_ID = 'default';
-
-let _instances = null;
-let _writeLock = Promise.resolve();
 
 // Instances saved before validateUrl dropped the trailing slash still have
 // one, and the background monitors use adminUrl without re-validating it.
@@ -32,37 +28,22 @@ function buildDefaultInstance() {
     };
 }
 
-export async function loadInstances() {
-    try {
-        const raw = await readFile(INSTANCES_PATH, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-            _instances = parsed.map(inst => (inst && typeof inst === 'object' ? { ...inst, adminUrl: normalizeAdminUrl(inst.adminUrl) } : inst));
-            return _instances;
-        }
-    } catch { }
+function parseInstances(parsed) {
+    if (Array.isArray(parsed)) {
+        return parsed.map(inst => (inst && typeof inst === 'object' ? { ...inst, adminUrl: normalizeAdminUrl(inst.adminUrl) } : inst));
+    }
     const defaultInst = buildDefaultInstance();
-    _instances = defaultInst ? [defaultInst] : [];
-    return _instances;
+    return defaultInst ? [defaultInst] : [];
 }
 
-// Derive a change inside the write queue against the last successfully saved
-// state. Publish the new array only after persistence succeeds.
-export async function saveInstances(change) {
-    // A failed operation still rejects its caller, but must not prevent later
-    // operations from retrying against the last successfully saved state.
-    _writeLock = _writeLock.catch(() => {}).then(async () => {
-        const instances = typeof change === 'function' ? change(getInstances()) : change;
-        await mkdir(dirname(INSTANCES_PATH), { recursive: true });
-        await writeFile(INSTANCES_PATH, JSON.stringify(instances, null, 2), 'utf8');
-        _instances = instances;
-        return instances;
-    });
-    return _writeLock;
+const store = createJsonStore(INSTANCES_PATH, { parse: parseInstances });
+
+export function loadInstances() {
+    return store.load();
 }
 
 export function getInstances() {
-    return _instances || [];
+    return store.get();
 }
 
 // Only an omitted or default selection falls back to the first instance. Any
@@ -76,7 +57,7 @@ export function getInstance(id) {
 }
 
 export async function addInstance(instance) {
-    await saveInstances(instances => {
+    await store.update(instances => {
         if (instances.find(i => i.id === instance.id)) {
             throw new AppError('CONFLICT', { message: `Instance "${instance.id}" already exists` });
         }
@@ -87,7 +68,7 @@ export async function addInstance(instance) {
 }
 
 export async function updateInstance(id, updates) {
-    const saved = await saveInstances(instances => {
+    const saved = await store.update(instances => {
         const idx = instances.findIndex(i => i.id === id);
         if (idx === -1) throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
         return instances.map((inst, i) => i === idx ? { ...inst, ...updates, id } : inst);
@@ -96,11 +77,28 @@ export async function updateInstance(id, updates) {
     return saved.find(instance => instance.id === id);
 }
 
+const removalListeners = new Set();
+
+// State kept per instance elsewhere is released through these, so a new
+// instance that reuses the id starts clean.
+export function onInstanceRemoved(listener) {
+    removalListeners.add(listener);
+}
+
 export async function removeInstance(id) {
-    await saveInstances(instances => {
+    await store.update(instances => {
         const idx = instances.findIndex(i => i.id === id);
         if (idx === -1) throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
         return instances.filter((_, i) => i !== idx);
     });
     logger.info('Instance removed', { id });
+    // The instance is gone either way, so a release that fails is logged
+    // rather than reported as a failed removal.
+    for (const listener of removalListeners) {
+        try {
+            await listener(id);
+        } catch (err) {
+            logger.error('Could not release state for removed instance', { id, error: err.message });
+        }
+    }
 }

@@ -1,41 +1,41 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import logger from '../src/logger.js';
-import { recordAuthentication } from '../src/authEvents.js';
+import { onAuthenticationEvent, recordAuthentication } from '../src/authEvents.js';
 
-const { notifyAuthenticationEvent } = vi.hoisted(() => ({ notifyAuthenticationEvent: vi.fn() }));
-vi.mock('../src/notifications.js', () => ({ notifyAuthenticationEvent }));
-afterEach(() => { vi.restoreAllMocks(); notifyAuthenticationEvent.mockReset(); });
+const listener = vi.fn();
+onAuthenticationEvent(listener);
+afterEach(() => { vi.restoreAllMocks(); listener.mockReset(); });
 
 describe('authentication event policy', () => {
     it.each([
-        ['password', 'success', false, 'info', 'default'],
-        ['password', 'success', true, 'warn', 'high'],
-        ['password', 'failure', false, 'warn', 'default'],
-        ['password-totp', 'success', false, 'info', 'default'],
-        ['password-totp', 'success', true, 'warn', 'high'],
-        ['totp', 'failure', false, 'warn', 'default'],
-        ['passkey', 'success', false, 'info', 'default'],
-        ['passkey', 'failure', false, 'warn', 'default'],
-        ['recovery', 'success', false, 'warn', 'high'],
-        ['recovery', 'failure', false, 'warn', 'high'],
-    ])('%s %s has fixed severity and priority (passkeys: %s)', async (method, outcome, keys, severity, priority) => {
+        ['password', 'success', false, 'info'],
+        ['password', 'success', true, 'warn'],
+        ['password', 'failure', false, 'warn'],
+        ['password-totp', 'success', false, 'info'],
+        ['password-totp', 'success', true, 'warn'],
+        ['totp', 'failure', false, 'warn'],
+        ['passkey', 'success', false, 'info'],
+        ['passkey', 'failure', false, 'warn'],
+        ['recovery', 'success', false, 'warn'],
+        ['recovery', 'failure', false, 'warn'],
+    ])('%s %s has a fixed severity (passkeys: %s)', async (method, outcome, keys, severity) => {
         const log = vi.spyOn(logger, severity).mockImplementation(() => {});
         recordAuthentication({ ip: '192.0.2.10' }, method, outcome, keys);
         await Promise.resolve();
         expect(log).toHaveBeenCalledWith('Authentication event', expect.objectContaining({ method, outcome }));
-        expect(notifyAuthenticationEvent).toHaveBeenCalledWith(expect.objectContaining({ method, outcome, priority }));
+        expect(listener).toHaveBeenCalledWith(expect.objectContaining({ method, outcome }));
     });
 
-    it('labels failed codes and completed two-factor logins without calling them passkey events', async () => {
+    it('reports whether passkeys were configured only for successful password sign-ins', async () => {
         vi.spyOn(logger, 'warn').mockImplementation(() => {});
         vi.spyOn(logger, 'info').mockImplementation(() => {});
-        recordAuthentication({}, 'totp', 'failure');
-        recordAuthentication({}, 'password-totp', 'success');
+        recordAuthentication({}, 'password', 'success', true);
+        recordAuthentication({}, 'password-totp', 'success', false);
+        recordAuthentication({}, 'password', 'failure', true);
+        recordAuthentication({}, 'passkey', 'success', true);
         await Promise.resolve();
-        expect(notifyAuthenticationEvent.mock.calls.map(([event]) => event.title)).toEqual([
-            'Authenticator sign-in failed', 'Password and authenticator sign-in succeeded',
-        ]);
+        expect(listener.mock.calls.map(([event]) => event.passkeysConfigured)).toEqual([true, false, undefined, undefined]);
     });
 
     it('copies only safe metadata and ignores raw forwarding headers and submitted fields', async () => {
@@ -49,7 +49,7 @@ describe('authentication event policy', () => {
         await Promise.resolve();
         expect(log.mock.calls[0][1]).toEqual({ event: 'authentication', timestamp: expect.any(String),
             method: 'recovery', outcome: 'failure', sourceIp: '127.0.0.1' });
-        const payload = JSON.stringify(notifyAuthenticationEvent.mock.calls);
+        const payload = JSON.stringify(listener.mock.calls);
         for (const value of ['203.0.113.10', 'private-cookie', 'unverified-name', password, recoveryKey, '123456', '654321', 'private-seed']) {
             expect(payload).not.toContain(value);
         }
@@ -60,13 +60,13 @@ describe('authentication event policy', () => {
         recordAuthentication({ ip: '2001:db8::1', socket: { remoteAddress: '127.0.0.1' } }, 'passkey', 'success');
         recordAuthentication({ ip: 'malformed\ninjected' }, 'passkey', 'success');
         await Promise.resolve();
-        expect(notifyAuthenticationEvent.mock.calls.map(([event]) => event.sourceIp)).toEqual(['2001:db8::1', 'unknown']);
+        expect(listener.mock.calls.map(([event]) => event.sourceIp)).toEqual(['2001:db8::1', 'unknown']);
     });
 
     it('contains synchronous and asynchronous notification failures', async () => {
         vi.spyOn(logger, 'info').mockImplementation(() => {});
         const warning = vi.spyOn(logger, 'warn').mockImplementation(() => {});
-        notifyAuthenticationEvent.mockImplementationOnce(() => { throw new Error('private destination'); })
+        listener.mockImplementationOnce(() => { throw new Error('private destination'); })
             .mockRejectedValueOnce(new Error('private provider response'));
         recordAuthentication({}, 'password', 'success');
         recordAuthentication({}, 'passkey', 'success');

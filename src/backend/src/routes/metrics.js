@@ -4,20 +4,17 @@ import { getInstances } from '../instances.js';
 import logger from '../logger.js';
 import { asAppError, errorChain } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
-import { ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
+import { PROBES } from '../monitoring.js';
 import { getStatsForInstance } from '../uptimeHistory.js';
 import { changeResultFields, saveCaddyfileChange } from './caddyfile.js';
 import { getAuthentication } from '../middleware/auth.js';
 
 const router = Router();
 
-// Targets whose last recorded check is older than this are left out of the
-// scrape: they've been removed from the config (or excluded from route
-// checks), their instance is unreachable, or checks were turned off, and
-// exporting their last known state would read as current. Route checks run
-// every 5 minutes, so they get proportionally more slack.
-const UPTIME_STALE_MS = 5 * 60 * 1000;
-const ROUTE_UPTIME_STALE_MS = Math.max(UPTIME_STALE_MS, ROUTE_CHECK_INTERVAL_MS * 2.5);
+// Targets whose last recorded check is stale are left out of the scrape:
+// they've been removed from the config (or excluded from route checks), their
+// instance is unreachable, or checks were turned off, and exporting their last
+// known state would read as current.
 
 function uptimeFamilies(kind) {
     return [
@@ -30,8 +27,8 @@ function uptimeFamilies(kind) {
 // Upstream series come from each instance's `stats`, route series (labeled
 // by site host) from `routeStats`.
 const UPTIME_KINDS = [
-    { kind: 'upstream', statsKey: 'stats', staleMs: UPTIME_STALE_MS, families: uptimeFamilies('upstream') },
-    { kind: 'route', statsKey: 'routeStats', staleMs: ROUTE_UPTIME_STALE_MS, families: uptimeFamilies('route') },
+    { kind: 'upstream', statsKey: 'stats', staleMs: PROBES.upstream.staleMs, families: uptimeFamilies('upstream') },
+    { kind: 'route', statsKey: 'routeStats', staleMs: PROBES.route.staleMs, families: uptimeFamilies('route') },
 ];
 
 function escapeLabelValue(value) {

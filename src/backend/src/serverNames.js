@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from 'fs/promises';
-import { dirname } from 'path';
+import { createJsonStore, readJsonState } from './jsonFile.js';
 import logger from './logger.js';
 
 // Dashboard labels for Caddy server IDs, per instance:
@@ -7,8 +6,7 @@ import logger from './logger.js';
 // an srv0, so labels can't be keyed by server ID alone.
 const NAMES_PATH = process.env.SERVER_NAMES_PATH || '/etc/caddy-ui/server-names.json';
 
-let _state = {};
-let _writeLock = Promise.resolve();
+const store = createJsonStore(NAMES_PATH, { parse: () => ({}) });
 
 function isLabelMap(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -32,48 +30,41 @@ export function migrateServerNames(raw, instanceIds) {
 }
 
 export async function loadServerNames(instanceIds) {
-    let raw = null;
-    try {
-        raw = JSON.parse(await readFile(NAMES_PATH, 'utf8'));
-    } catch { }
+    const raw = await readJsonState(NAMES_PATH);
     const migrated = migrateServerNames(raw, instanceIds);
-    _state = migrated || {};
     if (migrated && JSON.stringify(migrated) !== JSON.stringify(raw)) {
-        await _flush();
+        await store.set(migrated);
         logger.info('Server names migrated to per-instance labels', { instances: instanceIds.length });
+        return;
     }
+    store.hydrate(migrated || {});
 }
 
 export function getServerNames(instanceId) {
-    return { ...(_state[instanceId] || {}) };
+    return { ...(store.get()[instanceId] || {}) };
 }
 
 export function getAllServerNames() {
-    return structuredClone(_state);
+    return structuredClone(store.get());
 }
 
 export async function setServerName(instanceId, serverId, name) {
-    _state[instanceId] = { ...(_state[instanceId] || {}), [serverId]: name };
-    await _flush();
+    await store.update(names => {
+        names[instanceId] = { ...(names[instanceId] || {}), [serverId]: name };
+    });
 }
 
 export async function removeServerName(instanceId, serverId) {
-    if (!_state[instanceId]) return;
-    delete _state[instanceId][serverId];
-    if (!Object.keys(_state[instanceId]).length) delete _state[instanceId];
-    await _flush();
+    await store.update(names => {
+        if (!names[instanceId]) return false;
+        delete names[instanceId][serverId];
+        if (!Object.keys(names[instanceId]).length) delete names[instanceId];
+    });
 }
 
 export async function removeInstanceServerNames(instanceId) {
-    if (!_state[instanceId]) return;
-    delete _state[instanceId];
-    await _flush();
-}
-
-async function _flush() {
-    _writeLock = _writeLock.then(async () => {
-        await mkdir(dirname(NAMES_PATH), { recursive: true });
-        await writeFile(NAMES_PATH, JSON.stringify(_state, null, 2), 'utf8');
+    await store.update(names => {
+        if (!names[instanceId]) return false;
+        delete names[instanceId];
     });
-    await _writeLock;
 }

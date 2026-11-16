@@ -155,7 +155,10 @@ describe('resultsByUpstream', () => {
             { domain: 'b.example.com', upstream: 'app:3000', online: true },
             { domain: 'c.example.com', upstream: 'other:4000', online: false },
         ];
-        expect([...resultsByUpstream(checks)]).toEqual([['app:3000', true], ['other:4000', false]]);
+        expect(resultsByUpstream(checks)).toEqual([
+            { target: 'app:3000', online: true, label: 'a.example.com, b.example.com (app:3000)' },
+            { target: 'other:4000', online: false, label: 'c.example.com (other:4000)' },
+        ]);
     });
 
     it('is offline if any route saw the upstream offline', () => {
@@ -164,10 +167,10 @@ describe('resultsByUpstream', () => {
             { upstream: 'app:3000', online: false },
             { upstream: 'app:3000', online: true },
         ];
-        expect(resultsByUpstream(checks).get('app:3000')).toBe(false);
+        expect(resultsByUpstream(checks)).toEqual([{ target: 'app:3000', online: false, label: 'app:3000' }]);
     });
 
     it('returns nothing for no checks', () => {
-        expect(resultsByUpstream([]).size).toBe(0);
+        expect(resultsByUpstream([])).toEqual([]);
     });
 });

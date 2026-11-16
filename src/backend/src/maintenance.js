@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { caddyfileChildren } from './caddyfileBlocks.js';
+import { createJsonStore } from './jsonFile.js';
 import logger from './logger.js';
 
 const MAINTENANCE_PATH = process.env.MAINTENANCE_PATH || '/etc/caddy-ui/maintenance.json';
@@ -33,55 +34,61 @@ p{color:#8a95a8;line-height:1.6}
 
 const STATE_VERSION = 2;
 
+const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
+
 // instances: instanceId -> domain -> { originalContent, enabledAt }
 // unassigned: [{ domain, originalContent, enabledAt, instanceId? }] -- entries
 // whose owner isn't known: saved before state was per instance, or left by a
 // removed instance. They're only assigned when the owner can be proven.
-let _state = { instances: {}, unassigned: [] };
-let _writeLock = Promise.resolve();
+function parseMaintenance(parsed) {
+    const state = { instances: {}, unassigned: [] };
+    if (isObject(parsed) && parsed.version === STATE_VERSION) {
+        if (isObject(parsed.instances)) state.instances = parsed.instances;
+        if (Array.isArray(parsed.unassigned)) state.unassigned = parsed.unassigned;
+    } else if (isObject(parsed)) {
+        // Version 1 was keyed by domain alone, so its owner is unknown
+        for (const [domain, entry] of Object.entries(parsed)) {
+            if (isObject(entry)) state.unassigned.push({ domain, ...entry });
+        }
+    }
+    return state;
+}
+
+const store = createJsonStore(MAINTENANCE_PATH, {
+    parse: parseMaintenance,
+    serialize: state => ({ version: STATE_VERSION, ...state }),
+});
 const _reportedUnassigned = new Set();
 
-const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
-
 export async function loadMaintenance() {
-    _state = { instances: {}, unassigned: [] };
-    try {
-        const parsed = JSON.parse(await readFile(MAINTENANCE_PATH, 'utf8'));
-        if (isObject(parsed) && parsed.version === STATE_VERSION) {
-            if (isObject(parsed.instances)) _state.instances = parsed.instances;
-            if (Array.isArray(parsed.unassigned)) _state.unassigned = parsed.unassigned;
-        } else if (isObject(parsed)) {
-            // Version 1 was keyed by domain alone, so its owner is unknown
-            for (const [domain, entry] of Object.entries(parsed)) {
-                if (isObject(entry)) _state.unassigned.push({ domain, ...entry });
-            }
-        }
-    } catch { }
+    const state = await store.load();
     try { await getMaintenancePage(); }
     catch (e) { logger.warn('Could not initialize maintenance page; the endpoint fallback will be used', { error: e.message }); }
-    return _state;
+    return state;
 }
 
 export function getMaintenanceState(instanceId) {
-    return { ...(_state.instances[instanceId] || {}) };
+    return { ...(store.get().instances[instanceId] || {}) };
 }
 
 export function isInMaintenance(instanceId, domain) {
-    return !!_state.instances[instanceId]?.[domain];
+    return !!store.get().instances[instanceId]?.[domain];
 }
 
 export async function setMaintenance(instanceId, domain, originalContent) {
-    _state.instances[instanceId] = { ...(_state.instances[instanceId] || {}), [domain]: { originalContent, enabledAt: new Date().toISOString() } };
-    await _flush();
+    await store.update(state => {
+        state.instances[instanceId] = { ...(state.instances[instanceId] || {}), [domain]: { originalContent, enabledAt: new Date().toISOString() } };
+    });
     logger.info('Maintenance enabled', { instance: instanceId, domain });
 }
 
 export async function clearMaintenance(instanceId, domain) {
-    const entry = _state.instances[instanceId]?.[domain];
+    const entry = store.get().instances[instanceId]?.[domain];
     if (!entry) return undefined;
-    delete _state.instances[instanceId][domain];
-    if (Object.keys(_state.instances[instanceId]).length === 0) delete _state.instances[instanceId];
-    await _flush();
+    await store.update(state => {
+        delete state.instances[instanceId][domain];
+        if (Object.keys(state.instances[instanceId]).length === 0) delete state.instances[instanceId];
+    });
     logger.info('Maintenance disabled', { instance: instanceId, domain });
     return entry;
 }
@@ -90,11 +97,12 @@ export async function clearMaintenance(instanceId, domain) {
 // may be the only copy) but unassigned, so a new instance reusing the id
 // can't restore them.
 export async function releaseInstanceMaintenance(instanceId) {
-    const entries = _state.instances[instanceId];
+    const entries = store.get().instances[instanceId];
     if (!entries) return;
-    for (const [domain, entry] of Object.entries(entries)) _state.unassigned.push({ domain, ...entry, instanceId });
-    delete _state.instances[instanceId];
-    await _flush();
+    await store.update(state => {
+        for (const [domain, entry] of Object.entries(entries)) state.unassigned.push({ domain, ...entry, instanceId });
+        delete state.instances[instanceId];
+    });
     logger.info('Maintenance state unassigned for removed instance', { instance: instanceId, domains: Object.keys(entries) });
 }
 
@@ -105,14 +113,13 @@ export async function releaseInstanceMaintenance(instanceId) {
 // which leaves the entry for a later attempt.
 export async function claimUnassignedMaintenance(instances, servesMaintenance) {
     const counts = new Map();
-    for (const { domain } of _state.unassigned) counts.set(domain, (counts.get(domain) || 0) + 1);
-    let claimed = false;
+    for (const { domain } of store.get().unassigned) counts.set(domain, (counts.get(domain) || 0) + 1);
+    const claims = [];
     for (const [domain, count] of counts) {
         const results = await Promise.all(instances.map(inst => servesMaintenance(inst, domain)));
         const owners = instances.filter((_, i) => results[i] === true);
         const owner = count === 1 && !results.includes(null) && owners.length === 1 ? owners[0] : null;
-        const index = _state.unassigned.findIndex(e => e.domain === domain);
-        if (!owner || index === -1 || isInMaintenance(owner.id, domain)) {
+        if (!owner || isInMaintenance(owner.id, domain)) {
             if (!results.includes(null) && !_reportedUnassigned.has(domain)) {
                 _reportedUnassigned.add(domain);
                 logger.warn('Saved maintenance state has no provable owner; it is kept in the maintenance file for manual recovery', {
@@ -121,24 +128,25 @@ export async function claimUnassignedMaintenance(instances, servesMaintenance) {
             }
             continue;
         }
-        const [{ originalContent, enabledAt }] = _state.unassigned.splice(index, 1);
-        _state.instances[owner.id] = { ...(_state.instances[owner.id] || {}), [domain]: { originalContent, enabledAt } };
-        claimed = true;
-        logger.info('Assigned saved maintenance state to the instance serving it', { instance: owner.id, domain });
+        claims.push({ domain, owner });
     }
-    if (claimed) await _flush();
+    if (!claims.length) return;
+    await store.update(state => {
+        let claimed = false;
+        for (const { domain, owner } of claims) {
+            const index = state.unassigned.findIndex(e => e.domain === domain);
+            if (index === -1 || state.instances[owner.id]?.[domain]) continue;
+            const [{ originalContent, enabledAt }] = state.unassigned.splice(index, 1);
+            state.instances[owner.id] = { ...(state.instances[owner.id] || {}), [domain]: { originalContent, enabledAt } };
+            claimed = true;
+            logger.info('Assigned saved maintenance state to the instance serving it', { instance: owner.id, domain });
+        }
+        return claimed ? undefined : false;
+    });
 }
 
 export function hasUnassignedMaintenance() {
-    return _state.unassigned.length > 0;
-}
-
-async function _flush() {
-    _writeLock = _writeLock.then(async () => {
-        await mkdir(dirname(MAINTENANCE_PATH), { recursive: true });
-        await writeFile(MAINTENANCE_PATH, JSON.stringify({ version: STATE_VERSION, ..._state }, null, 2), 'utf8');
-    });
-    await _writeLock;
+    return store.get().unassigned.length > 0;
 }
 
 export async function getMaintenancePage() {

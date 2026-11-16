@@ -2,10 +2,11 @@ import { randomBytes } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authClient, authFixture } from './fixtures/auth.mjs';
 import { authenticator } from './fixtures/webauthn.mjs';
+import { onAuthenticationEvent } from '../src/authEvents.js';
 import logger from '../src/logger.js';
 
-const { notifyAuthenticationEvent } = vi.hoisted(() => ({ notifyAuthenticationEvent: vi.fn() }));
-vi.mock('../src/notifications.js', () => ({ notifyAuthenticationEvent }));
+const listener = vi.fn();
+onAuthenticationEvent(listener);
 const secret = () => randomBytes(24).toString('base64url');
 const fixtures = [];
 async function fixture() {
@@ -16,8 +17,8 @@ async function fixture() {
     const setup = await client.request('/auth/setup', { method: 'POST', body: { username: 'administrator', password } });
     return { ...f, client, password, recoveryKey: setup.data.recoveryKey };
 }
-const events = () => notifyAuthenticationEvent.mock.calls.map(([event]) => event);
-beforeEach(() => notifyAuthenticationEvent.mockReset());
+const events = () => listener.mock.calls.map(([event]) => event);
+beforeEach(() => listener.mockReset());
 afterEach(async () => {
     vi.restoreAllMocks();
     for (const f of fixtures.splice(0).reverse()) await f.close();
@@ -35,9 +36,9 @@ describe('authentication audit integration', () => {
         expect((await client.request('/auth/sessions', { method: 'POST', body: { username: 'administrator', password: f.password } })).status).toBe(200);
         expect((await client.request('/auth/recovery', { method: 'POST', body: { recoveryKey: secret(), password: secret() } })).status).toBe(401);
         expect((await client.request('/auth/recovery', { method: 'POST', body: { recoveryKey: f.recoveryKey, password: secret() } })).status).toBe(200);
-        expect(events().map(({ method, outcome, priority }) => [method, outcome, priority])).toEqual([
-            ['password', 'failure', 'default'], ['password', 'success', 'default'],
-            ['recovery', 'failure', 'high'], ['recovery', 'success', 'high'],
+        expect(events().map(({ method, outcome }) => [method, outcome])).toEqual([
+            ['password', 'failure'], ['password', 'success'],
+            ['recovery', 'failure'], ['recovery', 'success'],
         ]);
         expect(events().every(event => event.sourceIp === '127.0.0.1')).toBe(true);
         for (const value of [f.password, f.recoveryKey, '203.0.113.10']) expect(JSON.stringify(events())).not.toContain(value);
@@ -51,15 +52,15 @@ describe('authentication audit integration', () => {
         expect(events()).toEqual([]);
         const client = authClient(f.url);
         expect((await client.request('/auth/sessions', { method: 'POST', body: { username: 'administrator', password: f.password } })).status).toBe(200);
-        expect(events()[0]).toMatchObject({ method: 'password', outcome: 'success', passkeysConfigured: true, priority: 'high' });
+        expect(events()[0]).toMatchObject({ method: 'password', outcome: 'success', passkeysConfigured: true });
         const visitor = authClient(f.url);
         let challenge = await visitor.request('/auth/passkeys/authentication/options', { method: 'POST' });
         expect(events()).toHaveLength(1);
         expect((await visitor.request('/auth/passkeys/authentication', { method: 'POST', body: device.assertion(challenge.data, { verified: false }) })).status).toBe(400);
         challenge = await visitor.request('/auth/passkeys/authentication/options', { method: 'POST' });
         expect((await visitor.request('/auth/passkeys/authentication', { method: 'POST', body: device.assertion(challenge.data) })).status).toBe(200);
-        expect(events().slice(1).map(({ method, outcome, priority }) => [method, outcome, priority])).toEqual([
-            ['passkey', 'failure', 'default'], ['passkey', 'success', 'default'],
+        expect(events().slice(1).map(({ method, outcome }) => [method, outcome])).toEqual([
+            ['passkey', 'failure'], ['passkey', 'success'],
         ]);
     });
 
@@ -73,7 +74,7 @@ describe('authentication audit integration', () => {
 
     it('finishes sign-in while delivery is slow or fails', async () => {
         const f = await fixture();
-        notifyAuthenticationEvent.mockReturnValueOnce(new Promise(() => {}))
+        listener.mockReturnValueOnce(new Promise(() => {}))
             .mockRejectedValueOnce(new Error('provider unavailable'));
         const warning = vi.spyOn(logger, 'warn').mockImplementation(() => {});
         const client = authClient(f.url);

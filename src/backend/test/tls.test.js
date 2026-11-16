@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectManagedDomains, isManagedDomain } from '../src/routes/tls.js';
+import { collectManagedDomains, isManagedDomain } from '../src/certificates.js';
 
 const site = (...hosts) => ({ match: [{ host: hosts }], handle: [] });
 
