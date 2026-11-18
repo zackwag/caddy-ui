@@ -25,7 +25,7 @@
         "@codemirror/view": "^6.43.15",
         "@vitejs/plugin-react": "^6.3.0",
         "i18next": "^27.1.2",
-        "playwright": "1.64.1",
+        "playwright": "1.65.1",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
         "react-i18next": "^18.0.1",
