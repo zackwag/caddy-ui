@@ -36,7 +36,7 @@ export const ERROR_MESSAGES = Object.freeze({
     CADDYFILE_CHANGE_REJECTED: 'errors.caddyfileChangeRejected',
     CADDYFILE_ROLLBACK_FAILED: 'errors.caddyfileRollbackFailed',
     CADDYFILE_HISTORY_READ_FAILED: 'errors.caddyfileHistoryReadFailed',
-    CADDYFILE_HISTORY_WRITE_FAILED: 'errors.caddyfileHistoryWriteFailed',
+    CADDYFILE_HISTORY_WRITE_FAILED: 'errors.caddyfileHistoryPreserveFailed',
     CADDYFILE_HISTORY_COMMIT_FAILED: 'errors.caddyfileHistoryCommitFailed',
     CONFIG_VERIFICATION_MISMATCH: 'errors.configVerificationMismatch',
     CONFIG_VERIFICATION_UNAVAILABLE: 'errors.configVerificationUnavailable',

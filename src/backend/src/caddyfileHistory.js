@@ -18,14 +18,19 @@ function validExternal(value) {
             && Object.keys(side).every(key => value.representations.includes(key)))
         && value.representations.every(key => ['file', 'live'].includes(key)
             && (value.before?.[key] === null || typeof value.before?.[key] === 'string')
-            && typeof value.after?.[key] === 'string');
+            && typeof value.after?.[key] === 'string')
+        // Present when only live fingerprints were kept: the changed JSON paths.
+        && (value.paths === undefined || (value.representations.includes('live') && Array.isArray(value.paths)
+            && value.paths.every(path => typeof path === 'string')));
 }
 
 const writeVersion = (path, value) => writeJsonFile(path, value, { mode: 0o600, dirMode: 0o700, space: 0 });
 
 // Content and attribution are published together. Older plain Caddyfile backups
 // stay readable and are never assigned an identity retroactively.
-export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}) {
+// Saved versions and external observations are retained separately, so a busy
+// external writer can't evict the saves Restore depends on.
+export function createCaddyfileHistory(root, { limit = 20, observationLimit = limit, now = Date.now } = {}) {
     root = resolve(root);
     const serialize = createSerialQueue();
     let identities;
@@ -115,7 +120,13 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
         await writeVersion(join(directory(id), filename), { version: external ? 2 : 1, timestamp, parent: previous, actor: reference, action, outcome, content,
             ...(external ? { external } : {}) });
         try {
-            for (const name of (await filenames(id)).slice(limit)) {
+            const kept = { saved: 0, external: 0 };
+            for (const name of await filenames(id)) {
+                // Unreadable versions count as saved ones so they still age out.
+                const kind = (await entryMetadata(id, name))?.kind === 'external' ? 'external' : 'saved';
+                if (++kept[kind] <= (kind === 'external' ? observationLimit : limit)) {
+                    continue;
+                }
                 const path = historyPath(id, name);
                 await unlink(path);
                 metadata.delete(path);

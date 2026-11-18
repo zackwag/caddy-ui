@@ -119,15 +119,30 @@ function ExternalConfigurationDiff({ observation, mode, previewRef }) {
             {/* eslint-disable-next-line i18next/no-literal-string -- Internal configuration representation identifier, not user-facing text. */}
             {observation.representations.includes('file') && <p>{t('caddyfile.externalRestoreHint')}</p>}
             {observation.representations.length > 1 && <p>{t('caddyfile.externalRelationshipUnknown')}</p>}
-            {observation.representations.map(representation => (
-                <section key={representation}>
-                    <h3>{t(representation === 'file' ? 'caddyfile.fileRepresentation' : 'caddyfile.liveRepresentation')}</h3>
-                    {observation.before[representation] === null && <p>{t('caddyfile.externalBaselineUnavailable')}</p>}
-                    {mode === 'diff' && observation.before[representation] !== null
-                        ? <CaddyfileDiff oldText={observation.before[representation]} newText={observation.after[representation]} />
-                        : <pre>{observation.after[representation]}</pre>}
-                </section>
-            ))}
+            {observation.representations.map(representation => {
+                const label = t(representation === 'file' ? 'caddyfile.fileRepresentation' : 'caddyfile.liveRepresentation');
+                const before = observation.before[representation];
+                // Without opt-in, the live side holds fingerprints and changed paths, not JSON.
+                const pathsOnly = representation === 'live' && Array.isArray(observation.paths);
+                return (
+                    <section key={representation}>
+                        <h3>{label}</h3>
+                        {before === null && <p>{t('caddyfile.externalBaselineUnavailable')}</p>}
+                        {pathsOnly ? (
+                            <>
+                                <p>{t('caddyfile.liveValuesOmitted')}</p>
+                                {observation.paths.length > 0 && (
+                                    <ul className="history-paths" aria-label={t('caddyfile.changedPaths')}>
+                                        {observation.paths.map(path => <li key={path}><code>{path}</code></li>)}
+                                    </ul>
+                                )}
+                            </>
+                        ) : mode === 'diff' && before !== null
+                            ? <CaddyfileDiff oldText={before} newText={observation.after[representation]} label={label} />
+                            : <pre>{observation.after[representation]}</pre>}
+                    </section>
+                );
+            })}
         </div>
     );
 }
@@ -538,7 +553,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
                             {historyLoading && history.length === 0 ? (
                                 <div className="loading">{t("common.loading")}</div>
                             ) : history.length === 0 ? (
-                                <div className="card-empty">{historyError ? localizeError(historyError, t) : t("caddyfile.noSnapshots")}</div>
+                                <div className="card-empty">{historyError ? localizeError(historyError, t) : t("caddyfile.historyEmpty")}</div>
                             ) : previewLoading || (previewMode === "diff" && compareLoading) ? (
                                 <div className="loading">{t("common.loading")}</div>
                             ) : previewEntry ? (

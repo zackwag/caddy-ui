@@ -35,7 +35,7 @@ const historyRoot = await mkdtemp(join(tmpdir(), 'caddy-ui-drift-history-'));
 process.env.HISTORY_PATH = historyRoot;
 afterAll(async () => { await rm(historyRoot, { recursive: true, force: true }); delete process.env.HISTORY_PATH; });
 const { configurationHistory: history } = await import('../src/configurationHistory.js');
-const { DRIFT_HISTORY_LIMIT, checkAllInstances, getConfigDriftState, recordLocalChange, resetConfigDrift } = await import('../src/configDrift.js');
+const { DRIFT_HISTORY_LIMIT, changedPaths, checkAllInstances, getConfigDriftState, recordLocalChange, resetConfigDrift } = await import('../src/configDrift.js');
 
 const alpha = { id: 'alpha', name: 'Alpha', adminUrl: 'http://alpha:2019', configPath: '/alpha/Caddyfile', containerName: 'alpha' };
 const beta = { id: 'beta', name: 'Beta', adminUrl: 'http://beta:2019', configPath: '/beta/Caddyfile', containerName: 'beta' };
@@ -59,10 +59,51 @@ beforeEach(async () => {
     }
     warn = vi.spyOn(logger, 'warn');
     info = vi.spyOn(logger, 'info');
+    // Most cases inspect full before/after JSON; the default is covered below.
+    process.env.CADDY_UI_HISTORY_LIVE_JSON = 'true';
     await checkAllInstances();
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.CADDY_UI_HISTORY_LIVE_JSON;
+});
+
+describe('live JSON history by default', () => {
+    it('keeps only fingerprints and changed paths, never live values', async () => {
+        delete process.env.CADDY_UI_HISTORY_LIVE_JSON;
+        const secret = 'token-' + crypto.randomUUID();
+        live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: [alpha.id, 'added'] } } }, tls: { 'a/b~c': secret } } });
+        await checkAllInstances();
+        const [entry] = await history.list(alpha.id);
+        const { external } = await history.read(alpha.id, entry.filename);
+        expect(external.representations).toEqual(['live']);
+        expect(external.paths).toEqual(['/apps/http/servers/srv0/routes/1', '/apps/tls']);
+        expect(external.before.live).toMatch(/^sha256:[a-f0-9]{64}$/);
+        expect(external.after.live).toMatch(/^sha256:[a-f0-9]{64}$/);
+        expect(external.after.live).not.toBe(external.before.live);
+        expect(JSON.stringify(external)).not.toContain(secret);
+    });
+
+    it('records no paths when the previous live observation is unavailable', async () => {
+        delete process.env.CADDY_UI_HISTORY_LIVE_JSON;
+        resetConfigDrift();
+        live.delete(alpha.adminUrl);
+        await checkAllInstances();
+        live.set(alpha.adminUrl, { apps: { secret: 'value' } });
+        await checkAllInstances();
+        const [entry] = await history.list(alpha.id);
+        const { external } = await history.read(alpha.id, entry.filename);
+        expect(external.before.live).toBeNull();
+        expect(external.paths).toEqual([]);
+    });
+
+    it('names changed paths as escaped JSON Pointers', () => {
+        expect(changedPaths({ a: { 'x/y': 1, 'k~': [1, 2] } }, { a: { 'x/y': 2, 'k~': [1] }, b: null })).toEqual(['/a/k~0/1', '/a/x~1y', '/b']);
+        expect(changedPaths({ a: [1] }, { a: { 0: 1 } })).toEqual(['/a']);
+        expect(changedPaths({ same: true }, { same: true })).toEqual([]);
+    });
+});
 
 describe('configuration drift detection', () => {
     it.each([
@@ -390,6 +431,48 @@ describe('scoped route expectations', () => {
         await checkAllInstances();
         expect(reports()).toHaveLength(1);
         expect(reports()[0][1].representations).toEqual(['file']);
+    });
+
+    it.each(['verified', 'uncertain'])('does not record a %s edit of an externally added route as an external observation', async status => {
+        resetConfigDrift();
+        live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: structuredClone([routeA]) } } } } });
+        await checkAllInstances();
+        const config = structuredClone(live.get(alpha.adminUrl));
+        routesOf(config).push(structuredClone(routeB));
+        live.set(alpha.adminUrl, config);
+        await checkAllInstances();
+        const recorded = (await history.list(alpha.id)).length;
+        const route = { '@id': 'route-b', handle: [{ handler: 'static_response', body: 'local edit' }] };
+        const edited = structuredClone(config);
+        routesOf(edited)[1] = route;
+        const verifyLive = async () => (JSON.stringify(routesOf(live.get(alpha.adminUrl))[1]) === JSON.stringify(route) ? 'verified' : 'mismatch');
+        if (status === 'verified') live.set(alpha.adminUrl, edited);
+        await recordLocalChange(alpha, { content: null, verification: { file: 'unchanged', live: status }, verifyLive,
+            expectLive: routeExpectation({ operation: 'replace', id: 'route-b', route }) });
+        if (status === 'uncertain') live.set(alpha.adminUrl, edited);
+        await checkAllInstances();
+        await checkAllInstances();
+        expect(await history.list(alpha.id)).toHaveLength(recorded);
+    });
+
+    it('projects a verified add to an externally added server onto the observation once', async () => {
+        resetConfigDrift();
+        live.set(alpha.adminUrl, { apps: { http: { servers: {} } } });
+        await checkAllInstances();
+        const config = { apps: { http: { servers: { srv1: { routes: [] } } } } };
+        live.set(alpha.adminUrl, structuredClone(config));
+        await checkAllInstances();
+        const recorded = (await history.list(alpha.id)).length;
+        const route = { '@id': 'route-c', handle: [] };
+        config.apps.http.servers.srv1.routes.push(route);
+        live.set(alpha.adminUrl, config);
+        // The expected config lacks srv1, so the live side stays pending and
+        // the next check must not apply the add to the observation again.
+        await recordLocalChange(alpha, { content: null, verification: { file: 'unchanged', live: 'verified' },
+            verifyLive: async () => 'verified', expectLive: routeExpectation({ operation: 'add', serverName: 'srv1', route }) });
+        await checkAllInstances();
+        await checkAllInstances();
+        expect(await history.list(alpha.id)).toHaveLength(recorded);
     });
 
     it('does not expose configuration snapshots in diagnostics or logs', async () => {

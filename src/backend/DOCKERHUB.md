@@ -167,13 +167,14 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_UI_TRUSTED_PROXIES` | bundled frontend | Backend: unset discovers only `caddy-ui-frontend` by DNS; blank disables trust. An explicit comma-separated IP/CIDR list overrides discovery. See [client addresses and rate limits](https://github.com/zackwag/caddy-ui#client-addresses-and-rate-limits). |
 | `CADDY_UI_TRUSTED_UPSTREAMS` | — | Frontend nginx: comma-separated upstream proxy IPs/CIDRs allowed to supply client addresses, such as the Caddy serving the UI. Unset trusts none. |
 | `CADDY_UI_PASSWORD` | — | Legacy password, used only to authenticate credential enrollment before `auth.json` exists |
+| `CADDY_UI_HISTORY_LIVE_JSON` | `false` | Keep full live JSON for external changes in History. By default only fingerprints and changed paths are kept, since live JSON holds resolved secrets |
 | `CADDY_UI_PUBLIC_METRICS` | `false` | Expose `/api/metrics/raw` without auth |
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
 | `CADDY_UI_UPDATE_CHECK_URL` | `https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json` | Where the update check reads published image versions from |
 | `CADDY_UI_USER` | — | Legacy username for credential enrollment; ignored after stored credentials are initialized |
 | `AUTH_PATH` | `/etc/caddy-ui/auth.json` | Persistent administrator credential/recovery hashes and passkey records. Keep on a writable persistent volume, separate from UI settings. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
-| `HISTORY_PATH` | `/etc/caddy-ui/history` | Persistent Caddyfile versions and actor metadata; see the [history guide](https://zackwag.github.io/caddy-ui/caddyfile.html#saved-versions-and-attribution) |
+| `HISTORY_PATH` | `/etc/caddy-ui/history` | Sensitive saved Caddyfiles, external file/JSON observations and actor metadata; see the [history guide](https://zackwag.github.io/caddy-ui/caddyfile.html#saved-versions-and-attribution) |
 | `INSTANCES_PATH` | `/etc/caddy-ui/instances.json` | Path to the multi-instance configuration file (see [Multi-Instance](https://zackwag.github.io/caddy-ui/instances.html#multi-instance)) |
 | `JWT_SECRET` | — | Legacy configuration marker required alongside the legacy username/password before enrollment. No new JWTs are issued. |
 | `LOG_LEVEL` | `info` | Log verbosity (`debug`, `info`, `warn`, `error`) |

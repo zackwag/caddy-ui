@@ -560,7 +560,6 @@ export default {
         resizePanes: 'Größe der Editor- und Verlaufsbereiche ändern',
         resizePanesHint: 'Zum Ändern der Größe ziehen oder die Pfeiltasten verwenden. Zum Zurücksetzen doppelklicken.',
         paneSizes: '{{editor}} Editor, {{history}} Verlauf',
-        noSnapshots: 'Noch keine Snapshots. Speichere dein Caddyfile, um einen zu erstellen',
         latest: 'neueste',
         deleteSnapshot: 'Snapshot löschen',
         diff: 'Unterschiede',

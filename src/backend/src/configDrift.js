@@ -58,6 +58,21 @@ async function observe({ adminUrl, configPath, containerName }) {
 
 const fingerprints = ({ file, live }) => ({ file, live });
 
+// Project a verified mutation onto the previous actual observation, keeping
+// unrelated external changes. This is independent of the expected config: a
+// route added outside caddy-ui can't be projected there, but the user's edit of
+// it must still not be recorded as an external observation on the next check.
+async function projectObservation(state, expectLive) {
+    if (!state.observed) {
+        return;
+    }
+    const actual = await expectLive?.(structuredClone(state.observed.config));
+    if (actual !== undefined) {
+        state.observed.config = structuredClone(actual);
+        state.observed.live = fingerprintText(JSON.stringify(actual));
+    }
+}
+
 async function acceptLiveExpectation(state, expectLive) {
     const config = await expectLive?.(structuredClone(state.liveConfig));
     if (config === undefined) return false;
@@ -65,15 +80,6 @@ async function acceptLiveExpectation(state, expectLive) {
     // Caddy's ETag isn't computable from an intended JSON result. Keep a hash
     // until a read matches that result, then use the matching read's ETag.
     state.expected.live = fingerprintText(JSON.stringify(config));
-    if (state.observed) {
-        // Project a route mutation onto the previous actual observation as well
-        // as the expected config. This preserves unrelated external changes.
-        const actual = await expectLive?.(structuredClone(state.observed.config));
-        if (actual !== undefined) {
-            state.observed.config = structuredClone(actual);
-            state.observed.live = fingerprintText(JSON.stringify(actual));
-        }
-    }
     return true;
 }
 
@@ -96,6 +102,32 @@ function ordered(value) {
 }
 const jsonText = config => JSON.stringify(ordered(config), null, 2) + '\n';
 
+// Live JSON has secrets resolved at adapt time (DNS provider tokens and the
+// like), unlike the Caddyfile's {$VAR} placeholders. Unless opted in, history
+// keeps only a fingerprint of each side plus the changed JSON Pointer paths.
+const keepLiveJson = () => process.env.CADDY_UI_HISTORY_LIVE_JSON === 'true';
+const pointer = segments => segments.map(segment => '/' + segment.replace(/~/g, '~0').replace(/\//g, '~1')).join('') || '/';
+
+export function changedPaths(before, after, segments = [], paths = []) {
+    const container = value => value !== null && typeof value === 'object';
+    if (!container(before) || !container(after) || Array.isArray(before) !== Array.isArray(after)) {
+        if (!isDeepStrictEqual(before, after)) {
+            paths.push(pointer(segments));
+        }
+        return paths;
+    }
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+    // Array indexes keep their order; object keys are sorted like jsonText.
+    for (const key of Array.isArray(before) ? keys : keys.sort()) {
+        if (!Object.hasOwn(before, key) || !Object.hasOwn(after, key)) {
+            paths.push(pointer([...segments, key]));
+        } else {
+            changedPaths(before[key], after[key], [...segments, key], paths);
+        }
+    }
+    return paths;
+}
+
 async function preserveObservation(instance, state, observed) {
     const previous = state.observed;
     if (previous) {
@@ -103,14 +135,25 @@ async function preserveObservation(instance, state, observed) {
             || (key === 'file' ? previous.file !== observed.file : !isDeepStrictEqual(previous.config, observed.config))));
         if (representations.length) {
             const before = {}, after = {};
+            let paths;
             for (const key of representations) {
-                before[key] = !previous[key] ? null : key === 'file' ? previous.text : jsonText(previous.config);
-                after[key] = key === 'file' ? observed.text : jsonText(observed.config);
+                if (key === 'file') {
+                    before.file = previous.file ? previous.text : null;
+                    after.file = observed.text;
+                } else if (keepLiveJson()) {
+                    before.live = previous.live ? jsonText(previous.config) : null;
+                    after.live = jsonText(observed.config);
+                } else {
+                    before.live = previous.live ? fingerprintText(jsonText(previous.config)) : null;
+                    after.live = fingerprintText(jsonText(observed.config));
+                    paths = previous.live ? changedPaths(previous.config, observed.config) : [];
+                }
             }
             // Publish first. A failure leaves the old observation intact so the
             // next poll can retry and no lost history is mistaken for success.
             try {
-                await configurationHistory.recordExternal(instance.id, { detectedAt: new Date().toISOString(), representations, before, after });
+                await configurationHistory.recordExternal(instance.id, { detectedAt: new Date().toISOString(), representations, before, after,
+                    ...(paths ? { paths } : {}) });
             } catch (cause) {
                 throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context: { instanceId: instance.id } });
             }
@@ -141,15 +184,18 @@ export async function recordLocalChange(instance, { content, verification, verif
         state.observed.text = content;
     }
     let liveAccepted = verification.live === NOT_APPLIED;
+    let projected = false;
     if (verification.live === VERIFIED) {
         try {
+            await projectObservation(state, expectLive);
+            projected = true;
             liveAccepted = await acceptLiveExpectation(state, expectLive);
         } catch (error) {
             logger.warn('Could not establish the expected configuration after a local change', { instanceId: instance.id, error: error.name });
         }
     }
     state.pending = (!fileVerified && file !== null) || !liveAccepted
-        ? { file: !fileVerified ? file : null, content, live: !liveAccepted, verifyLive, expectLive } : null;
+        ? { file: !fileVerified ? file : null, content, live: !liveAccepted, projected, verifyLive, expectLive } : null;
 }
 
 async function confirmPendingChange(state, observed) {
@@ -164,6 +210,10 @@ async function confirmPendingChange(state, observed) {
     }
     try {
         if (pending.live && await pending.verifyLive() === VERIFIED) {
+            // Project once: an add applied twice would duplicate its route.
+            if (!pending.projected) {
+                await projectObservation(state, pending.expectLive);
+            }
             confirmed = await acceptLiveExpectation(state, pending.expectLive) || confirmed;
         }
     } catch {

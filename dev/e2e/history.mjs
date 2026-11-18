@@ -33,6 +33,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
             if (message?.type !== 'test:history-check') return;
             if (message.reset) drift.resetConfigDrift();
             failRead = Boolean(message.failRead);
+            if (message.liveJson !== undefined) process.env.CADDY_UI_HISTORY_LIVE_JSON = String(message.liveJson);
             await drift.checkAllInstances();
             process.send({ type: 'test:history-result', state: drift.getConfigDriftState('default') });
         });
@@ -77,7 +78,8 @@ test('external file and admin API changes have independent Unknown-author diffs 
     const injection = '<img src=x onerror="window.historyInjection=true">';
     const route = { '@id': 'external-history-route', match: [{ host: ['external-history.test'] }], handle: [{ handler: 'static_response', body: injection }] };
     await caddyPost(`/config/apps/http/servers/${instance.serverName}/routes`, route, instance.adminUrl);
-    await check();
+    // Full JSON is opt-in; this step renders hostile live content.
+    await check({ liveJson: true });
     entries = (await stack.api('/caddyfile/history')).data;
     const apiEntry = entries[0];
     assert.deepEqual(apiEntry.representations, ['live']);
@@ -112,9 +114,17 @@ test('external file and admin API changes have independent Unknown-author diffs 
     assert.equal(await page.evaluate(() => window.historyInjection), undefined);
 
     await writeContainerFile(instance.containerName, instance.configPath, fileBeforeApi + '# combined external change\n');
-    await caddyPatch('/id/external-history-route', { ...route, handle: [{ handler: 'static_response', body: 'combined external' }] }, instance.adminUrl);
-    await check();
+    await caddyPatch('/id/external-history-route', { ...route, handle: [{ handler: 'static_response', body: 'combined-live-secret' }] }, instance.adminUrl);
+    // By default, live values stay out of history: only fingerprints and changed paths.
+    await check({ liveJson: false });
+    const combined = (await stack.api(`/caddyfile/history/${(await stack.api('/caddyfile/history')).data[0].filename}/changes`)).data;
+    assert.deepEqual(combined.representations, ['file', 'live']);
+    assert.match(combined.after.live, /^sha256:/);
+    assert(combined.paths.length > 0 && combined.paths.every(path => path.endsWith('/handle/0/body')), 'Only the patched value path is listed');
+    assert(!JSON.stringify(combined).includes('combined-live-secret'), 'Live values are not stored by default');
     await openLatest();
+    await page.getByRole('list', { name: 'Changed paths' }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'Caddyfile', exact: true }).count(), 1, 'Each representation diff has its own landmark');
     await page.getByRole('heading', { name: 'Caddyfile', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Live configuration (JSON)', exact: true }).waitFor();
     assert((await page.locator('.history-external').innerText()).includes('A shared cause or successful reload has not been established.'));
@@ -128,7 +138,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     await check({ reset: true, failRead: true });
     await check();
     await openLatest();
-    assert((await page.locator('.history-external').innerText()).includes('The previous observation is unavailable.'));
+    assert((await page.locator('.history-external').innerText()).includes('No earlier observation is available'));
 
     const historyPath = join(stack.directory, 'backend/history');
     const beforeFailure = (await stack.api('/caddyfile')).data;

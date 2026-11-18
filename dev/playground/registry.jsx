@@ -126,7 +126,7 @@ export const scenarios = [
     { id: 'caddyfile-editor', title: 'Caddyfile: saved editor', kind: 'caddyfile',
         profile: 'caddyfile-history', keys: caddyfileControls },
     { id: 'caddyfile-empty', title: 'Caddyfile: empty snapshot history', kind: 'caddyfile',
-        profile: 'caddyfile-empty', setup: 'caddyfile-history', keys: [...caddyfileHistory, 'caddyfile.noSnapshots'] },
+        profile: 'caddyfile-empty', setup: 'caddyfile-history', keys: [...caddyfileHistory, 'caddyfile.historyEmpty'] },
     { id: 'caddyfile-empty-list', title: 'Caddyfile: empty version list', kind: 'caddyfile',
         profile: 'caddyfile-empty', setup: 'caddyfile-list', keys: ['caddyfile.hideVersionList',
             'caddyfile.savedVersions', 'caddyfile.noSavedVersions'] },

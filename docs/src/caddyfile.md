@@ -47,7 +47,8 @@ other's file changes. Editor saves and imports intentionally replace the full
 file. Drift detection shares this queue; external file/API writers remain
 independent.
 
-Each instance retains up to 20 saved versions and external observations in total.
+Each instance retains up to 20 saved versions and, separately, up to 20 external
+observations, so frequent external reloads can't evict saved versions.
 New versions store content and metadata
 together in atomic JSON files under `HISTORY_PATH`; older plain Caddyfile
 snapshots remain readable. Downloading a Caddyfile version through the history
@@ -104,8 +105,16 @@ is unreadable. Logs contain short fingerprints, never configuration text.
 
 The Caddyfile editor's History panel includes **External observation** entries
 attributed to **Unknown**. Each contains the previous and current observed
-Caddyfile text, live JSON, or both, with the instance and detection time.
-JSON object keys are ordered for readable diffs; array order is preserved.
+Caddyfile text, the live configuration, or both, with the instance and
+detection time.
+
+Live JSON contains values Caddy resolved at adapt time, such as DNS provider
+tokens, where the Caddyfile keeps `{$VAR}` placeholders. By default, a live
+change therefore records only a fingerprint of each side and the changed
+[JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901) paths, with no
+values. Set `CADDY_UI_HISTORY_LIVE_JSON=true` to keep the complete before/after
+JSON instead. JSON object keys are then ordered for readable diffs; array order
+is preserved.
 Detection time is not a known modification time. Changes made by an untracked
 process or directly through Caddy's admin API cannot be assigned to a person.
 
@@ -121,12 +130,13 @@ transition is recorded once. Verified local changes update the tracked state
 without creating an external entry. Existing attribution for editor, route and
 other file-backed UI changes remains unchanged; API tokens still cannot write.
 
-External observations share the 20-entry retention limit and management-access
-restrictions of saved versions. Their complete before/after content is kept in
-atomic files with mode `0600`; newly created history directories use `0700`.
-Configuration content is excluded from list metadata, logs and notifications.
-Keep `HISTORY_PATH` on protected persistent storage: these files can contain
-credentials and other secrets. This is local investigation history, not a
+External observations have their own 20-entry retention limit and share the
+management-access restrictions of saved versions. Their before/after content is
+kept in atomic files with mode `0600`; newly created history directories use
+`0700`. Configuration content is excluded from list metadata, logs and
+notifications. Keep `HISTORY_PATH` on protected persistent storage: Caddyfile
+text can contain credentials, and so can live JSON when
+`CADDY_UI_HISTORY_LIVE_JSON=true`. This is local investigation history, not a
 tamper-proof audit log.
 
 The panel offers Diff and Raw views. Entries that contain observed Caddyfile
