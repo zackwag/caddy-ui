@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.9.1](https://github.com/zackwag/caddy-ui/compare/v3.9.0...v3.9.1) (2026-11-18)
+
+
+### Features
+
+* autocomplete snippet completions with tab stops ([#535](https://github.com/zackwag/caddy-ui/issues/535)) ([f8013ee](https://github.com/zackwag/caddy-ui/commit/f8013eef2d031260bb5aa79964eab0a8fe0368ea))
+* snippet insertion via context menu in Caddyfile editors ([#534](https://github.com/zackwag/caddy-ui/issues/534)) ([872713f](https://github.com/zackwag/caddy-ui/commit/872713f44e5549c52fd4e222ce64202a8e3ad0b8))
+
+
+### Bug Fixes
+
+* **backend:** untangle monitoring, notifications and state stores ([#557](https://github.com/zackwag/caddy-ui/issues/557)) ([db42727](https://github.com/zackwag/caddy-ui/commit/db42727200db87581c6d5ee0cb39dfea7c491430))
+
+
+### Miscellaneous Chores
+
+* **deps:** bump @simplewebauthn/server from 14.0.3 to 14.1.0 in /src/backend ([#563](https://github.com/zackwag/caddy-ui/issues/563)) ([cddbf22](https://github.com/zackwag/caddy-ui/commit/cddbf22dd9419be676b77b30c2b09ca231eae954))
+* **deps:** bump express-rate-limit from 8.7.2 to 8.7.3 in /src/backend ([#548](https://github.com/zackwag/caddy-ui/issues/548)) ([ae47d68](https://github.com/zackwag/caddy-ui/commit/ae47d684046f6143f22e35ffc6caeab51f58e0e5))
+* **deps:** bump express-rate-limit from 8.7.3 to 8.7.4 in /src/backend ([#561](https://github.com/zackwag/caddy-ui/issues/561)) ([096477e](https://github.com/zackwag/caddy-ui/commit/096477ec4c1901fe69f8e9a6c2df17d6929791b0))
+* **deps:** bump i18next from 26.6.0 to 27.0.1 in /src/frontend ([#537](https://github.com/zackwag/caddy-ui/issues/537)) ([81c66d4](https://github.com/zackwag/caddy-ui/commit/81c66d4c86a89b763830eee92120fd82034f94db))
+* **deps:** bump i18next from 27.0.1 to 27.1.2 in /src/frontend ([#565](https://github.com/zackwag/caddy-ui/issues/565)) ([dac380e](https://github.com/zackwag/caddy-ui/commit/dac380e1c871e35f7d7f5a81e89820750aa46652))
+* **deps:** bump otpauth from 9.5.2 to 9.6.0 in /src/backend ([#552](https://github.com/zackwag/caddy-ui/issues/552)) ([1f9bc78](https://github.com/zackwag/caddy-ui/commit/1f9bc7840963fcd047a52268f2d0e7471b12df05))
+* **deps:** bump react-i18next from 17.1.10 to 18.0.0 in /src/frontend ([#544](https://github.com/zackwag/caddy-ui/issues/544)) ([067ed8b](https://github.com/zackwag/caddy-ui/commit/067ed8b4108f2b908e103cc84144bac78272a982))
+* **deps:** bump react-i18next from 18.0.0 to 18.0.1 in /src/frontend ([#562](https://github.com/zackwag/caddy-ui/issues/562)) ([f854d68](https://github.com/zackwag/caddy-ui/commit/f854d687193e1ebbbce6a10fef3ecfce61d777b9))
+* release as 3.9.1 ([#572](https://github.com/zackwag/caddy-ui/issues/572)) ([a8fbcc3](https://github.com/zackwag/caddy-ui/commit/a8fbcc3337c0fc27275bb492815d895a37abaffc))
+
 ## [3.9.0](https://github.com/zackwag/caddy-ui/compare/v3.8.0...v3.9.0) (2026-11-06)
 
 
