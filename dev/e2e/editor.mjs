@@ -343,6 +343,57 @@ test('explicit autocomplete only offers names at directive positions', { timeout
     assert.equal((await stack.api('/caddyfile')).data, original, 'Requesting completions does not save the Caddyfile');
 });
 
+test('snippet completions move between fields both ways, and yield Tab to vim\'s normal mode', { timeout: 90000 }, async t => {
+    const { page, origin, waitForView } = await useBrowserFixture(t);
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    const content = editor.locator('.cm-content');
+    const status = editor.locator('.cm-vim-panel');
+    const focused = () => content.evaluate(element => element === document.activeElement);
+    const secondLine = async () => (await visibleText(editor)).split('\n')[1];
+    const acceptRedirSnippet = () => editor.getByRole('option', { name: /— redir$/ }).click();
+
+    await content.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('snippet.test {\n\t\n}');
+    await page.keyboard.press('ControlOrMeta+Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('End');
+    await page.keyboard.type('redir');
+    await acceptRedirSnippet();
+    assert.equal(await secondLine(), '\tredir /old /new permanent');
+
+    // Shift+Tab from the last field returns to the one before it (#535 review)
+    await page.keyboard.type('/a');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.type('/b');
+    assert.equal(await secondLine(), '\tredir /a /b permanent', 'Shift+Tab from the last field selects the previous one');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('X');
+    assert.equal(await secondLine(), '\tredir /a /b permanentX', 'Tab past the last field leaves the caret after the snippet');
+
+    // In vim's normal mode Tab leaves the editor even while a snippet is active
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('snippet.test {\n\t\n}');
+    await editor.getByLabel(en.caddyfile.vimMode).check();
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await content.focus();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('ggjA');
+    await page.keyboard.type('redir');
+    await acceptRedirSnippet();
+    await page.keyboard.press('Escape');
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await page.keyboard.press('Tab');
+    assert(!await focused(), 'Tab in normal mode moves focus out of the editor');
+    assert.equal(await secondLine(), '\tredir /old /new permanent', 'Tab in normal mode changes nothing');
+    assert.equal(await status.filter({ hasText: '--VISUAL--' }).count(), 0, 'Tab in normal mode does not select the next field');
+});
+
 test('vim mode is a server preference, and :w saves from both editors', { timeout: 90000 }, async t => {
     const { stack, page, context, origin, waitForView } = await useBrowserFixture(t);
     const original = (await stack.api('/caddyfile')).data;

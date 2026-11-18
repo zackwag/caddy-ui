@@ -35,7 +35,9 @@ function buildSnippetCompletions(kind) {
             // The label is the first word of the template so it matches
             // when the user types a directive name.
             const label = snippet.template.split(/[\s\n{]/)[0];
-            completions.push(snippetCompletion(snippet.snippetTemplate, {
+            // The `#{0}` exit stop keeps the last field inside the active
+            // snippet, so Shift+Tab can still return from it.
+            completions.push(snippetCompletion(`${snippet.snippetTemplate}#{0}`, {
                 label,
                 detail: ` — ${snippet.key}`,
                 type: 'text',
