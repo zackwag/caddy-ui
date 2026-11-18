@@ -1,78 +1,25 @@
 import { Router } from 'express';
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import { dirname } from 'path';
-import logger from '../logger.js';
 import { asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
+import { getNotificationConfig, saveNotificationConfig } from '../notificationConfig.js';
+import { sendNotification } from '../notificationDelivery.js';
 
 const router = Router();
-const CONFIG_PATH = process.env.NOTIFICATIONS_CONFIG_PATH || '/etc/caddy-ui/notifications.json';
 
-const DEFAULT_CONFIG = {
-    enabled: false,
-    provider: 'ntfy',
-    ntfy: { url: '' },
-    discord: { webhookUrl: '' },
-    slack: { webhookUrl: '' },
-    pushover: { userKey: '', apiToken: '' },
-    custom: { url: '', method: 'POST' },
-    triggers: {
-        upstreamOffline: true,
-        upstreamOnline: true,
-        certExpiring: true,
-        apiTokenExpiring: true,
-        updateAvailable: true,
-        // Need route checks on (Metrics page), so they start off
-        routeOffline: false,
-        routeOnline: false,
-        authentication: false,
-    },
-    debounceMinutes: 30,
-};
-
-async function loadConfig() {
-    try {
-        const raw = await readFile(CONFIG_PATH, 'utf8');
-        const stored = JSON.parse(raw);
-        return { ...DEFAULT_CONFIG, ...stored, triggers: { ...DEFAULT_CONFIG.triggers, ...stored.triggers } };
-    } catch {
-        return { ...DEFAULT_CONFIG };
-    }
-}
-
-async function saveConfig(config) {
-    await mkdir(dirname(CONFIG_PATH), { recursive: true });
-    await writeFile(CONFIG_PATH, JSON.stringify(config, null, 2));
-}
-
-// GET /api/notifications/config
-router.get('/config', async (req, res) => {
-    const config = await loadConfig();
-    res.json(config);
+router.get('/config', (req, res) => {
+    res.json(getNotificationConfig());
 });
 
-// PUT /api/notifications/config
 router.put('/config', async (req, res) => {
-    const config = { ...DEFAULT_CONFIG, ...req.body, triggers: { ...DEFAULT_CONFIG.triggers, ...req.body?.triggers } };
-    await saveConfig(config);
-    logger.info('Notifications config updated', { provider: config.provider, enabled: config.enabled });
-
-    const { updateMonitorConfig } = await import('../notifications.js');
-    updateMonitorConfig(config);
-
-    res.json(config);
+    res.json(await saveNotificationConfig(req.body));
 });
 
-// POST /api/notifications/test
 router.post('/test', async (req, res) => {
-    const config = await loadConfig();
-
+    const config = getNotificationConfig();
     if (!config.enabled) {
         return res.status(400).json({ error: 'Notifications are disabled' });
     }
-
     try {
-        const { sendNotification } = await import('../notifications.js');
         await sendNotification(config, {
             title: 'caddy/ui test',
             message: 'Notifications are working correctly.',
@@ -86,4 +33,3 @@ router.post('/test', async (req, res) => {
 });
 
 export default router;
-export { loadConfig };

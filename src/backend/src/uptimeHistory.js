@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from 'fs/promises';
-import { dirname } from 'path';
+import { createSerialQueue, readJsonState, writeJsonFile } from './jsonFile.js';
 import logger from './logger.js';
 
 const HISTORY_PATH = process.env.UPTIME_HISTORY_PATH || '/etc/caddy-ui/uptime-history.json';
@@ -10,7 +9,7 @@ const FLUSH_INTERVAL_MS = 60_000;
 // key -> { entries: [{ online: boolean, at: epochMs }], firstSeen: epochMs }
 const history = new Map();
 let dirty = false;
-let _writeLock = Promise.resolve();
+const serialize = createSerialQueue();
 
 // Upstream checks keep their original `<instance>:<upstream>` keys; route
 // checks (keyed by site host) use `#` as the separator instead, which
@@ -22,15 +21,12 @@ function historyKey(instanceId, target, kind = 'upstream') {
 }
 
 export async function initUptimeHistory() {
-    try {
-        const data = await readFile(HISTORY_PATH, 'utf8');
-        const parsed = JSON.parse(data);
+    const parsed = await readJsonState(HISTORY_PATH);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         for (const [key, entry] of Object.entries(parsed)) {
-            history.set(key, { entries: entry.entries || [], firstSeen: entry.firstSeen });
+            history.set(key, { entries: entry?.entries || [], firstSeen: entry?.firstSeen });
         }
         logger.info('Loaded uptime history', { keys: history.size });
-    } catch {
-        // no existing history file -- start fresh
     }
     setInterval(flushIfDirty, FLUSH_INTERVAL_MS).unref();
 }
@@ -40,6 +36,16 @@ function pruneOldEntries(entry, now) {
     let i = 0;
     while (i < entry.entries.length && entry.entries[i].at < cutoff) i++;
     if (i > 0) entry.entries.splice(0, i);
+}
+
+export function forgetInstanceHistory(instanceId) {
+    const prefixes = Object.values(KIND_SEPARATORS).map(separator => instanceId + separator);
+    for (const key of history.keys()) {
+        if (prefixes.some(prefix => key.startsWith(prefix))) {
+            history.delete(key);
+            dirty = true;
+        }
+    }
 }
 
 export function recordCheck(instanceId, target, online, kind = 'upstream') {
@@ -118,13 +124,11 @@ async function flushIfDirty() {
 async function flush() {
     const obj = {};
     for (const [key, entry] of history) obj[key] = entry;
-    _writeLock = _writeLock.then(async () => {
+    return serialize(async () => {
         try {
-            await mkdir(dirname(HISTORY_PATH), { recursive: true });
-            await writeFile(HISTORY_PATH, JSON.stringify(obj), 'utf8');
+            await writeJsonFile(HISTORY_PATH, obj, { space: 0 });
         } catch (err) {
             logger.warn('Failed to persist uptime history', { error: err.message });
         }
     });
-    return _writeLock;
 }

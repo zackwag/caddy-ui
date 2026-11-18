@@ -1,5 +1,5 @@
-import { readFile, writeFile } from 'fs/promises';
 import { AppError } from './AppError.js';
+import { createSerialQueue, readJsonFile, writeJsonFile } from './jsonFile.js';
 import logger from './logger.js';
 
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
@@ -10,7 +10,7 @@ const STATE_VERSION = 2;
 // no recorded owner and load as unassigned. A domain key may list several
 // hosts ("a.example.com, b.example.com").
 
-let _writeLock = Promise.resolve();
+const serialize = createSerialQueue();
 
 const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
 const readFailed = (cause) => new AppError('ROUTE_NOTES_READ_FAILED', { cause, context: { path: ROUTE_NOTES_PATH } });
@@ -23,19 +23,13 @@ function notesOnly(entries) {
 // missing file means no notes yet; an unreadable or corrupt file throws, so
 // it's never treated as empty and then overwritten.
 async function readStore() {
-    let data;
-    try {
-        data = await readFile(ROUTE_NOTES_PATH, 'utf8');
-    } catch (err) {
-        if (err.code === 'ENOENT') return { instances: {}, unassigned: {} };
-        throw readFailed(err);
-    }
     let parsed;
     try {
-        parsed = JSON.parse(data);
+        parsed = await readJsonFile(ROUTE_NOTES_PATH);
     } catch (err) {
         throw readFailed(err);
     }
+    if (parsed === undefined) return { instances: {}, unassigned: {} };
     if (!isObject(parsed)) throw readFailed();
     if (parsed.version !== STATE_VERSION) return { instances: {}, unassigned: notesOnly(parsed) };
     const instances = {};
@@ -47,17 +41,15 @@ async function writeStore(store) {
     for (const [id, entries] of Object.entries(store.instances)) {
         if (!Object.keys(entries).length) delete store.instances[id];
     }
-    await writeFile(ROUTE_NOTES_PATH, JSON.stringify({ version: STATE_VERSION, ...store }, null, 2), 'utf8');
+    await writeJsonFile(ROUTE_NOTES_PATH, { version: STATE_VERSION, ...store });
 }
 
 // Serializes read-modify-write cycles so concurrent edits don't drop each other
 function update(change) {
-    const run = _writeLock.then(async () => {
+    return serialize(async () => {
         const store = await readStore();
         if (await change(store) !== false) await writeStore(store);
     });
-    _writeLock = run.catch(() => { });
-    return run;
 }
 
 export async function getInstanceNotes(instanceId) {

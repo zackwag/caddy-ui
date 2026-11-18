@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { collectRouteTargets, failureReason, getListenPort, getServerScheme, isRouteUp, sanitizeHostList } from '../src/routeChecks.js';
+import { collectRouteTargets, failureReason, getListenPort, getServerScheme, isRouteUp } from '../src/routeChecks.js';
+import { sanitizeHostList } from '../src/settings.js';
 
 const route = (host, extra = {}) => ({ match: [{ host: [host] }], handle: [], ...extra });
 

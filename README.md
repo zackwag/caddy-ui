@@ -316,6 +316,9 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `NODE_EXTRA_CA_CERTS` | — | Path to a PEM bundle of extra CAs for route checks and notification webhooks to trust, for sites with certificates from a private CA other than Caddy's local one (standard Node.js variable) |
 
 <!-- dockerhub:backend:end -->
+
+If the instances, settings, notifications, maintenance, server names or uptime history file can't be parsed at startup, the backend renames it to `<file>.corrupt-<timestamp>` in the same directory, logs an error and starts that store from defaults. Restore the set-aside copy by fixing its JSON and renaming it back while the backend is stopped. Credential storage (`AUTH_PATH`) is never set aside; a corrupt file there fails startup instead.
+
 <!-- ANCHOR_END: environment-variables -->
 
 
