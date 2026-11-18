@@ -246,6 +246,10 @@ export async function checkAllInstances() {
     })));
 }
 
+export function forgetConfigDrift(instanceId) {
+    states.delete(instanceId);
+}
+
 // A copy of an instance's drift state, for diagnostics and later history.
 export function getConfigDriftState(instanceId) {
     const state = states.get(instanceId);

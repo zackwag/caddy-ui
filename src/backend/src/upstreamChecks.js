@@ -43,11 +43,19 @@ export function getHost(route) {
 
 // checkInstanceUpstreams returns one result per route, so an upstream shared
 // by several routes shows up more than once. Collapses them to one result per
-// upstream for recording history: online only if every route's check agreed.
+// upstream, online only if every route's check agreed, labeled with the
+// domains that use it.
 export function resultsByUpstream(checks) {
     const results = new Map();
-    for (const { upstream, online } of checks) results.set(upstream, (results.get(upstream) ?? true) && online);
-    return results;
+    for (const { upstream, online, domain } of checks) {
+        const result = results.get(upstream) || { target: upstream, online: true, domains: new Set() };
+        result.online &&= online;
+        if (domain) result.domains.add(domain);
+        results.set(upstream, result);
+    }
+    return [...results.values()].map(({ target, online, domains }) => ({
+        target, online, label: domains.size ? `${[...domains].join(', ')} (${target})` : target,
+    }));
 }
 
 function checkTCP(host, port) {

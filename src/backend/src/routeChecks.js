@@ -27,19 +27,6 @@ export function getServerScheme(server, port) {
     return 'https';
 }
 
-const MAX_EXCLUDES = 500;
-const MAX_HOST_LENGTH = 253;
-
-// The routeCheckExcludes setting as saved: unique, trimmed, lowercased hosts.
-export function sanitizeHostList(value) {
-    if (!Array.isArray(value)) return [];
-    const hosts = value
-        .filter(h => typeof h === 'string')
-        .map(h => h.trim().toLowerCase())
-        .filter(h => h && h.length <= MAX_HOST_LENGTH);
-    return [...new Set(hosts)].slice(0, MAX_EXCLUDES);
-}
-
 // One probe target per distinct site address. Routes without a concrete host
 // (catch-alls, path-only matchers, wildcards, placeholders) can't be requested
 // by name, so they're skipped, as are hosts the user excluded.

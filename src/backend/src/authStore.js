@@ -1,9 +1,7 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
-import { constants } from 'node:fs';
-import * as fs from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { chmod } from 'node:fs/promises';
 import { promisify } from 'node:util';
-import logger from './logger.js';
+import { createSerialQueue, readJsonFile, writeJsonFile } from './jsonFile.js';
 import { TotpCooldownError, TOTP_ATTEMPTS, TOTP_COOLDOWN_MS, totpStep, validTotpRecord } from './totpPolicy.js';
 import { MAX_API_TOKENS, validApiTokenInput, validApiTokenRecord } from './apiTokenPolicy.js';
 import { MAX_PASSKEYS, PasskeyValidationError, validPasskeyRecord, validPasskeyStore } from './passkeyPolicy.js';
@@ -46,25 +44,17 @@ export function validateCredentials(username, password) {
 // Authentication has its own store. UI metadata remains installation-wide.
 export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/auth.json', { now = Date.now } = {}) {
     let state;
-    let writes = Promise.resolve();
-
-    function serialize(operation) {
-        const result = writes.then(operation);
-        writes = result.catch(() => {});
-        return result;
-    }
+    const serialize = createSerialQueue();
 
     async function loadAuth() {
         let existing = false;
         try {
-            const handle = await fs.open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-            existing = true;
-            let parsed;
-            try {
-                parsed = JSON.parse(await handle.readFile('utf8'));
-            } finally {
-                await handle.close();
+            const parsed = await readJsonFile(path, { noFollow: true });
+            if (parsed === undefined) {
+                state = null;
+                return false;
             }
+            existing = true;
             if (![1, 2].includes(parsed?.version) || typeof parsed.username !== 'string' || !parsed.username.trim()
                 || parsed.username.length > 128 || !validHash(parsed.password) || !validHash(parsed.recovery)
                 || (parsed.accountId !== undefined && (typeof parsed.accountId !== 'string'
@@ -75,7 +65,7 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 || (parsed.version === 2 ? !validTotpRecord(parsed.totp) : parsed.totp !== undefined)) {
                 throw new Error('Invalid credential record');
             }
-            await fs.chmod(path, 0o600);
+            await chmod(path, 0o600);
             if (parsed.accountId === undefined) await persist({ ...parsed, accountId: randomUUID() }, false);
             else state = parsed;
         } catch (error) {
@@ -86,26 +76,10 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
     }
 
     async function persist(record, initialize) {
-        await fs.mkdir(dirname(path), { recursive: true });
-        const temporary = join(dirname(path), `.auth-${randomBytes(16).toString('hex')}.tmp`);
-        let handle;
-        try {
-            handle = await fs.open(temporary, 'wx', 0o600);
-            await handle.writeFile(JSON.stringify(record, null, 2) + '\n');
-            await handle.sync();
-            await handle.close();
-            handle = null;
-            // link() is exclusive across processes as well as concurrent requests.
-            // Replacement uses rename() so readers never see a partial record.
-            if (initialize) await fs.link(temporary, path);
-            else await fs.rename(temporary, path);
-            state = record;
-        } finally {
-            if (handle) await handle.close();
-            await fs.unlink(temporary).catch(error => {
-                if (error.code !== 'ENOENT') logger.warn('Could not remove temporary authentication file', { code: error.code });
-            });
-        }
+        // An exclusive first write can't replace credentials another process
+        // initialized; later replacements are atomic.
+        await writeJsonFile(path, record, { mode: 0o600, exclusive: initialize });
+        state = record;
     }
 
     function requireLoaded() {

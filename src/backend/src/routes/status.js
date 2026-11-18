@@ -76,9 +76,9 @@ router.get('/', async (req, res) => {
         let upstreamsOnline = null;
         let upstreamsTotal = null;
         if (upstreamChecks.status === 'fulfilled') {
-            const results = [...resultsByUpstream(upstreamChecks.value.checks).values()];
+            const results = resultsByUpstream(upstreamChecks.value.checks);
             upstreamsTotal = results.length;
-            upstreamsOnline = results.filter(Boolean).length;
+            upstreamsOnline = results.filter(result => result.online).length;
         }
 
         res.json({

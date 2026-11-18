@@ -343,6 +343,57 @@ test('explicit autocomplete only offers names at directive positions', { timeout
     assert.equal((await stack.api('/caddyfile')).data, original, 'Requesting completions does not save the Caddyfile');
 });
 
+test('snippet completions move between fields both ways, and yield Tab to vim\'s normal mode', { timeout: 90000 }, async t => {
+    const { page, origin, waitForView } = await useBrowserFixture(t);
+    await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
+    await waitForView('.cm-editor');
+    const editor = page.locator('.editor-wrap');
+    const content = editor.locator('.cm-content');
+    const status = editor.locator('.cm-vim-panel');
+    const focused = () => content.evaluate(element => element === document.activeElement);
+    const secondLine = async () => (await visibleText(editor)).split('\n')[1];
+    const acceptRedirSnippet = () => editor.getByRole('option', { name: /— redir$/ }).click();
+
+    await content.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('snippet.test {\n\t\n}');
+    await page.keyboard.press('ControlOrMeta+Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('End');
+    await page.keyboard.type('redir');
+    await acceptRedirSnippet();
+    assert.equal(await secondLine(), '\tredir /old /new permanent');
+
+    // Shift+Tab from the last field returns to the one before it (#535 review)
+    await page.keyboard.type('/a');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.type('/b');
+    assert.equal(await secondLine(), '\tredir /a /b permanent', 'Shift+Tab from the last field selects the previous one');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('X');
+    assert.equal(await secondLine(), '\tredir /a /b permanentX', 'Tab past the last field leaves the caret after the snippet');
+
+    // In vim's normal mode Tab leaves the editor even while a snippet is active
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('snippet.test {\n\t\n}');
+    await editor.getByLabel(en.caddyfile.vimMode).check();
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await content.focus();
+    await page.keyboard.press('Escape');
+    await page.keyboard.type('ggjA');
+    await page.keyboard.type('redir');
+    await acceptRedirSnippet();
+    await page.keyboard.press('Escape');
+    await status.filter({ hasText: '--NORMAL--' }).waitFor();
+    await page.keyboard.press('Tab');
+    assert(!await focused(), 'Tab in normal mode moves focus out of the editor');
+    assert.equal(await secondLine(), '\tredir /old /new permanent', 'Tab in normal mode changes nothing');
+    assert.equal(await status.filter({ hasText: '--VISUAL--' }).count(), 0, 'Tab in normal mode does not select the next field');
+});
+
 test('vim mode is a server preference, and :w saves from both editors', { timeout: 90000 }, async t => {
     const { stack, page, context, origin, waitForView } = await useBrowserFixture(t);
     const original = (await stack.api('/caddyfile')).data;
@@ -587,4 +638,81 @@ test('vim mode keeps undo history when toggled, and follows the editors\' indent
     await ex('wq');
     await modal.waitFor({ state: 'detached' });
     assert.match((await stack.api('/caddyfile')).data, /reverse_proxy 127\.0\.0\.1:901\n/, ':wq saved the route');
+});
+
+test('the snippet menu replaces the native menu only where snippets apply, and closes with its editor state', { timeout: 90000 }, async t => {
+    const { stack, page, waitForView } = await useBrowserFixture(t);
+    const original = (await stack.api('/caddyfile')).data;
+    // Navigated to inside the app, so going back unmounts the editor
+    await page.locator('.nav-item').filter({ hasText: en.sidebar.nav.caddyfile }).click();
+    await waitForView('.cm-editor');
+    assert.equal(new URL(page.url()).pathname, '/caddyfile');
+    const editor = page.locator('.editor-wrap');
+    const content = editor.locator('.cm-content');
+    const line = index => editor.locator('.cm-line').nth(index);
+    const menu = page.getByRole('menu', { name: en.caddyfile.insertSnippet });
+    const focused = () => content.evaluate(element => element === document.activeElement);
+
+    // Whether each right-button event had its default (the native menu) prevented
+    await page.evaluate(() => {
+        window.rightClicks = [];
+        for (const type of ['mousedown', 'contextmenu']) {
+            window.addEventListener(type, event => {
+                if (event.button === 2) {
+                    window.rightClicks.push(`${type}:${event.defaultPrevented ? 'prevented' : 'native'}`);
+                }
+            });
+        }
+    });
+    async function rightClick(locator) {
+        await page.evaluate(() => { window.rightClicks = []; });
+        await locator.click({ button: 'right' });
+        return page.evaluate(() => window.rightClicks);
+    }
+
+    await content.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('snippets.test {\n\treverse_proxy app:3000 {\n\t\thealth_uri /health\n\t}\n\t\n}');
+
+    // No snippets apply inside reverse_proxy, so neither the mousedown that
+    // Safari opens its menu on nor contextmenu is consumed
+    assert.deepEqual(await rightClick(line(2)), ['mousedown:native', 'contextmenu:native'], 'The native menu stays where no snippets apply');
+    assert.equal(await menu.count(), 0);
+
+    // Directive snippets apply in the site body, and replace the native menu
+    assert.deepEqual(await rightClick(line(4)), ['mousedown:prevented', 'contextmenu:prevented'], 'The snippet menu replaces the native menu');
+    await menu.waitFor();
+    await page.keyboard.press('Escape');
+    await menu.waitFor({ state: 'detached' });
+    assert(await focused(), 'Escape returns focus to the editor');
+
+    // Choosing a snippet inserts it with the line's indentation
+    await rightClick(line(4));
+    await menu.getByRole('menuitem', { name: en.caddyfile.snippet.reverseProxy, exact: true }).click();
+    await menu.waitFor({ state: 'detached' });
+    assert.equal(await line(4).textContent(), '\treverse_proxy localhost:8080');
+    assert(await focused(), 'Inserting returns focus to the editor');
+    await page.keyboard.press('ControlOrMeta+z');
+    assert.equal(await line(4).textContent(), '\t');
+
+    // Focus leaving the menu closes it, so an edit afterwards can't leave a
+    // stale insertion offset behind (the fixture fails on page errors)
+    await rightClick(line(4));
+    await menu.waitFor();
+    await page.keyboard.press('Shift+Tab');
+    await menu.waitFor({ state: 'detached' });
+    await content.focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('Backspace');
+    assert.equal(await visibleText(editor), '');
+
+    // The menu goes with its editor
+    await page.keyboard.insertText('snippets.test {\n\t\n}');
+    await rightClick(line(1));
+    await menu.waitFor();
+    await page.goBack();
+    await page.locator('.cm-editor').waitFor({ state: 'detached' });
+    assert.equal(new URL(page.url()).pathname, '/dashboard');
+    assert.equal(await page.locator('.snippet-menu-backdrop').count(), 0, 'Destroying the editor removes its menu');
+    assert.equal((await stack.api('/caddyfile')).data, original, 'Nothing was saved');
 });

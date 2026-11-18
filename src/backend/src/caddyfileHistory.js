@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, readdir, rename, stat, unlink } from 'node:fs/promises';
+import { readFile, readdir, stat, unlink } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
+import { createSerialQueue, writeJsonFile } from './jsonFile.js';
 import logger from './logger.js';
 
 const FILENAME = /^Caddyfile-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3})Z-[a-f0-9-]+\.json)?$/;
@@ -20,28 +21,13 @@ function validExternal(value) {
             && typeof value.after?.[key] === 'string');
 }
 
-async function atomicJson(directory, filename, value) {
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    const temporary = join(directory, `.history-${randomUUID()}.tmp`);
-    let handle;
-    try {
-        handle = await open(temporary, 'wx', 0o600);
-        await handle.writeFile(JSON.stringify(value) + '\n');
-        await handle.sync();
-        await handle.close();
-        handle = null;
-        await rename(temporary, join(directory, filename));
-    } finally {
-        if (handle) await handle.close();
-        await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') logger.warn('Could not remove temporary history file', { code: error.code }); });
-    }
-}
+const writeVersion = (path, value) => writeJsonFile(path, value, { mode: 0o600, dirMode: 0o700, space: 0 });
 
 // Content and attribution are published together. Older plain Caddyfile backups
 // stay readable and are never assigned an identity retroactively.
 export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}) {
     root = resolve(root);
-    let _writeLock = Promise.resolve();
+    const serialize = createSerialQueue();
     let identities;
     const metadata = new Map();
     const directory = id => {
@@ -90,16 +76,14 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
     async function remember(actor) {
         if (!validActor(actor) || typeof actor.name !== 'string' || !actor.name.trim() || actor.name.length > 128) return null;
         const reference = { type: actor.type, id: actor.id };
-        const operation = _writeLock.then(async () => {
+        await serialize(async () => {
             const value = await registry();
             const key = `${actor.type}:${actor.id}`;
             if (value.actors[key]?.name === actor.name) return;
             const next = { version: 1, actors: { ...value.actors, [key]: { ...reference, name: actor.name } } };
-            await atomicJson(root, 'actors.json', next);
+            await writeVersion(join(root, 'actors.json'), next);
             identities = Promise.resolve(next);
         });
-        _writeLock = operation.catch(() => {});
-        await operation;
         return reference;
     }
     async function read(id, filename) {
@@ -128,7 +112,7 @@ export function createCaddyfileHistory(root, { limit = 20, now = Date.now } = {}
         const timestamp = new Date(Math.max(now(), last ? Date.parse(last.timestamp) + 1 : 0)).toISOString();
         const filename = `Caddyfile-${timestamp.replace(/[:.]/g, '-')}-${randomUUID()}.json`;
         const reference = await remember(actor);
-        await atomicJson(directory(id), filename, { version: external ? 2 : 1, timestamp, parent: previous, actor: reference, action, outcome, content,
+        await writeVersion(join(directory(id), filename), { version: external ? 2 : 1, timestamp, parent: previous, actor: reference, action, outcome, content,
             ...(external ? { external } : {}) });
         try {
             for (const name of (await filenames(id)).slice(limit)) {

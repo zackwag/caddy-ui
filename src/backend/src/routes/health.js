@@ -1,14 +1,13 @@
 import { Router } from 'express';
 import { getUpstreamChecks } from '../observations.js';
-import { getRouteFailures, ROUTE_CHECK_INTERVAL_MS } from '../routeMonitor.js';
+import { latestFailures, PROBES } from '../monitoring.js';
 import { getHistory, getStatsForInstance } from '../uptimeHistory.js';
-import { CHECK_INTERVAL_MS } from '../upstreamMonitor.js';
 
 const router = Router();
 
 // GET /api/health -- recent checks (shared with other requests and the
 // monitor for up to OBSERVATION_MAX_AGE_MS) that are not recorded. Uptime
-// history is sampled only by upstreamMonitor at a fixed cadence, so how often
+// history is sampled only by the monitor at a fixed cadence, so how often
 // browsers poll this can't skew the uptime percentages.
 router.get('/', async (req, res) => {
     const { adminUrl } = req.instance;
@@ -34,7 +33,7 @@ router.get('/uptime', async (req, res) => {
     if (req.query.kind !== 'route') return res.json(getStatsForInstance(req.instance.id));
     // Route stats also carry why the latest check failed, when it did
     const stats = getStatsForInstance(req.instance.id, 'route');
-    const failures = getRouteFailures(req.instance.id);
+    const failures = latestFailures('route', req.instance.id);
     for (const [host, s] of Object.entries(stats)) if (s && failures[host]) s.lastFailure = failures[host];
     res.json(stats);
 });
@@ -47,8 +46,7 @@ router.get('/history', async (req, res) => {
     if (!upstream && !route) return res.status(400).json({ error: 'upstream or route is required' });
     const sinceMs = since ? Number(since) : undefined;
     const kind = route ? 'route' : 'upstream';
-    const intervalMs = route ? ROUTE_CHECK_INTERVAL_MS : CHECK_INTERVAL_MS;
-    res.json({ ...getHistory(req.instance.id, route || upstream, { sinceMs, kind }), intervalMs });
+    res.json({ ...getHistory(req.instance.id, route || upstream, { sinceMs, kind }), intervalMs: PROBES[kind].intervalMs });
 });
 
 export default router;

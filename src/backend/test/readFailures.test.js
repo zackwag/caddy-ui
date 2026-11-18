@@ -17,10 +17,12 @@ const notesPath = join(root, 'route-notes.json');
 const historyPath = join(root, 'history');
 process.env.ROUTE_NOTES_PATH = notesPath;
 process.env.HISTORY_PATH = historyPath;
+process.env.NOTIFICATIONS_CONFIG_PATH = join(root, 'notifications.json');
 const { default: logger } = await import('../src/logger.js');
 const { default: routeNotesRouter, cleanupOrphanedNotes } = await import('../src/routes/routenotes.js');
 const { default: caddyfileRouter } = await import('../src/routes/caddyfile.js');
-const { checkCertsForInstance } = await import('../src/notifications.js');
+const { initNotifications, runReminders } = await import('../src/notifications.js');
+const { saveNotificationConfig } = await import('../src/notificationConfig.js');
 
 const isRoot = process.getuid?.() === 0;
 const servers = { srv0: { routes: [{ match: [{ host: ['app.example.com'] }] }] } };
@@ -131,7 +133,23 @@ describe('Caddyfile history list', () => {
 });
 
 describe('certificate expiry checks', () => {
-    const inst = (dataPath) => ({ id: 'alpha', name: 'Alpha', containerName: '', dataPath });
+    const inst = (dataPath) => ({ id: 'alpha', name: 'Alpha', containerName: '', dataPath, adminUrl: 'http://alpha:2019' });
+    const triggers = { upstreamOffline: false, upstreamOnline: false, certExpiring: true, updateAvailable: false, apiTokenExpiring: false };
+
+    // Each test runs one reminder round over just its own instance.
+    async function checkCerts(instance) {
+        instances.splice(0, instances.length, instance);
+        await runReminders();
+    }
+
+    beforeAll(async () => {
+        await initNotifications();
+        instances.splice(0, instances.length);
+        await saveNotificationConfig({ enabled: true, provider: 'ntfy', ntfy: { url: 'http://ntfy/alerts' }, triggers });
+        await runReminders();
+    });
+
+    afterAll(() => saveNotificationConfig({ enabled: false }));
 
     it.skipIf(isRoot)('logs unreadable certificate storage once per outage', async () => {
         const warn = vi.spyOn(logger, 'warn');
@@ -141,26 +159,26 @@ describe('certificate expiry checks', () => {
         await mkdir(certsPath, { recursive: true });
         await chmod(certsPath, 0o000);
 
-        await checkCertsForInstance(locked);
-        await checkCertsForInstance(locked);
+        await checkCerts(locked);
+        await checkCerts(locked);
         expect(warn).toHaveBeenCalledTimes(1);
         expect(warn.mock.calls[0][0]).toMatch(/Certificate expiry checks skipped/);
 
         await chmod(certsPath, 0o755);
-        await checkCertsForInstance(locked);
+        await checkCerts(locked);
         expect(info).toHaveBeenCalledWith('Certificate expiry checks resumed', { instance: 'Alpha' });
     });
 
     it("stays quiet when Caddy hasn't created its data directory (HTTP-only setups)", async () => {
         const warn = vi.spyOn(logger, 'warn');
-        await checkCertsForInstance({ ...inst(join(root, 'never-created')), id: 'http-only' });
+        await checkCerts({ ...inst(join(root, 'never-created')), id: 'http-only' });
         expect(warn).not.toHaveBeenCalled();
     });
 
     it("stays quiet before Caddy has stored a certificate", async () => {
         const warn = vi.spyOn(logger, 'warn');
         await mkdir(join(root, 'fresh-data'), { recursive: true });
-        await checkCertsForInstance({ ...inst(join(root, 'fresh-data')), id: 'fresh' });
+        await checkCerts({ ...inst(join(root, 'fresh-data')), id: 'fresh' });
         expect(warn).not.toHaveBeenCalled();
     });
 });

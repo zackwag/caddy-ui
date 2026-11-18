@@ -104,13 +104,13 @@ describe('failed instance changes', () => {
         await expectPersisted();
         const before = structuredClone(instances.getInstances());
         const persisted = await readFile(file, 'utf8');
-        await chmod(file, 0o444);
+        await chmod(directory, 0o555);
         try {
             await expect(changes[operation]()).rejects.toMatchObject({ code: 'EACCES' });
             expect(instances.getInstances()).toEqual(before);
             expect(await readFile(file, 'utf8')).toBe(persisted);
         } finally {
-            await chmod(file, 0o600);
+            await chmod(directory, 0o700);
         }
 
         // Reloading data must not hide a poisoned write queue. Retrying the

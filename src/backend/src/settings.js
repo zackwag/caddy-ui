@@ -1,48 +1,84 @@
-import { mkdir, readFile, writeFile } from 'fs/promises';
-import { dirname } from 'path';
+import { createJsonStore } from './jsonFile.js';
+import { normalizeLanguageSetting } from './languages.js';
 import logger from './logger.js';
 
 const SETTINGS_PATH = process.env.SETTINGS_PATH || '/etc/caddy-ui/settings.json';
 
-const DEFAULT_SETTINGS = {
+const DEFAULT_SETTINGS = Object.freeze({
     firstTimeRun: true,
     theme: 'dark',
     language: null,
     editorVim: false,
     darkPalette: 'vt2026',
     lightPalette: 'coarse-everywhere',
-    routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
+    routeColumns: Object.freeze({ status: true, title: true, upstream: true, server: true, id: true }),
     routeChecks: false,
-    routeCheckExcludes: [],
+    routeCheckExcludes: Object.freeze([]),
+});
+
+const MAX_EXCLUDES = 500;
+const MAX_HOST_LENGTH = 253;
+
+// Unique, trimmed, lowercased hosts.
+export function sanitizeHostList(value) {
+    if (!Array.isArray(value)) return [];
+    const hosts = value
+        .filter(h => typeof h === 'string')
+        .map(h => h.trim().toLowerCase())
+        .filter(h => h && h.length <= MAX_HOST_LENGTH);
+    return [...new Set(hosts)].slice(0, MAX_EXCLUDES);
+}
+
+const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
+const keep = value => value;
+
+// How a submitted value for each setting is stored. Undefined rejects it.
+const NORMALIZERS = {
+    firstTimeRun: keep,
+    theme: keep,
+    language: normalizeLanguageSetting,
+    editorVim: value => value === true,
+    darkPalette: keep,
+    lightPalette: keep,
+    routeColumns: value => (isObject(value) ? { ...DEFAULT_SETTINGS.routeColumns, ...value } : undefined),
+    routeChecks: value => value === true,
+    routeCheckExcludes: sanitizeHostList,
 };
 
-let _settings = null;
-let _writeLock = Promise.resolve();
+function withDefaults(saved) {
+    const settings = structuredClone({ ...DEFAULT_SETTINGS, ...(isObject(saved) ? saved : {}) });
+    settings.routeColumns = { ...DEFAULT_SETTINGS.routeColumns, ...(isObject(settings.routeColumns) ? settings.routeColumns : {}) };
+    return settings;
+}
 
-export async function loadSettings() {
-    try {
-        const raw = await readFile(SETTINGS_PATH, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            _settings = { ...DEFAULT_SETTINGS, ...parsed };
-            return _settings;
-        }
-    } catch { }
-    _settings = { ...DEFAULT_SETTINGS };
-    return _settings;
+const store = createJsonStore(SETTINGS_PATH, { parse: withDefaults });
+
+export function loadSettings() {
+    return store.load();
 }
 
 export function getSettings() {
-    return _settings || { ...DEFAULT_SETTINGS };
+    return store.get();
+}
+
+export class InvalidSettingError extends Error {}
+
+// The known settings in `body`, normalized. Throws InvalidSettingError when
+// none are given or one can't be stored.
+export function settingsUpdate(body) {
+    const updates = {};
+    for (const [key, normalize] of Object.entries(NORMALIZERS)) {
+        if (!isObject(body) || !(key in body)) continue;
+        const value = normalize(body[key]);
+        if (value === undefined) throw new InvalidSettingError(`Unsupported ${key}`);
+        updates[key] = value;
+    }
+    if (!Object.keys(updates).length) throw new InvalidSettingError('No valid settings provided');
+    return updates;
 }
 
 export async function saveSettings(updates) {
-    _settings = { ..._settings, ...updates };
-    _writeLock = _writeLock.then(async () => {
-        await mkdir(dirname(SETTINGS_PATH), { recursive: true });
-        await writeFile(SETTINGS_PATH, JSON.stringify(_settings, null, 2), 'utf8');
-    });
-    await _writeLock;
+    const settings = await store.update(current => ({ ...current, ...updates }));
     logger.info('Settings updated', { keys: Object.keys(updates) });
-    return _settings;
+    return settings;
 }

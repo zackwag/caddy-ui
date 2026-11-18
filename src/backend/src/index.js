@@ -1,7 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { loadCustomThemes } from './customThemes.js';
-import { getInstances, loadInstances } from './instances.js';
+import { getInstances, loadInstances, onInstanceRemoved } from './instances.js';
 import logger from './logger.js';
 import { diagnosticMiddleware } from './errorReporting.js';
 import { authMiddleware, initializeAuthentication, publicMetrics } from './middleware/auth.js';
@@ -9,7 +9,7 @@ import { createCrossSiteMiddleware, misnamedExternalUrlVariables } from './middl
 import { createCsrfMiddleware } from './middleware/csrf.js';
 import { createApiTokenMiddleware } from './middleware/apiToken.js';
 import { instanceMiddleware } from './middleware/instance.js';
-import { initMonitor } from './notifications.js';
+import { forgetInstanceNotifications, initNotifications, notifyCheckResults } from './notifications.js';
 import authRouter from './routes/auth.js';
 import pagesRouter from './routes/pages.js';
 import caddyfileRouter, { migrateLegacyHistory } from './routes/caddyfile.js';
@@ -26,22 +26,21 @@ import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
-import { startRouteMonitor } from './routeMonitor.js';
 import { detectBackendIdentity } from './dockerDiscovery.js';
-import { loadMaintenance } from './maintenance.js';
-import { loadServerNames } from './serverNames.js';
+import { loadMaintenance, releaseInstanceMaintenance } from './maintenance.js';
+import { forgetInstanceChecks, onCheckResults, startMonitoring } from './monitoring.js';
+import { releaseInstanceNotes } from './routeNotes.js';
+import { loadServerNames, removeInstanceServerNames } from './serverNames.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCheck.js';
-import { startUpstreamMonitor } from './upstreamMonitor.js';
-import { startConfigDriftMonitor } from './configDrift.js';
+import { forgetConfigDrift, startConfigDriftMonitor } from './configDrift.js';
 import { createProxyTrust } from './trustedProxies.js';
 import { getAvailableFonts, getEnabledLanguages } from './languages.js';
 
 const authentication = await initializeAuthentication();
 const app = express();
 const PORT = process.env.PORT || 3001;
-const CADDY_ADMIN_URL = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
 const APP_VERSION = process.env.APP_VERSION || 'dev';
 
 const proxyTrust = await createProxyTrust(process.env.CADDY_UI_TRUSTED_PROXIES);
@@ -162,9 +161,13 @@ await loadSettings();
 await loadMaintenance();
 await loadCustomThemes();
 await initUptimeHistory();
-startUpstreamMonitor();
+for (const release of [forgetInstanceNotifications, forgetInstanceChecks, forgetConfigDrift, removeInstanceServerNames, releaseInstanceMaintenance, releaseInstanceNotes]) {
+    onInstanceRemoved(release);
+}
+await initNotifications({ apiTokens: () => authentication.apiTokenMetadata() });
+onCheckResults(notifyCheckResults);
+startMonitoring();
 startConfigDriftMonitor();
-startRouteMonitor();
 startUpdateCheck();
 
 const server = app.listen(PORT, error => {
@@ -174,13 +177,11 @@ const server = app.listen(PORT, error => {
     if (error) throw error;
     const port = server.address().port;
     logger.info(`Caddy UI backend running`, { port, version: APP_VERSION });
-    logger.info(`Caddy admin API`, { url: CADDY_ADMIN_URL });
-    logger.info(`Caddyfile path`, { path: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile' });
+    logger.info(`Caddy instances`, { instances: getInstances().map(({ id, adminUrl, configPath }) => ({ id, adminUrl, configPath })) });
     logger.info(`Public metrics`, { enabled: publicMetrics });
     logger.info(`Enabled languages`, { languages: getEnabledLanguages() });
     logger.info(`Available UI fonts`, { languages: getAvailableFonts() });
     // Launchers using IPC can discover an OS-assigned port after it is bound.
     if (process.connected) process.send({ type: 'caddy-ui:listening', port });
-    initMonitor({ apiTokens: () => authentication.apiTokenMetadata() });
     initCaddyfileTitles().then(() => cleanupOrphanedNotes());
 });

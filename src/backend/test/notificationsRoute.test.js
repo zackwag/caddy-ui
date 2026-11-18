@@ -8,7 +8,7 @@ import { AppError } from '../src/AppError.js';
 import { diagnosticMiddleware } from '../src/errorReporting.js';
 
 const { sendNotification } = vi.hoisted(() => ({ sendNotification: vi.fn() }));
-vi.mock('../src/notifications.js', () => ({ sendNotification, updateMonitorConfig: vi.fn() }));
+vi.mock('../src/notificationDelivery.js', async importOriginal => ({ ...await importOriginal(), sendNotification }));
 
 let server;
 let testUrl;
@@ -19,6 +19,8 @@ beforeAll(async () => {
     process.env.NOTIFICATIONS_CONFIG_PATH = join(configDir, 'notifications.json');
     await writeFile(process.env.NOTIFICATIONS_CONFIG_PATH, JSON.stringify({ enabled: true, provider: 'ntfy', ntfy: { url: 'http://ntfy/alerts' } }));
     const { default: notificationsRouter } = await import('../src/routes/notifications.js');
+    const { loadNotificationConfig } = await import('../src/notificationConfig.js');
+    await loadNotificationConfig();
 
     const app = express();
     app.use(express.json());
