@@ -6,6 +6,8 @@ import { readContainerFile } from './containerFs.js';
 import { getInstances } from './instances.js';
 import { runExclusive } from './instanceQueue.js';
 import logger from './logger.js';
+import { configurationHistory } from './configurationHistory.js';
+import { AppError } from './AppError.js';
 
 // Detects configuration changes made outside caddy-ui by fingerprinting each
 // instance's Caddyfile and running config, independently of browser activity.
@@ -37,18 +39,39 @@ const shortFingerprint = fingerprint => fingerprint?.replace(/^(sha256|etag):/, 
 function stateFor(instanceId) {
     let state = states.get(instanceId);
     if (!state) {
-        state = { expected: null, liveConfig: undefined, pending: null, reported: null, failing: false, changes: [] };
+        state = { expected: null, liveConfig: undefined, observed: null, pending: null, reported: null, failing: false, changes: [] };
         states.set(instanceId, state);
     }
     return state;
 }
 
 async function observe({ adminUrl, configPath, containerName }) {
-    const [text, live] = await Promise.all([readContainerFile(containerName, configPath), caddyGetConfig(adminUrl)]);
-    return { file: fingerprintText(text), live: live.fingerprint, config: live.config };
+    const [file, live] = await Promise.allSettled([readContainerFile(containerName, configPath), caddyGetConfig(adminUrl)]);
+    return {
+        file: file.status === 'fulfilled' ? fingerprintText(file.value) : null,
+        text: file.status === 'fulfilled' ? file.value : null,
+        live: live.status === 'fulfilled' ? live.value.fingerprint : null,
+        config: live.status === 'fulfilled' ? live.value.config : undefined,
+        error: [file, live].find(result => result.status === 'rejected')?.reason,
+    };
 }
 
 const fingerprints = ({ file, live }) => ({ file, live });
+
+// Project a verified mutation onto the previous actual observation, keeping
+// unrelated external changes. This is independent of the expected config: a
+// route added outside caddy-ui can't be projected there, but the user's edit of
+// it must still not be recorded as an external observation on the next check.
+async function projectObservation(state, expectLive) {
+    if (!state.observed) {
+        return;
+    }
+    const actual = await expectLive?.(structuredClone(state.observed.config));
+    if (actual !== undefined) {
+        state.observed.config = structuredClone(actual);
+        state.observed.live = fingerprintText(JSON.stringify(actual));
+    }
+}
 
 async function acceptLiveExpectation(state, expectLive) {
     const config = await expectLive?.(structuredClone(state.liveConfig));
@@ -61,13 +84,87 @@ async function acceptLiveExpectation(state, expectLive) {
 }
 
 function matchLiveFingerprint(state, observed) {
-    if (state.expected.live !== observed.live && isDeepStrictEqual(state.liveConfig, observed.config)) {
+    if (observed.live && state.expected.live !== observed.live && isDeepStrictEqual(state.liveConfig, observed.config)) {
         state.expected.live = observed.live;
     }
 }
 
 function changedRepresentations(previous, current) {
-    return ['file', 'live'].filter(representation => previous[representation] !== current[representation]);
+    return ['file', 'live'].filter(representation => current[representation] && previous[representation] !== current[representation]);
+}
+
+// Stable formatting makes JSON diffs about configuration values, rather than
+// object-key order. Array order is significant and remains unchanged.
+function ordered(value) {
+    if (Array.isArray(value)) return value.map(ordered);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
+    return value;
+}
+const jsonText = config => JSON.stringify(ordered(config), null, 2) + '\n';
+
+// Live JSON has secrets resolved at adapt time (DNS provider tokens and the
+// like), unlike the Caddyfile's {$VAR} placeholders. Unless opted in, history
+// keeps only a fingerprint of each side plus the changed JSON Pointer paths.
+const keepLiveJson = () => process.env.CADDY_UI_HISTORY_LIVE_JSON === 'true';
+const pointer = segments => segments.map(segment => '/' + segment.replace(/~/g, '~0').replace(/\//g, '~1')).join('') || '/';
+
+export function changedPaths(before, after, segments = [], paths = []) {
+    const container = value => value !== null && typeof value === 'object';
+    if (!container(before) || !container(after) || Array.isArray(before) !== Array.isArray(after)) {
+        if (!isDeepStrictEqual(before, after)) {
+            paths.push(pointer(segments));
+        }
+        return paths;
+    }
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+    // Array indexes keep their order; object keys are sorted like jsonText.
+    for (const key of Array.isArray(before) ? keys : keys.sort()) {
+        if (!Object.hasOwn(before, key) || !Object.hasOwn(after, key)) {
+            paths.push(pointer([...segments, key]));
+        } else {
+            changedPaths(before[key], after[key], [...segments, key], paths);
+        }
+    }
+    return paths;
+}
+
+async function preserveObservation(instance, state, observed) {
+    const previous = state.observed;
+    if (previous) {
+        const representations = ['file', 'live'].filter(key => observed[key] && (!previous[key]
+            || (key === 'file' ? previous.file !== observed.file : !isDeepStrictEqual(previous.config, observed.config))));
+        if (representations.length) {
+            const before = {}, after = {};
+            let paths;
+            for (const key of representations) {
+                if (key === 'file') {
+                    before.file = previous.file ? previous.text : null;
+                    after.file = observed.text;
+                } else if (keepLiveJson()) {
+                    before.live = previous.live ? jsonText(previous.config) : null;
+                    after.live = jsonText(observed.config);
+                } else {
+                    before.live = previous.live ? fingerprintText(jsonText(previous.config)) : null;
+                    after.live = fingerprintText(jsonText(observed.config));
+                    paths = previous.live ? changedPaths(previous.config, observed.config) : [];
+                }
+            }
+            // Publish first. A failure leaves the old observation intact so the
+            // next poll can retry and no lost history is mistaken for success.
+            try {
+                await configurationHistory.recordExternal(instance.id, { detectedAt: new Date().toISOString(), representations, before, after,
+                    ...(paths ? { paths } : {}) });
+            } catch (cause) {
+                throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context: { instanceId: instance.id } });
+            }
+        }
+    }
+    state.observed = {
+        file: observed.file || previous?.file || null,
+        text: observed.file ? observed.text : previous?.text ?? null,
+        live: observed.live || previous?.live || null,
+        config: observed.live ? structuredClone(observed.config) : previous?.config,
+    };
 }
 
 // Called inside the change queue after readback. expectLive returns the complete
@@ -81,17 +178,24 @@ export async function recordLocalChange(instance, { content, verification, verif
     if (!state.expected) return;
     const file = content === null ? null : fingerprintText(content);
     const fileVerified = [VERIFIED, UNCHANGED].includes(verification.file);
-    if (file !== null && fileVerified) state.expected.file = file;
+    if (file !== null && fileVerified) {
+        state.expected.file = file;
+        state.observed.file = file;
+        state.observed.text = content;
+    }
     let liveAccepted = verification.live === NOT_APPLIED;
+    let projected = false;
     if (verification.live === VERIFIED) {
         try {
+            await projectObservation(state, expectLive);
+            projected = true;
             liveAccepted = await acceptLiveExpectation(state, expectLive);
         } catch (error) {
             logger.warn('Could not establish the expected configuration after a local change', { instanceId: instance.id, error: error.name });
         }
     }
     state.pending = (!fileVerified && file !== null) || !liveAccepted
-        ? { file: !fileVerified ? file : null, live: !liveAccepted, verifyLive, expectLive } : null;
+        ? { file: !fileVerified ? file : null, content, live: !liveAccepted, projected, verifyLive, expectLive } : null;
 }
 
 async function confirmPendingChange(state, observed) {
@@ -100,10 +204,16 @@ async function confirmPendingChange(state, observed) {
     let confirmed = false;
     if (pending.file !== null && pending.file === observed.file) {
         state.expected.file = pending.file;
+        state.observed.file = pending.file;
+        state.observed.text = pending.content;
         confirmed = true;
     }
     try {
         if (pending.live && await pending.verifyLive() === VERIFIED) {
+            // Project once: an add applied twice would duplicate its route.
+            if (!pending.projected) {
+                await projectObservation(state, pending.expectLive);
+            }
             confirmed = await acceptLiveExpectation(state, pending.expectLive) || confirmed;
         }
     } catch {
@@ -113,24 +223,21 @@ async function confirmPendingChange(state, observed) {
     return confirmed;
 }
 
-export async function checkInstance(instance) {
+export async function checkInstance(instance, { report = true } = {}) {
     const state = stateFor(instance.id);
     const context = { instanceId: instance.id, instance: instance.name };
     if (hasUnsettledWrites(instance.adminUrl)) {
         logger.debug('Configuration drift check deferred: a caddy-ui write is unsettled', context);
         return;
     }
-    let observed;
-    try {
-        observed = await observe(instance);
-    } catch (error) {
+    const observed = await observe(instance);
+    if (observed.error) {
+        const error = observed.error;
         if (!state.failing) {
             logger.warn('Configuration drift check unavailable', { ...context, error: [error.name, error.code, error.status].filter(Boolean).join(' ') });
         }
         state.failing = true;
-        return;
-    }
-    if (state.failing) {
+    } else if (state.failing) {
         logger.info('Configuration drift check available again', context);
         state.failing = false;
     }
@@ -138,13 +245,25 @@ export async function checkInstance(instance) {
         state.expected = fingerprints(observed);
         state.liveConfig = structuredClone(observed.config);
         state.pending = null;
+        await preserveObservation(instance, state, observed);
         logger.info('Configuration baseline established', { ...context, file: shortFingerprint(observed.file), live: shortFingerprint(observed.live) });
         return;
     }
     if (await confirmPendingChange(state, observed)) {
         logger.info('Local configuration change confirmed', context);
     }
+    await preserveObservation(instance, state, observed);
+    // An initially unreadable representation has no expected baseline. Its
+    // first available value is preserved with an explicitly missing "before".
+    if (!state.expected.file && observed.file) state.expected.file = observed.file;
+    if (!state.expected.live && observed.live) {
+        state.expected.live = observed.live;
+        state.liveConfig = structuredClone(observed.config);
+    }
     matchLiveFingerprint(state, observed);
+    // Pre-write discovery preserves evidence without adding a second drift
+    // report before the same unexplained state is checked by the monitor.
+    if (!report) return;
     if (!changedRepresentations(state.expected, observed).length) {
         state.reported = null;
         return;
@@ -173,7 +292,7 @@ export async function checkAllInstances() {
         }
     }
     await Promise.all(instances.map(instance => runExclusive(instance.id, () => checkInstance(instance)).catch(error => {
-        logger.warn('Configuration drift check failed', { instanceId: instance.id, error: error.name });
+        logger.warn('Configuration drift check failed', { instanceId: instance.id, error: error.name, code: error.code });
     })));
 }
 

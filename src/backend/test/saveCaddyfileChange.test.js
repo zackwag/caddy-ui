@@ -86,6 +86,7 @@ const verified = { file: 'verified', live: 'verified' };
 const servers = { srv0: { listen: [':443'], routes: [] } };
 
 beforeEach(() => {
+    resetConfigDrift();
     files.clear();
     files.set(instance.configPath, original);
     failWrites.at = [];
@@ -116,6 +117,24 @@ beforeEach(() => {
 });
 
 describe('saveCaddyfileChange', () => {
+    it.each([false, true])('does not duplicate an external file discovered before a save (polled first: %s)', async polled => {
+        const history = createCaddyfileHistory(process.env.HISTORY_PATH);
+        await checkInstance(instance);
+        const external = `external-${randomUUID()} {}`;
+        files.set(instance.configPath, external);
+        if (polled) await checkInstance(instance);
+        const actor = { type: 'user', id: randomUUID(), name: 'Saving administrator' };
+        await saveCaddyfileChange(instance, 'saved {}', { actor });
+        await checkInstance(instance);
+        const entries = await history.list(instance.id);
+        const observations = await Promise.all(entries.filter(entry => entry.kind === 'external').map(entry => history.read(instance.id, entry.filename)));
+        expect(observations.filter(value => value.external.after.file === external)).toHaveLength(1);
+        expect(observations.find(value => value.external.after.file === external).actor).toBeNull();
+        expect(entries[0].actor).toEqual(actor);
+        expect(entries[0].parent).toBe(entries[1].filename);
+        expect((await history.read(instance.id, entries[1].filename)).external.after.file).toBe(external);
+    });
+
     it('runs asynchronous transforms against the preceding committed content inside the queue', async () => {
         let release, started;
         const gate = new Promise(resolve => { release = resolve; });
@@ -595,9 +614,10 @@ describe('API save paths', () => {
             ['the running config', () => caddyGet.mockImplementationOnce(async () => { throw new Error('Caddy API error: 503 unavailable'); }), { file: 'verified', live: 'unavailable' }],
             // The first adapt validates the save; the second is the readback
             ['the adapter', () => caddyAdapt.mockImplementationOnce(adapted).mockRejectedValueOnce(new Error('adapt failed')), { file: 'verified', live: 'unavailable' }],
-            ['the saved file', () => vi.mocked(readContainerFile)
-                .mockImplementationOnce(async (container, path) => files.get(path))
-                .mockRejectedValueOnce(new Error('EIO: i/o error')), { file: 'unavailable', live: 'verified' }],
+            ['the saved file', () => caddyLoad.mockImplementationOnce(async content => {
+                await load(content);
+                vi.mocked(readContainerFile).mockRejectedValueOnce(new Error('EIO: i/o error'));
+            }), { file: 'unavailable', live: 'verified' }],
         ])('distinguishes unreadable %s from a mismatch', async (name, fail, verification) => {
             fail();
             const { status, body } = await editorSave('mine.example.com {\n}\n');

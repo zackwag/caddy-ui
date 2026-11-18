@@ -520,7 +520,6 @@ export default {
         "resizePanes": "تغيير حجم لوحتي المحرر والسجل",
         "resizePanesHint": "اسحب أو استخدم مفاتيح الأسهم لتغيير الحجم. انقر مرتين لإعادة الضبط.",
         "paneSizes": "المحرر {{editor}}، السجل {{history}}",
-        "noSnapshots": "لا توجد لقطات بعد — احفظ ملف Caddyfile لإنشاء لقطة",
         "latest": "الأحدث",
         "deleteSnapshot": "حذف اللقطة",
         "diff": "الفروق",
