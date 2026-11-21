@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import ActivityLog from './ActivityLog.jsx';
 import ApiTokens from './ApiTokens.jsx';
 import UserSettings from './UserSettings.jsx';
 import TotpSettings from './TotpSettings.jsx';
@@ -21,6 +22,7 @@ export default function SecuritySettings({ onClose, onUnauth }) {
     const [authOpen, setAuthOpen] = useState(false);
     const [totpOpen, setTotpOpen] = useState(false);
     const [passkeysOpen, setPasskeysOpen] = useState(false);
+    const [activityOpen, setActivityOpen] = useState(false);
     const [authBusy, setAuthBusy] = useState(false);
     const [userBusy, setUserBusy] = useState(false);
     const [tokenBusy, setTokenBusy] = useState(false);
@@ -94,6 +96,15 @@ export default function SecuritySettings({ onClose, onUnauth }) {
             </button></h3>
             <div id="security-tokens" className="security-section-body" hidden={!tokensOpen}>
                 <ApiTokens onUnauth={onUnauth} busy={tokenBusy} setBusy={setTokenBusy} issued={issued} setIssued={setIssued} disabled={userBusy || authBusy} />
+            </div>
+        </section>
+        <section className="security-section">
+            <h3><button type="button" className="security-toggle" aria-expanded={activityOpen} aria-controls="security-activity"
+                disabled={locked} onClick={() => setActivityOpen(value => !value)}>
+                <span>{t('activity.title')}</span><UtilityIcon name="chevronDown" />
+            </button></h3>
+            <div id="security-activity" className="security-section-body" hidden={!activityOpen}>
+                {activityOpen && <ActivityLog onUnauth={onUnauth} />}
             </div>
         </section>
         <div className="btn-row flex-end"><button type="button" className="btn btn-ghost" disabled={locked} onClick={onClose}>{t('common.close')}</button></div>

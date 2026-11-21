@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 import { getNotificationConfig, saveNotificationConfig } from '../notificationConfig.js';
@@ -11,7 +12,17 @@ router.get('/config', (req, res) => {
 });
 
 router.put('/config', async (req, res) => {
-    res.json(await saveNotificationConfig(req.body));
+    let config;
+    try {
+        config = await saveNotificationConfig(req.body);
+    } catch (err) {
+        await recordAudit(req, { action: 'notifications.configure', outcome: 'failure' });
+        throw err;
+    }
+    // Destinations and credentials stay out of the audit log.
+    const triggers = Object.keys(config.triggers).filter(trigger => config.triggers[trigger]);
+    await recordAudit(req, { action: 'notifications.configure', details: { enabled: config.enabled, provider: config.provider, triggers } });
+    res.json(config);
 });
 
 router.post('/test', async (req, res) => {

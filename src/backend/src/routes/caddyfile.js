@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { mkdir, readdir, rename } from 'fs/promises';
 import { dirname, join } from 'path';
+import { recordAudit } from '../auditLog.js';
 import { CaddyTimeoutError, caddyAdapt, caddyLoad, markConfigChanged } from '../caddy.js';
 import { describeReadError, readContainerFile, removeContainerPath, writeContainerFile } from '../containerFs.js';
 import { execInInstance } from '../docker.js';
@@ -473,7 +474,14 @@ router.delete('/history/:filename', async (req, res) => {
     if (!history.validFilename(filename)) {
         return res.status(400).json({ error: 'Invalid filename' });
     }
-    await history.remove(req.instance.id, filename);
+    const event = { action: 'history.delete', instanceId: req.instance.id, resource: filename };
+    try {
+        await history.remove(req.instance.id, filename);
+    } catch (err) {
+        await recordAudit(req, { ...event, outcome: 'failure' });
+        throw err;
+    }
+    await recordAudit(req, event);
     res.json({ ok: true });
 });
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { caddyGet } from '../caddy.js';
 import { discoverCaddyContainers } from '../dockerDiscovery.js';
+import { recordAudit } from '../auditLog.js';
 import { addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
 import logger from '../logger.js';
 import { asAppError } from '../AppError.js';
@@ -118,9 +119,11 @@ router.post('/', async (req, res) => {
             containerName: containerName != null ? containerName : 'caddy',
             serverName: serverName || 'srv0',
         });
+        await recordAudit(req, { action: 'instance.add', instanceId: id });
         res.status(201).json(instance);
     } catch (err) {
         logger.error('Failed to add instance', { error: err.message });
+        await recordAudit(req, { action: 'instance.add', instanceId: id, instanceName: name, outcome: 'failure' });
         sendAppError(res, asAppError(err, 'INSTANCE_SAVE_FAILED'));
     }
 });
@@ -140,9 +143,11 @@ router.put('/:id', async (req, res) => {
     }
     try {
         const instance = await updateInstance(id, raw);
+        await recordAudit(req, { action: 'instance.edit', instanceId: id, details: { fields: Object.keys(raw) } });
         res.json(instance);
     } catch (err) {
         logger.error('Failed to update instance', { id, error: err.message });
+        await recordAudit(req, { action: 'instance.edit', instanceId: id, details: { fields: Object.keys(raw) }, outcome: 'failure' });
         sendAppError(res, asAppError(err, 'INSTANCE_SAVE_FAILED'));
     }
 });
@@ -150,11 +155,14 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/instances/:id
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
+    const instanceName = getInstances().find(instance => instance.id === id)?.name;
     try {
         await removeInstance(id);
+        await recordAudit(req, { action: 'instance.remove', instanceId: id, instanceName });
         res.json({ ok: true });
     } catch (err) {
         logger.error('Failed to remove instance', { id, error: err.message });
+        await recordAudit(req, { action: 'instance.remove', instanceId: id, instanceName, outcome: 'failure' });
         sendAppError(res, asAppError(err, 'INSTANCE_REMOVE_FAILED'));
     }
 });

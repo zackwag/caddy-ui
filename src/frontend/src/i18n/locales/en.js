@@ -149,6 +149,24 @@ export default {
         saved: 'Administrator credentials updated.',
     },
 
+    activity: {
+        title: 'Activity',
+        hint: "Administrative changes that don't create a Caddyfile version, newest first. Caddyfile changes are attributed in Caddyfile history. The last 500 events are kept. This log helps with operations; it isn't tamper-proof evidence.",
+        empty: 'No administrative changes recorded yet.',
+        application: 'Application',
+        failed: '(failed)',
+        instanceAdd: 'Added instance',
+        instanceEdit: 'Edited instance: {{fields}}',
+        instanceRemove: 'Removed instance',
+        serverNameSet: 'Named server {{server}} "{{name}}"',
+        serverNameRemove: 'Removed the name of server {{server}}',
+        routeTitleSet: 'Set the title of {{route}} to "{{title}}"',
+        routeTitleClear: 'Cleared the title of {{route}}',
+        notificationsEnabled: 'Updated notification settings: enabled via {{provider}}',
+        notificationsDisabled: 'Updated notification settings: disabled',
+        historyDelete: 'Deleted Caddyfile history entry {{entry}}',
+    },
+
     reauth: {
         passkey: 'Passkey (recommended)',
         password: 'Password',
