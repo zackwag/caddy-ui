@@ -35,7 +35,9 @@ const historyRoot = await mkdtemp(join(tmpdir(), 'caddy-ui-drift-history-'));
 process.env.HISTORY_PATH = historyRoot;
 afterAll(async () => { await rm(historyRoot, { recursive: true, force: true }); delete process.env.HISTORY_PATH; });
 const { configurationHistory: history } = await import('../src/configurationHistory.js');
-const { DRIFT_HISTORY_LIMIT, changedPaths, checkAllInstances, getConfigDriftState, recordLocalChange, resetConfigDrift } = await import('../src/configDrift.js');
+const { DRIFT_HISTORY_LIMIT, changedPaths, checkAllInstances, getConfigDriftState, onExternalConfigurationChange, recordLocalChange, resetConfigDrift } = await import('../src/configDrift.js');
+const announced = [];
+onExternalConfigurationChange(change => { announced.push(change); });
 
 const alpha = { id: 'alpha', name: 'Alpha', adminUrl: 'http://alpha:2019', configPath: '/alpha/Caddyfile', containerName: 'alpha' };
 const beta = { id: 'beta', name: 'Beta', adminUrl: 'http://beta:2019', configPath: '/beta/Caddyfile', containerName: 'beta' };
@@ -47,6 +49,7 @@ const reports = () => warn.mock.calls.filter(([message]) => message === 'Configu
 const changes = id => getConfigDriftState(id).changes;
 
 beforeEach(async () => {
+    announced.length = 0;
     await rm(historyRoot, { recursive: true, force: true });
     resetConfigDrift();
     files.clear();
@@ -233,6 +236,29 @@ describe('configuration drift detection', () => {
         expect(reports()).toHaveLength(2);
     });
 
+    it('announces each reported change once, with its history entry and no configuration content', async () => {
+        files.set(alpha.configPath, 'first-secret {\n}\n');
+        await checkAllInstances();
+        await checkAllInstances();
+        await vi.waitFor(() => expect(announced).toHaveLength(1));
+        const [entry] = await history.list(alpha.id);
+        expect(announced[0]).toEqual({ instanceId: 'alpha', instanceName: 'Alpha', representations: ['file'], detectedAt: expect.any(String), historyEntry: entry.filename });
+        expect(JSON.stringify(announced)).not.toContain('secret');
+        live.set(alpha.adminUrl, { apps: { second: true } });
+        await checkAllInstances();
+        await vi.waitFor(() => expect(announced).toHaveLength(2));
+        expect(announced[1].representations).toEqual(['file', 'live']);
+    });
+
+    it('keeps checking when a change listener fails', async () => {
+        const stop = onExternalConfigurationChange(() => { throw new Error('provider down'); });
+        files.set(alpha.configPath, 'first {\n}\n');
+        await checkAllInstances();
+        await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('Configuration change notification delivery failed', { instanceId: 'alpha' }));
+        stop();
+        expect(reports()).toHaveLength(1);
+    });
+
     it('does not report a verified local change', async () => {
         files.set(alpha.configPath, 'local {\n}\n');
         live.set(alpha.adminUrl, { apps: { local: true } });
@@ -240,6 +266,7 @@ describe('configuration drift detection', () => {
             expectLive: () => ({ apps: { local: true } }) });
         await checkAllInstances();
         expect(reports()).toHaveLength(0);
+        expect(announced).toHaveLength(0);
     });
 
     it('binds a full-save expectation to its adapter result rather than a later live observation', async () => {

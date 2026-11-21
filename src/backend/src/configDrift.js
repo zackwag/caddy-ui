@@ -29,7 +29,15 @@ export const DRIFT_CHECK_INTERVAL_MS = 60_000;
 export const DRIFT_HISTORY_LIMIT = 20;
 
 const states = new Map();
+const listeners = new Set();
 let timer = null;
+
+// Listeners get each newly reported unexplained change: fingerprints-free
+// metadata only, never configuration content.
+export function onExternalConfigurationChange(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+}
 
 // Also the editor's ETag for the Caddyfile, so both name a file the same way.
 export const fingerprintText = text => `sha256:${createHash('sha256').update(text).digest('hex')}`;
@@ -39,7 +47,7 @@ const shortFingerprint = fingerprint => fingerprint?.replace(/^(sha256|etag):/, 
 function stateFor(instanceId) {
     let state = states.get(instanceId);
     if (!state) {
-        state = { expected: null, liveConfig: undefined, observed: null, pending: null, reported: null, failing: false, changes: [] };
+        state = { expected: null, liveConfig: undefined, observed: null, pending: null, reported: null, failing: false, changes: [], historyEntry: null };
         states.set(instanceId, state);
     }
     return state;
@@ -152,7 +160,7 @@ async function preserveObservation(instance, state, observed) {
             // Publish first. A failure leaves the old observation intact so the
             // next poll can retry and no lost history is mistaken for success.
             try {
-                await configurationHistory.recordExternal(instance.id, { detectedAt: new Date().toISOString(), representations, before, after,
+                state.historyEntry = await configurationHistory.recordExternal(instance.id, { detectedAt: new Date().toISOString(), representations, before, after,
                     ...(paths ? { paths } : {}) });
             } catch (cause) {
                 throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context: { instanceId: instance.id } });
@@ -266,6 +274,7 @@ export async function checkInstance(instance, { report = true } = {}) {
     if (!report) return;
     if (!changedRepresentations(state.expected, observed).length) {
         state.reported = null;
+        state.historyEntry = null;
         return;
     }
     // A pending change that didn't explain this state can't explain a later one.
@@ -276,11 +285,20 @@ export async function checkInstance(instance, { report = true } = {}) {
     }
     state.reported = key;
     const representations = changedRepresentations(state.expected, observed);
-    state.changes.push({ detectedAt: new Date().toISOString(), representations, previous: { ...state.expected }, current: fingerprints(observed) });
+    const detectedAt = new Date().toISOString();
+    state.changes.push({ detectedAt, representations, previous: { ...state.expected }, current: fingerprints(observed) });
     state.changes.splice(0, Math.max(0, state.changes.length - DRIFT_HISTORY_LIMIT));
     logger.warn('Configuration changed outside caddy-ui', { ...context, representations,
         previous: { file: shortFingerprint(state.expected.file), live: shortFingerprint(state.expected.live) },
         current: { file: shortFingerprint(observed.file), live: shortFingerprint(observed.live) } });
+    const change = { instanceId: instance.id, instanceName: instance.name, representations, detectedAt, historyEntry: state.historyEntry };
+    state.historyEntry = null;
+    // Detached, like authentication events: delivery never holds the change queue.
+    for (const listener of listeners) {
+        void Promise.resolve().then(() => listener(change)).catch(() => {
+            logger.warn('Configuration change notification delivery failed', { instanceId: instance.id });
+        });
+    }
 }
 
 export async function checkAllInstances() {
