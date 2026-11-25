@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordRequestEvent } from '../adminEvents.js';
 import { getAllServerNames, getServerNames, removeServerName, setServerName } from '../serverNames.js';
 
 const router = Router();
@@ -20,12 +21,14 @@ router.put('/:id', async (req, res) => {
         return res.status(400).json({ error: 'name is required' });
     }
     await setServerName(req.instance.id, id, name.trim());
+    recordRequestEvent(req, { action: 'server-name.set', instanceId: req.instance.id, resource: id, description: name.trim() });
     res.json({ ok: true, id, name: name.trim() });
 });
 
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     await removeServerName(req.instance.id, id);
+    recordRequestEvent(req, { action: 'server-name.removed', instanceId: req.instance.id, resource: id });
     res.json({ ok: true, id });
 });
 

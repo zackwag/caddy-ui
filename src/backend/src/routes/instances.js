@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordRequestEvent } from '../adminEvents.js';
 import { caddyGet } from '../caddy.js';
 import { discoverCaddyContainers } from '../dockerDiscovery.js';
 import { addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
@@ -118,6 +119,7 @@ router.post('/', async (req, res) => {
             containerName: containerName != null ? containerName : 'caddy',
             serverName: serverName || 'srv0',
         });
+        recordRequestEvent(req, { action: 'instance.created', resource: id, description: name });
         res.status(201).json(instance);
     } catch (err) {
         logger.error('Failed to add instance', { error: err.message });
@@ -140,6 +142,7 @@ router.put('/:id', async (req, res) => {
     }
     try {
         const instance = await updateInstance(id, raw);
+        recordRequestEvent(req, { action: 'instance.updated', resource: id, description: instance.name });
         res.json(instance);
     } catch (err) {
         logger.error('Failed to update instance', { id, error: err.message });
@@ -152,6 +155,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
         await removeInstance(id);
+        recordRequestEvent(req, { action: 'instance.removed', resource: id });
         res.json({ ok: true });
     } catch (err) {
         logger.error('Failed to remove instance', { id, error: err.message });

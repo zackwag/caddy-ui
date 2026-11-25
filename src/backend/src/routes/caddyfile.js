@@ -8,6 +8,7 @@ import { DEFAULT_INSTANCE_ID, getInstances } from '../instances.js';
 import logger from '../logger.js';
 import { AppError, asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
+import { recordRequestEvent } from '../adminEvents.js';
 import { configurationHistory as history } from '../configurationHistory.js';
 import { getAuthentication } from '../middleware/auth.js';
 import { caddyfileEntries, trailingComments } from '../caddyfileBlocks.js';
@@ -474,6 +475,7 @@ router.delete('/history/:filename', async (req, res) => {
         return res.status(400).json({ error: 'Invalid filename' });
     }
     await history.remove(req.instance.id, filename);
+    recordRequestEvent(req, { action: 'caddyfile-history.deleted', instanceId: req.instance.id, resource: filename });
     res.json({ ok: true });
 });
 

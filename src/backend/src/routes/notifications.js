@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordRequestEvent } from '../adminEvents.js';
 import { asAppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
 import { getNotificationConfig, saveNotificationConfig } from '../notificationConfig.js';
@@ -11,7 +12,9 @@ router.get('/config', (req, res) => {
 });
 
 router.put('/config', async (req, res) => {
-    res.json(await saveNotificationConfig(req.body));
+    const config = await saveNotificationConfig(req.body);
+    recordRequestEvent(req, { action: 'notification-config.updated' });
+    res.json(config);
 });
 
 router.post('/test', async (req, res) => {

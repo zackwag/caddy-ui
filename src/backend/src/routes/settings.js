@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordRequestEvent } from '../adminEvents.js';
 import { runChecks } from '../monitoring.js';
 import { InvalidSettingError, getSettings, saveSettings, settingsUpdate } from '../settings.js';
 
@@ -19,6 +20,7 @@ router.put('/', async (req, res) => {
     const wasChecking = getSettings().routeChecks;
     const settings = await saveSettings(updates);
     if (settings.routeChecks && !wasChecking) runChecks('route');
+    recordRequestEvent(req, { action: 'settings.updated' });
     res.json(settings);
 });
 

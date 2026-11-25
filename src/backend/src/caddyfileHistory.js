@@ -198,5 +198,11 @@ export function createCaddyfileHistory(root, { limit = 20, observationLimit = li
             await unlink(path);
             metadata.delete(path);
         },
+        // Shared identity registry: other modules (admin events) reuse it so
+        // actor renames resolve consistently across all history views.
+        rememberActor: remember,
+        async resolveActors() {
+            return (await registry()).actors;
+        },
     };
 }

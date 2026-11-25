@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordRequestEvent } from '../adminEvents.js';
 import { getAuthentication } from '../middleware/auth.js';
 import { sendAppError } from '../errorReporting.js';
 import { AppError } from '../AppError.js';
@@ -62,9 +63,14 @@ export function createAuthRouter(getService = getAuthentication) {
         res.json({ ok: true });
     }));
     router.get('/tokens', operation(async (req, res, service) => res.json(service.listApiTokens(req, res))));
-    router.post('/tokens', operation(async (req, res, service) => res.status(201).json(await service.issueApiToken(req, res, req.body))));
+    router.post('/tokens', operation(async (req, res, service) => {
+        const token = await service.issueApiToken(req, res, req.body);
+        recordRequestEvent(req, { action: 'api-token.created', resource: token.id, description: token.name });
+        res.status(201).json(token);
+    }));
     router.delete('/tokens/:id', operation(async (req, res, service) => {
         await service.revokeApiToken(req, res, req.params.id);
+        recordRequestEvent(req, { action: 'api-token.revoked', resource: req.params.id });
         res.json({ ok: true });
     }));
     router.post('/setup', operation(async (req, res, service) => {

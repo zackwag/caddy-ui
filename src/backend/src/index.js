@@ -37,6 +37,8 @@ import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCh
 import { forgetConfigDrift, onExternalConfigurationChange, startConfigDriftMonitor } from './configDrift.js';
 import { createProxyTrust } from './trustedProxies.js';
 import { getAvailableFonts, getEnabledLanguages } from './languages.js';
+import { loadAdminEvents } from './adminEvents.js';
+import adminEventsRouter from './routes/adminEvents.js';
 
 const authentication = await initializeAuthentication();
 const app = express();
@@ -120,6 +122,7 @@ app.use('/api/settings', authMiddleware, settingsRouter);
 app.use('/api/custom-themes', authMiddleware, customThemesRouter);
 // Notification settings cover every instance, so they work with none configured
 app.use('/api/notifications', authMiddleware, notificationsRouter);
+app.use('/api/admin-events', authMiddleware, adminEventsRouter);
 
 // GET /api/languages -- always public, non-sensitive
 app.get('/api/languages', (req, res) => res.json({
@@ -160,6 +163,7 @@ await loadServerNames(getInstances().map(i => i.id));
 await loadSettings();
 await loadMaintenance();
 await loadCustomThemes();
+await loadAdminEvents();
 await initUptimeHistory();
 for (const release of [forgetInstanceNotifications, forgetInstanceChecks, forgetConfigDrift, removeInstanceServerNames, releaseInstanceMaintenance, releaseInstanceNotes]) {
     onInstanceRemoved(release);

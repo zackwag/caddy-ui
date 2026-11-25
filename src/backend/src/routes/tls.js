@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { join, resolve, relative } from 'path';
+import { recordRequestEvent } from '../adminEvents.js';
 import { listCertificates } from '../certificates.js';
 import { removeContainerPath } from '../containerFs.js';
 import logger from '../logger.js';
@@ -63,6 +64,7 @@ router.delete('/:domain', async (req, res) => {
     try {
         await removeContainerPath(containerName, certDir);
         logger.info(`TLS cert deleted`, { domain, certDir });
+        recordRequestEvent(req, { action: 'tls-certificate.deleted', instanceId: req.instance.id, resource: domain });
         res.json({ ok: true, message: `Deleted cert for ${domain}` });
     } catch (err) {
         logger.error(`Failed to delete cert`, { domain, error: err.message });

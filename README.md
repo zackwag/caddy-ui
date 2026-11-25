@@ -297,6 +297,7 @@ Most backend variables have sensible defaults. Set `CADDY_UI_EXTERNAL_URL` for b
 | `CADDY_UI_UPDATE_CHECK` | `true` | Check hourly for newer caddy-ui images and show an "Update available" badge in the sidebar (plus a notification for new releases, if notifications are on). Reads a small `versions.json` from GitHub (`raw.githubusercontent.com`); set to `false` to disable |
 | `CADDY_UI_UPDATE_CHECK_URL` | `https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json` | Where the update check reads published image versions from |
 | `CADDY_UI_USER` | — | Legacy username for credential enrollment; ignored after stored credentials are initialized |
+| `ADMIN_EVENTS_PATH` | `/etc/caddy-ui/admin-events.json` | Path to the administrative event log (200 most recent events, capped automatically) |
 | `AUTH_PATH` | `/etc/caddy-ui/auth.json` | Persistent administrator credential/recovery hashes and passkey records. Keep on a writable persistent volume, separate from UI settings. |
 | `DOCKER_SOCKET` | `/var/run/docker.sock` | Path to the Docker socket for container discovery and `docker exec` operations |
 | `HISTORY_PATH` | `/etc/caddy-ui/history` | Sensitive saved Caddyfiles, external file/JSON observations and actor metadata; see the [history guide](https://zackwag.github.io/caddy-ui/caddyfile.html#saved-versions-and-attribution) |

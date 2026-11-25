@@ -13,6 +13,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
     const [editName, setEditName] = useState("");
     const [health, setHealth] = useState(null);
     const [process, setProcess] = useState(null);
+    const [activity, setActivity] = useState(null);
 
     const navigate = useNavigate();
 
@@ -27,6 +28,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
             const online = results.filter(r => r.online).length;
             setHealth({ total, online, offline: total - online });
         }).catch(() => { });
+        apiFetch("/admin-events?limit=10", {}, onUnauth).then(setActivity).catch(() => {});
         loadProcess();
         const t = setInterval(loadProcess, 30000);
         return () => clearInterval(t);
@@ -123,6 +125,26 @@ export default function Dashboard({ status, toast, onUnauth }) {
                         </div>
                     )}
                 </div>
+
+                {activity && activity.length > 0 && (
+                    <div className="card">
+                        <div className="card-title">{t("dashboard.activity")}</div>
+                        <div className="table-wrap">
+                            <table className="table">
+                                <tbody>
+                                    {activity.map((event, i) => (
+                                        <tr key={i}>
+                                            <td style={{ whiteSpace: 'nowrap' }}>{t(`dashboard.activityEvent.${event.action}`, event.action)}</td>
+                                            <td className="mono cell-muted">{event.resource || ''}{event.description ? ` ${event.description}` : ''}</td>
+                                            <td className="cell-muted" style={{ whiteSpace: 'nowrap' }}>{event.actor?.name || '—'}</td>
+                                            <td className="cell-muted" style={{ whiteSpace: 'nowrap' }}>{formatLastReload(event.timestamp)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
 
                 {status.online && status.servers?.length > 0 && (
                     <div className="card">

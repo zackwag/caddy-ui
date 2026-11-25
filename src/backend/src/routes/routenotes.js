@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordRequestEvent } from '../adminEvents.js';
 import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
 import { getInstances } from '../instances.js';
@@ -60,6 +61,7 @@ router.put('/:domain', async (req, res) => {
     } catch (err) {
         return sendAppError(res, asAppError(err, 'ROUTE_NOTES_SAVE_FAILED'));
     }
+    recordRequestEvent(req, { action: 'route-note.set', instanceId: req.instance.id, resource: domain });
     res.json({ ok: true });
 });
 

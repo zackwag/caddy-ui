@@ -332,6 +332,22 @@ export default {
         connectionError: 'Connection Error',
         labelPlaceholder: 'e.g. "HTTPS Sites" or "Internal Services"',
         labelHint: "Only shown in caddy/ui. Leave blank to remove it. To change the Server ID itself, set <code>name</code> in your Caddyfile's global <code>servers</code> option.",
+        activity: 'Activity',
+        noActivity: 'No activity recorded',
+        activityEvent: {
+            'instance.created': 'Instance created',
+            'instance.updated': 'Instance updated',
+            'instance.removed': 'Instance removed',
+            'server-name.set': 'Server label set',
+            'server-name.removed': 'Server label removed',
+            'route-note.set': 'Route note updated',
+            'settings.updated': 'Settings updated',
+            'notification-config.updated': 'Notification settings updated',
+            'tls-certificate.deleted': 'TLS certificate deleted',
+            'api-token.created': 'API token created',
+            'api-token.revoked': 'API token revoked',
+            'caddyfile-history.deleted': 'History version deleted',
+        },
     },
 
     instances: {
