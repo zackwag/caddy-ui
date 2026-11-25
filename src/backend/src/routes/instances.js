@@ -119,7 +119,7 @@ router.post('/', async (req, res) => {
             containerName: containerName != null ? containerName : 'caddy',
             serverName: serverName || 'srv0',
         });
-        await recordAudit(req, { action: 'instance.add', instanceId: id });
+        await recordAudit(req, { action: 'instance.add', instanceId: id, instanceName: name });
         res.status(201).json(instance);
     } catch (err) {
         logger.error('Failed to add instance', { error: err.message });

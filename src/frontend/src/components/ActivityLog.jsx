@@ -14,7 +14,7 @@ function describe(event, t) {
         case 'serverName.set': return t('activity.serverNameSet', { server: resource, name: details.name });
         case 'serverName.remove': return t('activity.serverNameRemove', { server: resource });
         case 'routeTitle.set': return details.title ? t('activity.routeTitleSet', { route: resource, title: details.title }) : t('activity.routeTitleClear', { route: resource });
-        case 'notifications.configure': return t(details.enabled ? 'activity.notificationsEnabled' : 'activity.notificationsDisabled', { provider: details.provider });
+        case 'notifications.configure': return details.enabled ? t('activity.notificationsEnabled', { provider: details.provider }) : t('activity.notificationsDisabled');
         case 'history.delete': return t('activity.historyDelete', { entry: resource });
         default: return action;
     }

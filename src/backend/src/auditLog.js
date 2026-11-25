@@ -29,7 +29,7 @@ export async function recordAudit(req, { action, instanceId = null, instanceName
     try {
         if (!AUDIT_ACTIONS.includes(action)) throw new Error(`Unknown audit action: ${action}`);
         const actor = getAuthentication().getActor(req);
-        const instance = instanceId && { id: instanceId, name: instanceName ?? getInstances().find(entry => entry.id === instanceId)?.name ?? null };
+        const instance = instanceId != null ? { id: instanceId, name: instanceName ?? getInstances().find(entry => entry.id === instanceId)?.name ?? null } : null;
         const event = { id: randomUUID(), timestamp: new Date().toISOString(), action, outcome, actor, instance, resource, details };
         await store.update(state => {
             state.events.push(event);
