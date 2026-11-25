@@ -4,9 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
-import { apiFetch, setInstanceId } from "../utils/api.js";
+import { apiFetch } from "../utils/api.js";
 import { updateLink } from "../utils/updateLink.js";
 import { documentationLink } from "../utils/documentationLink.js";
+import { VIEWS } from "../views.js";
+import StatusDot from "./StatusDot.jsx";
 
 const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 
@@ -14,36 +16,25 @@ const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 // ("edge-c6a3f0f", not "vedge-c6a3f0f")
 const displayVersion = (version) => /^\d/.test(version) ? `v${version}` : version;
 
-const NAV = [
-    { path: "/dashboard", labelKey: "sidebar.nav.dashboard", icon: "dashboard" },
-    { path: "/routes", labelKey: "sidebar.nav.routes", icon: "routes" },
-    { path: "/caddyfile", labelKey: "sidebar.nav.caddyfile", icon: "caddyfile" },
-    { path: "/tls", labelKey: "sidebar.nav.tls", icon: "tls" },
-    { path: "/logs", labelKey: "sidebar.nav.logs", icon: "logs" },
-    { path: "/metrics", labelKey: "sidebar.nav.metrics", icon: "metrics" },
-    { path: "/notifications", labelKey: "sidebar.nav.notifications", icon: "notifications" },
-    { path: "/instances", labelKey: "sidebar.nav.instances", icon: "instances" },
-];
-
-export default function Sidebar({ currentPath, status, onRefreshStatus, authEnabled, onUnauth, onLogout, onSecurity, sidebarOpen, setSidebarOpen, selectedInstanceId, onInstanceChange, instanceListVersion }) {
+export default function Sidebar({ currentPath, status, onRefreshStatus, onLogout, onSecurity, sidebarOpen, setSidebarOpen, selectedInstanceId, onSwitchInstance, instanceListVersion }) {
     const { t } = useTranslation();
     const newTabDescriptionId = useId();
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
     const [instances, setInstances] = useState([]);
-    const instanceStatus = useInstanceStatus(onUnauth);
+    const instanceStatus = useInstanceStatus();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
     const [update, setUpdate] = useState(null);
 
     useEffect(() => {
-        apiFetch(`/version?frontend=${encodeURIComponent(FRONTEND_VERSION)}`, {}, onUnauth)
+        apiFetch(`/version?frontend=${encodeURIComponent(FRONTEND_VERSION)}`)
             .then(r => {
                 setBackendVersion(r.version);
                 setUpdate(r.update);
             })
             .catch(() => { });
-    }, [onUnauth]);
+    }, []);
 
     // The backend compares both images against the published versions.json;
     // each field is the newer version to offer, or null
@@ -55,15 +46,14 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
     const documentationUrl = documentationLink({ frontend: FRONTEND_VERSION, backend: backendVersion });
 
     useEffect(() => {
-        apiFetch("/instances", {}, onUnauth).then(setInstances).catch(() => { });
-    }, [onUnauth, instanceListVersion]);
+        apiFetch("/instances").then(setInstances).catch(() => { });
+    }, [instanceListVersion]);
 
     useClickOutside(dropdownRef, () => setDropdownOpen(false), dropdownOpen);
 
     const switchInstance = (id) => {
-        setInstanceId(id);
         setDropdownOpen(false);
-        if (onInstanceChange) onInstanceChange(id);
+        onSwitchInstance(id);
     };
 
     const go = (path) => {
@@ -79,7 +69,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                 <div className="logo-mark">caddy/ui</div>
                 <div className="logo-sub">{t("sidebar.serverManager")}</div>
                 <div className="status-pill">
-                    <div className={`status-dot ${status ? (status.online ? "online" : "offline") : ""}`} />
+                    <StatusDot online={status?.online} />
                     <span className="status-pill-text">
                         {status ? (status.online ? t("sidebar.connected") : t("sidebar.unreachable")) : t("sidebar.checking")}
                     </span>
@@ -91,7 +81,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                 return (
                     <div className="instance-dropdown" ref={dropdownRef}>
                         <button className="instance-dropdown-trigger" onClick={() => setDropdownOpen(o => !o)}>
-                            <div className={`status-dot ${instanceStatus[selected?.id] === true ? "online" : instanceStatus[selected?.id] === false ? "offline" : ""}`} />
+                            <StatusDot online={instanceStatus[selected?.id]} />
                             <span className="instance-dropdown-name">{selected?.name || t("sidebar.selectInstance")}</span>
                             <span className={`instance-dropdown-chevron ${dropdownOpen ? "open" : ""}`}><UtilityIcon name="chevronDown" /></span>
                         </button>
@@ -103,7 +93,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                                         className={`instance-dropdown-item ${selectedInstanceId === inst.id ? "active" : ""}`}
                                         onClick={() => switchInstance(inst.id)}
                                     >
-                                        <div className={`status-dot ${instanceStatus[inst.id] === true ? "online" : instanceStatus[inst.id] === false ? "offline" : ""}`} />
+                                        <StatusDot online={instanceStatus[inst.id]} />
                                         <span className="instance-name">{inst.name}</span>
                                     </div>
                                 ))}
@@ -113,27 +103,25 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, authEnab
                 );
             })()}
             <nav className="nav">
-                {NAV.map(n => (
+                {VIEWS.map(n => (
                     <div
                         key={n.path}
                         className={`nav-item ${currentPath === n.path ? "active" : ""}`}
                         onClick={() => go(n.path)}
                     >
                         <span className="nav-icon"><PixelIcon name={n.icon} /></span>
-                        {t(n.labelKey)}
+                        {t(n.navKey)}
                     </div>
                 ))}
             </nav>
             <div className="nav-footer">
-                {onSecurity && <button type="button" className="nav-item sidebar-signout" onClick={onSecurity}>
+                <button type="button" className="nav-item sidebar-signout" onClick={onSecurity}>
                     <span className="nav-icon"><PixelIcon name="key" /></span>{t('security.title')}
-                </button>}
-                {authEnabled && (
-                    <button type="button" className="nav-item sidebar-signout" onClick={onLogout || onUnauth}>
-                        <span className="nav-icon"><PixelIcon name="logout" /></span>
-                        {t("sidebar.signOut")}
-                    </button>
-                )}
+                </button>
+                <button type="button" className="nav-item sidebar-signout" onClick={onLogout}>
+                    <span className="nav-icon"><PixelIcon name="logout" /></span>
+                    {t("sidebar.signOut")}
+                </button>
                 {updateParts.length > 0 && (
                     <a
                         className="badge badge-green sidebar-update-badge"

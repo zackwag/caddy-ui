@@ -36,34 +36,26 @@ async function csrfToken() {
     return csrfRequest;
 }
 
-export async function authRequest(path, opts = {}, onUnauth) {
-    try { return await apiFetch('/auth' + path, opts, onUnauth); }
+export async function authRequest(path, opts = {}) {
+    try { return await apiFetch('/auth' + path, opts); }
     finally { csrfRequest = undefined; }
 }
 
 export async function fetchAuthStatus() {
     const state = await apiFetch('/auth/status', { cache: 'no-store' });
-    if (typeof state?.authEnabled !== 'boolean' || typeof state?.authenticated !== 'boolean') {
+    if (typeof state?.authenticated !== 'boolean') {
         throw new ApiError('Invalid authentication response', { code: 'INVALID_LOCAL_STATE' });
     }
     return state;
 }
 
-export async function fetchSettings(onUnauth) {
-    return apiFetch('/settings', {}, onUnauth);
-}
-
-export async function saveSettings(updates, onUnauth) {
-    return apiFetch('/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-    }, onUnauth);
-}
-
-// Themes found under THEMES_PATH at startup -- read-only, managed as files.
-export async function fetchCustomThemes(onUnauth) {
-    return apiFetch('/custom-themes', {}, onUnauth);
+// Told whenever the backend no longer accepts this browser's session. Sign-in
+// requests are refused the same way, so the app shell listens only while
+// signed in.
+const unauthorizedListeners = new Set();
+export function onUnauthorized(listener) {
+    unauthorizedListeners.add(listener);
+    return () => unauthorizedListeners.delete(listener);
 }
 
 export function getInstanceId() { return localStorage.getItem('caddy_ui_instance') || 'default'; }
@@ -81,13 +73,24 @@ export function clearInstanceId() {
     for (const listener of instanceResetListeners) listener();
 }
 
-export async function apiFetch(path, opts = {}, onUnauth) {
-    return (await apiRequest(path, opts, onUnauth)).body;
+// A URL for requests the browser makes itself, which can't send the instance
+// header: event streams and downloads.
+export function instanceUrl(path) {
+    return `${API}${path}${path.includes('?') ? '&' : '?'}instance=${encodeURIComponent(getInstanceId())}`;
+}
+
+export async function apiFetch(path, opts = {}) {
+    return (await apiRequest(path, opts)).body;
 }
 
 // apiFetch, also resolving the response headers, e.g. a validator to send back.
-export async function apiRequest(path, opts = {}, onUnauth) {
+// `json` is sent as a JSON body; other options are fetch's.
+export async function apiRequest(path, { json, ...opts } = {}) {
     const headers = { ...(opts.headers || {}) };
+    if (json !== undefined) {
+        headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(json);
+    }
     // Capture the intended instance before asynchronous CSRF preparation.
     const instanceId = getInstanceId();
     if (!['GET', 'HEAD', 'OPTIONS'].includes((opts.method || 'GET').toUpperCase())) {
@@ -111,7 +114,7 @@ export async function apiRequest(path, opts = {}, onUnauth) {
     }
     if (res.status === 401) {
         resetAuthContext();
-        if (onUnauth) onUnauth();
+        for (const listener of unauthorizedListeners) listener();
     }
     if (!res.ok) {
         if (body?.code === 'CSRF_INVALID') csrfRequest = undefined;

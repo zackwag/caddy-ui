@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readLogResponse, resolveLogSource } from '../src/utils/logSource.js';
+import { lineLevel, readLogResponse, resolveLogSource } from '../src/utils/logSource.js';
 
 describe('log source links', () => {
     it.each([
@@ -45,5 +45,19 @@ describe('log read responses', () => {
     });
     it('continues rendering application log entries as JSON', () => {
         expect(readLogResponse({ entries: [{ level: 'info', message: 'example' }] }, 'app')).toEqual(['{"level":"info","message":"example"}']);
+    });
+});
+
+describe('log line levels', () => {
+    it.each([
+        ['{"level":"error","msg":"dial tcp"}', 'error'],
+        ['{"level":"info","request":{"uri":"/error"}}', 'info'],
+        ['2026/01/01 12:00:00.000\tWARN\thttp\tslow request', 'warn'],
+        ['2026/01/01 12:00:00.000\tINFO\tadmin\tno error here', 'info'],
+        ['Error: something failed', 'error'],
+        ['WARNING: deprecated', 'warn'],
+        ['plain text', null],
+    ])('reads %s as %s', (line, level) => {
+        expect(lineLevel(line)).toBe(level);
     });
 });

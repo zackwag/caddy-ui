@@ -5,24 +5,30 @@ import ActivityLog from './ActivityLog.jsx';
 import ApiTokens from './ApiTokens.jsx';
 import UserSettings from './UserSettings.jsx';
 import TotpSettings from './TotpSettings.jsx';
-import { apiFetch } from '../utils/api.js';
+import { useFetch } from '../hooks/useFetch.js';
 import { localizeError } from '../utils/errorMessages.js';
 import Passkeys from './Passkeys.jsx';
 import { UtilityIcon } from './Icons.jsx';
 
-export default function SecuritySettings({ onClose, onUnauth }) {
+function Section({ id, title, open, onToggle, disabled, nested = false, className = '', children }) {
+    /* eslint-disable i18next/no-literal-string -- Element and class names. */
+    const Heading = nested ? 'h4' : 'h3';
+    const name = nested ? 'security-subsection' : 'security-section';
+    /* eslint-enable i18next/no-literal-string */
+    return <section className={name}>
+        <Heading><button type="button" className="security-toggle" aria-expanded={open} aria-controls={`security-${id}`} disabled={disabled} onClick={onToggle}>
+            <span>{title}</span><UtilityIcon name="chevronDown" />
+        </button></Heading>
+        <div id={`security-${id}`} className={`${name}-body ${className}`} hidden={!open}>{children}</div>
+    </section>;
+}
+
+export default function SecuritySettings({ onClose }) {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const dialog = useRef(null);
-    const [authState, setAuthState] = useState(null);
-    const [error, setError] = useState(null);
-    const [attempt, setAttempt] = useState(0);
-    const [userOpen, setUserOpen] = useState(false);
-    const [tokensOpen, setTokensOpen] = useState(false);
-    const [authOpen, setAuthOpen] = useState(false);
-    const [totpOpen, setTotpOpen] = useState(false);
-    const [passkeysOpen, setPasskeysOpen] = useState(false);
-    const [activityOpen, setActivityOpen] = useState(false);
+    const { data: authState, error, reload: refreshAuth } = useFetch('/auth/status');
+    const [open, setOpen] = useState({});
     const [authBusy, setAuthBusy] = useState(false);
     const [userBusy, setUserBusy] = useState(false);
     const [tokenBusy, setTokenBusy] = useState(false);
@@ -35,78 +41,36 @@ export default function SecuritySettings({ onClose, onUnauth }) {
         return () => element.close();
     }, []);
 
-    useEffect(() => {
-        let active = true;
-        apiFetch('/auth/status', {}, onUnauth).then(state => { if (active) setAuthState(state); })
-            .catch(error => { if (active) setError(error); });
-        return () => { active = false; };
-    }, [onUnauth, attempt]);
-    async function refreshAuth() {
-        try { setAuthState(await apiFetch('/auth/status', {}, onUnauth)); }
-        catch (error) { setAuthState(null); setError(error); }
-    }
+    const section = (id, title, subsections = []) => ({
+        id, title, disabled: locked, open: !!open[id],
+        onToggle: () => setOpen(previous => ({ ...previous, [id]: !previous[id], ...Object.fromEntries(subsections.map(name => [name, false])) })),
+    });
 
     return <dialog ref={dialog} className="modal security-dialog" aria-labelledby="security-title"
         onCancel={event => { event.preventDefault(); if (!locked) onClose(); }}>
         <h2 className="modal-title" id="security-title">{t('security.title')}</h2>
         {error && <div role="alert"><p>{localizeError(error, t)}</p>
-            <button type="button" className="btn" disabled={locked} onClick={() => { setError(null); setAttempt(value => value + 1); }}>{t('login.retry')}</button></div>}
-        <section className="security-section">
-            <h3><button type="button" className="security-toggle" aria-expanded={userOpen} aria-controls="security-user"
-                disabled={locked} onClick={() => setUserOpen(value => !value)}>
-                <span>{t('security.user')}</span><UtilityIcon name="chevronDown" />
-            </button></h3>
-            <div id="security-user" className="security-section-body" hidden={!userOpen}>
-                <UserSettings authState={authState} onUnauth={onUnauth} busy={userBusy} setBusy={setUserBusy} disabled={tokenBusy || authBusy || !!issued} />
-            </div>
-        </section>
-        <section className="security-section">
-            <h3><button type="button" className="security-toggle" disabled={locked} aria-expanded={authOpen} aria-controls="security-auth"
-                onClick={() => { setAuthOpen(value => !value); setTotpOpen(false); setPasskeysOpen(false); }}>
-                <span>{t('security.auth')}</span><UtilityIcon name="chevronDown" />
-            </button></h3>
-            <div id="security-auth" className="security-section-body security-auth-sections" hidden={!authOpen}>
-                <section className="security-subsection">
-                    <h4><button type="button" className="security-toggle" disabled={locked} aria-expanded={totpOpen} aria-controls="security-totp"
-                        onClick={() => setTotpOpen(value => !value)}>
-                        <span>{t('totp.title')}</span><UtilityIcon name="chevronDown" />
-                    </button></h4>
-                    <div id="security-totp" className="security-subsection-body" hidden={!totpOpen}>
-                        {authOpen && totpOpen && <TotpSettings authState={authState} onChange={refreshAuth} onUnauth={onUnauth}
-                            busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued} />}
-                    </div>
-                </section>
-                <section className="security-subsection">
-                    <h4><button type="button" className="security-toggle" disabled={locked} aria-expanded={passkeysOpen} aria-controls="security-passkeys"
-                        onClick={() => setPasskeysOpen(value => !value)}>
-                        <span>{t('passkeys.title')}</span><UtilityIcon name="chevronDown" />
-                    </button></h4>
-                    <div id="security-passkeys" className="security-subsection-body" hidden={!passkeysOpen}>
-                        {authOpen && passkeysOpen && <Passkeys authState={authState} onChange={refreshAuth} onUnauth={onUnauth}
-                            busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued}
-                            onOpenTls={() => { onClose(); navigate('/tls'); }} />}
-                    </div>
-                </section>
-            </div>
-        </section>
-        <section className="security-section">
-            <h3><button type="button" className="security-toggle" aria-expanded={tokensOpen} aria-controls="security-tokens"
-                disabled={locked} onClick={() => setTokensOpen(value => !value)}>
-                <span>{t('apiTokens.title')}</span><UtilityIcon name="chevronDown" />
-            </button></h3>
-            <div id="security-tokens" className="security-section-body" hidden={!tokensOpen}>
-                <ApiTokens onUnauth={onUnauth} busy={tokenBusy} setBusy={setTokenBusy} issued={issued} setIssued={setIssued} disabled={userBusy || authBusy} />
-            </div>
-        </section>
-        <section className="security-section">
-            <h3><button type="button" className="security-toggle" aria-expanded={activityOpen} aria-controls="security-activity"
-                disabled={locked} onClick={() => setActivityOpen(value => !value)}>
-                <span>{t('activity.title')}</span><UtilityIcon name="chevronDown" />
-            </button></h3>
-            <div id="security-activity" className="security-section-body" hidden={!activityOpen}>
-                {activityOpen && <ActivityLog onUnauth={onUnauth} />}
-            </div>
-        </section>
+            <button type="button" className="btn" disabled={locked} onClick={refreshAuth}>{t('login.retry')}</button></div>}
+        <Section {...section('user', t('security.user'))}>
+            <UserSettings authState={authState} busy={userBusy} setBusy={setUserBusy} disabled={tokenBusy || authBusy || !!issued} />
+        </Section>
+        <Section {...section('auth', t('security.auth'), ['totp', 'passkeys'])} className="security-auth-sections">
+            <Section nested {...section('totp', t('totp.title'))}>
+                {open.totp && <TotpSettings authState={authState} onChange={refreshAuth}
+                    busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued} />}
+            </Section>
+            <Section nested {...section('passkeys', t('passkeys.title'))}>
+                {open.passkeys && <Passkeys authState={authState} onChange={refreshAuth}
+                    busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued}
+                    onOpenTls={() => { onClose(); navigate('/tls'); }} />}
+            </Section>
+        </Section>
+        <Section {...section('tokens', t('apiTokens.title'))}>
+            <ApiTokens busy={tokenBusy} setBusy={setTokenBusy} issued={issued} setIssued={setIssued} disabled={userBusy || authBusy} />
+        </Section>
+        <Section {...section('activity', t('activity.title'))}>
+            {open.activity && <ActivityLog />}
+        </Section>
         <div className="btn-row flex-end"><button type="button" className="btn btn-ghost" disabled={locked} onClick={onClose}>{t('common.close')}</button></div>
     </dialog>;
 }

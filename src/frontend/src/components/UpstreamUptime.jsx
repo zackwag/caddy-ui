@@ -2,16 +2,16 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import RouteHistoryModal from "./RouteHistoryModal.jsx";
-import { apiFetch, getInstanceId } from "../utils/api.js";
-import { formatPercent, formatPercentParts } from "../utils/format.js";
-import { stateNotificationKey } from "../utils/notificationCenter.js";
-import { getRouteCheckHost, getRouteHost, getRouteTitle, getRouteUpstreams } from "../utils/routes.js";
+import { apiFetch } from "../utils/api.js";
+import { formatDuration, formatPercent, formatPercentParts } from "../utils/format.js";
+import { getRouteHost, getRouteStatus, getRouteTitle } from "../utils/routes.js";
 
 const STATUS = {
     online: { labelKey: "uptime.online", color: "var(--accent)" },
     partial: { labelKey: "uptime.partial", color: "var(--warn)" },
     offline: { labelKey: "uptime.offline", color: "var(--danger)" },
-    unknown: { labelKey: "uptime.noData", color: null },
+    unknown: { labelKey: "uptime.noData", color: null, untracked: true },
+    none: { labelKey: "uptime.noData", color: null, untracked: true },
 };
 
 // Big stat number with the percent sign in the smaller unit style, wherever
@@ -22,56 +22,22 @@ const PercentStat = ({ value }) => formatPercentParts(value).map((part, i) => (
 
 const uptimeColor = (pct) => pct >= 99 ? "var(--accent)" : pct >= 95 ? "var(--warn)" : "var(--danger)";
 
-function upstreamStatus(upstreams, uptime) {
-    const known = upstreams.map(u => uptime[u]).filter(Boolean);
-    const onlineCount = known.filter(s => s.currentlyOnline).length;
-    return !known.length ? "unknown"
-        : onlineCount === upstreams.length ? "online"
-            : onlineCount > 0 ? "partial" : "offline";
-}
-
-// Joins live routes with the backend's recorded uptime stats. Like the Routes
-// view, uptime % and history follow a route's first upstream, while status
-// considers all of them. With route checks on, routes that can be requested
-// by name use their own check instead, including routes with no upstream;
-// the rest (wildcards, catch-alls) and excluded routes keep the upstream view.
+// Routes with something to check, from the backend's recorded uptime stats.
 function buildRows(routes, uptime, routeUptime, notes, routeChecks, excludes) {
+    const isOnline = upstream => uptime[upstream]?.currentlyOnline;
     const rows = [];
     for (const route of routes) {
-        const upstreams = getRouteUpstreams(route);
-        const probeHost = routeChecks ? getRouteCheckHost(route) : null;
-        const excluded = !!probeHost && excludes.has(probeHost.toLowerCase());
-        const checkHost = excluded ? null : probeHost;
-        if (!upstreams.length && !probeHost) continue;
+        const status = getRouteStatus(route, { uptime, routeUptime, routeChecks, excludes, isOnline });
+        if (!status.upstreams.length && !status.probeHost) continue;
         const domain = getRouteHost(route);
-        const routeStats = checkHost ? routeUptime[checkHost] || null : null;
-        const stats = checkHost ? routeStats : uptime[upstreams[0]] || null;
-        const upstreamState = upstreams.length ? upstreamStatus(upstreams, uptime) : null;
-        const status = !checkHost ? upstreamState || "unknown"
-            : !routeStats ? "unknown"
-                : routeStats.currentlyOnline ? "online" : "offline";
-        rows.push({
-            domain,
-            note: notes[domain] || "",
-            title: getRouteTitle(route, notes[domain]),
-            upstreams,
-            probeHost,
-            excluded,
-            checkHost,
-            status,
-            upstreamState: checkHost ? upstreamState : null,
-            // Route checks run every 5 minutes, so don't wait for a second one
-            pct: stats && stats.total > (checkHost ? 0 : 1) ? stats.pct : null,
-            streakLabel: stats?.streakLabel || null,
-            failure: status === "offline" ? routeStats?.lastFailure || null : null,
-        });
+        rows.push({ ...status, domain, note: notes[domain] || "", title: getRouteTitle(route, notes[domain]) });
     }
     // Worst uptime first; routes with no data yet sink to the bottom
     return rows.sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101) || a.domain.localeCompare(b.domain));
 }
 
 function summarize(rows) {
-    const tracked = rows.filter(r => r.status !== "unknown");
+    const tracked = rows.filter(r => !STATUS[r.status].untracked);
     const withPct = rows.filter(r => r.pct !== null);
     const count = (s) => rows.filter(r => r.status === s).length;
     return {
@@ -84,7 +50,7 @@ function summarize(rows) {
     };
 }
 
-export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
+export default function UpstreamUptime({ toast, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
     const { t } = useTranslation();
     const [routes, setRoutes] = useState(null);
     const [uptime, setUptime] = useState({});
@@ -94,17 +60,13 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
     const [historyModal, setHistoryModal] = useState(null);
 
     const load = useCallback(() => {
-        apiFetch("/routes", {}, onUnauth)
+        apiFetch("/routes")
             .then(r => { setRoutes(r); setError(null); })
-            .catch(e => setError(localizeError(e, t)));
-        apiFetch("/health/uptime", {}, onUnauth).then(setUptime).catch(() => { });
-        if (routeChecks) apiFetch("/health/uptime?kind=route", {}, onUnauth).then(setRouteUptime).catch(() => { });
-        const notesKey = stateNotificationKey('routeNotes.load', getInstanceId());
-        apiFetch("/route-notes", {}, onUnauth)
-            .then(data => { toast.recover(notesKey); setNotes(data); })
-            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key: notesKey }));
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
-    }, [onUnauth, routeChecks, t]);
+            .catch(setError);
+        apiFetch("/health/uptime").then(setUptime).catch(() => { });
+        if (routeChecks) apiFetch("/health/uptime?kind=route").then(setRouteUptime).catch(() => { });
+        toast.track('routeNotes.load', apiFetch("/route-notes")).then(setNotes).catch(() => { });
+    }, [toast, routeChecks]);
 
     useEffect(() => {
         load();
@@ -148,7 +110,7 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
             {routeChecks && <div className="hint" style={{ marginBottom: 0 }}>{t("uptime.routeCheckHint")}</div>}
 
             {error && !routes ? (
-                <div className="card"><span className="loading">{t("uptime.failedToLoadRoutes", { error })}</span></div>
+                <div className="card"><span className="loading">{t("uptime.failedToLoadRoutes", { error: localizeError(error, t) })}</span></div>
             ) : !routes ? (
                 <div className="loading">{t("uptime.loading")}</div>
             ) : !rows.length ? (
@@ -197,15 +159,13 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
                                 <tbody>
                                     {rows.map((r, i) => {
                                         const s = STATUS[r.status];
-                                        const u = r.upstreamState && STATUS[r.upstreamState];
+                                        const u = r.checkHost && r.upstreams.length > 0 && STATUS[r.upstreamState];
                                         return (
                                             <tr
                                                 key={`${r.domain}:${i}`}
                                                 className="uptime-row"
                                                 title={t("uptime.viewHistory")}
-                                                onClick={() => setHistoryModal(r.checkHost
-                                                    ? { route: r.checkHost, title: r.note || r.domain }
-                                                    : { upstream: r.upstreams[0], title: r.note || r.domain })}
+                                                onClick={() => setHistoryModal({ ...r.history, title: r.note || r.domain })}
                                             >
                                                 <td className="col-status">
                                                     <span
@@ -216,7 +176,7 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <span className="mono">{r.domain}</span>
+                                                    <span className="mono">{r.domain || "—"}</span>
                                                     {r.title && <div className={`cell-muted${!r.note ? " route-title--fallback" : ""}`}>{r.title}</div>}
                                                 </td>
                                                 <td className="mono" style={{ color: "var(--accent2)" }}>
@@ -242,7 +202,7 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
                                                     ) : <span className="cell-muted">—</span>}
                                                 </td>
                                                 <td className="mono" style={{ color: s.color || "var(--muted)" }}>
-                                                    {r.streakLabel ? `${t(s.labelKey)} · ${r.streakLabel}` : "—"}
+                                                    {r.stats ? `${t(s.labelKey)} · ${formatDuration(r.stats.streakSeconds * 1000)}` : "—"}
                                                     {r.failure && <div className="cell-muted uptime-failure" title={r.failure}>{r.failure}</div>}
                                                     {r.excluded && <div className="cell-muted">{t("uptime.routeCheckSkipped")}</div>}
                                                 </td>
@@ -274,7 +234,7 @@ export default function UpstreamUptime({ toast, onUnauth, routeChecks, onRouteCh
                     upstream={historyModal.upstream}
                     route={historyModal.route}
                     title={historyModal.title}
-                    onUnauth={onUnauth}
+                   
                     onClose={() => setHistoryModal(null)}
                 />
             )}

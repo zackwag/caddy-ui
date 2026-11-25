@@ -2,72 +2,62 @@ import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { apiFetch, getInstanceId } from "../utils/api.js";
-import { currentLocale } from "../utils/format.js";
-import { stateNotificationKey } from "../utils/notificationCenter.js";
+import { useSort } from "../hooks/useSort.jsx";
+import { apiFetch, instanceUrl } from "../utils/api.js";
+import { formatDate } from "../utils/format.js";
 
-export default function TLS({ toast, onUnauth, confirm }) {
+const STATUS_COLORS = { expired: "var(--danger)", expiring: "var(--warn)" };
+
+export default function TLS({ toast, confirm }) {
     const { t } = useTranslation();
     const [certs, setCerts] = useState([]);
     const [loading, setLoading] = useState(true);
     // Kept until a load succeeds, so unreadable storage isn't shown as "no certificates"
     const [loadError, setLoadError] = useState(null);
     const [filter, setFilter] = useState("all");
-    const [sortCol, setSortCol] = useState("domain");
-    const [sortDir, setSortDir] = useState("asc");
+    const sort = useSort("domain");
 
     const load = useCallback(() => {
         setLoading(true);
-        const key = stateNotificationKey('tls.load', getInstanceId());
-        apiFetch("/tls", {}, onUnauth)
-            .then(data => { toast.recover(key); setLoadError(null); setCerts(data); })
-            .catch(e => { setLoadError(e); toast.error(localizeError(e, t), e, { mode: 'state', key }); })
+        toast.track('tls.load', apiFetch("/tls"))
+            .then(data => { setLoadError(null); setCerts(data); })
+            .catch(setLoadError)
             .finally(() => setLoading(false));
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- toast isn't stable across renders
-    }, [onUnauth]);
+    }, [toast]);
 
     useEffect(load, [load]);
 
     const deleteCert = async (cert) => {
         if (!await confirm(t("tls.deleteConfirm", { status: cert.status, domain: cert.domain }), { confirmLabel: t("tls.delete"), danger: true })) return;
         try {
-            await apiFetch(`/tls/${cert.domain}`, { method: "DELETE" }, onUnauth);
+            await apiFetch(`/tls/${cert.domain}?issuer=${encodeURIComponent(cert.issuerDir)}`, { method: "DELETE" });
             toast.success(t("tls.deleted", { domain: cert.domain })); load();
-        } catch (e) { toast.error(localizeError(e, t), e); }
+        } catch (e) { toast.error(e); }
     };
 
-    const downloadCA = () => {
-        window.open(`/api/tls/ca`, '_blank');
-    };
-
+    const isInUse = cert => cert.status !== 'orphaned' && cert.status !== 'superseded';
+    const count = status => certs.filter(cert => cert.status === status).length;
     const summary = {
-        total: certs.filter(c => c.status !== 'orphaned' && c.status !== 'superseded').length,
-        valid: certs.filter(c => c.status === 'valid').length,
-        expiring: certs.filter(c => c.status === 'expiring').length,
-        expired: certs.filter(c => c.status === 'expired').length,
-        orphaned: certs.filter(c => c.status === 'orphaned').length,
-        superseded: certs.filter(c => c.status === 'superseded').length,
+        total: certs.filter(isInUse).length,
+        valid: count('valid'),
+        expiring: count('expiring'),
+        expired: count('expired'),
+        orphaned: count('orphaned'),
+        superseded: count('superseded'),
     };
 
     const filtered = filter === "all"
-        ? certs.filter(c => c.status !== 'orphaned' && c.status !== 'superseded')
+        ? certs.filter(isInUse)
         : certs.filter(c => c.status === filter);
 
-    const handleSort = (col) => {
-        if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
-        else { setSortCol(col); setSortDir("asc"); }
-    };
-
-    const sorted = [...filtered].sort((a, b) => {
-        if (sortCol === "expires") { const va = new Date(a.validTo).getTime(), vb = new Date(b.validTo).getTime(); return sortDir === "asc" ? va - vb : vb - va; }
-        if (sortCol === "days") { const va = a.isInternal ? Infinity : a.daysRemaining, vb = b.isInternal ? Infinity : b.daysRemaining; return sortDir === "asc" ? va - vb : vb - va; }
-        return sortDir === "asc" ? a.domain.localeCompare(b.domain) : b.domain.localeCompare(a.domain);
-    });
-
-    const SortIcon = ({ col }) => {
-        if (sortCol !== col) return <span className="sort-icon"><UtilityIcon name="sort" /></span>;
-        return <span className="sort-icon--active"><UtilityIcon name={sortDir === "asc" ? "arrowUp" : "arrowDown"} /></span>;
-    };
+    // Only the local CA's certificates renew themselves; the rest count down
+    const daysLeft = cert => cert.isInternal ? Infinity : cert.daysRemaining;
+    const compare = {
+        domain: (a, b) => a.domain.localeCompare(b.domain),
+        expires: (a, b) => new Date(a.validTo) - new Date(b.validTo),
+        days: (a, b) => daysLeft(a) === daysLeft(b) ? 0 : daysLeft(a) - daysLeft(b),
+    }[sort.column];
+    const sorted = [...filtered].sort((a, b) => sort.ascending ? compare(a, b) : compare(b, a));
 
     const statusBadge = (cert) => {
         if (cert.status === 'expired') return <span className="badge badge-red">{t("tls.expiredUpper")}</span>;
@@ -80,17 +70,9 @@ export default function TLS({ toast, onUnauth, confirm }) {
     const expiryBar = (cert) => {
         if (cert.isInternal) return null;
         const pct = Math.max(0, Math.min(100, (cert.daysRemaining / 90) * 100));
-        const color = cert.daysRemaining < 0 ? 'var(--danger)' : cert.daysRemaining < 14 ? 'var(--warn)' : 'var(--accent)';
+        const color = STATUS_COLORS[cert.status] || 'var(--accent)';
         return <div className="expiry-bar"><div className="expiry-bar-fill" style={{ width: `${pct}%`, background: color }} /></div>;
     };
-
-    const formatDate = (dateStr) => {
-        try { return new Date(dateStr).toLocaleDateString(currentLocale(), { month: 'short', day: 'numeric', year: 'numeric' }); }
-        catch { return dateStr; }
-    };
-
-    const isDeletable = (cert) =>
-        cert.status === 'orphaned' || cert.status === 'superseded' || cert.status === 'expired';
 
     const filterCards = [
         { key: "all", label: t("tls.total"), val: summary.total, sub: t("tls.managedCerts"), color: null },
@@ -125,7 +107,7 @@ export default function TLS({ toast, onUnauth, confirm }) {
                     </div>
                     <div className="btn-row tls-ca-actions">
                         <button className="btn btn-ghost tls-refresh--mobile" onClick={load}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
-                        <button className="btn btn-primary" onClick={downloadCA}><UtilityIcon name="arrowDown" /> {t("tls.downloadRootCa")}</button>
+                        <button className="btn btn-primary" onClick={() => window.open(instanceUrl('/tls/ca'), '_blank')}><UtilityIcon name="arrowDown" /> {t("tls.downloadRootCa")}</button>
                     </div>
                 </div>
             </div>
@@ -135,10 +117,8 @@ export default function TLS({ toast, onUnauth, confirm }) {
                     <div
                         key={key}
                         className="card card-clickable"
-                        style={{ borderColor: filter === key ? "var(--accent)" : "var(--border)" }}
+                        style={filter === key ? { borderColor: "var(--accent)" } : undefined}
                         onClick={() => setFilter(key)}
-                        onMouseEnter={e => { if (filter !== key) e.currentTarget.style.borderColor = "var(--border2)"; }}
-                        onMouseLeave={e => { if (filter !== key) e.currentTarget.style.borderColor = "var(--border)"; }}
                     >
                         <div className="card-title">{label}</div>
                         <div className="stat-val" style={{ color: color || "var(--text)" }}>{val}</div>
@@ -183,29 +163,29 @@ export default function TLS({ toast, onUnauth, confirm }) {
                         <table className="table">
                             <thead>
                                 <tr>
-                                    <th className="th-sortable" onClick={() => handleSort("domain")}>{t("tls.domain")} <SortIcon col="domain" /></th>
+                                    <th className="th-sortable" {...sort.header("domain")}>{t("tls.domain")} {sort.icon("domain")}</th>
                                     <th>{t("tls.issuer")}</th>
-                                    <th className="th-sortable" onClick={() => handleSort("expires")}>{t("tls.expires")} <SortIcon col="expires" /></th>
-                                    <th className="th-sortable" onClick={() => handleSort("days")}>{t("tls.days")} <SortIcon col="days" /></th>
+                                    <th className="th-sortable" {...sort.header("expires")}>{t("tls.expires")} {sort.icon("expires")}</th>
+                                    <th className="th-sortable" {...sort.header("days")}>{t("tls.days")} {sort.icon("days")}</th>
                                     <th>{t("tls.status")}</th>
                                     <th></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {sorted.map((cert, i) => (
-                                    <tr key={i} style={{ opacity: cert.status === 'orphaned' || cert.status === 'superseded' ? 0.6 : 1 }}>
+                                    <tr key={i} style={{ opacity: isInUse(cert) ? 1 : 0.6 }}>
                                         <td className="mono">{cert.domain}</td>
                                         <td><span className={`badge ${cert.issuer === 'acme' ? 'badge-blue' : 'badge-muted'}`}>{cert.issuer === 'acme' ? "Let's Encrypt" : t("tls.internal")}</span></td>
                                         <td>
                                             <div className="mono" style={{ fontSize: 12 }}>{formatDate(cert.validTo)}</div>
                                             {expiryBar(cert)}
                                         </td>
-                                        <td className="mono" style={{ color: cert.daysRemaining < 0 ? "var(--danger)" : cert.daysRemaining < 14 ? "var(--warn)" : "var(--muted)" }}>
+                                        <td className="mono" style={{ color: STATUS_COLORS[cert.status] || "var(--muted)" }}>
                                             {cert.isInternal ? t("tls.auto") : t("tls.daysShort", { count: cert.daysRemaining })}
                                         </td>
                                         <td>{statusBadge(cert)}</td>
                                         <td className="col-actions-sm">
-                                            {isDeletable(cert) && <button className="btn btn-danger btn--icon" onClick={() => deleteCert(cert)} aria-label={t("tls.delete")}><UtilityIcon name="close" /></button>}
+                                            {cert.deletable && <button className="btn btn-danger btn--icon" onClick={() => deleteCert(cert)} aria-label={t("tls.delete")}><UtilityIcon name="close" /></button>}
                                         </td>
                                     </tr>
                                 ))}

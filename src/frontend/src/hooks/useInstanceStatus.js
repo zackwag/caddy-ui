@@ -3,12 +3,12 @@ import { apiFetch } from "../utils/api.js";
 
 const POLL_INTERVAL_MS = 15000;
 
-export function useInstanceStatus(onUnauth) {
+export function useInstanceStatus() {
     const [instanceStatus, setInstanceStatus] = useState({});
 
     useEffect(() => {
         const fetchStatus = () =>
-            apiFetch("/instances/status", {}, onUnauth).then(results => {
+            apiFetch("/instances/status").then(results => {
                 const map = {};
                 for (const r of results) map[r.id] = r.online;
                 setInstanceStatus(map);
@@ -16,7 +16,7 @@ export function useInstanceStatus(onUnauth) {
         fetchStatus();
         const t = setInterval(fetchStatus, POLL_INTERVAL_MS);
         return () => clearInterval(t);
-    }, [onUnauth]);
+    }, []);
 
     return instanceStatus;
 }

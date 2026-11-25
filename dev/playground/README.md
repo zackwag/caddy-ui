@@ -45,7 +45,7 @@ Non-English translations must still be human-authored or human-reviewed under CO
 - `frame.jsx`: isolated rendering, production locale formatting, replay, and state preparation.
 - `dom-context.js`: matching observed translations to actual text nodes and attributes.
 - `PreviewFrame.jsx`: frame communication, DOM references, and visible replay failures.
-- `capture.mjs` / `capture-source.mjs`: real Caddy capture and source provenance.
+- `capture.mjs`: real Caddy capture.
 - `capture-format.js`: capture validation and strict request/response replay.
 - `captures/dashboard.json`: generated Dashboard, default notification, Metrics and access-log responses.
 - `workbench.css`: contributor layout.

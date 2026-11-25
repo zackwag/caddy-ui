@@ -1,22 +1,11 @@
 import { indentMore } from '@codemirror/commands';
 import { getIndentUnit, indentUnit } from '@codemirror/language';
 import { EditorSelection } from '@codemirror/state';
-import { blockClosedAt, blockOpenedBefore, scanCaddyfile } from './caddyfileStructure.js';
+import { blockClosedAt, blockOpenedBefore, structureOf } from './caddyfileStructure.js';
 
 // New indentation follows `caddy fmt`: one tab per level. Existing whitespace
 // is preserved; the tab's displayed width does not change its stored character.
-export const INDENT = '\t';
-
-// Documents are immutable, so each version is scanned at most once.
-const structures = new WeakMap();
-export function structureOf(doc) {
-    let structure = structures.get(doc);
-    if (!structure) {
-        structure = scanCaddyfile(doc.toString());
-        structures.set(doc, structure);
-    }
-    return structure;
-}
+const INDENT = '\t';
 
 // Tab at a caret inserts one tab there. With text selected it
 // indents every selected line instead, using CodeMirror's own command, which

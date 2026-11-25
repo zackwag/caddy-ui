@@ -6,9 +6,8 @@
 
 import { snippetCompletion } from '@codemirror/autocomplete';
 import { DIRECTIVES, GLOBAL_OPTIONS, SUBDIRECTIVES } from '../lib/caddyfileMode.js';
-import { structureOf } from './caddyfileIndentation.js';
-import { contextKind, isLiteralAt } from './caddyfileStructure.js';
-import { snippetsForContext } from './caddyfileSnippets.js';
+import { contextKind, isLiteralAt, structureOf } from './caddyfileStructure.js';
+import { snippetsForContext, snippetText } from './caddyfileSnippets.js';
 
 /* eslint-disable i18next/no-literal-string -- CodeMirror completion metadata, not UI copy */
 
@@ -16,7 +15,6 @@ function toCompletions(words, type) {
     return words.map(label => ({ label, type }));
 }
 
-// Pre-built completion lists from the imported vocabulary sets.
 const directiveCompletions = toCompletions([...DIRECTIVES], 'keyword');
 const globalCompletions = toCompletions([...GLOBAL_OPTIONS], 'keyword');
 const subdirectiveCompletions = toCompletions([...SUBDIRECTIVES], 'property');
@@ -31,13 +29,12 @@ function buildSnippetCompletions(kind) {
     const completions = [];
     for (const cat of snippetsForContext(kind)) {
         for (const snippet of cat.snippets) {
-            if (!snippet.snippetTemplate) continue;
             // The label is the first word of the template so it matches
             // when the user types a directive name.
-            const label = snippet.template.split(/[\s\n{]/)[0];
+            const label = snippetText(snippet).split(/[\s\n{]/)[0];
             // The `#{0}` exit stop keeps the last field inside the active
             // snippet, so Shift+Tab can still return from it.
-            completions.push(snippetCompletion(`${snippet.snippetTemplate}#{0}`, {
+            completions.push(snippetCompletion(`${snippet.template}#{0}`, {
                 label,
                 detail: ` — ${snippet.key}`,
                 type: 'text',
@@ -68,40 +65,37 @@ function vocabularyFor(kind) {
     return [];
 }
 
-// The CodeMirror CompletionSource wired into autocompletion().
-export function createCompletionSource() {
-    return function caddyfileCompletionSource(context) {
-        const { state, pos } = context;
-        const word = context.matchBefore(/[a-zA-Z_]\w*/);
-        if (!word && !context.explicit) {
-            return null;
-        }
+export function caddyfileCompletionSource(context) {
+    const { state, pos } = context;
+    const word = context.matchBefore(/[a-zA-Z_]\w*/);
+    if (!word && !context.explicit) {
+        return null;
+    }
 
-        const structure = structureOf(state.doc);
-        if (isLiteralAt(structure, pos)) {
-            return null;
-        }
+    const structure = structureOf(state.doc);
+    if (isLiteralAt(structure, pos)) {
+        return null;
+    }
 
-        // Both typed and empty prefixes must be the first token on the line.
-        // Ctrl+Space after a directive's arguments isn't a name completion.
-        const from = word ? word.from : pos;
-        const line = state.doc.lineAt(pos);
-        if (state.doc.sliceString(line.from, from).trim().length > 0) {
-            return null;
-        }
+    // Both typed and empty prefixes must be the first token on the line.
+    // Ctrl+Space after a directive's arguments isn't a name completion.
+    const from = word ? word.from : pos;
+    const line = state.doc.lineAt(pos);
+    if (state.doc.sliceString(line.from, from).trim().length > 0) {
+        return null;
+    }
 
-        const kind = contextKind(structure, state.doc.toString(), pos);
-        const vocab = vocabularyFor(kind);
-        const snippets = snippetsByContext[kind] ?? [];
-        const options = [...vocab, ...snippets];
-        if (!options.length) {
-            return null;
-        }
+    const kind = contextKind(structure, state.doc.toString(), pos);
+    const vocab = vocabularyFor(kind);
+    const snippets = snippetsByContext[kind] ?? [];
+    const options = [...vocab, ...snippets];
+    if (!options.length) {
+        return null;
+    }
 
-        return {
-            from,
-            options,
-            validFor: /^[a-zA-Z_]\w*$/,
-        };
+    return {
+        from,
+        options,
+        validFor: /^[a-zA-Z_]\w*$/,
     };
 }

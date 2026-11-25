@@ -1,7 +1,9 @@
-import { UtilityIcon } from "./Icons.jsx";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { languageName } from '../i18n/index.js';
+import { DEFAULT_PALETTES } from '../styles.js';
+import Select from './Select.jsx';
+import ThemeSelect from './ThemeSelect.jsx';
 
 // eslint-disable-next-line i18next/no-literal-string -- Brand text in the theme preview
 const BRAND_CADDY = "caddy";
@@ -10,21 +12,12 @@ const BRAND_UI = "UI";
 // eslint-disable-next-line i18next/no-literal-string -- Caddyfile syntax example
 const CADDYFILE_PREVIEW = "localhost:443 { reverse_proxy backend:8080 }";
 
-function themeOptions(themes, mode) {
-    const builtIn = themes.filter(t => t.mode === mode && !t.custom).sort((a, b) => a.label.localeCompare(b.label));
-    const custom = themes.filter(t => t.mode === mode && t.custom).sort((a, b) => a.label.localeCompare(b.label));
-    return { builtIn, custom };
-}
-
 export default function ThemeWelcome({ themes, languages, language, onLanguageChange, onComplete }) {
     const { t } = useTranslation();
-    const [dark, setDark] = useState('vt2026');
-    const [light, setLight] = useState('coarse-everywhere');
+    const [palettes, setPalettes] = useState(DEFAULT_PALETTES);
     const [preview, setPreview] = useState('dark');
 
-    const activeId = preview === 'dark' ? dark : light;
-    const activeTheme = themes.find(t => t.id === activeId) || themes[0];
-    const options = themeOptions(themes, preview);
+    const activeTheme = themes.find(t => t.id === palettes[preview]) || themes[0];
 
     return (
         <div className="modal-overlay">
@@ -45,23 +38,7 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
 
                 <div style={{ marginBottom: 16 }}>
                     <label className="field-label">{preview === 'dark' ? t("themeWelcome.darkTheme") : t("themeWelcome.lightTheme")}</label>
-                    <div className="select-wrap">
-                        <select
-                            className="config-select"
-                            value={preview === 'dark' ? dark : light}
-                            onChange={e => preview === 'dark' ? setDark(e.target.value) : setLight(e.target.value)}
-                        >
-                            <optgroup label={t("themeWelcome.builtIn")}>
-                                {options.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                            </optgroup>
-                            {options.custom.length > 0 && (
-                                <optgroup label={t("themeWelcome.custom")}>
-                                    {options.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                                </optgroup>
-                            )}
-                        </select>
-                        <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
-                    </div>
+                    <ThemeSelect themes={themes} mode={preview} value={palettes[preview]} onChange={id => setPalettes(p => ({ ...p, [preview]: id }))} />
                 </div>
 
                 <div style={{
@@ -148,25 +125,18 @@ export default function ThemeWelcome({ themes, languages, language, onLanguageCh
                 {languages.length > 1 && (
                     <div style={{ marginBottom: 16 }}>
                         <label className="field-label">{t("themeWelcome.language")}</label>
-                        <div className="select-wrap">
-                            <select
-                                className="config-select"
-                                value={language}
-                                onChange={e => onLanguageChange(e.target.value)}
-                            >
-                                {languages.map(lang => (
-                                    <option key={lang} value={lang}>
-                                        {languageName(lang)}
-                                    </option>
-                                ))}
-                            </select>
-                            <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
-                        </div>
+                        <Select value={language} onChange={e => onLanguageChange(e.target.value)}>
+                            {languages.map(lang => (
+                                <option key={lang} value={lang}>
+                                    {languageName(lang)}
+                                </option>
+                            ))}
+                        </Select>
                     </div>
                 )}
 
                 <div className="flex-end">
-                    <button className="btn btn-primary" onClick={() => onComplete(dark, light)}>
+                    <button className="btn btn-primary" onClick={() => onComplete(palettes)}>
                         {t("themeWelcome.apply")}
                     </button>
                 </div>

@@ -9,11 +9,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { backendEnvironment, checkDocker, Harness, IMAGE } from '../dev-caddy/harness.mjs';
 import { CAPTURE_VERSION, normalizeCapture, validateCapture } from './capture-format.js';
-import { sourceFingerprint } from './capture-source.mjs';
 
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
-const paths = ['/status', '/status/process', '/server-names', '/health'];
+const paths = ['/status', '/status/process', '/server-names'];
 
 export async function captureDashboard({ output = resolve(import.meta.dirname, 'captures/dashboard.json'), backendEntry = resolve(root, 'src/backend/src/index.js'), onNamespace = () => {}, onBackend = () => {} } = {}) {
     if (process.platform === 'win32') throw new Error('Capture requires a Unix socket. Run it in Linux CI, WSL, or a Dev Container; replay works without Docker.');
@@ -120,7 +119,6 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         const label = await successful('/server-names/srv0', 'PUT', { name: 'Playground HTTP' });
         const online = await snapshot('dashboard-online');
         assert(online.requests.every(record => record.response.status === 200));
-        assert(Array.isArray(online.requests[3].response.body));
         assert.equal(online.requests[0].response.body.online, true);
         assert(online.requests[0].response.body.servers.length > 0);
         assert.equal(online.requests[1].response.body.ok, true);
@@ -169,9 +167,6 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         const notifications = { id: 'notifications-default', requests: [await successful('/notifications/config')] };
         assert.equal(notifications.requests[0].response.body.enabled, false);
         assert.equal(notifications.requests[0].response.body.provider, 'ntfy');
-        const routeEdit = { id: 'routes-edit-unavailable', requests: [...routesOnline.requests,
-            await api(`/routes/caddyfile/${encodeURIComponent('—')}`)] };
-        assert(routeEdit.requests.at(-1).response.status >= 400);
         // Seed snapshots through real saves in this capture's disposable instance.
         // Only harmless comments change; no external sites or upstreams are added.
         const before = (await successful('/caddyfile')).response.body;
@@ -208,6 +203,10 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         assert.equal(certRecord.response.body.length, 1);
         assert.equal(certRecord.response.body[0].status, 'valid');
         const tlsValid = { id: 'tls-internal-valid', requests: [certRecord] };
+        // Served by Caddy, but with no block in the Caddyfile to edit
+        const routeEdit = await routeSnapshot('routes-edit-unavailable');
+        routeEdit.requests.push(await api('/routes/caddyfile/preview.internal'));
+        assert.equal(routeEdit.requests.at(-1).response.status, 404);
         const uptimePending = { id: 'uptime-route-pending', requests: [] };
         for (const path of ['/routes', '/health/uptime', '/health/uptime?kind=route', '/route-notes']) {
             uptimePending.requests.push(await successful(path));
@@ -299,7 +298,7 @@ export async function captureDashboard({ output = resolve(import.meta.dirname, '
         assert.equal(sidebarStopped.requests[3].response.body.online, false);
         const { stdout: commit } = await exec('git', ['rev-parse', 'HEAD'], { cwd: root });
         result = validateCapture({ formatVersion: CAPTURE_VERSION,
-            source: { commit: commit.trim(), sourceHash: await sourceFingerprint(), caddyImage: IMAGE },
+            source: { commit: commit.trim(), caddyImage: IMAGE },
             csrfContext: { source: { commit: commit.trim() }, record: csrfRecord },
             normalization: ['Request IDs', 'ISO timestamps', 'Private capture addresses and paths; measurements remain as observed'],
             scenarios: normalizeCapture([online, noServers, stopped, notifications, metrics, logs, tls, sidebarOnline, sidebarStopped, routesOnline, routesEmpty, history, caddyfileEmpty, caddyfileHistory, routeEdit, tlsValid, tlsOrphaned, uptimePending, instancesLocal, instancesMissing, instancesEmpty], [

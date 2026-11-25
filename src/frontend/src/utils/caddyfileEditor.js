@@ -8,10 +8,10 @@ import { Compartment, EditorState, Prec } from '@codemirror/state';
 import { EditorView, ViewPlugin, drawSelection, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers } from '@codemirror/view';
 import { classHighlighter } from '@lezer/highlight';
 import { caddyfile } from '../lib/caddyfileMode.js';
-import { indentation, indentationKeymap, insertIndentation, insertNewlinePreservingIndent, structureOf } from './caddyfileIndentation.js';
-import { createCompletionSource } from './caddyfileCompletions.js';
-import { contextKind, foldRangeOf, isLiteralAt } from './caddyfileStructure.js';
-import { snippetsForContext } from './caddyfileSnippets.js';
+import { indentation, indentationKeymap, insertIndentation, insertNewlinePreservingIndent } from './caddyfileIndentation.js';
+import { caddyfileCompletionSource } from './caddyfileCompletions.js';
+import { contextKind, foldRangeOf, isLiteralAt, structureOf } from './caddyfileStructure.js';
+import { snippetsForContext, snippetText } from './caddyfileSnippets.js';
 
 // Typing one of these inserts its closing partner, and typing that partner
 // next to it steps over it. Quotes aren't paired: Caddyfile text uses them
@@ -298,7 +298,7 @@ function openSnippetMenu(view, target, x, y, t) {
                     return;
                 }
                 close();
-                const text = indentSnippet(snippet.template, baseIndent);
+                const text = indentSnippet(snippetText(snippet), baseIndent);
                 // Insert at the beginning of the line for top-level blocks,
                 // or at the cursor position for directives/subdirectives.
                 const insertAt = kind === 'none' ? line.from : pos;
@@ -326,7 +326,6 @@ function openSnippetMenu(view, target, x, y, t) {
         menu.style.top = `${Math.max(pad, window.innerHeight - rect.height - pad)}px`;
     }
 
-    // Keyboard navigation: arrow keys move between items, Escape closes.
     const items = [...menu.querySelectorAll('.snippet-menu-item')];
     let focused = 0;
     menu.addEventListener('focusin', (e) => {
@@ -422,7 +421,7 @@ export function createCaddyfileEditor({ parent, doc, dark, padding, onChange, t,
             history(), drawSelection(), indentOnInput(), bracketMatching(),
             EditorState.languageData.of(() => [{ closeBrackets: { brackets: BRACKETS } }]),
             literalBrackets, closeBrackets(),
-            autocompletion({ override: [createCompletionSource()], activateOnTyping: true }), editorSnippetKeymap,
+            autocompletion({ override: [caddyfileCompletionSource], activateOnTyping: true }), editorSnippetKeymap,
             syntaxHighlighting(classHighlighter),
             StreamLanguage.define(caddyfile), editorTheme({ dark, padding }),
             indentation,

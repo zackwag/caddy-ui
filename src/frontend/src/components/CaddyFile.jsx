@@ -1,13 +1,14 @@
-import { UtilityIcon } from "./Icons.jsx";
-import { localizeError } from "../utils/errorMessages.js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import PaneDivider from "./PaneDivider.jsx";
-import { apiFetch, apiRequest, getInstanceId } from "../utils/api.js";
-import { stateNotificationKey } from "../utils/notificationCenter.js";
+import { useCaddyfileHistory } from "../hooks/useCaddyfileHistory.js";
+import { apiFetch, apiRequest, instanceUrl } from "../utils/api.js";
 import { formatTs } from "../utils/format.js";
-import { collapseUnchanged, diffLines } from "../utils/lineDiff.js";
-import { historyActor, historyComparison, notifyConfigurationSave } from '../utils/caddyfileHistory.js';
+import CaddyfileDiff from "./CaddyfileDiff.jsx";
+import CaddyfileEditor from "./CaddyfileEditor.jsx";
+import CaddyfileHistory from "./CaddyfileHistory.jsx";
+import { UtilityIcon } from "./Icons.jsx";
+import Modal from "./Modal.jsx";
+import PaneDivider from "./PaneDivider.jsx";
 
 // eslint-disable-next-line i18next/no-literal-string -- Caddy CLI command, not translatable UI copy
 const CADDY_FMT_LABEL = "caddy fmt";
@@ -18,136 +19,7 @@ const CONFLICT_TITLE_ID = "caddyfile-conflict-title";
 // eslint-disable-next-line i18next/no-literal-string -- HTTP header name, not translatable UI copy
 const ETAG_HEADER = "ETag";
 
-const ACTION_KEYS = {
-    'caddyfile.save': 'caddyfile.actionSave',
-    'caddyfile.restore': 'caddyfile.actionRestore',
-    'caddyfile.import': 'caddyfile.actionImport',
-    'route.add': 'caddyfile.actionRouteAdd',
-    'route.edit': 'caddyfile.actionRouteEdit',
-    'route.delete': 'caddyfile.actionRouteDelete',
-    'maintenance.enable': 'caddyfile.actionMaintenanceEnable',
-    'maintenance.disable': 'caddyfile.actionMaintenanceDisable',
-    'logs.configure': 'caddyfile.actionLogs',
-    'metrics.configure': 'caddyfile.actionMetrics',
-};
-
-function CaddyfileCodeMirror({ value, onChange, onSave, theme, vimMode }) {
-    const { t, i18n } = useTranslation();
-    const containerRef = useRef(null);
-    const viewRef = useRef(null);
-    const onChangeRef = useRef(onChange);
-    const onSaveRef = useRef(onSave);
-    const vimModeRef = useRef(vimMode);
-
-    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
-    useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
-    useEffect(() => {
-        vimModeRef.current = vimMode;
-        viewRef.current?.setVimMode(vimMode);
-    }, [vimMode]);
-
-    useEffect(() => {
-        if (!containerRef.current) return;
-        let view;
-        let cancelled = false;
-
-        async function init() {
-            const { createCaddyfileEditor } = await import("../utils/caddyfileEditor.js");
-            if (cancelled) return;
-            view = createCaddyfileEditor({
-                parent: containerRef.current, doc: value, dark: theme === 'dark', padding: "16px", vimMode: vimModeRef.current,
-                onChange: doc => onChangeRef.current(doc), t,
-                onSave: () => onSaveRef.current?.(),
-            });
-            viewRef.current = view;
-        }
-
-        init();
-        return () => { cancelled = true; view?.destroy(); viewRef.current = null; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebuild the editor on theme change; including `value` would tear it down on every keystroke
-    }, [theme]);
-
-    useEffect(() => { viewRef.current?.updatePhrases?.(t); }, [i18n.language, t]);
-
-    useEffect(() => {
-        const view = viewRef.current;
-        if (!view) return;
-        const current = view.state.doc.toString();
-        if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
-    }, [value]);
-
-    return <div ref={containerRef} className="caddyfile-editor" />;
-}
-
-function CaddyfileDiff({ oldText, newText, previewRef, label }) {
-    const { t } = useTranslation();
-    const lines = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
-    const added = lines.filter(l => l.type === "add").length;
-    const removed = lines.filter(l => l.type === "del").length;
-    const shown = useMemo(() => collapseUnchanged(lines), [lines]);
-
-    if (!added && !removed) return <div ref={previewRef} className="history-preview history-diff-empty" role="region" aria-label={label || t("caddyfile.versionPreview")} tabIndex={0}>{t("caddyfile.noDifferences")}</div>;
-
-    return (
-        <>
-            <div className="history-diff-stats">
-                <span className="diff-stat--add">+{added}</span> <span className="diff-stat--del">−{removed}</span>
-            </div>
-            <div ref={previewRef} className="history-preview history-diff" role="region" aria-label={label || t("caddyfile.versionPreview")} tabIndex={0}>
-                <div className="history-diff-lines">
-                    {shown.map((line, i) => line.type === "skip" ? (
-                        <div key={i} className="diff-skip">⋯ {t("caddyfile.unchangedLines", { count: line.count })}</div>
-                    ) : (
-                        <div key={i} className={`diff-line diff-line--${line.type}`}>
-                            <span className="diff-ln">{line.oldNo ?? ""}</span>
-                            <span className="diff-ln">{line.newNo ?? ""}</span>
-                            <span className="diff-sign">{line.type === "add" ? "+" : line.type === "del" ? "−" : " "}</span>
-                            <span className="diff-text">{line.text}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </>
-    );
-}
-
-function ExternalConfigurationDiff({ observation, mode, previewRef }) {
-    const { t } = useTranslation();
-    return (
-        <div ref={previewRef} className="history-preview history-external" role="region" aria-label={t('caddyfile.externalPreview')} tabIndex={0}>
-            <p>{t('caddyfile.externalObservationHint')}</p>
-            {/* eslint-disable-next-line i18next/no-literal-string -- Internal configuration representation identifier, not user-facing text. */}
-            {observation.representations.includes('file') && <p>{t('caddyfile.externalRestoreHint')}</p>}
-            {observation.representations.length > 1 && <p>{t('caddyfile.externalRelationshipUnknown')}</p>}
-            {observation.representations.map(representation => {
-                const label = t(representation === 'file' ? 'caddyfile.fileRepresentation' : 'caddyfile.liveRepresentation');
-                const before = observation.before[representation];
-                // Without opt-in, the live side holds fingerprints and changed paths, not JSON.
-                const pathsOnly = representation === 'live' && Array.isArray(observation.paths);
-                return (
-                    <section key={representation}>
-                        <h3>{label}</h3>
-                        {before === null && <p>{t('caddyfile.externalBaselineUnavailable')}</p>}
-                        {pathsOnly ? (
-                            <>
-                                <p>{t('caddyfile.liveValuesOmitted')}</p>
-                                {observation.paths.length > 0 && (
-                                    <ul className="history-paths" aria-label={t('caddyfile.changedPaths')}>
-                                        {observation.paths.map(path => <li key={path}><code>{path}</code></li>)}
-                                    </ul>
-                                )}
-                            </>
-                        ) : mode === 'diff' && before !== null
-                            ? <CaddyfileDiff oldText={before} newText={observation.after[representation]} label={label} />
-                            : <pre>{observation.after[representation]}</pre>}
-                    </section>
-                );
-            })}
-        </div>
-    );
-}
-
-export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, onEditorVimChange }) {
+export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVimChange }) {
     const { t } = useTranslation();
     const [content, setContent] = useState("");
     const [original, setOriginal] = useState("");
@@ -157,195 +29,81 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
     const [runFmt, setRunFmt] = useState(true);
     const [runSort, setRunSort] = useState(true);
     const [historyOpen, setHistoryOpen] = useState(false);
-    const [historyListOpen, setHistoryListOpen] = useState(false);
     const [editorShare, setEditorShare] = useState(60);
-    const [history, setHistory] = useState([]);
-    const [historyLoading, setHistoryLoading] = useState(false);
-    // Kept until a load succeeds, so unreadable history isn't shown as "no snapshots"
-    const [historyError, setHistoryError] = useState(null);
-    const [previewEntry, setPreviewEntry] = useState(null);
-    const [previewContent, setPreviewContent] = useState("");
-    const [previewLoading, setPreviewLoading] = useState(false);
-    const [compareLoading, setCompareLoading] = useState(false);
-    const [previewMode, setPreviewMode] = useState("diff");
-    const [compareTo, setCompareTo] = useState("current");
-    const [compareContent, setCompareContent] = useState(null);
-    const [previewObservation, setPreviewObservation] = useState(null);
+    const history = useCaddyfileHistory(toast);
+    const historyView = { mode: useState("diff"), list: useState(false) };
     // A save refused because the file changed since it was loaded: the
     // current file and its ETag, and whether it was a force save
     const [conflict, setConflict] = useState(null);
     const [conflictCompare, setConflictCompare] = useState(false);
     // The ETag of the file the editor was loaded from, sent back as If-Match
     const savedETag = useRef(null);
-    const snapshotCache = useRef(new Map());
     const importInputRef = useRef(null);
     const pageRef = useRef(null);
     const toolbarRef = useRef(null);
     const historyHeaderRef = useRef(null);
-    const historyPreviewRef = useRef(null);
     const historyControlsRef = useRef(null);
-    const previewRequest = useRef(0);
-    const compareRequest = useRef(0);
-    const historyRequest = useRef(0);
-    const selectedFilename = useRef(null);
-    const comparisonFilename = useRef("current");
 
-    useEffect(() => () => {
-        historyRequest.current++;
-        previewRequest.current++;
-        compareRequest.current++;
-    }, []);
+    const readCaddyfile = async () => {
+        const { body, headers } = await apiRequest("/caddyfile");
+        return { text: body, etag: headers.get(ETAG_HEADER) };
+    };
+
+    const showSaved = ({ text, etag }) => {
+        savedETag.current = etag;
+        setContent(text); setOriginal(text);
+    };
 
     useEffect(() => {
-        const key = stateNotificationKey('caddyfile.load', getInstanceId());
-        apiRequest("/caddyfile", {}, onUnauth)
-            .then(({ body, headers }) => { toast.recover(key); savedETag.current = headers.get(ETAG_HEADER); setContent(body); setOriginal(body); })
-            .catch(e => toast.error(localizeError(e, t), e, { mode: 'state', key }))
+        toast.track('caddyfile.load', readCaddyfile())
+            .then(showSaved)
+            .catch(() => { })
             .finally(() => setLoading(false));
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount only; toast isn't stable across renders
-    }, [onUnauth]);
-
-    const clearPreview = () => {
-        previewRequest.current++;
-        compareRequest.current++;
-        selectedFilename.current = null;
-        comparisonFilename.current = "current";
-        setPreviewEntry(null); setPreviewContent(""); setPreviewLoading(false);
-        setPreviewObservation(null);
-        setCompareTo("current"); setCompareContent(null); setCompareLoading(false);
-    };
-
-    const loadHistory = async (selectLatest = false) => {
-        const request = ++historyRequest.current;
-        setHistoryLoading(true);
-        try {
-            const entries = await apiFetch("/caddyfile/history", {}, onUnauth);
-            if (request !== historyRequest.current) return;
-            setHistoryError(null);
-            setHistory(entries);
-            const selected = (!selectLatest && entries.find(entry => entry.filename === selectedFilename.current)) || entries[0];
-            if (!selected) clearPreview();
-            else if (selected.filename !== selectedFilename.current) previewSnapshot(selected, entries);
-            else {
-                setPreviewEntry(selected);
-                if (comparisonFilename.current !== "current" && !entries.some(entry => entry.filename === comparisonFilename.current)) changeCompareTo("current");
-            }
-        } catch (e) {
-            if (request === historyRequest.current) { setHistoryError(e); toast.error(localizeError(e, t), e); }
-        } finally {
-            if (request === historyRequest.current) setHistoryLoading(false);
-        }
-    };
+        // Reloading would discard unsaved edits
+    }, [toast]);
 
     const toggleHistory = () => {
-        if (!historyOpen) loadHistory();
+        if (!historyOpen) history.load();
         setHistoryOpen(o => !o);
     };
 
-    // Snapshots never change once written, so each is fetched at most once.
-    const fetchSnapshot = async (filename) => {
-        if (!snapshotCache.current.has(filename)) {
-            snapshotCache.current.set(filename, await apiFetch(`/caddyfile/history/${filename}`, {}, onUnauth));
-        }
-        return snapshotCache.current.get(filename);
-    };
-
-    const previewSnapshot = async (entry, entries = history) => {
-        if (!entry) return;
-        if (selectedFilename.current === entry.filename) return;
-        const request = ++previewRequest.current;
-        compareRequest.current++;
-        selectedFilename.current = entry.filename;
-        comparisonFilename.current = "current";
-        setPreviewEntry(entry); setPreviewContent(""); setPreviewLoading(true);
-        setPreviewObservation(null);
-        setCompareTo("current"); setCompareContent(null); setCompareLoading(false);
-        const comparison = entry.kind === 'external' ? 'current' : historyComparison(entry, entries);
-        if (comparison !== 'current') changeCompareTo(comparison);
-        historyPreviewRef.current?.scrollTo({ top: 0 });
-        try {
-            if (entry.kind === 'external') {
-                const observation = await apiFetch(`/caddyfile/history/${entry.filename}/changes`, {}, onUnauth);
-                if (request === previewRequest.current) setPreviewObservation(observation);
-            } else {
-                const text = await fetchSnapshot(entry.filename);
-                if (request === previewRequest.current) setPreviewContent(text);
-            }
-        } catch (e) {
-            if (request === previewRequest.current) {
-                selectedFilename.current = null;
-                setPreviewEntry(null);
-                toast.error(localizeError(e, t), e);
-            }
-        } finally {
-            if (request === previewRequest.current) setPreviewLoading(false);
-        }
-    };
-
-    const changeCompareTo = async (target) => {
-        const request = ++compareRequest.current;
-        comparisonFilename.current = target;
-        setCompareTo(target); setCompareContent(null);
-        setCompareLoading(target !== "current");
-        if (target === "current") return;
-        try {
-            const text = await fetchSnapshot(target);
-            if (request === compareRequest.current) setCompareContent(text);
-        } catch (e) {
-            if (request === compareRequest.current) {
-                comparisonFilename.current = "current";
-                setCompareTo("current");
-                toast.error(localizeError(e, t), e);
-            }
-        } finally {
-            if (request === compareRequest.current) setCompareLoading(false);
-        }
-    };
-
-    // Reloads the editor after a saved change. The save's own outcome is
+    // Replaces the file and reloads the editor from it. The save's own outcome is
     // reported first, so a failed refresh only adds its error and keeps the
     // current editor contents.
-    const refreshSaved = async () => {
-        try {
-            const { body, headers } = await apiRequest("/caddyfile", {}, onUnauth);
-            savedETag.current = headers.get(ETAG_HEADER);
-            setContent(body); setOriginal(body);
-        } catch (e) { toast.error(localizeError(e, t), e); }
+    const putCaddyfile = async (path, text, { ifMatch, message }) => {
+        const headers = { "Content-Type": "text/plain", ...(ifMatch ? { "If-Match": ifMatch } : {}) };
+        const result = await apiFetch(path, { method: "PUT", headers, body: text });
+        toast.saved(result, message);
+        try { showSaved(await readCaddyfile()); }
+        catch (e) { toast.error(e); }
     };
 
     const restoreSnapshot = async (entry) => {
         const message = t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp) });
         if (!await confirm(entry.kind === 'external' ? `${message} ${t('caddyfile.externalRestoreHint')}` : message, { confirmLabel: t("caddyfile.restore") })) return;
         try {
-            const text = await apiFetch(`/caddyfile/history/${entry.filename}`, {}, onUnauth);
-            const result = await apiFetch("/caddyfile?action=restore&fmt=false&sort=false", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
-            notifyConfigurationSave(toast, t, result, t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }));
-            await refreshSaved();
-            setHistoryOpen(false); clearPreview();
-            loadHistory(true);
-        } catch (e) { toast.error(localizeError(e, t), e); }
+            const text = await apiFetch(`/caddyfile/history/${entry.filename}`);
+            await putCaddyfile("/caddyfile?action=restore&fmt=false&sort=false", text, { message: t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }) });
+            setHistoryOpen(false); history.clear();
+            history.load(true);
+        } catch (e) { toast.error(e); }
     };
 
     const deleteSnapshot = async (entry) => {
         if (!await confirm(t("caddyfile.deleteSnapshotConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("common.delete"), danger: true })) return;
         try {
-            await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" }, onUnauth);
+            await history.remove(entry);
             toast.success(t("caddyfile.snapshotDeleted"));
-            snapshotCache.current.delete(entry.filename);
-            if (selectedFilename.current === entry.filename) clearPreview();
-            else if (comparisonFilename.current === entry.filename) changeCompareTo("current");
-            loadHistory();
-        } catch (e) { toast.error(localizeError(e, t), e); }
+        } catch (e) { toast.error(e); }
     };
 
     const validate = async () => {
         setValidating(true);
         try {
-            const result = await apiFetch(`/caddyfile/validations?fmt=${runFmt}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }, onUnauth);
+            const result = await apiFetch(`/caddyfile/validations?fmt=${runFmt}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: content });
             if (result.formatted) setContent(result.formatted);
-            if (result.warnings?.length) toast.info(t('errors.validationWarning'), result);
-            else toast.success(t("caddyfile.valid"));
-        } catch (e) { toast.error(localizeError(e, t), e); }
+            toast.success(t("caddyfile.valid"));
+        } catch (e) { toast.error(e); }
         finally { setValidating(false); }
     };
 
@@ -353,11 +111,10 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
     // the editor's before choosing which to keep.
     const showConflict = async (force, error) => {
         try {
-            const { body, headers } = await apiRequest("/caddyfile", {}, onUnauth);
-            setConflict({ current: body, etag: headers.get(ETAG_HEADER), force });
+            setConflict({ file: await readCaddyfile(), force });
         } catch (e) {
-            toast.error(localizeError(error, t), error);
-            toast.error(localizeError(e, t), e);
+            toast.error(error);
+            toast.error(e);
         }
     };
 
@@ -368,18 +125,15 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
     const saveContent = async ({ force, basis }) => {
         setSaving(true);
         try {
-            const q = `fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`; // eslint-disable-line i18next/no-literal-string -- API query parameter
-            const headers = { "Content-Type": "text/plain", ...(basis ? { "If-Match": basis } : {}) };
-            const result = await apiFetch(`/caddyfile?${q}`, { method: "PUT", headers, body: content }, onUnauth);
+            const path = `/caddyfile?fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`; // eslint-disable-line i18next/no-literal-string -- API query parameter
+            await putCaddyfile(path, content, { ifMatch: basis, message: t("caddyfile.savedReloaded") });
             closeConflict();
-            notifyConfigurationSave(toast, t, result, t("caddyfile.savedReloaded"));
-            await refreshSaved();
-            if (historyOpen) loadHistory(true);
+            if (historyOpen) history.load(true);
         } catch (e) {
             if (e.code === "CADDYFILE_CHANGED") {
                 await showConflict(force, e);
             } else {
-                toast.error(localizeError(e, t), e);
+                toast.error(e);
             }
         }
         finally { setSaving(false); }
@@ -392,25 +146,20 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
 
     // Discards the editor's changes for the file that blocked the save.
     const loadConflictingFile = () => {
-        savedETag.current = conflict.etag;
-        setContent(conflict.current); setOriginal(conflict.current);
+        showSaved(conflict.file);
         closeConflict();
     };
 
     // Saves the editor's text over the file the user just reviewed; one changed
     // again since then is refused again.
-    const overwriteConflictingFile = () => saveContent({ force: conflict.force, basis: conflict.etag });
+    const overwriteConflictingFile = () => saveContent({ force: conflict.force, basis: conflict.file.etag });
 
     const reload = async () => {
         try {
-            const result = await apiFetch("/caddyfile/reloads", { method: "POST" }, onUnauth);
-            notifyConfigurationSave(toast, t, result, t("caddyfile.reloadedFromDisk"));
+            const result = await apiFetch("/caddyfile/reloads", { method: "POST" });
+            toast.saved(result, t("caddyfile.reloadedFromDisk"));
         }
-        catch (e) { toast.error(localizeError(e, t), e); }
-    };
-
-    const exportFile = () => {
-        window.open(`/api/caddyfile?download=true`, '_blank');
+        catch (e) { toast.error(e); }
     };
 
     const importFile = (e) => {
@@ -421,24 +170,15 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
             const text = ev.target.result;
             if (!await confirm(t("caddyfile.importConfirm"), { confirmLabel: t("caddyfile.import") })) return;
             try {
-                const result = await apiFetch("/caddyfile?action=import", { method: "PUT", headers: { "Content-Type": "text/plain" }, body: text }, onUnauth);
-                notifyConfigurationSave(toast, t, result, t("caddyfile.importedReloaded"));
-                await refreshSaved();
-                if (historyOpen) loadHistory(true);
-            } catch (err) { toast.error(localizeError(err, t), err); }
+                await putCaddyfile("/caddyfile?action=import", text, { message: t("caddyfile.importedReloaded") });
+                if (historyOpen) history.load(true);
+            } catch (err) { toast.error(err); }
         };
         reader.readAsText(file);
         e.target.value = "";
     };
 
     const isDirty = content !== original;
-
-    // Diff from older to newer: a snapshot against the saved file, or two
-    // snapshots ordered by timestamp (filenames sort chronologically).
-    let diffOld = previewContent, diffNew = original;
-    if (compareTo !== "current" && compareContent !== null) {
-        [diffOld, diffNew] = compareTo < previewEntry?.filename ? [compareContent, previewContent] : [previewContent, compareContent];
-    }
 
     if (loading) return <div className="loading">{t("caddyfile.loading")}</div>;
 
@@ -449,7 +189,7 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
             style={{ "--editor-share": `${editorShare}fr`, "--history-share": `${100 - editorShare}fr` }}
         >
             <div id={EDITOR_PANE_ID} className="editor-wrap">
-                <CaddyfileCodeMirror value={content} onChange={setContent} onSave={() => { if (!saving && isDirty) save(); }} theme={theme} vimMode={editorVim} />
+                <CaddyfileEditor className="caddyfile-editor" padding="16px" value={content} onChange={setContent} onSave={() => { if (!saving && isDirty) save(); }} theme={theme} vimMode={editorVim} />
                 <div ref={toolbarRef} className="editor-toolbar">
                     <div className="btn-row">
                         <label className="editor-checkbox-label">
@@ -469,8 +209,8 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
                     <div className="btn-row editor-toolbar-actions">
                         <span className="editor-hint editor-hint--desktop"><UtilityIcon name={isDirty ? "dot" : "check"} size={10} /> {t(isDirty ? "caddyfile.unsavedChanges" : "caddyfile.upToDate")}</span>
                         <button className="btn btn-ghost" onClick={validate} disabled={validating}>{validating ? t("caddyfile.validating") : <><UtilityIcon name="check" /> {t("caddyfile.validate")}</>}</button>
-                        <button className="btn btn-ghost" onClick={toggleHistory}><UtilityIcon name="history" /> {t("caddyfile.history")}{history.length > 0 && !historyLoading ? ` (${history.length})` : ""}</button>
-                        <button className="btn btn-ghost" onClick={exportFile}><UtilityIcon name="arrowDown" /> {t("common.export")}</button>
+                        <button className="btn btn-ghost" onClick={toggleHistory}><UtilityIcon name="history" /> {t("caddyfile.history")}{history.entries.length > 0 && !history.loading ? ` (${history.entries.length})` : ""}</button>
+                        <button className="btn btn-ghost" onClick={() => window.open(instanceUrl('/caddyfile?download=true'), '_blank')}><UtilityIcon name="arrowDown" /> {t("common.export")}</button>
                         <button className="btn btn-ghost" onClick={() => importInputRef.current?.click()}><UtilityIcon name="arrowUp" /> {t("caddyfile.import")}</button>
                         <input ref={importInputRef} type="file" accept="text/plain,.txt" style={{ display: "none" }} onChange={importFile} />
                         <button className="btn btn-ghost" onClick={reload}><UtilityIcon name="refresh" /> {t("caddyfile.reload")}</button>
@@ -492,122 +232,34 @@ export default function CaddyFile({ toast, onUnauth, theme, confirm, editorVim, 
                 />
             )}
             {historyOpen && (
-                <div className="card card-flush caddyfile-history">
-                    <div ref={historyHeaderRef} className="card-header">
-                        <span className="section-label">{t("caddyfile.versionHistory")}</span>
-                        <div className="btn-row">
-                            <button className="btn btn-ghost btn--sm" onClick={() => loadHistory()} disabled={historyLoading}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
-                            <button
-                                className={`btn btn--sm ${historyListOpen ? "btn-primary" : "btn-ghost"}`}
-                                onClick={() => setHistoryListOpen(open => !open)}
-                                aria-label={historyListOpen ? t("caddyfile.hideVersionList") : t("caddyfile.showVersionList")}
-                                title={historyListOpen ? t("caddyfile.hideVersionList") : t("caddyfile.showVersionList")}
-                                aria-expanded={historyListOpen}
-                                aria-controls="history-version-list"
-                            >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                    <path d="M3 3v5h5" />
-                                    <path d="M3.05 13a9 9 0 1 0 .5-5" />
-                                    <path d="M12 7v5l3 2" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    <div className={`history-body${historyListOpen ? " history-body--versions" : ""}`}>
-                        <div className="history-detail">
-                            <div ref={historyControlsRef} className="caddyfile-history-controls">
-                                {previewEntry && (
-                                    <div className="history-attribution" role="group" aria-label={t('caddyfile.versionDetails')}>
-                                        <div title={previewEntry.actor?.id}>{t(previewEntry.kind === 'external' ? 'caddyfile.detectedAuthor' : 'caddyfile.versionAuthor', { timestamp: formatTs(previewEntry.detectedAt || previewEntry.timestamp), actor: historyActor(previewEntry, t) })}</div>
-                                        {previewEntry.kind === 'external' ? <div>{t('caddyfile.externalChange')}</div> : <>
-                                            <div>{t(Object.hasOwn(ACTION_KEYS, previewEntry.action) ? ACTION_KEYS[previewEntry.action] : 'caddyfile.actionUnknown')} · {t(previewEntry.outcome === 'applied' ? 'caddyfile.outcomeApplied' : previewEntry.outcome === 'saved-unapplied' ? 'caddyfile.outcomeUnapplied' : 'caddyfile.outcomeUnknown')}</div>
-                                            {compareTo !== 'current' && <div>{t('caddyfile.comparisonAuthor', { actor: historyActor(history.find(entry => entry.filename === compareTo), t) })}</div>}
-                                            {compareTo === 'current' && <div>{t('caddyfile.currentFileAttribution')}</div>}
-                                        </>}
-                                    </div>
-                                )}
-                                {history.length > 0 && (
-                                    <div className="history-compare">
-                                        <div className="history-range-picker">
-                                            <button className={`btn btn--sm ${previewMode === "diff" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("diff")}>± {t("caddyfile.diff")}</button>
-                                            <button className={`btn btn--sm ${previewMode === "raw" ? "btn-primary" : "btn-ghost"}`} onClick={() => setPreviewMode("raw")}>{t("caddyfile.raw")}</button>
-                                        </div>
-                                        {previewMode === "diff" && previewEntry?.kind !== 'external' && (
-                                            <div className="select-wrap history-compare-select">
-                                                <select className="config-select" value={compareTo} onChange={e => changeCompareTo(e.target.value)} aria-label={t("caddyfile.compareAgainst")}>
-                                                    <option value="current">{t("caddyfile.vsCurrent")}{isDirty ? ` ${t("caddyfile.savedMarker")}` : ""}</option>
-                                                    {history.filter(entry => entry.filename !== previewEntry?.filename && entry.hasFile !== false).map(entry => (
-                                                        <option key={entry.filename} value={entry.filename}>{t("caddyfile.vsSnapshot", { timestamp: formatTs(entry.timestamp) })}</option>
-                                                    ))}
-                                                </select>
-                                                <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
-                                            </div>
-                                        )}
-                                        <div className="btn-row history-version-actions">
-                                            <button className="btn btn-ghost btn--sm" onClick={() => restoreSnapshot(previewEntry)} disabled={!previewEntry || previewLoading || previewEntry.hasFile === false}><UtilityIcon name="refresh" /> {t("caddyfile.restore")}</button>
-                                            <button className="btn btn-danger btn--sm" title={t("caddyfile.deleteSnapshot")} aria-label={t("caddyfile.deleteSnapshot")} onClick={() => deleteSnapshot(previewEntry)} disabled={!previewEntry || previewLoading}><UtilityIcon name="close" /></button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            {historyLoading && history.length === 0 ? (
-                                <div className="loading">{t("common.loading")}</div>
-                            ) : history.length === 0 ? (
-                                <div className="card-empty">{historyError ? localizeError(historyError, t) : t("caddyfile.historyEmpty")}</div>
-                            ) : previewLoading || (previewMode === "diff" && compareLoading) ? (
-                                <div className="loading">{t("common.loading")}</div>
-                            ) : previewEntry ? (
-                                previewEntry.kind === 'external'
-                                    ? previewObservation && <ExternalConfigurationDiff observation={previewObservation} mode={previewMode} previewRef={historyPreviewRef} />
-                                    : previewMode === "diff"
-                                    ? <CaddyfileDiff oldText={diffOld} newText={diffNew} previewRef={historyPreviewRef} />
-                                    : <div ref={historyPreviewRef} className="history-preview" role="region" aria-label={t("caddyfile.versionPreview")} tabIndex={0}>{previewContent}</div>
-                            ) : (
-                                <div className="card-empty">{t("caddyfile.selectVersion")}</div>
-                            )}
-                        </div>
-                        {historyListOpen && (
-                            <div id="history-version-list" className="history-versions" role="region" aria-label={t("caddyfile.savedVersions")} tabIndex={0}>
-                                {history.map((entry, i) => (
-                                    <div key={entry.filename} className="history-row">
-                                        <button
-                                            className={`history-entry ${previewEntry?.filename === entry.filename ? "history-entry--active" : "history-entry--default"}`}
-                                            onClick={() => previewSnapshot(entry)}
-                                            aria-pressed={previewEntry?.filename === entry.filename}
-                                            title={entry.filename}
-                                        >
-                                            {formatTs(entry.detectedAt || entry.timestamp)}
-                                            <span className="history-entry-actor" title={entry.actor?.id}>{historyActor(entry, t)}</span>
-                                            {entry.kind === 'external' && <span className="history-entry-actor">{t('caddyfile.externalChange')} · {entry.representations.map(key => t(key === 'file' ? 'caddyfile.fileRepresentation' : 'caddyfile.liveRepresentation')).join(' · ')}</span>}
-                                            {i === 0 && <span className="history-latest">{t("caddyfile.latest")}</span>}
-                                        </button>
-                                    </div>
-                                ))}
-                                {!historyLoading && history.length === 0 && <div className="card-empty">{historyError ? localizeError(historyError, t) : t("caddyfile.noSavedVersions")}</div>}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <CaddyfileHistory
+                    history={history}
+                    saved={original}
+                    isDirty={isDirty}
+                    view={historyView}
+                    onRestore={restoreSnapshot}
+                    onDelete={deleteSnapshot}
+                    headerRef={historyHeaderRef}
+                    controlsRef={historyControlsRef}
+                />
             )}
 
             {conflict && (
-                <div className="modal-overlay" onClick={closeConflict}>
-                    <div className="modal" role="dialog" aria-modal="true" aria-labelledby={CONFLICT_TITLE_ID} style={{ width: 720 }} onClick={e => e.stopPropagation()}>
-                        <div id={CONFLICT_TITLE_ID} className="modal-title">{t("caddyfile.conflictTitle")}</div>
-                        <div className="modal-hint">{t("errors.caddyfileChanged")} {t("caddyfile.conflictHint")}</div>
-                        {conflictCompare && <CaddyfileDiff oldText={conflict.current} newText={content} label={t("caddyfile.conflictDiff")} />}
-                        <div className="btn-row" style={{ justifyContent: "space-between", marginTop: 16 }}>
-                            <button className="btn btn-ghost" onClick={() => setConflictCompare(open => !open)} aria-expanded={conflictCompare}>
-                                {t(conflictCompare ? "caddyfile.conflictHideCompare" : "caddyfile.conflictCompare")}
-                            </button>
-                            <div className="btn-row">
-                                <button className="btn btn-ghost" onClick={closeConflict}>{t("caddyfile.conflictKeepEditing")}</button>
-                                <button className="btn btn-ghost" onClick={loadConflictingFile} disabled={saving}>{t("caddyfile.conflictLoadCurrent")}</button>
-                                <button className="btn btn-danger" onClick={overwriteConflictingFile} disabled={saving}>{saving ? t("common.saving") : t("caddyfile.conflictOverwrite")}</button>
-                            </div>
+                <Modal aria-labelledby={CONFLICT_TITLE_ID} style={{ width: 720 }} onClose={closeConflict}>
+                    <div id={CONFLICT_TITLE_ID} className="modal-title">{t("caddyfile.conflictTitle")}</div>
+                    <div className="modal-hint">{t("errors.caddyfileChanged")} {t("caddyfile.conflictHint")}</div>
+                    {conflictCompare && <CaddyfileDiff oldText={conflict.file.text} newText={content} label={t("caddyfile.conflictDiff")} />}
+                    <div className="btn-row" style={{ justifyContent: "space-between", marginTop: 16 }}>
+                        <button className="btn btn-ghost" onClick={() => setConflictCompare(open => !open)} aria-expanded={conflictCompare}>
+                            {t(conflictCompare ? "caddyfile.conflictHideCompare" : "caddyfile.conflictCompare")}
+                        </button>
+                        <div className="btn-row">
+                            <button className="btn btn-ghost" onClick={closeConflict}>{t("caddyfile.conflictKeepEditing")}</button>
+                            <button className="btn btn-ghost" onClick={loadConflictingFile} disabled={saving}>{t("caddyfile.conflictLoadCurrent")}</button>
+                            <button className="btn btn-danger" onClick={overwriteConflictingFile} disabled={saving}>{saving ? t("common.saving") : t("caddyfile.conflictOverwrite")}</button>
                         </div>
                     </div>
-                </div>
+                </Modal>
             )}
         </div>
     );

@@ -64,6 +64,7 @@ export const ERROR_MESSAGES = Object.freeze({
     NETWORK_ERROR: 'errors.network',
     BACKEND_URL_UNKNOWN: 'errors.backendUrlUnknown',
     NO_INSTANCES: 'errors.noInstances',
+    PASSWORD_MISMATCH: 'login.passwordMismatch',
     CLIENT_PARSE_FAILED: 'errors.clientParseFailed',
     INVALID_LOCAL_STATE: 'errors.invalidLocalState',
     REQUEST_FAILED: 'errors.generic',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SNIPPET_CATEGORIES, snippetsForContext } from '../src/utils/caddyfileSnippets.js';
+import { SNIPPET_CATEGORIES, snippetsForContext, snippetText } from '../src/utils/caddyfileSnippets.js';
 
 describe('snippetsForContext', () => {
     it('returns site block snippets for the top level', () => {
@@ -26,14 +26,6 @@ describe('snippetsForContext', () => {
 });
 
 describe('snippet templates', () => {
-    it('every snippet has a non-empty template', () => {
-        for (const cat of SNIPPET_CATEGORIES) {
-            for (const snippet of cat.snippets) {
-                expect(snippet.template, `${cat.key}.${snippet.key}`).toBeTruthy();
-            }
-        }
-    });
-
     it('every snippet has a unique key within its category', () => {
         for (const cat of SNIPPET_CATEGORIES) {
             const keys = cat.snippets.map(s => s.key);
@@ -41,26 +33,28 @@ describe('snippet templates', () => {
         }
     });
 
-    it('directive snippets start with the same keyword in both templates', () => {
-        for (const cat of SNIPPET_CATEGORIES) {
+    it('directive snippets start with the same keyword as their menu text', () => {
+        for (const { key, context, snippets } of SNIPPET_CATEGORIES) {
             // Site blocks start with a tab-stop domain, not a directive keyword
-            if (cat.context === 'none') continue;
-            for (const snippet of cat.snippets) {
-                if (!snippet.snippetTemplate) continue;
-                const plainWord = snippet.template.split(/[\s\n{]/)[0];
-                const snippetWord = snippet.snippetTemplate.split(/[\s\n{]/)[0];
-                expect(snippetWord, `${cat.key}.${snippet.key}`).toBe(plainWord);
+            if (context === 'none') continue;
+            for (const snippet of snippets) {
+                const [keyword] = snippetText(snippet).split(/[\s\n{]/);
+                expect(snippet.template.startsWith(keyword), `${key}.${snippet.key}`).toBe(true);
             }
         }
     });
 
-    it('snippet templates contain at least one tab stop', () => {
-        for (const cat of SNIPPET_CATEGORIES) {
-            for (const snippet of cat.snippets) {
-                if (snippet.snippetTemplate) {
-                    expect(snippet.snippetTemplate, `${cat.key}.${snippet.key}`).toMatch(/#\{/);
-                }
+    it('snippet templates contain at least one tab stop, which menu text never shows', () => {
+        for (const { key, snippets } of SNIPPET_CATEGORIES) {
+            for (const snippet of snippets) {
+                expect(snippet.template, `${key}.${snippet.key}`).toMatch(/#\{/);
+                expect(snippetText(snippet), `${key}.${snippet.key}`).not.toMatch(/#\{/);
             }
         }
+    });
+
+    it('menu text fills in placeholders and leaves empty stops blank', () => {
+        expect(snippetText({ template: 'handle_path #{1:/prefix/*} {\n\t#{2}\n}' })).toBe('handle_path /prefix/* {\n\t\n}');
+        expect(snippetText({ template: 'tls #{1:me@example.com}', text: 'tls internal' })).toBe('tls internal');
     });
 });

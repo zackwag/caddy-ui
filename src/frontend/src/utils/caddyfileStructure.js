@@ -120,18 +120,27 @@ export function blockOpenedBefore({ blocks }, line, pos) {
     return null;
 }
 
+// Documents are immutable, so each version is scanned at most once.
+const structures = new WeakMap();
+export function structureOf(doc) {
+    let structure = structures.get(doc);
+    if (!structure) {
+        structure = scanCaddyfile(doc.toString());
+        structures.set(doc, structure);
+    }
+    return structure;
+}
+
 // The block closed by a `}` at `pos`, or null if there's no closing brace there.
 export function blockClosedAt(structure, pos) {
     return structure.blocks.find(block => block.close === pos) ?? null;
 }
-
 
 /* eslint-disable i18next/no-literal-string -- internal context labels, not UI copy */
 
 // handle, handle_path, handle_errors and route accept directives, not subdirectives.
 const DIRECTIVE_BLOCKS = new Set(['handle', 'handle_path', 'handle_errors', 'route']);
 
-// Finds the first non-whitespace word on the line containing `offset`.
 function firstWordOnLine(text, offset) {
     let lineStart = text.lastIndexOf('\n', offset - 1) + 1;
     const lineEnd = text.indexOf('\n', lineStart);
@@ -146,7 +155,7 @@ function firstWordOnLine(text, offset) {
 export function contextKind(structure, text, pos) {
     const { blocks } = structure;
 
-    // Collect blocks that contain `pos`, innermost last.
+    // Innermost last.
     const containing = blocks.filter(
         b => b.open < pos && (b.close === null || pos <= b.close)
     );
@@ -167,7 +176,6 @@ export function contextKind(structure, text, pos) {
         if (isGlobal) {
             return 'global';
         }
-        // Inside a site block in the full editor.
         return 'directive';
     }
 

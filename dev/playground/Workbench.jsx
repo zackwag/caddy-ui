@@ -6,7 +6,7 @@ import PreviewFrame from './PreviewFrame.jsx';
 const EMPTY = Object.freeze({});
 const PREVIEW_KEYS = new Set(scenarios.flatMap(scenario => scenario.keys));
 
-export default function Workbench({ catalogs, preview }) {
+export default function Workbench({ catalogs }) {
     const initial = new URLSearchParams(location.search);
     const [locale, setLocale] = useState(Object.hasOwn(catalogs, initial.get('locale')) ? initial.get('locale') : ('de' in catalogs ? 'de' : 'en'));
     const [selected, setSelected] = useState(typeof readValue(catalogs.en, initial.get('key') || '') === 'string' ? initial.get('key') : 'common.delete');
@@ -40,7 +40,6 @@ export default function Workbench({ catalogs, preview }) {
     function chooseLocale(code) {
         setLocale(code);
         setCopyStatus('');
-        preview.changeLanguage(code);
     }
 
     function edit(value) {
@@ -49,7 +48,6 @@ export default function Workbench({ catalogs, preview }) {
             ...current,
             [locale]: { ...current[locale], [selected]: value },
         }));
-        preview.addResource(locale, 'translation', selected, value);
     }
 
     function reset() {
@@ -59,12 +57,6 @@ export default function Workbench({ catalogs, preview }) {
             delete next[selected];
             return { ...current, [locale]: next };
         });
-        // Rebuild from the saved catalog so missing keys retain genuine fallback.
-        preview.removeResourceBundle(locale, 'translation');
-        preview.addResourceBundle(locale, 'translation', structuredClone(catalogs[locale]));
-        for (const [key, value] of Object.entries(overrides)) {
-            if (key !== selected) preview.addResource(locale, 'translation', key, value);
-        }
     }
 
     async function copy(value) {
@@ -96,7 +88,6 @@ export default function Workbench({ catalogs, preview }) {
                 </button>
             </header>
             <p className="capture-source">Captured from commit <code>{capture.source.commit.slice(0, 7)}</code> · {capture.source.caddyImage}</p>
-            {capture.source.sourceHash !== __PREVIEW_SOURCE_HASH__ && <p role="alert">Captured data differs from the current backend or component sources. Refresh it with <code>npm run i18n:preview:capture</code>.</p>}
             <div className="workspace">
                 <aside>
                     <label htmlFor="key-search">Search keys and translations</label>

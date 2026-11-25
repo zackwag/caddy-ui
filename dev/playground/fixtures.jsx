@@ -19,9 +19,8 @@ import CaddyFile from '../../src/frontend/src/components/CaddyFile.jsx';
 import Instances from '../../src/frontend/src/components/Instances.jsx';
 import UpstreamUptime from '../../src/frontend/src/components/UpstreamUptime.jsx';
 import { availableLocales } from '../../src/frontend/src/i18n/index.js';
-import { THEME_LIST } from '../../src/frontend/src/styles.js';
+import { DEFAULT_PALETTES, THEME_LIST } from '../../src/frontend/src/styles.js';
 import { apiFetch } from '../../src/frontend/src/utils/api.js';
-import { localizeError } from '../../src/frontend/src/utils/errorMessages.js';
 
 const noop = () => {};
 
@@ -33,7 +32,6 @@ export function RouteConfirmation() {
                 message: t('routes.deleteConfirm'),
                 danger: true,
                 confirmLabel: t('common.delete'),
-                cancelLabel: t('common.cancel'),
             }}
             resolve={noop}
         />
@@ -48,7 +46,6 @@ export function CertificateConfirmation() {
                 message: t('tls.deleteConfirm', { status: 'expired', domain: 'example.home.arpa' }),
                 danger: true,
                 confirmLabel: t('common.delete'),
-                cancelLabel: t('common.cancel'),
             }}
             resolve={noop}
         />
@@ -62,17 +59,15 @@ export function NotificationToast() {
 
 function DashboardFixture({ loading }) {
     const [status, setStatus] = useState(null);
-    const toast = useToast();
-    const { error } = toast;
-    const { t } = useTranslation();
+    const { toast, toasts } = useToast();
     useEffect(() => {
         if (loading) return;
         let cancelled = false;
         apiFetch('/status').then(value => { if (!cancelled) setStatus(value); })
-            .catch(e => { if (!cancelled) error(localizeError(e, t), e); });
+            .catch(e => { if (!cancelled) toast.error(e); });
         return () => { cancelled = true; };
-    }, [loading, error, t]);
-    return <><Dashboard status={loading ? null : status} toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
+    }, [loading, toast]);
+    return <><Dashboard status={loading ? null : status} toast={toast} /><Toasts toasts={toasts} /></>;
 }
 
 function ThemeWelcomeFixture() {
@@ -84,8 +79,8 @@ function ThemeWelcomeFixture() {
 function AppearanceControlsFixture({ initialMode }) {
     const { i18n } = useTranslation();
     const [mode, setMode] = useState(initialMode);
-    const [dark, setDark] = useState('vt2026');
-    const [light, setLight] = useState('coarse-everywhere');
+    const [dark, setDark] = useState(DEFAULT_PALETTES.dark);
+    const [light, setLight] = useState(DEFAULT_PALETTES.light);
     return <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <LanguagePicker languages={availableLocales} language={i18n.language} onLanguageChange={noop} />
         <ThemePicker themes={THEME_LIST} mode={mode} onToggleMode={() => setMode(value => value === 'dark' ? 'light' : 'dark')}
@@ -94,26 +89,26 @@ function AppearanceControlsFixture({ initialMode }) {
 }
 
 function NotificationSettingsFixture() {
-    const toast = useToast();
-    return <><Notifications toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
+    const { toast, toasts } = useToast();
+    return <><Notifications toast={toast} /><Toasts toasts={toasts} /></>;
 }
 
 function MetricsFixture({ initialRouteChecks }) {
-    const toast = useToast();
+    const { toast, toasts } = useToast();
     const [routeChecks, setRouteChecks] = useState(Boolean(initialRouteChecks));
     const [excludes, setExcludes] = useState([]);
-    return <><Metrics toast={toast} onUnauth={noop} routeChecks={routeChecks} onRouteChecksChange={setRouteChecks}
-        routeCheckExcludes={excludes} onRouteCheckExcludesChange={setExcludes} /><Toasts toasts={toast.toasts} /></>;
+    return <><Metrics toast={toast} publicMetrics={false} routeChecks={routeChecks} onRouteChecksChange={setRouteChecks}
+        routeCheckExcludes={excludes} onRouteCheckExcludesChange={setExcludes} /><Toasts toasts={toasts} /></>;
 }
 
 function LogsFixture() {
-    const toast = useToast();
-    return <><Logs toast={toast} onUnauth={noop} /><Toasts toasts={toast.toasts} /></>;
+    const { toast, toasts } = useToast();
+    return <><Logs toast={toast} /><Toasts toasts={toasts} /></>;
 }
 
 function TLSFixture() {
-    const toast = useToast();
-    return <><TLS toast={toast} onUnauth={noop} confirm={async () => false} /><Toasts toasts={toast.toasts} /></>;
+    const { toast, toasts } = useToast();
+    return <><TLS toast={toast} confirm={async () => false} /><Toasts toasts={toasts} /></>;
 }
 
 function SidebarFixture({ loading }) {
@@ -129,51 +124,49 @@ function SidebarFixture({ loading }) {
     // A finite shell gives the sidebar its normal flex layout without tying
     // its height to the iframe viewport that it is itself sizing.
     return <div className="shell" style={{ height: 640 }}>
-        <Sidebar currentPath={pathname} status={status} onRefreshStatus={noop} authEnabled
-            onUnauth={noop} sidebarOpen={open} setSidebarOpen={setOpen} selectedInstanceId="default" />
+        <Sidebar currentPath={pathname} status={status} onRefreshStatus={noop} onLogout={noop} onSecurity={noop} onSwitchInstance={noop}
+            sidebarOpen={open} setSidebarOpen={setOpen} selectedInstanceId="default" />
     </div>;
 }
 
 function RoutesFixture() {
-    const toast = useToast();
+    const { toast, toasts } = useToast();
     const [columns, setColumns] = useState({ status: true, title: true, upstream: true, server: true, id: true });
-    return <><Routes toast={toast} onUnauth={noop} confirm={async () => false} theme="dark"
+    return <><Routes toast={toast} confirm={async () => false} theme="dark"
         routeColumns={columns} onRouteColumnsChange={setColumns} routeChecks={false} routeCheckExcludes={[]} />
-        <Toasts toasts={toast.toasts} /></>;
+        <Toasts toasts={toasts} /></>;
 }
 
 function CaddyfileFixture() {
-    const toast = useToast();
+    const { toast, toasts } = useToast();
     const confirmation = useConfirm();
     return <><div style={{ height: 960 }}>
-        <CaddyFile toast={toast} onUnauth={noop} theme="dark" confirm={confirmation.confirm} />
-    </div><ConfirmDialog dialog={confirmation.dialog} resolve={confirmation.resolve} /><Toasts toasts={toast.toasts} /></>;
+        <CaddyFile toast={toast} theme="dark" confirm={confirmation.confirm} />
+    </div><ConfirmDialog dialog={confirmation.dialog} resolve={confirmation.resolve} /><Toasts toasts={toasts} /></>;
 }
 
 function InstancesFixture() {
-    const toast = useToast();
+    const { toast, toasts } = useToast();
     const confirmation = useConfirm();
-    return <><Instances toast={toast} onUnauth={noop} confirm={confirmation.confirm} />
-        <ConfirmDialog dialog={confirmation.dialog} resolve={confirmation.resolve} /><Toasts toasts={toast.toasts} /></>;
+    return <><Instances toast={toast} confirm={confirmation.confirm} onInstancesChange={noop} />
+        <ConfirmDialog dialog={confirmation.dialog} resolve={confirmation.resolve} /><Toasts toasts={toasts} /></>;
 }
 
 function UptimeFixture() {
     const [routeChecks, setRouteChecks] = useState(true);
     const [excludes, setExcludes] = useState([]);
-    const toast = useToast();
-    return <><UpstreamUptime toast={toast} onUnauth={noop} routeChecks={routeChecks} onRouteChecksChange={setRouteChecks}
-        routeCheckExcludes={excludes} onRouteCheckExcludesChange={setExcludes} /><Toasts toasts={toast.toasts} /></>;
+    const { toast, toasts } = useToast();
+    return <><UpstreamUptime toast={toast} routeChecks={routeChecks} onRouteChecksChange={setRouteChecks}
+        routeCheckExcludes={excludes} onRouteCheckExcludesChange={setExcludes} /><Toasts toasts={toasts} /></>;
 }
 
 export default function FixtureView({ scenario }) {
     switch (scenario.kind) {
         case 'instances': return <InstancesFixture />;
-        case 'tls-certificates': return <TLSFixture />;
         case 'uptime-populated': return <UptimeFixture />;
         case 'caddyfile': return <CaddyfileFixture />;
-        case 'route-edit':
         case 'routes': return <RoutesFixture />;
-        case 'route-history': return <RouteHistoryModal route="preview.home.arpa" onUnauth={noop} onClose={noop} />;
+        case 'route-history': return <RouteHistoryModal route="preview.home.arpa" onClose={noop} />;
         case 'tls': return <TLSFixture />;
         case 'sidebar': return <SidebarFixture loading={scenario.loading} />;
         case 'login': return <Login onLogin={noop} sessionExpired={scenario.sessionExpired} />;

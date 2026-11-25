@@ -1,8 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Workbench from './Workbench.jsx';
-import { createPreviewI18n } from './model.js';
-import { css, THEME_LIST } from '../../src/frontend/src/styles.js';
+import { css, DEFAULT_PALETTES, THEME_LIST } from '../../src/frontend/src/styles.js';
 import './workbench.css';
 import '../../src/frontend/src/fonts.css';
 
@@ -10,8 +9,7 @@ const modules = import.meta.glob('../../src/frontend/src/i18n/locales/*.js', { e
 const catalogs = Object.fromEntries(
     Object.entries(modules).map(([path, catalog]) => [path.split('/').pop().slice(0, -3), catalog]),
 );
-const preview = await createPreviewI18n(catalogs, 'de' in catalogs ? 'de' : 'en');
-const palette = THEME_LIST.find((theme) => theme.id === 'vt2026');
+const palette = THEME_LIST.find((theme) => theme.id === DEFAULT_PALETTES.dark);
 for (const [key, value] of Object.entries(palette.vars))
     document.documentElement.style.setProperty(key, value);
 const style = document.createElement('style');
@@ -19,6 +17,6 @@ style.textContent = css;
 document.head.prepend(style);
 createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        <Workbench catalogs={catalogs} preview={preview} />
+        <Workbench catalogs={catalogs} />
     </React.StrictMode>,
 );

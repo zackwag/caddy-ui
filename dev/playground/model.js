@@ -1,5 +1,3 @@
-import { createInstance } from 'i18next';
-
 export function flattenCatalog(catalog, prefix = '') {
     return Object.entries(catalog).flatMap(([name, value]) => {
         const key = prefix ? `${prefix}.${name}` : name;
@@ -13,24 +11,4 @@ export function readValue(catalog, key) {
 
 export function placeholders(value) {
     return [...value.matchAll(/{{\s*([^{}]+?)\s*}}/g)].map((match) => match[1]).sort();
-}
-
-export async function createPreviewI18n(catalogs, locale, overrides = {}) {
-    const instance = createInstance();
-    await instance.init({
-        lng: locale,
-        fallbackLng: 'en',
-        resources: Object.fromEntries(
-            Object.entries(catalogs).map(([code, catalog]) => [
-                code,
-                { translation: structuredClone(catalog) },
-            ]),
-        ),
-        interpolation: { escapeValue: false },
-        react: { useSuspense: false, bindI18nStore: 'added removed' },
-    });
-    for (const [key, value] of Object.entries(overrides)) {
-        instance.addResource(locale, 'translation', key, value);
-    }
-    return instance;
 }

@@ -2,13 +2,9 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useClickOutside } from "../hooks/useClickOutside.js";
 import { THEME_VAR_KEYS } from "../styles.js";
+import { downloadText } from "../utils/download.js";
 import { PixelIcon, UtilityIcon } from "./Icons.jsx";
-
-function themeOptions(themes, mode) {
-    const builtIn = themes.filter(t => t.mode === mode && !t.custom).sort((a, b) => a.label.localeCompare(b.label));
-    const custom = themes.filter(t => t.mode === mode && t.custom).sort((a, b) => a.label.localeCompare(b.label));
-    return { builtIn, custom };
-}
+import ThemeSelect from "./ThemeSelect.jsx";
 
 // Downloads a theme in the custom-theme file format src/backend/src/customThemes.js
 // validates, ready to drop into THEMES_PATH/<mode>/ and edit. Custom ids are
@@ -19,13 +15,7 @@ function exportTheme(theme) {
         label: theme.label,
         vars: Object.fromEntries(THEME_VAR_KEYS.map(k => [k, theme.vars[k]])),
     }, null, 2);
-    const blob = new Blob([json + '\n'], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${theme.custom ? theme.id.replace(`custom-${theme.mode}-`, '') : theme.id}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadText(`${theme.custom ? theme.id.replace(`custom-${theme.mode}-`, '') : theme.id}.json`, json + '\n', 'application/json');
 }
 
 export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, lightPalette, onDarkPaletteChange, onLightPaletteChange }) {
@@ -34,8 +24,6 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
     const menuRef = useRef(null);
     useClickOutside(menuRef, () => setOpen(false), open);
 
-    const dark = themeOptions(themes, 'dark');
-    const light = themeOptions(themes, 'light');
     const active = themes.find(t => t.id === (mode === 'dark' ? darkPalette : lightPalette));
 
     return (
@@ -48,35 +36,11 @@ export default function ThemePicker({ themes, mode, onToggleMode, darkPalette, l
                 <div className="theme-picker-menu">
                     <div className="theme-picker-row">
                         <label>{t("themePicker.darkTheme")}</label>
-                        <div className="select-wrap">
-                            <select className="config-select" value={darkPalette} onChange={e => onDarkPaletteChange(e.target.value)}>
-                                <optgroup label={t("themePicker.builtIn")}>
-                                    {dark.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                                </optgroup>
-                                {dark.custom.length > 0 && (
-                                    <optgroup label={t("themePicker.custom")}>
-                                        {dark.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                                    </optgroup>
-                                )}
-                            </select>
-                            <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
-                        </div>
+                        <ThemeSelect themes={themes} mode="dark" value={darkPalette} onChange={onDarkPaletteChange} />
                     </div>
                     <div className="theme-picker-row">
                         <label>{t("themePicker.lightTheme")}</label>
-                        <div className="select-wrap">
-                            <select className="config-select" value={lightPalette} onChange={e => onLightPaletteChange(e.target.value)}>
-                                <optgroup label={t("themePicker.builtIn")}>
-                                    {light.builtIn.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                                </optgroup>
-                                {light.custom.length > 0 && (
-                                    <optgroup label={t("themePicker.custom")}>
-                                        {light.custom.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                                    </optgroup>
-                                )}
-                            </select>
-                            <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
-                        </div>
+                        <ThemeSelect themes={themes} mode="light" value={lightPalette} onChange={onLightPaletteChange} />
                     </div>
                     {active && (
                         <div className="theme-picker-row theme-picker-export">

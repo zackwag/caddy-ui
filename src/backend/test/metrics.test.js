@@ -41,7 +41,7 @@ const NOW = Date.UTC(2026, 0, 1, 12, 0, 0);
 function stats(overrides = {}) {
     return {
         pct: 75, total: 4, online: 3, currentlyOnline: true,
-        streak: 2, streakSeconds: 60, streakLabel: '1m',
+        streakSeconds: 60,
         firstSeen: new Date(NOW - 3600_000), lastCheckAt: new Date(NOW - 10_000),
         ...overrides,
     };

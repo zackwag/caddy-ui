@@ -7,7 +7,6 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { Harness } from '../dev-caddy/harness.mjs';
 import { captureDashboard } from './capture.mjs';
-import { sourceFingerprint } from './capture-source.mjs';
 
 async function assertClean(scope) {
     assert.deepEqual(await scope.names(), []);
@@ -26,7 +25,6 @@ test('capture real Dashboard, notification, observability, TLS, sidebar, route a
     const output = resolve(directory, 'dashboard.json');
     const backendPids = [];
     const capture = await captureDashboard({ output, onBackend: pid => backendPids.push(pid), onNamespace: project => { scope = new Harness(project); } });
-    assert.equal(capture.source.sourceHash, await sourceFingerprint());
     assert.equal(capture.csrfContext.record.request.path, '/auth/csrf');
     assert.equal(capture.csrfContext.record.response.body.csrfToken, 'offline-preview-context');
     assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default', 'tls-default', 'sidebar-online', 'sidebar-stopped', 'routes-online', 'routes-empty', 'route-history-empty', 'caddyfile-empty', 'caddyfile-history', 'routes-edit-unavailable', 'tls-internal-valid', 'tls-internal-orphaned', 'uptime-route-pending', 'instances-local', 'instances-missing-server', 'instances-empty']);

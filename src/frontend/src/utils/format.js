@@ -35,12 +35,28 @@ export function formatPercentParts(value) {
 }
 
 export function formatTs(timestamp) {
-    const ts = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
-    return new Date(ts).toLocaleString(currentLocale(), {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
+    return new Date(timestamp).toLocaleString(currentLocale(), { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+// A moment recent enough that its year is obvious
+export function formatRecentTs(timestamp) {
+    return new Date(timestamp).toLocaleString(currentLocale(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+/* eslint-disable i18next/no-literal-string -- Intl unit option identifiers; Intl supplies the localized labels. */
+export function formatDuration(ms) {
+    const seconds = ms / 1000;
+    const [value, unit] = seconds >= 86400 ? [seconds / 86400, 'day']
+        : seconds >= 3600 ? [seconds / 3600, 'hour']
+            : seconds >= 60 ? [seconds / 60, 'minute'] : [seconds, 'second'];
+    return new Intl.NumberFormat(currentLocale(), { style: 'unit', unit, unitDisplay: 'short', maximumFractionDigits: unit === 'second' ? 0 : 1 }).format(value);
+}
+/* eslint-enable i18next/no-literal-string */
+
+export function formatDate(timestamp) {
+    return new Date(timestamp).toLocaleDateString(currentLocale(), { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+export function formatTime(timestamp) {
+    return new Date(timestamp).toLocaleTimeString(currentLocale(), { hour: 'numeric', minute: '2-digit', second: '2-digit' });
 }

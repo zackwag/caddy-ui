@@ -1,22 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import Modal from "./Modal.jsx";
 
 export function useConfirm() {
-    const { t } = useTranslation();
     const [dialog, setDialog] = useState(null);
     const resolveRef = useRef(null);
 
-    const confirm = useCallback((message, opts = {}) => {
+    const confirm = useCallback((message, { confirmLabel, danger = false }) => {
         return new Promise(resolve => {
             resolveRef.current = resolve;
-            setDialog({
-                message,
-                danger: !!opts.danger,
-                confirmLabel: opts.confirmLabel || t("common.confirm"),
-                cancelLabel: opts.cancelLabel || t("common.cancel"),
-            });
+            setDialog({ message, confirmLabel, danger });
         });
-    }, [t]);
+    }, []);
 
     const resolve = useCallback(result => {
         resolveRef.current?.(result);
@@ -28,12 +23,11 @@ export function useConfirm() {
 }
 
 export function ConfirmDialog({ dialog, resolve }) {
+    const { t } = useTranslation();
+
     useEffect(() => {
         if (!dialog) return;
-        const onKey = e => {
-            if (e.key === "Escape") resolve(false);
-            if (e.key === "Enter") resolve(true);
-        };
+        const onKey = e => { if (e.key === "Escape") resolve(false); };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
     }, [dialog, resolve]);
@@ -41,14 +35,12 @@ export function ConfirmDialog({ dialog, resolve }) {
     if (!dialog) return null;
 
     return (
-        <div className="modal-overlay" onClick={() => resolve(false)}>
-            <div className="modal modal--confirm" onClick={e => e.stopPropagation()}>
-                <div className="modal-title">{dialog.message}</div>
-                <div className="btn-row flex-end">
-                    <button className="btn btn-ghost" onClick={() => resolve(false)}>{dialog.cancelLabel}</button>
-                    <button className={`btn ${dialog.danger ? "btn-danger" : "btn-primary"}`} onClick={() => resolve(true)} autoFocus>{dialog.confirmLabel}</button>
-                </div>
+        <Modal className="modal--confirm" aria-label={dialog.message} onClose={() => resolve(false)}>
+            <div className="modal-title">{dialog.message}</div>
+            <div className="btn-row flex-end">
+                <button className="btn btn-ghost" onClick={() => resolve(false)}>{t("common.cancel")}</button>
+                <button className={`btn ${dialog.danger ? "btn-danger" : "btn-primary"}`} onClick={() => resolve(true)} autoFocus>{dialog.confirmLabel}</button>
             </div>
-        </div>
+        </Modal>
     );
 }

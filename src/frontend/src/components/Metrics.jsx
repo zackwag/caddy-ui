@@ -1,103 +1,86 @@
-import { notifyConfigurationSave } from '../utils/caddyfileHistory.js';
 import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { API, apiFetch } from "../utils/api.js";
-import { currentLocale, formatNumber } from "../utils/format.js";
+import ConfigCard from "./ConfigCard.jsx";
+import { apiFetch } from "../utils/api.js";
+import { formatNumber, formatTime } from "../utils/format.js";
 import UpstreamUptime from "./UpstreamUptime.jsx";
 
 // eslint-disable-next-line i18next/no-literal-string -- Prometheus scrape endpoint
 const PUBLIC_METRICS_URL = "http://caddy-ui-backend:3001/api/metrics/raw";
 
-export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
-    const { t, i18n } = useTranslation();
+export default function Metrics({ toast, publicMetrics, routeChecks, onRouteChecksChange, routeCheckExcludes, onRouteCheckExcludesChange }) {
+    const { t } = useTranslation();
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
     const [configOpen, setConfigOpen] = useState(false);
     const [metricsConfig, setMetricsConfig] = useState(null);
     const [savingMetrics, setSavingMetrics] = useState(false);
-    const [publicMetrics, setPublicMetrics] = useState(false);
     const [refreshError, setRefreshError] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
-        apiFetch("/metrics", {}, onUnauth)
-            .catch(e => ({ ok: false, error: i18n.t('metrics.fetchFailed'), code: e.code, requestId: e.requestId }))
+        apiFetch("/metrics")
+            // Keep the last good numbers through a failed refresh so a blip
+            // doesn't swap the cards for the "not enabled" card
+            .catch(error => ({ ok: false, code: error.code }))
             .then(res => {
-                // Keep the last good numbers through a failed refresh so a blip
-                // doesn't swap the cards for the "not enabled" card
                 setMetrics(prev => res.ok || !prev?.ok ? res : prev);
-                setRefreshError(res.ok ? null : localizeError(res, i18n.t));
+                setRefreshError(res.ok ? null : res);
             })
             .finally(() => setLoading(false));
-    }, [onUnauth, i18n]);
+    }, []);
 
     useEffect(() => {
         load();
-        apiFetch("/metrics/config", {}, onUnauth).then(setMetricsConfig).catch(() => { });
-        fetch(`${API}/auth/status`).then(r => r.json()).then(d => setPublicMetrics(d.publicMetrics || false)).catch(() => { });
+        apiFetch("/metrics/config").then(setMetricsConfig).catch(() => { });
         const t = setInterval(load, 30000);
         return () => clearInterval(t);
-    }, [load, onUnauth]);
+    }, [load]);
 
     const toggleMetrics = async (enabled) => {
         setSavingMetrics(true);
         try {
-            const result = await apiFetch("/metrics/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }, onUnauth);
+            const result = await apiFetch("/metrics/config", { method: "PUT", json: { enabled } });
             setMetricsConfig({ enabled });
-            notifyConfigurationSave(toast, t, result, enabled ? t("metrics.enabledToast") : t("metrics.disabledToast"));
-            if (enabled) setTimeout(load, 1000);
-            else setMetrics({ ok: false, error: t("metrics.disabledToast") });
-        } catch (e) { toast.error(localizeError(e, t), e); }
+            toast.saved(result, enabled ? t("metrics.enabledToast") : t("metrics.disabledToast"));
+            if (enabled) load();
+            else setMetrics({ ok: false });
+        } catch (e) { toast.error(e); }
         finally { setSavingMetrics(false); }
     };
 
     const statusColors = { '2xx': 'var(--accent)', '3xx': 'var(--accent2)', '4xx': 'var(--warn)', '5xx': 'var(--danger)' };
 
-    const formatScrapedAt = (iso) => {
-        if (!iso) return "";
-        const ts = iso.endsWith('Z') ? iso : iso + 'Z';
-        return new Date(ts).toLocaleTimeString(currentLocale(), { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-    };
-
     return (
         <div className="gap-16">
-            <div className="card card-flush">
-                <div className={`card-header--clickable ${configOpen ? "is-open" : ""}`} onClick={() => setConfigOpen(o => !o)}>
-                    <span className="section-label">{t("metrics.configuration")}</span>
-                    <div className="flex-center">
-                        {metricsConfig && <span className={`badge ${metricsConfig.enabled ? "badge-green" : "badge-muted"}`}>{metricsConfig.enabled ? t("common.enabledUpper") : t("common.disabledUpper")}</span>}
-                        <span className="chevron"><UtilityIcon name={configOpen ? "caretUp" : "caretDown"} /></span>
+            <ConfigCard title={t("metrics.configuration")} enabled={metricsConfig?.enabled} open={configOpen} onToggle={() => setConfigOpen(o => !o)}>
+                <div className="card-body">
+                    <div className="flex-between" style={{ marginBottom: 16 }}>
+                        <div>
+                            <span className="field-label">{t("metrics.caddyMetrics")}</span>
+                            <div className="hint" style={{ marginBottom: 0 }}>{t("metrics.caddyMetricsHint")}</div>
+                        </div>
+                        <button className={`btn metrics-toggle-btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`} onClick={() => toggleMetrics(!metricsConfig?.enabled)} disabled={savingMetrics}>
+                            {savingMetrics ? t("common.saving") : metricsConfig?.enabled ? t("common.disable") : t("common.enable")}
+                        </button>
+                    </div>
+                    <div className="config-section-divider">
+                        <div className="flex-between">
+                            <div>
+                                <span className="field-label">{t("metrics.publicEndpoint")}</span>
+                                <div className="hint" style={{ marginBottom: 0 }}>
+                                    {publicMetrics ? <>{t("metrics.scrapeUrl")} <span style={{ color: "var(--accent2)" }}>{PUBLIC_METRICS_URL}</span></> : t("metrics.publicMetricsHint")}
+                                </div>
+                            </div>
+                            <span className="metrics-status-text" style={{ color: publicMetrics ? "var(--accent)" : "var(--muted)" }}>
+                                {publicMetrics ? t("common.enabled") : t("common.disabled")}
+                            </span>
+                        </div>
                     </div>
                 </div>
-                {configOpen && (
-                    <div className="card-body">
-                        <div className="flex-between" style={{ marginBottom: 16 }}>
-                            <div>
-                                <span className="field-label">{t("metrics.caddyMetrics")}</span>
-                                <div className="hint" style={{ marginBottom: 0 }}>{t("metrics.caddyMetricsHint")}</div>
-                            </div>
-                            <button className={`btn metrics-toggle-btn ${metricsConfig?.enabled ? "btn-danger" : "btn-primary"}`} onClick={() => toggleMetrics(!metricsConfig?.enabled)} disabled={savingMetrics}>
-                                {savingMetrics ? t("common.saving") : metricsConfig?.enabled ? t("common.disable") : t("common.enable")}
-                            </button>
-                        </div>
-                        <div className="config-section-divider">
-                            <div className="flex-between">
-                                <div>
-                                    <span className="field-label">{t("metrics.publicEndpoint")}</span>
-                                    <div className="hint" style={{ marginBottom: 0 }}>
-                                        {publicMetrics ? <>{t("metrics.scrapeUrl")} <span style={{ color: "var(--accent2)" }}>{PUBLIC_METRICS_URL}</span></> : t("metrics.publicMetricsHint")}
-                                    </div>
-                                </div>
-                                <span className="metrics-status-text" style={{ color: publicMetrics ? "var(--accent)" : "var(--muted)" }}>
-                                    {publicMetrics ? t("common.enabled") : t("common.disabled")}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
+            </ConfigCard>
 
             {!metrics ? (
                 <div className="loading">{t("metrics.loading")}</div>
@@ -173,8 +156,8 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
                     <div className="metrics-footer">
                         <span className="metrics-footer-label">{t("metrics.refreshInterval")}</span>
                         <div className="btn-row">
-                            {refreshError && <span style={{ color: "var(--warn)" }} title={refreshError}>{t("metrics.refreshFailed")}</span>}
-                            <span>{t("metrics.lastScraped", { time: formatScrapedAt(metrics.scrapedAt) })}</span>
+                            {refreshError && <span style={{ color: "var(--warn)" }} title={localizeError(refreshError, t)}>{t("metrics.refreshFailed")}</span>}
+                            <span>{t("metrics.lastScraped", { time: formatTime(metrics.scrapedAt) })}</span>
                             <button className="btn btn-ghost btn--sm" onClick={load} disabled={loading}><UtilityIcon name="refresh" /> {loading ? t("common.refreshing") : t("common.refresh")}</button>
                         </div>
                     </div>
@@ -183,7 +166,6 @@ export default function Metrics({ toast, onUnauth, routeChecks, onRouteChecksCha
 
             <UpstreamUptime
                 toast={toast}
-                onUnauth={onUnauth}
                 routeChecks={routeChecks}
                 onRouteChecksChange={onRouteChecksChange}
                 routeCheckExcludes={routeCheckExcludes}

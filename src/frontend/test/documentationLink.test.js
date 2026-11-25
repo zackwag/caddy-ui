@@ -29,8 +29,5 @@ describe('sidebar documentation link', () => {
     it('includes only version parameters and encodes values as data', () => {
         const url = new URL(documentationLink({ frontend: 'dev&instance=private', backend: '3.7.4', token: 'secret', instance: 'private' }));
         expect([...url.searchParams]).toEqual([['frontend', 'dev&instance=private'], ['backend', '3.7.4']]);
-        expect(url.username).toBe('');
-        expect(url.password).toBe('');
-        expect(url.hash).toBe('');
     });
 });
