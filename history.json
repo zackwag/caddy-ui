@@ -117,6 +117,10 @@
       {
         "observedAt": "2026-11-24T10:00:26.676Z",
         "pullCount": 147128
+      },
+      {
+        "observedAt": "2026-11-25T08:44:48.008Z",
+        "pullCount": 149238
       }
     ],
     "zackwag/caddy-ui-frontend": [
@@ -235,6 +239,10 @@
       {
         "observedAt": "2026-11-24T10:00:26.676Z",
         "pullCount": 145687
+      },
+      {
+        "observedAt": "2026-11-25T08:44:48.008Z",
+        "pullCount": 147831
       }
     ]
   }
