@@ -522,6 +522,8 @@ export default {
         routeOnline: 'Route comes back up',
         authentication: 'Authentication notifications',
         authenticationHint: 'Notify about successful and failed password and passkey sign-ins, and recovery attempts. Recovery and password sign-ins while passkeys exist have high priority. Repeated failures are summarized during the cooldown. Application logging is independent of this switch.',
+        configurationChange: 'Configuration changed outside caddy/ui',
+        configurationChangeHint: "Notify when the Caddyfile or Caddy's live configuration changes without a tracked caddy/ui operation. The source may be legitimate maintenance, automation or unauthorized access. Messages name the instance, what changed, the detection time and the history entry, never configuration content. Further changes on an instance are summarized during the cooldown.",
         routeAlertHint: "Route alerts use route checks (turn them on from the Metrics page) and fire when a site answers with a server error, times out, or has a certificate problem, even if its upstream is still reachable. Skipped routes don't alert.",
         debounce: 'Debounce',
         cooldownMinutes: 'Cooldown (minutes)',

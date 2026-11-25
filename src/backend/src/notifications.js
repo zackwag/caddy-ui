@@ -105,6 +105,54 @@ function notifyAuthenticationEvent(event) {
     return deliverAuthentication(event);
 }
 
+// --- External configuration changes ---------------------------------------
+
+// The first unexplained change per instance is sent immediately; later ones
+// during the cooldown are summarized once it ends, so bursts stay bounded.
+const configurationBatches = new Map();
+const REPRESENTATIONS = { file: 'Caddyfile', live: 'live configuration' };
+
+function clearConfigurationBatches() {
+    for (const batch of configurationBatches.values()) clearTimeout(batch.timer);
+    configurationBatches.clear();
+}
+
+async function deliverConfigurationChange(change, additional = 0) {
+    if (!enabled('configurationChange')) return;
+    const changed = change.representations.map(key => REPRESENTATIONS[key]).join(' and ');
+    const lines = [
+        `Instance: ${change.instanceName}`,
+        `Changed: ${changed}`,
+        `Detected: ${change.detectedAt}`,
+        'Source: unknown, outside a tracked caddy/ui operation',
+        ...(change.historyEntry ? [`History entry: ${change.historyEntry}`] : []),
+    ];
+    const message = additional
+        ? `${additional} additional unexplained configuration changes on ${change.instanceName} during the cooldown.\n${lines.slice(1).join('\n')}`
+        : lines.join('\n');
+    await sendNotification(getNotificationConfig(), { title: 'Configuration changed outside caddy/ui', message, priority: 'high' });
+}
+
+export function notifyConfigurationChange(change) {
+    if (!enabled('configurationChange')) return;
+    const pending = configurationBatches.get(change.instanceId);
+    if (pending) {
+        pending.count++;
+        pending.latest = change;
+        return;
+    }
+    const batch = { count: 0, latest: change, timer: null };
+    batch.timer = setTimeout(() => {
+        configurationBatches.delete(change.instanceId);
+        if (batch.count) void deliverConfigurationChange(batch.latest, batch.count).catch(err => {
+            logger.warn('Configuration change notification summary delivery failed', { instanceId: change.instanceId, error: err.message });
+        });
+    }, debounceMs(getNotificationConfig()));
+    batch.timer.unref?.();
+    configurationBatches.set(change.instanceId, batch);
+    return deliverConfigurationChange(change);
+}
+
 // --- Online/offline transitions -------------------------------------------
 
 // How each monitored kind is announced. `failure` is why a route check failed.
@@ -319,6 +367,7 @@ async function remind() {
 function applyConfig(config) {
     // Configuration changes must not deliver summaries accumulated for an old destination.
     clearAuthenticationFailures();
+    clearConfigurationBatches();
     cancelPendingWhere(record => !config.enabled || !config.triggers[TRANSITIONS[record.kind][record.pending.type].trigger]);
     if (config.enabled && !reminderTimer) {
         logger.info('Notification reminders started');
@@ -338,6 +387,8 @@ export function forgetInstanceNotifications(instanceId) {
         if (record.instanceId === instanceId) forgetTarget(key);
     }
     certReadFailures.delete(instanceId);
+    clearTimeout(configurationBatches.get(instanceId)?.timer);
+    configurationBatches.delete(instanceId);
     for (const key of debounced.keys()) {
         const [, owner] = JSON.parse(key.slice(key.indexOf(':') + 1));
         if (owner === instanceId) debounced.delete(key);

@@ -340,6 +340,7 @@ If the instances, settings, notifications, maintenance, server names or uptime h
 ## Authentication
 
 Authentication is required. With no stored credentials or legacy environment credentials, the UI offers administrator setup while management endpoints remain locked. The first visitor can create the administrator; restrict access until setup is complete.
+<!-- dockerhub:backend:end -->
 
 ### Existing installations
 
@@ -407,8 +408,10 @@ nginx accepts `X-Forwarded-For` only from configured upstreams, resolves the las
 
 Without upstream trust, clients behind Caddy share Caddy's budget and its address appears in logs. If frontend discovery is unavailable, clients behind nginx share nginx's budget. No broader trust is inferred to avoid this limitation. Every trusted upstream must sanitize forwarding headers; an overly broad trust range can reintroduce spoofing.
 
-<!-- dockerhub:backend:end -->
 <!-- ANCHOR_END: authentication -->
+<!-- dockerhub:backend:start -->
+See the [authentication guide](https://zackwag.github.io/caddy-ui/configuration.html#authentication) for existing installations, sessions and recovery, request origins, client addresses and rate limits.
+<!-- dockerhub:backend:end -->
 
 
 <!-- ANCHOR: prometheus-metrics -->

@@ -9,7 +9,7 @@ import { createCrossSiteMiddleware, misnamedExternalUrlVariables } from './middl
 import { createCsrfMiddleware } from './middleware/csrf.js';
 import { createApiTokenMiddleware } from './middleware/apiToken.js';
 import { instanceMiddleware } from './middleware/instance.js';
-import { forgetInstanceNotifications, initNotifications, notifyCheckResults } from './notifications.js';
+import { forgetInstanceNotifications, initNotifications, notifyCheckResults, notifyConfigurationChange } from './notifications.js';
 import authRouter from './routes/auth.js';
 import pagesRouter from './routes/pages.js';
 import caddyfileRouter, { migrateLegacyHistory } from './routes/caddyfile.js';
@@ -36,7 +36,7 @@ import { loadServerNames, removeInstanceServerNames } from './serverNames.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
 import { getUpdateInfo, noteFrontendVersion, startUpdateCheck } from './updateCheck.js';
-import { forgetConfigDrift, startConfigDriftMonitor } from './configDrift.js';
+import { forgetConfigDrift, onExternalConfigurationChange, startConfigDriftMonitor } from './configDrift.js';
 import { createProxyTrust } from './trustedProxies.js';
 import { getAvailableFonts, getEnabledLanguages } from './languages.js';
 
@@ -171,6 +171,7 @@ for (const release of [forgetInstanceNotifications, forgetInstanceChecks, forget
 }
 await initNotifications({ apiTokens: () => authentication.apiTokenMetadata() });
 onCheckResults(notifyCheckResults);
+onExternalConfigurationChange(notifyConfigurationChange);
 startMonitoring();
 startConfigDriftMonitor();
 startUpdateCheck();

@@ -303,12 +303,24 @@ export default function Notifications({ toast, onUnauth }) {
                         />
                         {t("notifications.authentication")}
                     </label>
+                    <label className="config-checkbox-label">
+                        <input
+                            type="checkbox"
+                            className="config-checkbox"
+                            checked={config.triggers?.configurationChange ?? false}
+                            onChange={e => updateTriggers({ configurationChange: e.target.checked })}
+                        />
+                        {t("notifications.configurationChange")}
+                    </label>
                 </div>
                 <div className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
                     {t("notifications.routeAlertHint")}
                 </div>
                 <div className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
                     {t("notifications.authenticationHint")}
+                </div>
+                <div className="hint" style={{ marginTop: 12, marginBottom: 0 }}>
+                    {t("notifications.configurationChangeHint")}
                 </div>
             </div>
 
