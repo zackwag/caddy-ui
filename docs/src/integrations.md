@@ -45,7 +45,15 @@ skipped with an application warning. Failed delivery is logged without including
 provider response contents and is not automatically retried. Changing settings
 does not recall a send already in progress.
 
-External Caddyfile change detection is a separate follow-up.
+## Configuration change notifications
+
+Enable **Configuration changed outside caddy/ui** on the Notifications page to be told when drift detection finds an unexplained change to an instance's Caddyfile, live configuration or both. Both this trigger and the main notification switch must be enabled. The trigger defaults to off.
+
+Each notification has high priority and contains the instance name, which representations changed, the detection time and, when one was recorded, the name of the matching external entry in Caddyfile history. It describes the source as unknown and outside a tracked caddy/ui operation, because detection can't tell legitimate maintenance or automation from unauthorized access. Notifications never include configuration content, diffs or changed JSON paths.
+
+Verified caddy/ui operations don't notify. Repeated observations of the same unexplained state notify once; a distinct later change is eligible again. The first change on an instance is sent immediately, and further changes on that instance during the cooldown are summarized once it ends. Unreadable configuration is logged as unavailable, not reported as a change.
+
+Delivery is best effort, isn't retried, and never delays drift checks, history recording or configuration operations. Failed delivery is logged as an application warning. Changing notification settings or removing the instance discards a pending summary.
 
 {{#include ../../README.md:prometheus-metrics}}
 

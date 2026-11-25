@@ -21,6 +21,7 @@ const DEFAULT_CONFIG = Object.freeze({
         routeOffline: false,
         routeOnline: false,
         authentication: false,
+        configurationChange: false,
     },
     debounceMinutes: DEFAULT_DEBOUNCE_MINUTES,
 });
