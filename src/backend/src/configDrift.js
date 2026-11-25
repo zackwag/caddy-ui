@@ -295,8 +295,8 @@ export async function checkInstance(instance, { report = true } = {}) {
     state.historyEntry = null;
     // Detached, like authentication events: delivery never holds the change queue.
     for (const listener of listeners) {
-        void Promise.resolve().then(() => listener(change)).catch(() => {
-            logger.warn('Configuration change notification delivery failed', { instanceId: instance.id });
+        void Promise.resolve().then(() => listener(change)).catch(err => {
+            logger.warn('Configuration change notification delivery failed', { instanceId: instance.id, error: err.message });
         });
     }
 }
@@ -342,4 +342,5 @@ export function resetConfigDrift() {
         timer = null;
     }
     states.clear();
+    listeners.clear();
 }

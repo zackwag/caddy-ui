@@ -37,7 +37,8 @@ afterAll(async () => { await rm(historyRoot, { recursive: true, force: true }); 
 const { configurationHistory: history } = await import('../src/configurationHistory.js');
 const { DRIFT_HISTORY_LIMIT, changedPaths, checkAllInstances, getConfigDriftState, onExternalConfigurationChange, recordLocalChange, resetConfigDrift } = await import('../src/configDrift.js');
 const announced = [];
-onExternalConfigurationChange(change => { announced.push(change); });
+const announceListener = change => { announced.push(change); };
+onExternalConfigurationChange(announceListener);
 
 const alpha = { id: 'alpha', name: 'Alpha', adminUrl: 'http://alpha:2019', configPath: '/alpha/Caddyfile', containerName: 'alpha' };
 const beta = { id: 'beta', name: 'Beta', adminUrl: 'http://beta:2019', configPath: '/beta/Caddyfile', containerName: 'beta' };
@@ -52,6 +53,7 @@ beforeEach(async () => {
     announced.length = 0;
     await rm(historyRoot, { recursive: true, force: true });
     resetConfigDrift();
+    onExternalConfigurationChange(announceListener);
     files.clear();
     live.clear();
     unsettled.clear();
@@ -254,7 +256,7 @@ describe('configuration drift detection', () => {
         const stop = onExternalConfigurationChange(() => { throw new Error('provider down'); });
         files.set(alpha.configPath, 'first {\n}\n');
         await checkAllInstances();
-        await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('Configuration change notification delivery failed', { instanceId: 'alpha' }));
+        await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('Configuration change notification delivery failed', { instanceId: 'alpha', error: 'provider down' }));
         stop();
         expect(reports()).toHaveLength(1);
     });

@@ -144,8 +144,8 @@ export function notifyConfigurationChange(change) {
     const batch = { count: 0, latest: change, timer: null };
     batch.timer = setTimeout(() => {
         configurationBatches.delete(change.instanceId);
-        if (batch.count) void deliverConfigurationChange(batch.latest, batch.count).catch(() => {
-            logger.warn('Configuration change notification summary delivery failed', { instanceId: change.instanceId });
+        if (batch.count) void deliverConfigurationChange(batch.latest, batch.count).catch(err => {
+            logger.warn('Configuration change notification summary delivery failed', { instanceId: change.instanceId, error: err.message });
         });
     }, debounceMs(getNotificationConfig()));
     batch.timer.unref?.();
