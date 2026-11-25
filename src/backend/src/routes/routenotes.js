@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { caddyfileTitlesEnabled, parseCaddyfileTitles } from '../caddyfileTitles.js';
 import { readContainerFile } from '../containerFs.js';
 import { getInstances } from '../instances.js';
@@ -55,11 +56,15 @@ router.get('/', async (req, res) => {
 router.put('/:domain', async (req, res) => {
     const { domain } = req.params;
     const { note } = req.body;
+    const title = typeof note === 'string' ? note.trim() : '';
+    const event = { action: 'routeTitle.set', instanceId: req.instance.id, resource: domain, details: { title } };
     try {
-        await setInstanceNote(req.instance.id, domain, typeof note === 'string' ? note.trim() : '');
+        await setInstanceNote(req.instance.id, domain, title);
     } catch (err) {
+        await recordAudit(req, { ...event, outcome: 'failure' });
         return sendAppError(res, asAppError(err, 'ROUTE_NOTES_SAVE_FAILED'));
     }
+    await recordAudit(req, event);
     res.json({ ok: true });
 });
 

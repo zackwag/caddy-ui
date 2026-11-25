@@ -142,7 +142,7 @@ test('all backend state overrides are isolated even with inherited production pa
     const env = backendEnvironment('/tmp/dev-sandbox', { adminUrl: 'http://127.0.0.1:9001', containerName: 'test' });
     for (const [key, value] of Object.entries(env)) {
         if (['AUTH_PATH', 'INSTANCES_PATH', 'SETTINGS_PATH', 'SERVER_NAMES_PATH', 'UPTIME_HISTORY_PATH', 'NOTIFICATIONS_CONFIG_PATH',
-            'ROUTE_NOTES_PATH', 'HISTORY_PATH', 'MAINTENANCE_PATH', 'WWW_PATH', 'THEMES_PATH'].includes(key)) {
+            'ROUTE_NOTES_PATH', 'HISTORY_PATH', 'AUDIT_LOG_PATH', 'MAINTENANCE_PATH', 'WWW_PATH', 'THEMES_PATH'].includes(key)) {
             assert.ok(value.startsWith('/tmp/dev-sandbox/backend/'), key);
         }
     }

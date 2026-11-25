@@ -42,3 +42,21 @@ Keep your password and recovery key available. Account recovery rotates the reco
 Registration and sign-in use SimpleWebAuthn with required user verification, exact configured origin and RP ID checks, and session-bound challenges that expire after two minutes. Challenges are consumed once; registration rechecks the three-key limit when it finishes. Writes use the existing CSRF protection and auth rate limiter. Successful sign-in persists verification counters before issuing a session; authenticators that legitimately use zero counters are supported.
 
 Automated tests include signed WebAuthn assertions, failure and concurrency cases, and Chromium virtual authenticators over a pinned test HTTPS certificate. Browser coverage replaces the backend process and signs in using the persisted passkey. Actual Windows Hello, phone, security key and password manager prompts should also be checked manually before release; virtual authenticator tests cannot establish device-specific compatibility.
+
+## Administrative activity
+
+The **Activity** section of the Security dialog lists administrative changes that don't create a Caddyfile version, newest first. Caddyfile edits, route changes, maintenance, logging and metrics configuration are already attributed in [Caddyfile history](caddyfile.md#saved-versions-and-attribution) and aren't repeated here.
+
+| Action | Scope | Details recorded |
+| --- | --- | --- |
+| Add, edit or remove an instance | That instance | Names of the edited fields |
+| Set or remove a server name | Selected instance | Server ID and new name |
+| Set or clear a route title | Selected instance | Route address and new title |
+| Update notification settings | Application | Enabled state, provider and enabled triggers |
+| Delete a Caddyfile history entry | Selected instance | History entry name |
+
+Each event records the time, the outcome (`success`, or `failure` when the operation itself failed), and the account or API token from the authenticated request. Names shown are the current account, token and instance names where they still exist; otherwise the name stored with the event is shown. Events are kept after an instance is removed.
+
+Events never contain notification destinations, credentials, instance paths or request bodies. If an event can't be saved, the change still completes and reports success, and a warning is written to the application log.
+
+The log keeps the newest 500 events in `AUDIT_LOG_PATH`. Like Caddyfile history, it's an operational aid rather than tamper-proof evidence. Integration API tokens can't read it.

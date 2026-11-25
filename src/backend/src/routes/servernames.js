@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { recordAudit } from '../auditLog.js';
 import { getAllServerNames, getServerNames, removeServerName, setServerName } from '../serverNames.js';
 
 const router = Router();
@@ -19,13 +20,27 @@ router.put('/:id', async (req, res) => {
     if (!name || typeof name !== 'string') {
         return res.status(400).json({ error: 'name is required' });
     }
-    await setServerName(req.instance.id, id, name.trim());
+    const event = { action: 'serverName.set', instanceId: req.instance.id, resource: id, details: { name: name.trim() } };
+    try {
+        await setServerName(req.instance.id, id, name.trim());
+    } catch (err) {
+        await recordAudit(req, { ...event, outcome: 'failure' });
+        throw err;
+    }
+    await recordAudit(req, event);
     res.json({ ok: true, id, name: name.trim() });
 });
 
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
-    await removeServerName(req.instance.id, id);
+    const event = { action: 'serverName.remove', instanceId: req.instance.id, resource: id };
+    try {
+        await removeServerName(req.instance.id, id);
+    } catch (err) {
+        await recordAudit(req, { ...event, outcome: 'failure' });
+        throw err;
+    }
+    await recordAudit(req, event);
     res.json({ ok: true, id });
 });
 

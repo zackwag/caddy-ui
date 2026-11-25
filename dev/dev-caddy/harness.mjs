@@ -202,7 +202,7 @@ export function backendEnvironment(directory, instance) {
     for (const [key, file] of Object.entries({ AUTH_PATH: 'auth.json', INSTANCES_PATH: 'instances.json', SETTINGS_PATH: 'settings.json',
         SERVER_NAMES_PATH: 'server-names.json', UPTIME_HISTORY_PATH: 'uptime-history.json',
         NOTIFICATIONS_CONFIG_PATH: 'notifications.json', ROUTE_NOTES_PATH: 'route-notes.json',
-        HISTORY_PATH: 'history', MAINTENANCE_PATH: 'maintenance.json', WWW_PATH: 'www', THEMES_PATH: 'themes' })) {
+        HISTORY_PATH: 'history', AUDIT_LOG_PATH: 'audit-log.json', MAINTENANCE_PATH: 'maintenance.json', WWW_PATH: 'www', THEMES_PATH: 'themes' })) {
         env[key] = resolve(directory, 'backend', file);
     }
     return env;
