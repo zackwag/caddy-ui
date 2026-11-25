@@ -61,8 +61,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
     };
 
     return (
-        <Modal aria-label={t("routes.editRoute")} style={isCaddyfileManaged ? { width: 560 } : undefined} onClose={onClose}>
-            <div className="modal-title">{t("routes.editRoute")}</div>
+        <Modal title={t("routes.editRoute")} style={isCaddyfileManaged ? { width: 560 } : undefined} onClose={onClose}>
 
             <div className="modal-section-label">{t("routes.title")}</div>
             <div className="field">
@@ -112,8 +111,7 @@ function NewRouteModal({ onSave, onClose }) {
     const [form, setForm] = useState({ domain: "", upstream: "", stripPrefix: "" });
 
     return (
-        <Modal aria-label={t("routes.newRoute")} onClose={onClose}>
-            <div className="modal-title">{t("routes.newRoute")}</div>
+        <Modal title={t("routes.newRoute")} onClose={onClose}>
             <RouteFields form={form} setForm={setForm} autoFocus />
             <div className="btn-row flex-end" style={{ marginTop: 20 }}>
                 <button className="btn btn-ghost" onClick={onClose}>{t("common.cancel")}</button>

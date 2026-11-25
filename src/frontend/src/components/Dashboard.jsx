@@ -174,8 +174,7 @@ export default function Dashboard({ status, toast }) {
             </div>
 
             {editingServer && (
-                <Modal aria-label={t("dashboard.editLabel")} onClose={() => setEditingServer(null)}>
-                    <div className="modal-title">{t("dashboard.editLabel")}</div>
+                <Modal title={t("dashboard.editLabel")} onClose={() => setEditingServer(null)}>
                     <div className="server-facts">
                         <div>
                             <span className="field-label">{t("dashboard.serverId")}</span>

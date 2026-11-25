@@ -62,7 +62,7 @@ export function recordCheck(instanceId, target, online, kind = 'upstream') {
     dirty = true;
 }
 
-export function getUptimeStats(instanceId, target, kind = 'upstream') {
+function getUptimeStats(instanceId, target, kind = 'upstream') {
     const entry = history.get(historyKey(instanceId, target, kind));
     if (!entry || entry.entries.length === 0) return null;
 

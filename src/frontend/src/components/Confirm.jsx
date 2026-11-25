@@ -35,8 +35,7 @@ export function ConfirmDialog({ dialog, resolve }) {
     if (!dialog) return null;
 
     return (
-        <Modal className="modal--confirm" aria-label={dialog.message} onClose={() => resolve(false)}>
-            <div className="modal-title">{dialog.message}</div>
+        <Modal className="modal--confirm" title={dialog.message} onClose={() => resolve(false)}>
             <div className="btn-row flex-end">
                 <button className="btn btn-ghost" onClick={() => resolve(false)}>{t("common.cancel")}</button>
                 <button className={`btn ${dialog.danger ? "btn-danger" : "btn-primary"}`} onClick={() => resolve(true)} autoFocus>{dialog.confirmLabel}</button>

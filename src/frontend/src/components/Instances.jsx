@@ -267,8 +267,7 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
             </div>
 
             {editing && (
-                <Modal aria-label={editing === "new" ? t("instances.addInstance") : t("instances.editInstance")} style={{ width: 520 }} onClose={() => setEditing(null)}>
-                    <div className="modal-title">{editing === "new" ? t("instances.addInstance") : t("instances.editInstance")}</div>
+                <Modal title={editing === "new" ? t("instances.addInstance") : t("instances.editInstance")} style={{ width: 520 }} onClose={() => setEditing(null)}>
 
                     <div className="field">
                         <label>{t("instances.name")}</label>

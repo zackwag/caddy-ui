@@ -104,8 +104,7 @@ export default function RouteHistoryModal({ title, upstream, route, onClose }) {
     }
 
     return (
-        <Modal className="history-modal" aria-label={title || target} onClose={onClose}>
-            <div className="modal-title">{title || target}</div>
+        <Modal className="history-modal" title={title || target} onClose={onClose}>
             {title && title !== target && <div className="modal-hint mono" style={{ marginTop: -14, marginBottom: 8 }}>{target}</div>}
 
             {entries && (

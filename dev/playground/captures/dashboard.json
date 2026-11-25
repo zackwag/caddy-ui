@@ -1,9 +1,30 @@
 {
   "formatVersion": 1,
   "source": {
-    "commit": "e65b60315106113252320628407dc3a6848b9ac9",
-    "sourceHash": "68eaf6cd9e2460bc38eb96cbc281467c39c57b4383368f848f5f6b632f0f48e6",
+    "commit": "42e8ba75cf6cb4f64974158cf5f6eb03f674f72b",
     "caddyImage": "caddy:2.10.2-alpine"
+  },
+  "csrfContext": {
+    "source": {
+      "commit": "42e8ba75cf6cb4f64974158cf5f6eb03f674f72b"
+    },
+    "record": {
+      "request": {
+        "method": "GET",
+        "path": "/auth/csrf",
+        "body": null
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "x-request-id": "62cf17e2-4398-4553-bef2-dec4a8472c27"
+        },
+        "body": {
+          "csrfToken": "offline-preview-context"
+        }
+      }
+    }
   },
   "normalization": [
     "Request IDs",
@@ -28,11 +49,16 @@
             },
             "body": {
               "online": true,
+              "instance": {
+                "id": "default",
+                "name": "Default"
+              },
               "serverCount": 1,
               "routeCount": 3,
               "upstreamsOnline": 0,
               "upstreamsTotal": 0,
               "uptime": "1s",
+              "tlsEnabled": true,
               "servers": [
                 {
                   "name": "srv0",
@@ -42,7 +68,6 @@
                   "routeCount": 3
                 }
               ],
-              "tlsEnabled": true,
               "adminUrl": "http://caddy-preview:2019"
             }
           }
@@ -64,8 +89,8 @@
               "version": "v2.10.2",
               "uptime": "1s",
               "uptimeSeconds": 1,
-              "memAlloc": 4.5,
-              "memSys": 17.8,
+              "memAlloc": 4.7,
+              "memSys": 18.1,
               "lastReload": "2025-01-01T12:00:00.000Z",
               "lastReloadSuccess": true
             }
@@ -90,21 +115,6 @@
         },
         {
           "request": {
-            "method": "GET",
-            "path": "/health",
-            "body": null
-          },
-          "response": {
-            "status": 200,
-            "headers": {
-              "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000004"
-            },
-            "body": []
-          }
-        },
-        {
-          "request": {
             "method": "PUT",
             "path": "/server-names/srv0",
             "body": {
@@ -115,7 +125,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000005"
+              "x-request-id": "00000000-0000-4000-8000-000000000004"
             },
             "body": {
               "ok": true,
@@ -139,17 +149,21 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000006"
+              "x-request-id": "00000000-0000-4000-8000-000000000005"
             },
             "body": {
               "online": true,
+              "instance": {
+                "id": "default",
+                "name": "Default"
+              },
               "serverCount": 0,
               "routeCount": 0,
               "upstreamsOnline": 0,
               "upstreamsTotal": 0,
-              "uptime": "4s",
-              "servers": [],
+              "uptime": "13s",
               "tlsEnabled": true,
+              "servers": [],
               "adminUrl": "http://caddy-preview:2019"
             }
           }
@@ -164,16 +178,16 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000007"
+              "x-request-id": "00000000-0000-4000-8000-000000000006"
             },
             "body": {
               "ok": true,
               "version": "v2.10.2",
-              "uptime": "4s",
-              "uptimeSeconds": 4,
-              "memAlloc": 5.7,
-              "memSys": 21.8,
-              "lastReload": "2025-01-01T12:00:03.620Z",
+              "uptime": "13s",
+              "uptimeSeconds": 13,
+              "memAlloc": 10.1,
+              "memSys": 22.1,
+              "lastReload": "2025-01-01T12:00:07.239Z",
               "lastReloadSuccess": true
             }
           }
@@ -188,26 +202,11 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000008"
+              "x-request-id": "00000000-0000-4000-8000-000000000007"
             },
             "body": {
               "srv0": "Playground HTTP"
             }
-          }
-        },
-        {
-          "request": {
-            "method": "GET",
-            "path": "/health",
-            "body": null
-          },
-          "response": {
-            "status": 200,
-            "headers": {
-              "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000009"
-            },
-            "body": []
           }
         }
       ]
@@ -225,13 +224,13 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000010"
+              "x-request-id": "00000000-0000-4000-8000-000000000008"
             },
             "body": {
+              "code": "CADDY_STATUS_UNAVAILABLE",
               "online": false,
               "error": "Caddy status unavailable",
-              "code": "CADDY_STATUS_UNAVAILABLE",
-              "requestId": "00000000-0000-4000-8000-000000000010"
+              "requestId": "00000000-0000-4000-8000-000000000008"
             }
           }
         },
@@ -245,13 +244,13 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000011"
+              "x-request-id": "00000000-0000-4000-8000-000000000009"
             },
             "body": {
+              "code": "METRICS_UNAVAILABLE",
               "ok": false,
               "error": "Metrics unavailable",
-              "code": "METRICS_UNAVAILABLE",
-              "requestId": "00000000-0000-4000-8000-000000000011"
+              "requestId": "00000000-0000-4000-8000-000000000009"
             }
           }
         },
@@ -265,29 +264,10 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000012"
+              "x-request-id": "00000000-0000-4000-8000-000000000010"
             },
             "body": {
               "srv0": "Playground HTTP"
-            }
-          }
-        },
-        {
-          "request": {
-            "method": "GET",
-            "path": "/health",
-            "body": null
-          },
-          "response": {
-            "status": 500,
-            "headers": {
-              "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000013"
-            },
-            "body": {
-              "error": "fetch failed",
-              "code": "REQUEST_FAILED",
-              "requestId": "00000000-0000-4000-8000-000000000013"
             }
           }
         }
@@ -306,11 +286,23 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000014"
+              "x-request-id": "00000000-0000-4000-8000-000000000011"
             },
             "body": {
               "enabled": false,
               "provider": "ntfy",
+              "triggers": {
+                "upstreamOffline": true,
+                "upstreamOnline": true,
+                "certExpiring": true,
+                "apiTokenExpiring": true,
+                "updateAvailable": true,
+                "routeOffline": false,
+                "routeOnline": false,
+                "authentication": false,
+                "configurationChange": false
+              },
+              "debounceMinutes": 30,
               "ntfy": {
                 "url": ""
               },
@@ -327,16 +319,7 @@
               "custom": {
                 "url": "",
                 "method": "POST"
-              },
-              "triggers": {
-                "upstreamOffline": true,
-                "upstreamOnline": true,
-                "certExpiring": true,
-                "updateAvailable": true,
-                "routeOffline": false,
-                "routeOnline": false
-              },
-              "debounceMinutes": 30
+              }
             }
           }
         }
@@ -355,7 +338,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000015"
+              "x-request-id": "00000000-0000-4000-8000-000000000012"
             },
             "body": {
               "ok": true,
@@ -372,7 +355,7 @@
               "p99": 0,
               "rps": 0,
               "uptimeSeconds": 1,
-              "scrapedAt": "2025-01-01T12:00:00.209Z"
+              "scrapedAt": "2025-01-01T12:00:00.454Z"
             }
           }
         },
@@ -386,7 +369,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000016"
+              "x-request-id": "00000000-0000-4000-8000-000000000013"
             },
             "body": {
               "enabled": true
@@ -403,11 +386,20 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000017"
+              "x-request-id": "00000000-0000-4000-8000-000000000014"
             },
             "body": {
-              "authEnabled": false,
-              "publicMetrics": false
+              "authEnabled": true,
+              "authenticated": true,
+              "setupRequired": false,
+              "enrollmentRequired": false,
+              "enrollmentAuthenticated": false,
+              "totpEnabled": false,
+              "totpPending": false,
+              "publicMetrics": false,
+              "passkeyOrigin": null,
+              "passkeyUnavailableReason": null,
+              "passkeyLoginAvailable": false
             }
           }
         },
@@ -421,7 +413,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000018"
+              "x-request-id": "00000000-0000-4000-8000-000000000015"
             },
             "body": [
               {
@@ -439,8 +431,7 @@
                     ]
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               },
               {
                 "handle": [
@@ -457,8 +448,7 @@
                     ]
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               },
               {
                 "handle": [
@@ -468,8 +458,7 @@
                     "status_code": 200
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               }
             ]
           }
@@ -484,7 +473,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000019"
+              "x-request-id": "00000000-0000-4000-8000-000000000016"
             },
             "body": {}
           }
@@ -499,7 +488,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000020"
+              "x-request-id": "00000000-0000-4000-8000-000000000017"
             },
             "body": {}
           }
@@ -514,7 +503,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000021"
+              "x-request-id": "00000000-0000-4000-8000-000000000018"
             },
             "body": {}
           }
@@ -534,12 +523,12 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000022"
+              "x-request-id": "00000000-0000-4000-8000-000000000019"
             },
             "body": {
               "lines": [
-                "{\"level\":\"info\",\"ts\":1792179761.6919756,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"38504\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32770\",\"uri\":\"/health\",\"headers\":{\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000074863,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"error\",\"ts\":1792179761.7005928,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"38514\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:32770\",\"uri\":\"/error\",\"headers\":{\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000041963,\"size\":21,\"status\":503,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}"
+                "{\"level\":\"info\",\"ts\":1795643255.9056466,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"49759\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:49740\",\"uri\":\"/health\",\"headers\":{\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000036875,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
+                "{\"level\":\"error\",\"ts\":1795643255.9120505,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"49761\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:49740\",\"uri\":\"/error\",\"headers\":{\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000023875,\"size\":21,\"status\":503,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}"
               ],
               "path": "/data/dev-caddy/logs/access.log"
             }
@@ -555,7 +544,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000023"
+              "x-request-id": "00000000-0000-4000-8000-000000000020"
             },
             "body": {
               "enabled": false,
@@ -582,7 +571,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000024"
+              "x-request-id": "00000000-0000-4000-8000-000000000021"
             },
             "body": []
           }
@@ -602,7 +591,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000025"
+              "x-request-id": "00000000-0000-4000-8000-000000000022"
             },
             "body": {
               "version": "dev-caddy-preview",
@@ -620,7 +609,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000026"
+              "x-request-id": "00000000-0000-4000-8000-000000000023"
             },
             "body": [
               {
@@ -646,7 +635,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000027"
+              "x-request-id": "00000000-0000-4000-8000-000000000024"
             },
             "body": [
               {
@@ -666,15 +655,20 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000028"
+              "x-request-id": "00000000-0000-4000-8000-000000000025"
             },
             "body": {
               "online": true,
+              "instance": {
+                "id": "default",
+                "name": "Default"
+              },
               "serverCount": 1,
               "routeCount": 3,
               "upstreamsOnline": 0,
               "upstreamsTotal": 0,
               "uptime": "2s",
+              "tlsEnabled": true,
               "servers": [
                 {
                   "name": "srv0",
@@ -684,7 +678,6 @@
                   "routeCount": 3
                 }
               ],
-              "tlsEnabled": true,
               "adminUrl": "http://caddy-preview:2019"
             }
           }
@@ -704,7 +697,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000029"
+              "x-request-id": "00000000-0000-4000-8000-000000000026"
             },
             "body": {
               "version": "dev-caddy-preview",
@@ -722,7 +715,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000030"
+              "x-request-id": "00000000-0000-4000-8000-000000000027"
             },
             "body": [
               {
@@ -748,7 +741,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000031"
+              "x-request-id": "00000000-0000-4000-8000-000000000028"
             },
             "body": [
               {
@@ -768,13 +761,13 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000032"
+              "x-request-id": "00000000-0000-4000-8000-000000000029"
             },
             "body": {
+              "code": "CADDY_STATUS_UNAVAILABLE",
               "online": false,
               "error": "Caddy status unavailable",
-              "code": "CADDY_STATUS_UNAVAILABLE",
-              "requestId": "00000000-0000-4000-8000-000000000032"
+              "requestId": "00000000-0000-4000-8000-000000000029"
             }
           }
         }
@@ -793,7 +786,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000033"
+              "x-request-id": "00000000-0000-4000-8000-000000000030"
             },
             "body": [
               {
@@ -811,8 +804,7 @@
                     ]
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               },
               {
                 "handle": [
@@ -829,8 +821,7 @@
                     ]
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               },
               {
                 "handle": [
@@ -840,8 +831,7 @@
                     "status_code": 200
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               }
             ]
           }
@@ -856,7 +846,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000034"
+              "x-request-id": "00000000-0000-4000-8000-000000000031"
             },
             "body": []
           }
@@ -871,7 +861,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000035"
+              "x-request-id": "00000000-0000-4000-8000-000000000032"
             },
             "body": {}
           }
@@ -886,7 +876,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000036"
+              "x-request-id": "00000000-0000-4000-8000-000000000033"
             },
             "body": {
               "srv0": "Playground HTTP"
@@ -903,7 +893,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000037"
+              "x-request-id": "00000000-0000-4000-8000-000000000034"
             },
             "body": {}
           }
@@ -918,7 +908,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000038"
+              "x-request-id": "00000000-0000-4000-8000-000000000035"
             },
             "body": []
           }
@@ -933,7 +923,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000039"
+              "x-request-id": "00000000-0000-4000-8000-000000000036"
             },
             "body": {}
           }
@@ -953,7 +943,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000040"
+              "x-request-id": "00000000-0000-4000-8000-000000000037"
             },
             "body": []
           }
@@ -968,19 +958,20 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000041"
+              "x-request-id": "00000000-0000-4000-8000-000000000038"
             },
             "body": [
               {
                 "domain": "preview.internal",
                 "issuer": "internal",
                 "issuerDir": "local",
-                "validFrom": "Oct 16 19:42:44 2026 GMT",
-                "validTo": "Oct 17 07:42:44 2026 GMT",
+                "validFrom": "Nov 25 21:47:37 2026 GMT",
+                "validTo": "Nov 26 09:47:37 2026 GMT",
                 "daysRemaining": 0,
                 "isManaged": false,
                 "isInternal": true,
-                "status": "orphaned"
+                "status": "orphaned",
+                "deletable": true
               }
             ]
           }
@@ -995,7 +986,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000042"
+              "x-request-id": "00000000-0000-4000-8000-000000000039"
             },
             "body": {}
           }
@@ -1010,7 +1001,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000043"
+              "x-request-id": "00000000-0000-4000-8000-000000000040"
             },
             "body": {
               "srv0": "Playground HTTP"
@@ -1027,7 +1018,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000044"
+              "x-request-id": "00000000-0000-4000-8000-000000000041"
             },
             "body": {}
           }
@@ -1042,7 +1033,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000045"
+              "x-request-id": "00000000-0000-4000-8000-000000000042"
             },
             "body": []
           }
@@ -1057,7 +1048,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000046"
+              "x-request-id": "00000000-0000-4000-8000-000000000043"
             },
             "body": {}
           }
@@ -1066,12 +1057,69 @@
     },
     {
       "id": "route-history-empty",
-      "clock": 1792179762479,
+      "clock": 1795643256713,
       "requests": [
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1792176162479",
+            "path": "/health/history?route=preview.home.arpa&since=1795639656713",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000044"
+            },
+            "body": {
+              "entries": [],
+              "firstSeen": null,
+              "intervalMs": 300000
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/history?route=preview.home.arpa&since=1795621656713",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000045"
+            },
+            "body": {
+              "entries": [],
+              "firstSeen": null,
+              "intervalMs": 300000
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/history?route=preview.home.arpa&since=1795556856713",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "application/json; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000046"
+            },
+            "body": {
+              "entries": [],
+              "firstSeen": null,
+              "intervalMs": 300000
+            }
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/health/history?route=preview.home.arpa&since=1795038456713",
             "body": null
           },
           "response": {
@@ -1079,63 +1127,6 @@
             "headers": {
               "content-type": "application/json; charset=utf-8",
               "x-request-id": "00000000-0000-4000-8000-000000000047"
-            },
-            "body": {
-              "entries": [],
-              "firstSeen": null,
-              "intervalMs": 300000
-            }
-          }
-        },
-        {
-          "request": {
-            "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1792158162479",
-            "body": null
-          },
-          "response": {
-            "status": 200,
-            "headers": {
-              "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000048"
-            },
-            "body": {
-              "entries": [],
-              "firstSeen": null,
-              "intervalMs": 300000
-            }
-          }
-        },
-        {
-          "request": {
-            "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1792093362479",
-            "body": null
-          },
-          "response": {
-            "status": 200,
-            "headers": {
-              "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000049"
-            },
-            "body": {
-              "entries": [],
-              "firstSeen": null,
-              "intervalMs": 300000
-            }
-          }
-        },
-        {
-          "request": {
-            "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1791574962479",
-            "body": null
-          },
-          "response": {
-            "status": 200,
-            "headers": {
-              "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000050"
             },
             "body": {
               "entries": [],
@@ -1159,7 +1150,7 @@
             "status": 200,
             "headers": {
               "content-type": "text/plain; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000051"
+              "x-request-id": "00000000-0000-4000-8000-000000000048"
             },
             "body": "{\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n"
           }
@@ -1174,7 +1165,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000052"
+              "x-request-id": "00000000-0000-4000-8000-000000000049"
             },
             "body": []
           }
@@ -1194,9 +1185,9 @@
             "status": 200,
             "headers": {
               "content-type": "text/plain; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000053"
+              "x-request-id": "00000000-0000-4000-8000-000000000050"
             },
-            "body": "{\n    metrics\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
+            "body": "{\n    admin 0.0.0.0:2019\n    auto_https off\n    metrics\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
           }
         },
         {
@@ -1209,16 +1200,40 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000054"
+              "x-request-id": "00000000-0000-4000-8000-000000000051"
             },
             "body": [
               {
-                "filename": "Caddyfile-2026-10-16T19-42-44",
-                "timestamp": "2026-10-16T19:42:44"
+                "filename": "Caddyfile-2026-11-25T21-47-37-101Z-00000000-0000-4000-8000-000000000052.json",
+                "timestamp": "2025-01-01T12:00:01.454Z",
+                "parent": "Caddyfile-2026-11-25T21-47-35-933Z-00000000-0000-4000-8000-000000000053.json",
+                "actor": {
+                  "type": "user",
+                  "id": "00000000-0000-4000-8000-000000000054",
+                  "name": "capture-administrator"
+                },
+                "action": "caddyfile.save",
+                "outcome": "applied"
               },
               {
-                "filename": "Caddyfile-2026-10-16T19-42-42",
-                "timestamp": "2026-10-16T19:42:42"
+                "filename": "Caddyfile-2026-11-25T21-47-35-933Z-00000000-0000-4000-8000-000000000053.json",
+                "timestamp": "2025-01-01T12:00:00.286Z",
+                "parent": "Caddyfile-2026-11-25T21-47-35-728Z-00000000-0000-4000-8000-000000000055.json",
+                "actor": {
+                  "type": "user",
+                  "id": "00000000-0000-4000-8000-000000000054",
+                  "name": "capture-administrator"
+                },
+                "action": "metrics.configure",
+                "outcome": "applied"
+              },
+              {
+                "filename": "Caddyfile-2026-11-25T21-47-35-728Z-00000000-0000-4000-8000-000000000055.json",
+                "timestamp": "2025-01-01T12:00:00.081Z",
+                "parent": null,
+                "actor": null,
+                "action": null,
+                "outcome": "unknown"
               }
             ]
           }
@@ -1226,22 +1241,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/caddyfile/history/Caddyfile-2026-10-16T19-42-44",
-            "body": null
-          },
-          "response": {
-            "status": 200,
-            "headers": {
-              "content-type": "text/plain; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000055"
-            },
-            "body": "{\n    metrics\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
-          }
-        },
-        {
-          "request": {
-            "method": "GET",
-            "path": "/caddyfile/history/Caddyfile-2026-10-16T19-42-42",
+            "path": "/caddyfile/history/Caddyfile-2026-11-25T21-47-37-101Z-00000000-0000-4000-8000-000000000052.json",
             "body": null
           },
           "response": {
@@ -1250,25 +1250,55 @@
               "content-type": "text/plain; charset=utf-8",
               "x-request-id": "00000000-0000-4000-8000-000000000056"
             },
-            "body": "{\n    metrics\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n"
+            "body": "{\n    admin 0.0.0.0:2019\n    auto_https off\n    metrics\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/caddyfile/history/Caddyfile-2026-11-25T21-47-35-933Z-00000000-0000-4000-8000-000000000053.json",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "text/plain; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000057"
+            },
+            "body": "{\n    admin 0.0.0.0:2019\n    auto_https off\n    metrics\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n"
+          }
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/caddyfile/history/Caddyfile-2026-11-25T21-47-35-728Z-00000000-0000-4000-8000-000000000055.json",
+            "body": null
+          },
+          "response": {
+            "status": 200,
+            "headers": {
+              "content-type": "text/plain; charset=utf-8",
+              "x-request-id": "00000000-0000-4000-8000-000000000058"
+            },
+            "body": "{\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n"
           }
         },
         {
           "request": {
             "method": "POST",
             "path": "/caddyfile/validations?fmt=true",
-            "body": "{\n    metrics\n    admin 0.0.0.0:2019\n    auto_https off\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
+            "body": "{\n    admin 0.0.0.0:2019\n    auto_https off\n    metrics\n}\n\n:80 {\n    log {\n        output file /data/dev-caddy/logs/access.log\n        format json\n    }\n    respond /health \"ok\" 200\n    respond /error \"deliberate test error\" 503\n    respond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
           },
           "response": {
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000057"
+              "x-request-id": "00000000-0000-4000-8000-000000000059"
             },
             "body": {
               "valid": true,
               "warnings": [],
-              "formatted": "{\n\tmetrics\n\tadmin 0.0.0.0:2019\n\tauto_https off\n}\n\n:80 {\n\tlog {\n\t\toutput file /data/dev-caddy/logs/access.log\n\t\tformat json\n\t}\n\trespond /health \"ok\" 200\n\trespond /error \"deliberate test error\" 503\n\trespond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
+              "formatted": "{\n\tadmin 0.0.0.0:2019\n\tauto_https off\n\tmetrics\n}\n\n:80 {\n\tlog {\n\t\toutput file /data/dev-caddy/logs/access.log\n\t\tformat json\n\t}\n\trespond /health \"ok\" 200\n\trespond /error \"deliberate test error\" 503\n\trespond \"Caddy UI test instance: preview\" 200\n}\n\n# Localization playground snapshot\n"
             }
           }
         }
@@ -1287,9 +1317,25 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000033"
+              "x-request-id": "00000000-0000-4000-8000-000000000060"
             },
             "body": [
+              {
+                "handle": [
+                  {
+                    "body": "Internal certificate preview",
+                    "handler": "static_response"
+                  }
+                ],
+                "match": [
+                  {
+                    "host": [
+                      "preview.internal"
+                    ]
+                  }
+                ],
+                "_server": "preview_tls"
+              },
               {
                 "handle": [
                   {
@@ -1305,8 +1351,7 @@
                     ]
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               },
               {
                 "handle": [
@@ -1323,8 +1368,7 @@
                     ]
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               },
               {
                 "handle": [
@@ -1334,8 +1378,7 @@
                     "status_code": 200
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               }
             ]
           }
@@ -1350,9 +1393,22 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000034"
+              "x-request-id": "00000000-0000-4000-8000-000000000061"
             },
-            "body": []
+            "body": [
+              {
+                "domain": "preview.internal",
+                "issuer": "internal",
+                "issuerDir": "local",
+                "validFrom": "Nov 25 21:47:37 2026 GMT",
+                "validTo": "Nov 26 09:47:37 2026 GMT",
+                "daysRemaining": 0,
+                "isManaged": true,
+                "isInternal": true,
+                "status": "valid",
+                "deletable": false
+              }
+            ]
           }
         },
         {
@@ -1365,7 +1421,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000035"
+              "x-request-id": "00000000-0000-4000-8000-000000000062"
             },
             "body": {}
           }
@@ -1380,7 +1436,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000036"
+              "x-request-id": "00000000-0000-4000-8000-000000000063"
             },
             "body": {
               "srv0": "Playground HTTP"
@@ -1397,7 +1453,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000037"
+              "x-request-id": "00000000-0000-4000-8000-000000000064"
             },
             "body": {}
           }
@@ -1412,7 +1468,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000038"
+              "x-request-id": "00000000-0000-4000-8000-000000000065"
             },
             "body": []
           }
@@ -1427,7 +1483,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000039"
+              "x-request-id": "00000000-0000-4000-8000-000000000066"
             },
             "body": {}
           }
@@ -1435,19 +1491,19 @@
         {
           "request": {
             "method": "GET",
-            "path": "/routes/caddyfile/%E2%80%94",
+            "path": "/routes/caddyfile/preview.internal",
             "body": null
           },
           "response": {
             "status": 404,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000058"
+              "x-request-id": "00000000-0000-4000-8000-000000000067"
             },
             "body": {
               "error": "site block not found",
               "code": "NOT_FOUND",
-              "requestId": "00000000-0000-4000-8000-000000000058"
+              "requestId": "00000000-0000-4000-8000-000000000067"
             }
           }
         }
@@ -1466,19 +1522,20 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000059"
+              "x-request-id": "00000000-0000-4000-8000-000000000068"
             },
             "body": [
               {
                 "domain": "preview.internal",
                 "issuer": "internal",
                 "issuerDir": "local",
-                "validFrom": "Oct 16 19:42:44 2026 GMT",
-                "validTo": "Oct 17 07:42:44 2026 GMT",
+                "validFrom": "Nov 25 21:47:37 2026 GMT",
+                "validTo": "Nov 26 09:47:37 2026 GMT",
                 "daysRemaining": 0,
                 "isManaged": true,
                 "isInternal": true,
-                "status": "valid"
+                "status": "valid",
+                "deletable": false
               }
             ]
           }
@@ -1498,19 +1555,20 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000060"
+              "x-request-id": "00000000-0000-4000-8000-000000000069"
             },
             "body": [
               {
                 "domain": "preview.internal",
                 "issuer": "internal",
                 "issuerDir": "local",
-                "validFrom": "Oct 16 19:42:44 2026 GMT",
-                "validTo": "Oct 17 07:42:44 2026 GMT",
+                "validFrom": "Nov 25 21:47:37 2026 GMT",
+                "validTo": "Nov 26 09:47:37 2026 GMT",
                 "daysRemaining": 0,
                 "isManaged": false,
                 "isInternal": true,
-                "status": "orphaned"
+                "status": "orphaned",
+                "deletable": true
               }
             ]
           }
@@ -1530,7 +1588,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000061"
+              "x-request-id": "00000000-0000-4000-8000-000000000070"
             },
             "body": [
               {
@@ -1547,8 +1605,7 @@
                     ]
                   }
                 ],
-                "_server": "preview_tls",
-                "_simpleProxy": false
+                "_server": "preview_tls"
               },
               {
                 "handle": [
@@ -1565,8 +1622,7 @@
                     ]
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               },
               {
                 "handle": [
@@ -1583,8 +1639,7 @@
                     ]
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               },
               {
                 "handle": [
@@ -1594,8 +1649,7 @@
                     "status_code": 200
                   }
                 ],
-                "_server": "srv0",
-                "_simpleProxy": false
+                "_server": "srv0"
               }
             ]
           }
@@ -1610,7 +1664,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000062"
+              "x-request-id": "00000000-0000-4000-8000-000000000071"
             },
             "body": {}
           }
@@ -1625,7 +1679,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000063"
+              "x-request-id": "00000000-0000-4000-8000-000000000072"
             },
             "body": {}
           }
@@ -1640,7 +1694,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000064"
+              "x-request-id": "00000000-0000-4000-8000-000000000073"
             },
             "body": {}
           }
@@ -1660,7 +1714,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000065"
+              "x-request-id": "00000000-0000-4000-8000-000000000074"
             },
             "body": [
               {
@@ -1686,7 +1740,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000066"
+              "x-request-id": "00000000-0000-4000-8000-000000000075"
             },
             "body": [
               {
@@ -1706,7 +1760,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000067"
+              "x-request-id": "00000000-0000-4000-8000-000000000076"
             },
             "body": []
           }
@@ -1721,7 +1775,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000068"
+              "x-request-id": "00000000-0000-4000-8000-000000000077"
             },
             "body": {}
           }
@@ -1736,7 +1790,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000069"
+              "x-request-id": "00000000-0000-4000-8000-000000000078"
             },
             "body": [
               "srv0"
@@ -1758,7 +1812,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000070"
+              "x-request-id": "00000000-0000-4000-8000-000000000079"
             },
             "body": [
               {
@@ -1784,7 +1838,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000071"
+              "x-request-id": "00000000-0000-4000-8000-000000000080"
             },
             "body": [
               {
@@ -1804,7 +1858,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000072"
+              "x-request-id": "00000000-0000-4000-8000-000000000081"
             },
             "body": []
           }
@@ -1819,7 +1873,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000073"
+              "x-request-id": "00000000-0000-4000-8000-000000000082"
             },
             "body": {}
           }
@@ -1834,7 +1888,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000074"
+              "x-request-id": "00000000-0000-4000-8000-000000000083"
             },
             "body": []
           }
@@ -1854,7 +1908,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000075"
+              "x-request-id": "00000000-0000-4000-8000-000000000084"
             },
             "body": []
           }
@@ -1869,7 +1923,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000076"
+              "x-request-id": "00000000-0000-4000-8000-000000000085"
             },
             "body": []
           }
@@ -1884,7 +1938,7 @@
             "status": 200,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000077"
+              "x-request-id": "00000000-0000-4000-8000-000000000086"
             },
             "body": []
           }
@@ -1899,38 +1953,16 @@
             "status": 503,
             "headers": {
               "content-type": "application/json; charset=utf-8",
-              "x-request-id": "00000000-0000-4000-8000-000000000078"
+              "x-request-id": "00000000-0000-4000-8000-000000000087"
             },
             "body": {
               "error": "No instances configured",
               "code": "NO_INSTANCES",
-              "requestId": "00000000-0000-4000-8000-000000000078"
+              "requestId": "00000000-0000-4000-8000-000000000087"
             }
           }
         }
       ]
     }
-  ],
-  "csrfContext": {
-    "source": {
-      "commit": "76b7b4176c20924ec6269f57f967767ce5d2c3ea"
-    },
-    "record": {
-      "request": {
-        "method": "GET",
-        "path": "/auth/csrf",
-        "body": null
-      },
-      "response": {
-        "status": 200,
-        "headers": {
-          "content-type": "application/json; charset=utf-8",
-          "cache-control": "no-store"
-        },
-        "body": {
-          "csrfToken": "offline-preview-context"
-        }
-      }
-    }
-  }
+  ]
 }

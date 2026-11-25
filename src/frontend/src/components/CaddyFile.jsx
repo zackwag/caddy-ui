@@ -14,8 +14,6 @@ import PaneDivider from "./PaneDivider.jsx";
 const CADDY_FMT_LABEL = "caddy fmt";
 // eslint-disable-next-line i18next/no-literal-string -- Stable DOM identifier linking the divider to the editor pane
 const EDITOR_PANE_ID = "caddyfile-editor-pane";
-// eslint-disable-next-line i18next/no-literal-string -- Stable DOM identifier labelling the save conflict dialog
-const CONFLICT_TITLE_ID = "caddyfile-conflict-title";
 // eslint-disable-next-line i18next/no-literal-string -- HTTP header name, not translatable UI copy
 const ETAG_HEADER = "ETag";
 
@@ -245,8 +243,7 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
             )}
 
             {conflict && (
-                <Modal aria-labelledby={CONFLICT_TITLE_ID} style={{ width: 720 }} onClose={closeConflict}>
-                    <div id={CONFLICT_TITLE_ID} className="modal-title">{t("caddyfile.conflictTitle")}</div>
+                <Modal title={t("caddyfile.conflictTitle")} style={{ width: 720 }} onClose={closeConflict}>
                     <div className="modal-hint">{t("errors.caddyfileChanged")} {t("caddyfile.conflictHint")}</div>
                     {conflictCompare && <CaddyfileDiff oldText={conflict.file.text} newText={content} label={t("caddyfile.conflictDiff")} />}
                     <div className="btn-row" style={{ justifyContent: "space-between", marginTop: 16 }}>

@@ -65,7 +65,7 @@ const sidebarKeys = ['sidebar.serverManager', 'sidebar.refreshStatus', 'sidebar.
 
 const routeControls = ['routes.filterPlaceholder', 'routes.onlineSummary', 'routes.columns', 'routes.addRoute', 'common.refresh'];
 const routeTable = ['routes.status', 'routes.domain', 'routes.title', 'routes.upstream', 'routes.server',
-    'routes.id', 'routes.serverFilterTitle', 'routes.noUpstream', 'routes.enableMaintenance', 'routes.editRoute'];
+    'routes.id', 'routes.serverFilterTitle', 'routes.noUpstream'];
 const historyKeys = ['routeHistory.noDataYet', 'routeHistory.autoRefresh', 'routeHistory.noData',
     'routeHistory.online', 'routeHistory.offline', 'routeHistory.segmentTitle', 'routeHistory.now',
     'routeHistory.successfulChecks', 'routeHistory.outages', 'routeHistory.estimatedDowntime',
@@ -133,7 +133,7 @@ export const scenarios = [
     { id: 'caddyfile-raw', title: 'Caddyfile: raw snapshot', kind: 'caddyfile',
         profile: 'caddyfile-history', setup: 'caddyfile-raw', keys: ['caddyfile.raw', 'caddyfile.versionPreview'] },
     { id: 'caddyfile-no-differences', title: 'Caddyfile: latest snapshot matches saved file', kind: 'caddyfile',
-        profile: 'caddyfile-history', setup: 'caddyfile-history', keys: ['caddyfile.noDifferences'] },
+        profile: 'caddyfile-history', setup: 'caddyfile-current', keys: ['caddyfile.noDifferences'] },
     { id: 'caddyfile-list', title: 'Caddyfile: saved version list', kind: 'caddyfile',
         profile: 'caddyfile-history', setup: 'caddyfile-list', keys: ['caddyfile.latest', 'caddyfile.savedVersions'] },
     { id: 'caddyfile-force-confirm', title: 'Caddyfile: force-save confirmation', kind: 'caddyfile',
@@ -148,7 +148,7 @@ export const scenarios = [
     { id: 'caddyfile-valid', title: 'Caddyfile: successful recorded validation', kind: 'caddyfile',
         profile: 'caddyfile-history', setup: 'caddyfile-valid', remountOnTranslation: true, keys: ['caddyfile.valid'] },
     { id: 'route-edit-unavailable', title: 'Route edit: Caddyfile block unavailable', kind: 'routes',
-        profile: 'routes-edit-unavailable', setup: 'route-edit', keys: ['routes.titlePlaceholder',
+        profile: 'routes-edit-unavailable', setup: 'route-edit', keys: ['routes.enableMaintenance', 'routes.editRoute', 'routes.titlePlaceholder',
             'routes.titleClearHint', 'routes.caddyfileLoadFailed'] },
     { id: 'routes-overview', title: 'Routes: captured Caddy routes', kind: 'routes',
         profile: 'routes-online', keys: [...routeControls, ...routeTable] },

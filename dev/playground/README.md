@@ -244,7 +244,7 @@ npm run i18n:preview:check-capture
 ```
 
 Captures contain request methods, paths, write bodies, response statuses/headers/bodies, the
-source commit, source fingerprint, and Caddy image. Normalization preserves structure and
+source commit and Caddy image. Normalization preserves structure and
 request-ID correlations while replacing private addresses and paths and shifting ISO
 timestamps together to preserve their relative spacing.
 Numeric measurements remain as observed and are frozen during replay.

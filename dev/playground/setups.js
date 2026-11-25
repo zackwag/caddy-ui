@@ -20,13 +20,17 @@ const [validate, openHistory, forceSave] = [0, 1, 5].map(toolbarButton);
 const openVersionList = click('[aria-controls="history-version-list"]');
 const versionAction = index => root => press(root.querySelectorAll('.history-version-actions button')[index]);
 
-function chooseProvider(root, { provider, enabled }) {
-    const select = root.querySelector('select.config-select');
-    const toggle = root.querySelector('.notifications-enabled-btn');
-    if (!select || !toggle) return false;
-    // The only recorded response is the untouched disabled default.
-    select.value = provider;
+function choose(select, value) {
+    if (!select) return false;
+    select.value = value;
     select.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+}
+
+function chooseProvider(root, { provider, enabled }) {
+    const toggle = root.querySelector('.notifications-enabled-btn');
+    // The only recorded response is the untouched disabled default.
+    if (!toggle || !choose(root.querySelector('select.config-select'), provider)) return false;
     if (enabled) toggle.click();
     return true;
 }
@@ -75,6 +79,8 @@ export const setups = {
     'instance-remove': [instanceButton('.btn-danger')],
     'instance-discover': [root => press(root.querySelector('.gap-16 > .card:first-child')?.querySelector('.btn-ghost'))],
     'caddyfile-history': [openHistory],
+    // A version is compared with its predecessor until another is chosen
+    'caddyfile-current': [openHistory, root => choose(root.querySelector('.history-compare-select select'), 'current')],
     'caddyfile-list': [openHistory, openVersionList],
     'caddyfile-diff': [openHistory, openVersionList, oldestVersion],
     'caddyfile-raw': [openHistory, click('.history-range-picker button:last-child')],
