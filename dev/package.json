@@ -31,7 +31,7 @@
         "react-i18next": "^18.0.1",
         "react-router-dom": "^7.18.5",
         "vite": "^8.3.8",
-        "vitest": "^5.1.0",
+        "vitest": "^5.1.1",
         "yaml": "2.9.1"
     }
 }
