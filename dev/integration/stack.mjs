@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
-import { backendEnvironment, checkDocker, Harness, IMAGE } from '../dev-caddy/harness.mjs';
+import { checkDocker, Harness, IMAGE, isolatedBackendEnvironment } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from './lifecycle.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -134,26 +134,44 @@ export function waitForBackendPort(backend, { signal, timeoutMs = 15000 } = {}) 
     });
 }
 
-export async function startBackend(scope, { env, backendEntry = 'src/backend/src/index.js' }) {
+// A backend process whose port is reported over IPC, and its recent output.
+export function spawnBackend({ env, backendEntry = 'src/backend/src/index.js' }) {
     let output = '';
-    const backend = await scope.acquire(() => spawn(process.execPath, [resolve(root, backendEntry)],
-        { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] }), stopProcess);
+    const backend = spawn(process.execPath, [resolve(root, backendEntry)], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
     for (const stream of [backend.stdout, backend.stderr]) stream.on('data', chunk => { output = (output + chunk).slice(-64000); });
+    return { backend, output: () => output };
+}
+
+export async function startBackend(scope, options) {
+    const { backend, output } = await scope.acquire(() => spawnBackend(options), ({ backend }) => stopProcess(backend));
     try {
         const port = await waitForBackendPort(backend, { signal: scope.signal });
-        return { backend, url: `http://127.0.0.1:${port}`, output: () => output };
+        return { backend, url: `http://127.0.0.1:${port}`, output };
     } catch (cause) {
         scope.signal.throwIfAborted();
-        throw new Error(`${cause?.message ?? String(cause)}\n${output}`, { cause });
+        throw new Error(`${cause?.message ?? String(cause)}\n${output()}`, { cause });
     }
 }
 
-async function stopProcess(child) {
+export async function stopProcess(child) {
     if (!child || child.exitCode !== null || child.signalCode !== null) return;
     const exited = once(child, 'exit');
     child.kill('SIGTERM');
     const force = setTimeout(() => child.kill('SIGKILL'), 3000);
     try { await exited; } finally { clearTimeout(force); }
+}
+
+// A Docker namespace nothing else uses, emptied when the scope closes.
+export async function acquireHarness(scope, project = randomBytes(8).toString('hex')) {
+    const harness = new Harness(project);
+    await scope.run(() => checkDocker());
+    // Docker's container-name claim is atomic across processes and clients.
+    // Retain this stopped, unmounted container until every cleanup completes.
+    await scope.acquire(() => claimNamespace(harness), id => harness.run(['rm', id]));
+    const [containers, volumes] = await scope.run(() => Promise.all([harness.names(), harness.names('volume')]));
+    if (containers.length || volumes.length) throw new Error('Integration tests require a fresh, empty Docker namespace');
+    scope.defer(() => harness.removeAll({ confirmed: true, purge: true }));
+    return harness;
 }
 
 // Each suite owns fresh resources and a temporary registry. It never uses .dev-caddy.
@@ -165,47 +183,29 @@ export function useTestStack(t, options = {}) {
 }
 
 // Browser fixtures pass their owner here so all services share one cleanup order.
-export async function createTestStack(scope, { project = randomBytes(8).toString('hex'), backendEntry = 'src/backend/src/index.js', additionalLanguages = 'de' } = {}) {
+export async function createTestStack(scope, { project, backendEntry, additionalLanguages = 'de' } = {}) {
     const instances = new Map();
     let output = () => '';
     const close = () => scope.close();
 
     try {
-        const harness = new Harness(project);
-        await scope.run(() => checkDocker());
-        // Docker's container-name claim is atomic across processes and clients.
-        // Retain this stopped, unmounted container until every cleanup completes.
-        await scope.acquire(() => claimNamespace(harness), id => harness.run(['rm', id]));
-        const [containers, volumes] = await scope.run(() => Promise.all([harness.names(), harness.names('volume')]));
-        if (containers.length || volumes.length) throw new Error('Integration tests require a fresh, empty Docker namespace');
+        const harness = await acquireHarness(scope, project);
         const directory = await scope.acquire(() => mkdtemp(join(tmpdir(), 'caddy-ui-integration-')),
             directory => rm(directory, { recursive: true, force: true }));
-        scope.defer(() => harness.removeAll({ confirmed: true, purge: true }));
         const first = await scope.run(() => harness.create('alpha'));
         instances.set('alpha', first);
         await waitForHttp(first.httpUrl + '/health', { signal: scope.signal });
         await waitForHttp(first.instance.adminUrl + '/config/', { signal: scope.signal });
-        const version = VERSION + '-' + project;
-        const env = { ...backendEnvironment(directory, first.instance), PORT: '0', APP_VERSION: version, LOG_LEVEL: 'info',
-            CADDY_UI_ADDITIONAL_LANGUAGES: additionalLanguages };
-        for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
+        const env = isolatedBackendEnvironment(directory, first.instance, {
+            APP_VERSION: VERSION + '-' + harness.project, LOG_LEVEL: 'info', CADDY_UI_ADDITIONAL_LANGUAGES: additionalLanguages,
+        });
         await scope.run(async () => {
             await mkdir(join(directory, 'backend'), { recursive: true });
             await writeFile(env.INSTANCES_PATH, JSON.stringify([{ id: 'default', ...first.instance }]));
             await writeFile(env.SETTINGS_PATH, JSON.stringify({ firstTimeRun: false, theme: 'dark', language: 'en', routeChecks: false }));
         });
-        const started = await startBackend(scope, { env, backendEntry });
-        const { backend, url } = started;
-        output = started.output;
-        const startup = new AbortController();
-        backend.on('error', error => startup.abort(error));
-        // close follows stdout/stderr draining, so startup diagnostics are complete.
-        backend.once('close', (code, signal) => startup.abort(new Error(`Backend exited (${code ?? signal}) before readiness`)));
-        const readySignal = AbortSignal.any([scope.signal, startup.signal]);
-        await waitForHttp(url + '/api/version', {
-            accept: async response => response.ok && (await response.json()).version === version,
-            signal: readySignal,
-        });
+        const { backend, url, output: log } = await startBackend(scope, { env, ...(backendEntry ? { backendEntry } : {}) });
+        output = log;
         let requestContext;
         let cookie = '';
         async function csrfContext() {

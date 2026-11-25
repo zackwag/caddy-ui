@@ -174,6 +174,11 @@ export class Harness {
         return names;
     }
 
+    // Replaces an instance's Caddyfile in place, as an external editor would.
+    writeConfig(name, content) {
+        return this.run(['exec', this.resource(name), 'sh', '-c', 'printf "%s" "$1" > /data/dev-caddy/Caddyfile', 'sh', content]);
+    }
+
     async stop(name) {
         const detail = await this.inspect('container', this.resource(name));
         if (detail?.State.Running) await this.run(['stop', detail.Id]);
@@ -194,16 +199,31 @@ export class Harness {
     }
 }
 
-export function backendEnvironment(directory, instance) {
-    const env = { ...process.env, NODE_ENV: 'development', PORT: '3001', APP_VERSION: 'dev-caddy',
-        CADDY_UI_UPDATE_CHECK: 'false', CADDY_UI_TRUSTED_PROXIES: '',
-        CADDY_ADMIN_URL: instance.adminUrl, CADDY_CONTAINER_NAME: instance.containerName,
-        CADDY_CONFIG_PATH: instance.configPath, CADDY_LOG_PATH: instance.logPath, CADDY_DATA_PATH: instance.dataPath };
-    for (const [key, file] of Object.entries({ AUTH_PATH: 'auth.json', INSTANCES_PATH: 'instances.json', SETTINGS_PATH: 'settings.json',
+// What a development backend gets instead of production values: its own state
+// files under `directory`, one instance and no calls home.
+function ownedEnvironment(directory, instance) {
+    const state = { AUTH_PATH: 'auth.json', INSTANCES_PATH: 'instances.json', SETTINGS_PATH: 'settings.json',
         SERVER_NAMES_PATH: 'server-names.json', UPTIME_HISTORY_PATH: 'uptime-history.json',
         NOTIFICATIONS_CONFIG_PATH: 'notifications.json', ROUTE_NOTES_PATH: 'route-notes.json',
-        HISTORY_PATH: 'history', AUDIT_LOG_PATH: 'audit-log.json', MAINTENANCE_PATH: 'maintenance.json', WWW_PATH: 'www', THEMES_PATH: 'themes' })) {
-        env[key] = resolve(directory, 'backend', file);
-    }
-    return env;
+        HISTORY_PATH: 'history', AUDIT_LOG_PATH: 'audit-log.json', MAINTENANCE_PATH: 'maintenance.json', WWW_PATH: 'www', THEMES_PATH: 'themes' };
+    return {
+        NODE_ENV: 'development', CADDY_UI_UPDATE_CHECK: 'false', CADDY_UI_TRUSTED_PROXIES: '',
+        CADDY_ADMIN_URL: instance.adminUrl, CADDY_CONTAINER_NAME: instance.containerName,
+        CADDY_CONFIG_PATH: instance.configPath, CADDY_LOG_PATH: instance.logPath, CADDY_DATA_PATH: instance.dataPath,
+        ...Object.fromEntries(Object.entries(state).map(([key, file]) => [key, resolve(directory, 'backend', file)])),
+    };
+}
+
+// For running the app by hand: settings from the developer's shell still apply.
+export function backendEnvironment(directory, instance) {
+    return { ...process.env, PORT: '3001', APP_VERSION: 'dev-caddy', ...ownedEnvironment(directory, instance) };
+}
+
+const APP_SETTING = /^(CADDY|UPTIME_HISTORY_|MAX_HISTORY)|^(JWT_SECRET|LOG_LEVEL|APP_VERSION|PORT)$/;
+
+// For tests and captures: whatever the shell sets for the app is left out, so a
+// run depends only on its own overrides. Listens on a port the OS picks.
+export function isolatedBackendEnvironment(directory, instance = {}, overrides = {}) {
+    const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !APP_SETTING.test(key)));
+    return { ...inherited, PORT: '0', APP_VERSION: 'dev-caddy', ...ownedEnvironment(directory, instance), ...overrides };
 }

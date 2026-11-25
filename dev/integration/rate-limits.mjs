@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { backendEnvironment } from '../dev-caddy/harness.mjs';
+import { isolatedBackendEnvironment } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from './lifecycle.mjs';
 import { startBackend } from './stack.mjs';
 import { createAuthStore } from '../../src/backend/src/authStore.js';
@@ -28,8 +28,7 @@ async function backend(t, trustedProxies = '') {
     t.after(() => scope.close());
     const directory = await mkdtemp(join(tmpdir(), 'caddy-login-limit-'));
     scope.defer(() => rm(directory, { recursive: true, force: true }));
-    const env = { ...backendEnvironment(directory, {}), PORT: '0', LOG_LEVEL: 'error', CADDY_UI_TRUSTED_PROXIES: trustedProxies };
-    for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET', 'CADDY_UI_EXTERNAL_URL', 'CADDY_UI_PUBLIC_METRICS']) delete env[key];
+    const env = isolatedBackendEnvironment(directory, {}, { LOG_LEVEL: 'error', CADDY_UI_TRUSTED_PROXIES: trustedProxies });
     await mkdir(join(directory, 'backend'));
     await writeFile(env.INSTANCES_PATH, '[]');
     const credentials = { username: 'administrator', password: randomBytes(24).toString('base64url') };
