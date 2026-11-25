@@ -1,6 +1,7 @@
 import { AppError } from './AppError.js';
-import { createSerialQueue, readJsonFile, writeJsonFile } from './jsonFile.js';
+import { readJsonFile, writeJsonFile } from './jsonFile.js';
 import logger from './logger.js';
+import { createSerialQueue } from './serialQueue.js';
 
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
 const STATE_VERSION = 2;

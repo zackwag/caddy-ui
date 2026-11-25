@@ -1,5 +1,5 @@
-import { caddyfileEntries } from './caddyfileBlocks.js';
-import { getCaddyEnv, resolveEnvVars } from './docker.js';
+import { caddyfileEntries, siteDomain } from './caddyfileBlocks.js';
+import { getCaddyEnv } from './docker.js';
 import logger from './logger.js';
 import { hasStoredNotes } from './routeNotes.js';
 
@@ -71,10 +71,10 @@ export async function parseCaddyfileTitles(caddyfileContent, containerName) {
     const titles = {};
 
     for (const entry of caddyfileEntries(caddyfileContent)) {
-        if (!entry.block || !entry.name || entry.args.length) continue;
-        const domain = resolveEnvVars(entry.name, env).replace(/^https?:\/\//, '');
+        const domain = siteDomain(entry, env);
+        if (domain === null) continue;
         // The title is the first comment before the block's first directive.
-        // Skip the remainder of the opening `{` line, as the header did before.
+        // Skip the remainder of the opening `{` line.
         for (const line of entry.block.inner.split('\n').slice(1)) {
             const trimmed = line.trim();
             if (trimmed.startsWith('#')) {

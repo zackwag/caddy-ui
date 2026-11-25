@@ -1,6 +1,6 @@
 import express from 'express';
-import { once } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 
 const { execInInstance, validateCaddyfile, saveCaddyfileChange, state } = vi.hoisted(() => ({
     execInInstance: vi.fn(), validateCaddyfile: vi.fn(), saveCaddyfileChange: vi.fn(),
@@ -8,12 +8,11 @@ const { execInInstance, validateCaddyfile, saveCaddyfileChange, state } = vi.hoi
 }));
 vi.mock('../src/docker.js', async original => ({ ...await original(), execInInstance }));
 vi.mock('../src/containerFs.js', () => ({ readContainerFile: vi.fn(async () => state.original) }));
-vi.mock('../src/routes/caddyfile.js', () => ({ changeResultFields: () => ({}), validateCaddyfile, saveCaddyfileChange }));
-vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getActor: () => null }) }));
+vi.mock('../src/caddyfileChange.js', () => ({ changeResultFields: () => ({}), saveCaddyfileChange }));
+vi.mock('../src/caddyfileRuntime.js', () => ({ validateCaddyfile }));
 import logsRouter from '../src/routes/logs.js';
 import { readContainerFile } from '../src/containerFs.js';
-import { diagnosticMiddleware } from '../src/errorReporting.js';
-const { validateCaddyfile: validateViaAdminApi } = await vi.importActual('../src/routes/caddyfile.js');
+const { validateCaddyfile: validateViaAdminApi } = await vi.importActual('../src/caddyfileRuntime.js');
 
 const site = '# Keep the site formatting\nexample.com {\n       respond "unchanged"   # keep spacing\n}\n';
 
@@ -33,26 +32,22 @@ describe('logging configuration preparation', () => {
             state.applied = candidate;
             return { applied: true };
         });
-        const app = express();
-        app.use(express.json());
-        app.use(diagnosticMiddleware);
-        app.post('/adapt', express.text({ type: 'text/caddyfile' }), (req, res) => {
-            expect(state.applied).toBeNull();
-            state.adapted = req.body;
-            res.json({});
+        server = await serve(app => {
+            app.post('/adapt', express.text({ type: 'text/caddyfile' }), (req, res) => {
+                expect(state.applied).toBeNull();
+                state.adapted = req.body;
+                res.json({});
+            });
+            app.use('/api/logs', (req, _res, next) => {
+                req.instance = { id: 'default', containerName: state.containerName, configPath: '/etc/caddy/Caddyfile',
+                    adminUrl: server.url };
+                next();
+            }, logsRouter);
         });
-        app.use('/api/logs', (req, _res, next) => {
-            req.instance = { id: 'default', containerName: state.containerName, configPath: '/etc/caddy/Caddyfile',
-                adminUrl: `http://127.0.0.1:${server.address().port}` };
-            next();
-        }, logsRouter);
-        server = app.listen(0, '127.0.0.1');
-        await once(server, 'listening');
-        url = `http://127.0.0.1:${server.address().port}/api/logs/config`;
+        url = server.url + '/api/logs/config';
     });
     afterEach(async () => {
-        server.closeAllConnections();
-        await new Promise(resolve => server.close(resolve));
+        await server.close();
     });
     const settings = { enabled: true, path: '/tmp/test.log', rollSize: '50mb', rollKeep: 5, format: 'json', level: 'INFO' };
     async function configure(config = settings) {

@@ -1,4 +1,5 @@
 import { createConnection } from 'net';
+import { caddyUpstreamPool } from './caddy.js';
 
 const TCP_TIMEOUT_MS = 3000;
 
@@ -24,10 +25,6 @@ export function extractUpstreamTargets(route) {
     }
     walk(route.handle);
     return results;
-}
-
-export function extractUpstreams(route) {
-    return extractUpstreamTargets(route).map(t => t.dial);
 }
 
 // An upstream is online when caddy-ui can dial it and, if passive health
@@ -88,15 +85,8 @@ export async function checkInstanceUpstreams(adminUrl, servers) {
     const caddyPool = {};
     if (checks.some(c => c.passive)) {
         try {
-            const poolRes = await fetch(`${adminUrl}/reverse_proxy/upstreams`, {
-                headers: { 'Origin': 'http://0.0.0.0:2019' },
-                signal: AbortSignal.timeout(3000),
-            });
-            if (poolRes.ok) {
-                const pool = await poolRes.json();
-                for (const entry of pool) {
-                    if (entry.address) caddyPool[entry.address] = entry;
-                }
+            for (const entry of await caddyUpstreamPool(adminUrl)) {
+                if (entry.address) caddyPool[entry.address] = entry;
             }
         } catch { }
     }

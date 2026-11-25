@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseSiteBlocks, planLegacyHistoryMigration, sortCaddyfile } from '../src/routes/caddyfile.js';
+import { parseSiteBlocks, sortCaddyfile } from '../src/caddyfileSort.js';
+import { planLegacyHistoryMigration } from '../src/configurationHistory.js';
 
 describe('parseSiteBlocks', () => {
     it('parses a single site block', () => {

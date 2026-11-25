@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { caddyReadJson } from './caddy.js';
 import { readContainerFile } from './containerFs.js';
+import { changedPaths } from './jsonDiff.js';
 import logger from './logger.js';
 
 // Readback after a configuration change. Each representation is checked
@@ -15,35 +16,15 @@ import logger from './logger.js';
 // A failed check is reported, never retried or repaired: the difference may be
 // someone else's change.
 export const VERIFIED = 'verified';
-export const MISMATCH = 'mismatch';
-export const UNAVAILABLE = 'unavailable';
+const MISMATCH = 'mismatch';
+const UNAVAILABLE = 'unavailable';
 export const NOT_APPLIED = 'not-applied';
 export const UNCHANGED = 'unchanged';
-export const UNCERTAIN = 'uncertain';
+const UNCERTAIN = 'uncertain';
 
 // Names a failure without its message, which can quote configuration.
 function describeError(error) {
     return [error?.name, error?.code, error?.status].filter(value => value !== undefined && value !== null).join(' ') || 'Error';
-}
-
-// The JSON path of the first difference, for logs. Keys and indexes only,
-// never values.
-export function firstDifference(actual, expected, path = '') {
-    if (isDeepStrictEqual(actual, expected)) {
-        return null;
-    }
-    const container = value => value !== null && typeof value === 'object';
-    if (!container(actual) || !container(expected) || Array.isArray(actual) !== Array.isArray(expected)) {
-        return path || '(root)';
-    }
-    const keys = new Set([...Object.keys(actual), ...Object.keys(expected)]);
-    for (const key of keys) {
-        const child = Array.isArray(actual) ? `${path}[${key}]` : `${path}${path ? '.' : ''}${key}`;
-        if (!isDeepStrictEqual(actual[key], expected[key])) {
-            return firstDifference(actual[key], expected[key], child);
-        }
-    }
-    return path || '(root)';
 }
 
 async function check(representation, context, read) {
@@ -53,7 +34,7 @@ async function check(representation, context, read) {
             return VERIFIED;
         }
         logger.warn('Configuration readback differs from the change', { ...context, representation,
-            difference: typeof expected === 'string' ? null : firstDifference(actual, expected) });
+            difference: typeof expected === 'string' ? null : changedPaths(expected, actual)[0] });
         return MISMATCH;
     } catch (error) {
         logger.warn('Configuration readback unavailable', { ...context, representation, error: describeError(error) });

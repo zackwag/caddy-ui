@@ -10,21 +10,8 @@ const router = Router();
 // history is sampled only by the monitor at a fixed cadence, so how often
 // browsers poll this can't skew the uptime percentages.
 router.get('/', async (req, res) => {
-    const { adminUrl } = req.instance;
-    try {
-        const observed = await getUpstreamChecks(adminUrl);
-        const checks = observed.checks;
-        const checkedAt = observed.checkedAt.toISOString();
-        res.json(checks.map((check) => ({
-            domain: check.domain,
-            upstream: check.upstream,
-            server: check.server,
-            online: check.online,
-            checkedAt,
-        })));
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    const { checks, checkedAt } = await getUpstreamChecks(req.instance.adminUrl);
+    res.json(checks.map(({ domain, upstream, server, online }) => ({ domain, upstream, server, online, checkedAt: checkedAt.toISOString() })));
 });
 
 // GET /api/health/uptime[?kind=route] -- uptime stats per upstream, or per

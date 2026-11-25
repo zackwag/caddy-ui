@@ -1,11 +1,10 @@
-import express from 'express';
-import { EventEmitter, once } from 'node:events';
+import { EventEmitter } from 'node:events';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 
 const { execInInstance, spawnInInstance } = vi.hoisted(() => ({ execInInstance: vi.fn(), spawnInInstance: vi.fn() }));
 vi.mock('../src/docker.js', async original => ({ ...await original(), execInInstance, spawnInInstance }));
 import logsRouter from '../src/routes/logs.js';
-import { diagnosticMiddleware } from '../src/errorReporting.js';
 import logger from '../src/logger.js';
 import { logReadError } from '../src/logReadError.js';
 
@@ -28,16 +27,13 @@ const failures = [
 let server;
 let url;
 beforeAll(async () => {
-    const app = express();
-    app.use(diagnosticMiddleware);
-    app.use('/api/logs', (req, _res, next) => { req.instance = instance; next(); }, logsRouter);
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    url = `http://127.0.0.1:${server.address().port}/api/logs`;
+    server = await serve(app => {
+        app.use('/api/logs', (req, _res, next) => { req.instance = instance; next(); }, logsRouter);
+    });
+    url = server.url + '/api/logs';
 });
 afterAll(async () => {
-    server.closeAllConnections();
-    await new Promise(resolve => server.close(resolve));
+    await server.close();
 });
 beforeEach(() => {
     execInInstance.mockReset();

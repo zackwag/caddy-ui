@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildLogBlock, parseLogConfig, updateGlobalBlock } from '../src/routes/logs.js';
+import { parseLogConfig, updateLogConfig } from '../src/caddyfileLogging.js';
 
 describe('parseLogConfig', () => {
     it('returns defaults when no global block exists', () => {
@@ -79,35 +79,12 @@ app.example.com {
     });
 });
 
-describe('buildLogBlock', () => {
-    it('returns null when logging is disabled', () => {
-        expect(buildLogBlock({ enabled: false })).toBeNull();
-    });
-
-    it('builds a complete log block', () => {
-        const block = buildLogBlock({
-            enabled: true,
-            path: '/var/log/caddy/access.log',
-            rollSize: '50mb',
-            rollKeep: 5,
-            format: 'json',
-            level: 'INFO',
-        });
-        expect(block).toContain('log {');
-        expect(block).toContain('output file /var/log/caddy/access.log');
-        expect(block).toContain('roll_size 50mb');
-        expect(block).toContain('roll_keep 5');
-        expect(block).toContain('format json');
-        expect(block).toContain('level INFO');
-    });
-});
-
 describe('updateGlobalBlock', () => {
     it('creates a global block when none exists and logging is enabled', () => {
         const content = `app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = updateGlobalBlock(content, {
+        const result = updateLogConfig(content, {
             enabled: true,
             path: '/var/log/caddy/access.log',
             rollSize: '50mb',
@@ -124,7 +101,7 @@ describe('updateGlobalBlock', () => {
         const content = `app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = updateGlobalBlock(content, { enabled: false });
+        const result = updateLogConfig(content, { enabled: false });
         expect(result).toBe(content);
     });
 
@@ -136,7 +113,7 @@ describe('updateGlobalBlock', () => {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = updateGlobalBlock(content, {
+        const result = updateLogConfig(content, {
             enabled: true,
             path: '/tmp/caddy.log',
             rollSize: '25mb',
@@ -157,7 +134,7 @@ app.example.com {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = updateGlobalBlock(content, {
+        const result = updateLogConfig(content, {
             enabled: true,
             path: '/tmp/new.log',
             rollSize: '10mb',
@@ -186,7 +163,7 @@ app.example.com {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = updateGlobalBlock(content, {
+        const result = updateLogConfig(content, {
             enabled: true,
             path: '/var/log/caddy/new.log',
             rollSize: '100mb',
@@ -210,7 +187,7 @@ app.example.com {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = updateGlobalBlock(content, {
+        const result = updateLogConfig(content, {
             enabled: true,
             path: '/var/log/caddy/access.log',
             rollSize: '50mb',
@@ -242,7 +219,7 @@ app.example.com {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = updateGlobalBlock(content, {
+        const result = updateLogConfig(content, {
             enabled: true,
             path: '/var/log/caddy/new.log',
             rollSize: '100mb',
@@ -278,7 +255,7 @@ app.example.com {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = updateGlobalBlock(content, { enabled: false });
+        const result = updateLogConfig(content, { enabled: false });
         expect(result).toContain('acme_dns cloudflare {');
         expect(result).toContain('on_demand_tls {');
         expect(result).toContain('email admin@example.com');
@@ -342,18 +319,18 @@ app.example.com {
     };
 
     it('produces balanced braces when adding log to nested globals', () => {
-        const result = updateGlobalBlock(NESTED_CADDYFILE, LOG_CONFIG);
+        const result = updateLogConfig(NESTED_CADDYFILE, LOG_CONFIG);
         assertBalancedBraces(result);
     });
 
     it('produces balanced braces when removing log from nested globals', () => {
-        const withLog = updateGlobalBlock(NESTED_CADDYFILE, LOG_CONFIG);
-        const result = updateGlobalBlock(withLog, { enabled: false });
+        const withLog = updateLogConfig(NESTED_CADDYFILE, LOG_CONFIG);
+        const result = updateLogConfig(withLog, { enabled: false });
         assertBalancedBraces(result);
     });
 
     it('round-trips: parseLogConfig reads back what updateGlobalBlock wrote', () => {
-        const result = updateGlobalBlock(NESTED_CADDYFILE, LOG_CONFIG);
+        const result = updateLogConfig(NESTED_CADDYFILE, LOG_CONFIG);
         const parsed = parseLogConfig(result);
         expect(parsed.enabled).toBe(true);
         expect(parsed.path).toBe(LOG_CONFIG.path);
@@ -366,11 +343,11 @@ app.example.com {
     it('round-trips through multiple enable/disable cycles', () => {
         let content = NESTED_CADDYFILE;
         for (let i = 0; i < 3; i++) {
-            content = updateGlobalBlock(content, LOG_CONFIG);
+            content = updateLogConfig(content, LOG_CONFIG);
             assertBalancedBraces(content);
             expect(parseLogConfig(content).enabled).toBe(true);
 
-            content = updateGlobalBlock(content, { enabled: false });
+            content = updateLogConfig(content, { enabled: false });
             assertBalancedBraces(content);
             expect(parseLogConfig(content).enabled).toBe(false);
         }
@@ -379,12 +356,12 @@ app.example.com {
 
     it('removes the default logger line without leaving a blank line', () => {
         const original = '{\r\n\tadmin off\r\n\tlog {\r\n\t\toutput stderr\r\n\t}  \r\n}\r\n';
-        expect(updateGlobalBlock(original, { enabled: false })).toBe('{\r\n\tadmin off\r\n}\r\n');
+        expect(updateLogConfig(original, { enabled: false })).toBe('{\r\n\tadmin off\r\n}\r\n');
     });
 
     it('replaces a CRLF default logger in place', () => {
         const original = '{\r\n\tadmin off\r\n\tlog {\r\n\t\toutput stderr\r\n\t}\r\n}\r\n';
-        const updated = updateGlobalBlock(original, LOG_CONFIG);
+        const updated = updateLogConfig(original, LOG_CONFIG);
         expect(updated.startsWith('{\r\n\tadmin off\r\n\tlog {\r\n')).toBe(true);
         expect(updated.endsWith('\t}\r\n}\r\n')).toBe(true);
         expect(parseLogConfig(updated)).toEqual({ ...LOG_CONFIG, enabled: true });
@@ -392,11 +369,11 @@ app.example.com {
 
     it('keeps a trailing comment when removing the default logger', () => {
         const original = '{\n\tadmin off\n\tlog {\n\t\toutput stderr\n\t} # keep this comment\n}\n';
-        expect(updateGlobalBlock(original, { enabled: false })).toBe('{\n\tadmin off\n # keep this comment\n}\n');
+        expect(updateLogConfig(original, { enabled: false })).toBe('{\n\tadmin off\n # keep this comment\n}\n');
     });
 
     it('log directive stays at global depth, not inside acme_dns', () => {
-        const result = updateGlobalBlock(NESTED_CADDYFILE, LOG_CONFIG);
+        const result = updateLogConfig(NESTED_CADDYFILE, LOG_CONFIG);
         const lines = result.split('\n');
         const logLine = lines.find(l => /^\s*log\s*\{/.test(l));
         const acmeLine = lines.find(l => /^\s*acme_dns/.test(l));
@@ -417,17 +394,17 @@ describe('logging edits preserve unrelated Caddyfile content', () => {
         const prefix = '{ # options' + eol + unit + 'admin off' + eol;
         const suffix = '}' + site.replaceAll('\n', eol);
         const original = prefix + suffix;
-        const updated = updateGlobalBlock(original, settings);
+        const updated = updateLogConfig(original, settings);
         expect(updated.startsWith(prefix + unit + 'log {' + eol + unit.repeat(2) + 'output file')).toBe(true);
         expect(updated.endsWith(suffix)).toBe(true);
         expect(parseLogConfig(updated)).toEqual(settings);
         if (eol === '\r\n') expect(updated.replaceAll('\r\n', '')).not.toContain('\n');
-        expect(updateGlobalBlock(updated, { enabled: false })).toBe(original);
+        expect(updateLogConfig(updated, { enabled: false })).toBe(original);
     });
 
     it('preserves an existing logger indentation even when its siblings use another width', () => {
         const original = '{\n  admin off\n    log {\n        output stderr\n    }\n}' + site;
-        const updated = updateGlobalBlock(original, settings);
+        const updated = updateLogConfig(original, settings);
         expect(updated).toContain('\n    log {\n        output file /tmp/new.log {\n            roll_size 25mb\n');
         expect(updated.startsWith('{\n  admin off\n')).toBe(true);
         expect(updated.endsWith('}' + site)).toBe(true);
@@ -435,7 +412,7 @@ describe('logging edits preserve unrelated Caddyfile content', () => {
 
     it('infers a new global block style from a site and retains the leading BOM', () => {
         const original = '\ufeff:8080 {\r\n  respond "unchanged"\r\n}\r\n';
-        const updated = updateGlobalBlock(original, settings);
+        const updated = updateLogConfig(original, settings);
         expect(updated.startsWith('\ufeff{\r\n  log {\r\n    output file')).toBe(true);
         expect(updated.endsWith(original.slice(1))).toBe(true);
     });
@@ -444,12 +421,12 @@ describe('logging edits preserve unrelated Caddyfile content', () => {
         const audit = '\tlog audit {\n\t\toutput stderr\n\t}\n';
         const original = '{\n' + audit + '\t' + directive + ' # keep comment\n}' + site;
         expect(parseLogConfig(original).enabled).toBe(true);
-        const updated = updateGlobalBlock(original, settings);
+        const updated = updateLogConfig(original, settings);
         expect(parseLogConfig(updated)).toEqual(settings);
         expect(updated).toContain(audit);
         expect(updated).not.toContain('log default');
         expect(updated).toContain('} # keep comment');
-        expect(updateGlobalBlock(original, { enabled: false })).toBe('{\n' + audit + ' # keep comment\n}' + site);
+        expect(updateLogConfig(original, { enabled: false })).toBe('{\n' + audit + ' # keep comment\n}' + site);
     });
 
     it('rejects a duplicate default logger even when one has no block', () => {
@@ -460,14 +437,14 @@ describe('logging edits preserve unrelated Caddyfile content', () => {
         const prefix = '# Keep this header and its brace: {\n';
         const existing = '    storage file_system {\n        root "/tmp/caddy{state"\n    }\n    # Example: log {\n';
         const original = prefix + '{ # options\n' + existing + '}' + site;
-        const updated = updateGlobalBlock(original, settings);
+        const updated = updateLogConfig(original, settings);
         expect(updated.startsWith(prefix + '{ # options\n' + existing)).toBe(true);
         expect(updated.endsWith('}' + site)).toBe(true);
         expect(parseLogConfig(updated)).toEqual(settings);
     });
 
     it('does not mistake heredoc contents for a global block', () => {
-        const updated = updateGlobalBlock(site, settings);
+        const updated = updateLogConfig(site, settings);
         expect(updated.endsWith(site)).toBe(true);
         expect(parseLogConfig(updated)).toEqual(settings);
     });
@@ -475,12 +452,12 @@ describe('logging edits preserve unrelated Caddyfile content', () => {
     it('replaces only the default logger, preserving named loggers and surrounding comments', () => {
         const audit = '    log audit {\n        output file /tmp/audit.log\n        format json\n    }\n';
         const original = '{\n' + audit + '    log default {\n        output stderr\n    } # keep this comment\n}' + site;
-        const updated = updateGlobalBlock(original, settings);
+        const updated = updateLogConfig(original, settings);
         expect(updated).toContain(audit);
         expect(updated).toContain('} # keep this comment');
         expect(updated.endsWith(site)).toBe(true);
         expect(parseLogConfig(updated)).toEqual(settings);
-        const disabled = updateGlobalBlock(updated, { enabled: false });
+        const disabled = updateLogConfig(updated, { enabled: false });
         expect(disabled).toContain(audit);
         expect(parseLogConfig(disabled).enabled).toBe(false);
     });
@@ -489,11 +466,11 @@ describe('logging edits preserve unrelated Caddyfile content', () => {
         const source = '{\nlog {\n# format console\noutput file `/tmp/path with spaces{}/events.log` {\n# roll_size 999mb\nroll_size 10mb\nroll_keep 2\n}\nformat json\nlevel INFO\n}\n}';
         const parsed = parseLogConfig(source);
         expect(parsed).toEqual({ enabled: true, path: '/tmp/path with spaces{}/events.log', rollSize: '10mb', rollKeep: 2, format: 'json', level: 'INFO' });
-        expect(parseLogConfig(updateGlobalBlock(source, parsed))).toEqual(parsed);
+        expect(parseLogConfig(updateLogConfig(source, parsed))).toEqual(parsed);
     });
 
     it('does not rewrite anything when the default logger is already absent and disabled', () => {
         const original = '# Keep whitespace\n{ # options\n\tadmin off\n}\n' + site;
-        expect(updateGlobalBlock(original, { enabled: false })).toBe(original);
+        expect(updateLogConfig(original, { enabled: false })).toBe(original);
     });
 });

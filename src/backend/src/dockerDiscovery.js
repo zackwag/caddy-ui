@@ -1,4 +1,5 @@
 import { request } from 'http';
+import { INSTANCE_DEFAULTS } from './instances.js';
 import logger from './logger.js';
 
 const DOCKER_SOCKET = process.env.DOCKER_SOCKET || '/var/run/docker.sock';
@@ -24,11 +25,8 @@ function dockerGet(path) {
 }
 
 // Caddy's admin API always binds to 2019 unless the Caddyfile's global
-// `admin` directive overrides it, which isn't visible from container
-// metadata -- so this is a fixed value, not a detected one.
-function extractAdminPort() {
-    return 2019;
-}
+// `admin` directive overrides it, which isn't visible from container metadata.
+const ADMIN_PORT = 2019;
 
 function extractEnvVar(container, name) {
     const env = container.Config?.Env || [];
@@ -110,18 +108,17 @@ export async function discoverCaddyContainers() {
         }
 
         const ip = findContainerIP(detail, [...backendNetworks]);
-        const port = extractAdminPort();
-        const adminUrl = ip ? `http://${ip}:${port}` : `http://${name}:${port}`;
+        const adminUrl = `http://${ip || name}:${ADMIN_PORT}`;
 
         return {
             containerId: c.Id?.slice(0, 12),
             containerName: name,
             image: c.Image || '',
             adminUrl,
-            configPath: extractEnvVar(detail, 'CADDY_CONFIG_PATH') || '/etc/caddy/Caddyfile',
-            logPath: extractEnvVar(detail, 'CADDY_LOG_PATH') || '/var/log/caddy/access.log',
-            dataPath: '/data/caddy',
-            serverName: extractEnvVar(detail, 'CADDY_SERVER_NAME') || 'srv0',
+            configPath: extractEnvVar(detail, 'CADDY_CONFIG_PATH') || INSTANCE_DEFAULTS.configPath,
+            logPath: extractEnvVar(detail, 'CADDY_LOG_PATH') || INSTANCE_DEFAULTS.logPath,
+            dataPath: INSTANCE_DEFAULTS.dataPath,
+            serverName: extractEnvVar(detail, 'CADDY_SERVER_NAME') || INSTANCE_DEFAULTS.serverName,
         };
     }));
 

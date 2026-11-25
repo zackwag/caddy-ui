@@ -1,12 +1,37 @@
 import { AppError } from './AppError.js';
 import { createJsonStore } from './jsonFile.js';
 import logger from './logger.js';
+import { sanitizeName, validatePath, validateUrl } from './validation.js';
 
 const INSTANCES_PATH = process.env.INSTANCES_PATH || '/etc/caddy-ui/instances.json';
 
 // The bootstrap instance's id when no instances.json exists yet. Requests that
 // omit X-Instance-Id, or send this id, select it or else the first instance.
 export const DEFAULT_INSTANCE_ID = 'default';
+
+// Where a stock Caddy container keeps things, for whatever an instance doesn't say.
+export const INSTANCE_DEFAULTS = Object.freeze({
+    configPath: '/etc/caddy/Caddyfile',
+    logPath: '/var/log/caddy/access.log',
+    dataPath: '/data/caddy',
+    containerName: 'caddy',
+    serverName: 'srv0',
+});
+
+// The instance as request handlers use it. Throws when a path or URL in it
+// isn't allowed, which only a hand-edited instances file can contain.
+export function validatedInstance({ id, name, adminUrl, configPath, logPath, dataPath, containerName, serverName }) {
+    return {
+        id,
+        name,
+        adminUrl: validateUrl(adminUrl),
+        configPath: validatePath(configPath),
+        logPath: validatePath(logPath),
+        dataPath: validatePath(dataPath),
+        containerName: sanitizeName(containerName),
+        serverName: sanitizeName(serverName),
+    };
+}
 
 // Instances saved before validateUrl dropped the trailing slash still have
 // one, and the background monitors use adminUrl without re-validating it.
@@ -20,11 +45,11 @@ function buildDefaultInstance() {
         id: DEFAULT_INSTANCE_ID,
         name: 'Default',
         adminUrl: normalizeAdminUrl(process.env.CADDY_ADMIN_URL),
-        configPath: process.env.CADDY_CONFIG_PATH || '/etc/caddy/Caddyfile',
-        logPath: process.env.CADDY_LOG_PATH || '/var/log/caddy/access.log',
-        dataPath: process.env.CADDY_DATA_PATH || '/data/caddy',
-        containerName: process.env.CADDY_CONTAINER_NAME || 'caddy',
-        serverName: process.env.CADDY_SERVER_NAME || 'srv0',
+        configPath: process.env.CADDY_CONFIG_PATH || INSTANCE_DEFAULTS.configPath,
+        logPath: process.env.CADDY_LOG_PATH || INSTANCE_DEFAULTS.logPath,
+        dataPath: process.env.CADDY_DATA_PATH || INSTANCE_DEFAULTS.dataPath,
+        containerName: process.env.CADDY_CONTAINER_NAME || INSTANCE_DEFAULTS.containerName,
+        serverName: process.env.CADDY_SERVER_NAME || INSTANCE_DEFAULTS.serverName,
     };
 }
 

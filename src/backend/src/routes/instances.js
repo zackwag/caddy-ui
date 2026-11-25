@@ -1,11 +1,9 @@
 import { Router } from 'express';
-import { caddyGet } from '../caddy.js';
+import { caddyGet, isCaddyOnline } from '../caddy.js';
 import { discoverCaddyContainers } from '../dockerDiscovery.js';
-import { recordAudit } from '../auditLog.js';
-import { addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
-import logger from '../logger.js';
+import { audited } from '../auditLog.js';
+import { INSTANCE_DEFAULTS, addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
 import { asAppError } from '../AppError.js';
-import { sendAppError } from '../errorReporting.js';
 import { validatePath, validateUrl } from '../validation.js';
 
 const router = Router();
@@ -46,33 +44,19 @@ router.get('/', (req, res) => {
 
 // GET /api/instances/status -- online/offline for each instance
 router.get('/status', async (req, res) => {
-    const instances = getInstances();
-    const results = await Promise.all(instances.map(async (inst) => {
-        try {
-            const url = validateUrl(inst.adminUrl);
-            const r = await fetch(`${url}/config/`, {
-                headers: { 'Origin': 'http://0.0.0.0:2019' },
-                signal: AbortSignal.timeout(3000),
-            });
-            return { id: inst.id, online: r.ok };
-        } catch {
-            return { id: inst.id, online: false };
-        }
-    }));
-    res.json(results);
+    res.json(await Promise.all(getInstances().map(async ({ id, adminUrl }) => ({ id, online: await isCaddyOnline(adminUrl) }))));
 });
 
 // GET /api/instances/discover -- find Caddy containers via Docker
 router.get('/discover', async (req, res) => {
+    let containers;
     try {
-        const containers = await discoverCaddyContainers();
-        const registered = new Set(getInstances().map(i => i.containerName));
-        const unregistered = containers.filter(c => !registered.has(c.containerName));
-        res.json(unregistered);
+        containers = await discoverCaddyContainers();
     } catch (err) {
-        logger.error('Docker discovery failed', { error: err.message });
-        sendAppError(res, asAppError(err, 'INSTANCE_DISCOVERY_FAILED'));
+        throw asAppError(err, 'INSTANCE_DISCOVERY_FAILED');
     }
+    const registered = new Set(getInstances().map(i => i.containerName));
+    res.json(containers.filter(c => !registered.has(c.containerName)));
 });
 
 // GET /api/instances/servers?adminUrl=... -- live HTTP server IDs, so the
@@ -88,7 +72,7 @@ router.get('/servers', async (req, res) => {
         const servers = await caddyGet('/config/apps/http/servers', adminUrl);
         res.json(serverIdsFromConfig(servers));
     } catch (err) {
-        sendAppError(res, asAppError(err, 'INSTANCE_CONNECTION_FAILED'));
+        throw asAppError(err, 'INSTANCE_CONNECTION_FAILED');
     }
 });
 
@@ -102,30 +86,28 @@ router.post('/', async (req, res) => {
     try {
         fields = validateInstanceFields({
             adminUrl,
-            configPath: configPath || '/etc/caddy/Caddyfile',
-            logPath: logPath || '/var/log/caddy/access.log',
-            dataPath: dataPath || '/data/caddy',
+            configPath: configPath || INSTANCE_DEFAULTS.configPath,
+            logPath: logPath || INSTANCE_DEFAULTS.logPath,
+            dataPath: dataPath || INSTANCE_DEFAULTS.dataPath,
         });
     } catch (err) {
         return res.status(400).json({ error: err.message });
     }
     const existingIds = new Set(getInstances().map(i => i.id));
     const id = generateId(name, existingIds);
+    let instance;
     try {
-        const instance = await addInstance({
+        instance = await audited(req, { action: 'instance.add', instanceId: id, instanceName: name }, () => addInstance({
             id,
             name,
             ...fields,
-            containerName: containerName != null ? containerName : 'caddy',
-            serverName: serverName || 'srv0',
-        });
-        await recordAudit(req, { action: 'instance.add', instanceId: id, instanceName: name });
-        res.status(201).json(instance);
+            containerName: containerName ?? INSTANCE_DEFAULTS.containerName,
+            serverName: serverName || INSTANCE_DEFAULTS.serverName,
+        }));
     } catch (err) {
-        logger.error('Failed to add instance', { error: err.message });
-        await recordAudit(req, { action: 'instance.add', instanceId: id, instanceName: name, outcome: 'failure' });
-        sendAppError(res, asAppError(err, 'INSTANCE_SAVE_FAILED'));
+        throw asAppError(err, 'INSTANCE_SAVE_FAILED');
     }
+    res.status(201).json(instance);
 });
 
 // PUT /api/instances/:id
@@ -141,15 +123,13 @@ router.put('/:id', async (req, res) => {
     } catch (err) {
         return res.status(400).json({ error: err.message });
     }
+    let instance;
     try {
-        const instance = await updateInstance(id, raw);
-        await recordAudit(req, { action: 'instance.edit', instanceId: id, details: { fields: Object.keys(raw) } });
-        res.json(instance);
+        instance = await audited(req, { action: 'instance.edit', instanceId: id, details: { fields: Object.keys(raw) } }, () => updateInstance(id, raw));
     } catch (err) {
-        logger.error('Failed to update instance', { id, error: err.message });
-        await recordAudit(req, { action: 'instance.edit', instanceId: id, details: { fields: Object.keys(raw) }, outcome: 'failure' });
-        sendAppError(res, asAppError(err, 'INSTANCE_SAVE_FAILED'));
+        throw asAppError(err, 'INSTANCE_SAVE_FAILED', { instanceId: id });
     }
+    res.json(instance);
 });
 
 // DELETE /api/instances/:id
@@ -157,14 +137,11 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     const instanceName = getInstances().find(instance => instance.id === id)?.name;
     try {
-        await removeInstance(id);
-        await recordAudit(req, { action: 'instance.remove', instanceId: id, instanceName });
-        res.json({ ok: true });
+        await audited(req, { action: 'instance.remove', instanceId: id, instanceName }, () => removeInstance(id));
     } catch (err) {
-        logger.error('Failed to remove instance', { id, error: err.message });
-        await recordAudit(req, { action: 'instance.remove', instanceId: id, instanceName, outcome: 'failure' });
-        sendAppError(res, asAppError(err, 'INSTANCE_REMOVE_FAILED'));
+        throw asAppError(err, 'INSTANCE_REMOVE_FAILED', { instanceId: id });
     }
+    res.json({ ok: true });
 });
 
 export { serverIdsFromConfig };

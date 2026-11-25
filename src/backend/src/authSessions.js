@@ -13,10 +13,10 @@ const digest = value => createHash('sha256').update(value).digest('hex');
 export function createAuthSessions({ secure = false, now = Date.now, limit = 2048, anonymousLimit = 1024 } = {}) {
     const sessions = new Map();
 
-    function remove(id) {
+    function remove(id, except) {
         const session = sessions.get(id);
         sessions.delete(id);
-        for (const close of session?.connections || []) close();
+        for (const connection of session?.connections || []) if (connection !== except) connection.end();
     }
 
     function readSession(req) {
@@ -64,19 +64,28 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
         return session;
     }
 
+    // `except` is a response to leave open: the one reporting the revocation.
+    function revokeAllSessions(except) {
+        for (const id of [...sessions.keys()]) remove(id, except);
+    }
+
     return {
         readSession, createSession, revokeSession,
-        revokeAllSessions() { for (const id of sessions.keys()) remove(id); },
+        revokeAllSessions,
+        // Signs every browser out, and this one back in: changing how the
+        // administrator signs in ends sessions and streams opened before it.
+        replaceAllSessions(req, res) {
+            revokeAllSessions(res);
+            return createSession(req, res, 'management');
+        },
         watchSession(session, res) {
             // End long-lived log streams on logout, recovery and expiration too.
-            const close = () => res.end();
-            session.connections.add(close);
-            const timer = setTimeout(close, Math.max(0, session.expires - now()));
+            session.connections.add(res);
+            const timer = setTimeout(() => res.end(), Math.max(0, session.expires - now()));
             timer.unref();
-            const cleanup = () => { clearTimeout(timer); session.connections.delete(close); };
+            const cleanup = () => { clearTimeout(timer); session.connections.delete(res); };
             res.once('close', cleanup);
             res.once('finish', cleanup);
-            return cleanup;
         },
         issueCsrfToken(req, res) {
             return (readSession(req) || createSession(req, res)).csrf;

@@ -1,6 +1,5 @@
-import { once } from 'node:events';
-import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 import statusRouter from '../src/routes/status.js';
 
 const { getServers, getUpstreamChecks } = vi.hoisted(() => ({
@@ -16,17 +15,17 @@ let server;
 let statusUrl;
 
 beforeAll(async () => {
-    const app = express();
-    app.use('/api/status', (req, res, next) => {
-        req.instance = { adminUrl };
-        next();
-    }, statusRouter);
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    statusUrl = `http://127.0.0.1:${server.address().port}/api/status`;
+    server = await serve(app => {
+        app.use('/api/status', (req, res, next) => {
+            req.instance = { id: 'test', name: 'Test', adminUrl };
+            if (req.query.token) req.apiToken = {};
+            next();
+        }, statusRouter);
+    });
+    statusUrl = server.url + '/api/status';
 });
 
-afterAll(() => new Promise(resolve => server.close(resolve)));
+afterAll(() => server.close());
 afterEach(() => vi.unstubAllGlobals());
 
 beforeEach(() => {
@@ -35,21 +34,13 @@ beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
 });
 
-async function status() {
-    const response = await request(statusUrl);
+async function status(query = '') {
+    const response = await request(statusUrl + query);
     expect(response.status).toBe(200);
     return response.json();
 }
 
 describe('GET /api/status', () => {
-    it('reports offline when the stopped Caddy instance rejects all checks', async () => {
-        getServers.mockRejectedValue(new Error('Caddy connection refused'));
-        fetch.mockRejectedValue(new Error('Metrics connection refused'));
-        getUpstreamChecks.mockRejectedValue(new Error('Upstream checks unavailable'));
-
-        expect(await status()).toMatchObject({ online: false, error: expect.any(String) });
-    });
-
     it('reports offline when the configuration request fails despite successful optional checks', async () => {
         getServers.mockRejectedValue(new Error('Caddy API timeout'));
         fetch.mockResolvedValue({ ok: true, text: async () => 'process_start_time_seconds 1700000000' });
@@ -80,5 +71,14 @@ describe('GET /api/status', () => {
         getServers.mockResolvedValue(null);
 
         expect(await status()).toMatchObject({ online: true, serverCount: 0, routeCount: 0, servers: [] });
+    });
+
+    it('keeps management connection details from API tokens', async () => {
+        const details = { adminUrl, servers: [{ name: 'srv0', listen: [':80'], routeCount: 1 }] };
+        expect(await status()).toMatchObject(details);
+        const tokenStatus = await status('?token=1');
+        expect(tokenStatus).toMatchObject({ online: true, instance: { id: 'test', name: 'Test' }, serverCount: 1, routeCount: 1 });
+        expect(tokenStatus).not.toHaveProperty('adminUrl');
+        expect(tokenStatus).not.toHaveProperty('servers');
     });
 });

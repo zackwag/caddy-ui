@@ -2,24 +2,14 @@ import { randomBytes } from 'node:crypto';
 import { constants, link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import logger from './logger.js';
+import { createSerialQueue } from './serialQueue.js';
 
-export class CorruptJsonError extends Error {
+class CorruptJsonError extends Error {
     constructor(path, cause) {
         super(`Could not parse ${path}`, { cause });
         this.name = 'CorruptJsonError';
         this.path = path;
     }
-}
-
-// Runs operations one at a time. A failed operation rejects its own caller
-// but never the operations queued after it.
-export function createSerialQueue() {
-    let tail = Promise.resolve();
-    return operation => {
-        const result = tail.then(operation);
-        tail = result.catch(() => {});
-        return result;
-    };
 }
 
 // undefined when the file doesn't exist; CorruptJsonError when it can't be

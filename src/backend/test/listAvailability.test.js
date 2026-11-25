@@ -1,9 +1,8 @@
-import { once } from 'node:events';
 import { chmod, copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 import routesRouter from '../src/routes/routes.js';
 import tlsRouter from '../src/routes/tls.js';
 import { clearObservations } from '../src/observations.js';
@@ -23,19 +22,18 @@ let baseUrl;
 const instance = {};
 
 beforeAll(async () => {
-    const app = express();
-    app.use('/api', (req, res, next) => {
-        req.instance = { id: 'test', adminUrl: 'http://caddy:2019', containerName: '', ...instance };
-        next();
+    server = await serve(app => {
+        app.use('/api', (req, res, next) => {
+            req.instance = { id: 'test', adminUrl: 'http://caddy:2019', containerName: '', ...instance };
+            next();
+        });
+        app.use('/api/routes', routesRouter);
+        app.use('/api/tls', tlsRouter);
     });
-    app.use('/api/routes', routesRouter);
-    app.use('/api/tls', tlsRouter);
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    baseUrl = `http://127.0.0.1:${server.address().port}/api`;
+    baseUrl = server.url + '/api';
 });
 
-afterAll(() => new Promise(resolve => server.close(resolve)));
+afterAll(() => server.close());
 
 beforeEach(async () => {
     clearObservations();
@@ -54,8 +52,8 @@ const get = async path => {
     return { status: res.status, body: await res.json() };
 };
 
-async function storeCert() {
-    const certDir = join(instance.dataPath, 'certificates', 'acme-v02.api.letsencrypt.org-directory', 'app.example.com');
+async function storeCert(issuer = 'acme-v02.api.letsencrypt.org-directory') {
+    const certDir = join(instance.dataPath, 'certificates', issuer, 'app.example.com');
     await mkdir(certDir, { recursive: true });
     await copyFile(fixtureCert, join(certDir, 'app.example.com.crt'));
 }
@@ -126,5 +124,40 @@ describe('GET /api/tls', () => {
         const res = await fetch(`${baseUrl}/tls/app.example.com`, { method: 'DELETE' });
         expect(res.status).toBe(500);
         expect(await res.json()).toMatchObject({ code: 'CERTIFICATE_READ_FAILED' });
+    });
+
+    describe('deletion', () => {
+        const local = 'local';
+        const acme = 'acme-v02.api.letsencrypt.org-directory';
+        const remove = async query => {
+            const res = await fetch(`${baseUrl}/tls/app.example.com${query}`, { method: 'DELETE' });
+            return { status: res.status, body: await res.json() };
+        };
+        const stored = async () => (await get('/tls')).body.map(cert => cert.issuerDir);
+
+        it('is refused for a certificate Caddy still uses', async () => {
+            caddyGet.mockImplementation(async path => (path === '/config/apps/http/servers' ? servers : null));
+            await storeCert(acme);
+            expect((await get('/tls')).body).toMatchObject([{ deletable: false }]);
+            expect(await remove('')).toMatchObject({ status: 403, body: { code: 'CERTIFICATE_DELETE_DENIED' } });
+            expect(await stored()).toEqual([acme]);
+        });
+
+        it('removes only the named issuer when both certificates are unused', async () => {
+            caddyGet.mockResolvedValue(null);
+            await storeCert(acme);
+            await storeCert(local);
+            expect((await get('/tls')).body.every(cert => cert.deletable)).toBe(true);
+            expect((await remove(`?issuer=${acme}`)).status).toBe(200);
+            expect(await stored()).toEqual([local]);
+        });
+
+        it('prefers the local certificate when no issuer is named', async () => {
+            caddyGet.mockResolvedValue(null);
+            await storeCert(acme);
+            await storeCert(local);
+            expect((await remove('')).status).toBe(200);
+            expect(await stored()).toEqual([acme]);
+        });
     });
 });

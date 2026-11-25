@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir, stat, unlink } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
-import { createSerialQueue, writeJsonFile } from './jsonFile.js';
+import { writeJsonFile } from './jsonFile.js';
 import logger from './logger.js';
+import { createSerialQueue } from './serialQueue.js';
 
 const FILENAME = /^Caddyfile-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(?:-(\d{3})Z-[a-f0-9-]+\.json)?$/;
 const validActor = actor => actor && ['user', 'api-token'].includes(actor.type)

@@ -1,9 +1,8 @@
-import { once } from 'node:events';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import express from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 
 const instance = (id) => ({
     id,
@@ -28,17 +27,16 @@ beforeAll(async () => {
     instances = await import('../src/instances.js');
     const { instanceMiddleware } = await import('../src/middleware/instance.js');
 
-    const app = express();
-    app.use('/api', instanceMiddleware);
-    app.get('/api/caddyfile', handler);
-    app.put('/api/caddyfile', handler);
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    baseUrl = `http://127.0.0.1:${server.address().port}/api/caddyfile`;
+    server = await serve(app => {
+        app.use('/api', instanceMiddleware);
+        app.get('/api/caddyfile', handler);
+        app.put('/api/caddyfile', handler);
+    });
+    baseUrl = server.url + '/api/caddyfile';
 });
 
 afterAll(async () => {
-    await new Promise(resolve => server.close(resolve));
+    await server.close();
     await rm(dir, { recursive: true, force: true });
     delete process.env.INSTANCES_PATH;
 });
@@ -59,6 +57,13 @@ describe('instance selection', () => {
         const res = await send('GET', 'beta');
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ instance: 'beta' });
+    });
+
+    it('selects by query parameter for requests that cannot send headers', async () => {
+        expect(await (await fetch(`${baseUrl}?instance=beta`)).json()).toEqual({ instance: 'beta' });
+        expect((await fetch(`${baseUrl}?instance=deleted-instance`)).status).toBe(404);
+        // The header is the explicit selection
+        expect(await (await fetch(`${baseUrl}?instance=alpha`, { headers: { 'X-Instance-Id': 'beta' } })).json()).toEqual({ instance: 'beta' });
     });
 
     it.each([

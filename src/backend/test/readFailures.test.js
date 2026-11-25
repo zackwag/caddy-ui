@@ -1,9 +1,8 @@
-import { once } from 'node:events';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 
 const { caddyGet, instances } = vi.hoisted(() => ({ caddyGet: vi.fn(), instances: [] }));
 
@@ -19,7 +18,8 @@ process.env.ROUTE_NOTES_PATH = notesPath;
 process.env.HISTORY_PATH = historyPath;
 process.env.NOTIFICATIONS_CONFIG_PATH = join(root, 'notifications.json');
 const { default: logger } = await import('../src/logger.js');
-const { default: routeNotesRouter, cleanupOrphanedNotes } = await import('../src/routes/routenotes.js');
+const { default: routeNotesRouter } = await import('../src/routes/routenotes.js');
+const { cleanupOrphanedNotes } = await import('../src/noteOwners.js');
 const { default: caddyfileRouter } = await import('../src/routes/caddyfile.js');
 const { initNotifications, runReminders } = await import('../src/notifications.js');
 const { saveNotificationConfig } = await import('../src/notificationConfig.js');
@@ -30,21 +30,19 @@ let server;
 let baseUrl;
 
 beforeAll(async () => {
-    const app = express();
-    app.use(express.json());
-    app.use('/api', (req, res, next) => {
-        req.instance = { id: 'default', adminUrl: 'http://caddy:2019', containerName: '', configPath: join(root, 'Caddyfile') };
-        next();
+    server = await serve(app => {
+        app.use('/api', (req, res, next) => {
+            req.instance = { id: 'default', adminUrl: 'http://caddy:2019', containerName: '', configPath: join(root, 'Caddyfile') };
+            next();
+        });
+        app.use('/api/route-notes', routeNotesRouter);
+        app.use('/api/caddyfile', caddyfileRouter);
     });
-    app.use('/api/route-notes', routeNotesRouter);
-    app.use('/api/caddyfile', caddyfileRouter);
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    baseUrl = `http://127.0.0.1:${server.address().port}/api`;
+    baseUrl = server.url + '/api';
 });
 
 afterAll(async () => {
-    await new Promise(resolve => server.close(resolve));
+    await server.close();
     await rm(root, { recursive: true, force: true });
 });
 

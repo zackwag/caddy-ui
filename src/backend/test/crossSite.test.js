@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { once } from 'node:events';
-import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { diagnosticMiddleware } from '../src/errorReporting.js';
+import { serve } from './fixtures/server.mjs';
 import { createCrossSiteMiddleware, crossSiteRejectionCode, isCrossSiteWrite, misnamedExternalUrlVariables } from '../src/middleware/crossSite.js';
 
 describe('isCrossSiteWrite', () => {
@@ -70,20 +68,18 @@ describe('crossSiteMiddleware', () => {
     let writes = 0;
 
     beforeAll(async () => {
-        const app = express();
-        app.use(diagnosticMiddleware);
-        app.use('/api', createCrossSiteMiddleware('https://ui.example:8443'));
-        app.post('/api/caddyfile/reloads', (req, res) => {
-            writes += 1;
-            res.json({ ok: true });
+        server = await serve(app => {
+            app.use('/api', createCrossSiteMiddleware('https://ui.example:8443'));
+            app.post('/api/caddyfile/reloads', (req, res) => {
+                writes += 1;
+                res.json({ ok: true });
+            });
+            app.get('/api/caddyfile', (req, res) => res.json({ content: 'example.com' }));
         });
-        app.get('/api/caddyfile', (req, res) => res.json({ content: 'example.com' }));
-        server = app.listen(0, '127.0.0.1');
-        await once(server, 'listening');
-        baseUrl = `http://127.0.0.1:${server.address().port}`;
+        baseUrl = server.url;
     });
 
-    afterAll(() => new Promise(resolve => server.close(resolve)));
+    afterAll(() => server.close());
 
     it('blocks a forged bodiless POST before it reaches the route', async () => {
         writes = 0;

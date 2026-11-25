@@ -1,19 +1,16 @@
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { isIP } from 'node:net';
 import { AppError } from './AppError.js';
+import { isIpAddress } from './externalUrls.js';
 import { MAX_PASSKEYS, PASSKEY_ALGORITHMS, passkeyMetadata, validPasskeyName, validPasskeyRecord } from './passkeyPolicy.js';
 import { recordAuthentication } from './authEvents.js';
 
 const CHALLENGE_MS = 2 * 60 * 1000;
 
 // State is attached to existing, bounded sessions: no separate anonymous challenge cache.
-export function createPasskeyService({ store, sessions, env, serialize, persist, requireManagement, authorizeChange, now = Date.now }) {
-    const configured = env.CADDY_UI_EXTERNAL_URL
-        ? env.CADDY_UI_EXTERNAL_URL.split(',').map(u => { try { return new URL(u.trim()); } catch { return null; } }).filter(Boolean)
-        : [];
-    const passkeyUrl = configured.find(u => u.protocol === 'https:' && !isIP(u.hostname.replace(/^\[|\]$/g, ''))) ?? null;
-    const ipHost = configured.length > 0 && !passkeyUrl && configured.every(u => isIP(u.hostname.replace(/^\[|\]$/g, '')));
+export function createPasskeyService({ store, sessions, externalUrls, serialize, persist, requireManagement, authorizeChange, now = Date.now }) {
+    const passkeyUrl = externalUrls.find(url => url.protocol === 'https:' && !isIpAddress(url)) ?? null;
+    const ipHost = externalUrls.length > 0 && externalUrls.every(isIpAddress);
     const origin = passkeyUrl?.origin ?? null;
     const rpID = passkeyUrl?.hostname ?? null;
 
@@ -172,15 +169,13 @@ export function createPasskeyService({ store, sessions, env, serialize, persist,
         },
         remove(req, res, id, input) {
             return serialize(async () => {
-                const unwatch = requireManagement(req, res);
+                requireManagement(req, res);
                 const keys = store.listPasskeys();
                 if (!keys.some(key => key.id === id)) throw new AppError('NOT_FOUND');
                 await authorizeChange(req, input, `passkey.remove:${id}`);
                 await persist(() => store.removePasskey(id));
                 // Removing a lost credential also ends sessions it may already have opened.
-                unwatch();
-                sessions.revokeAllSessions();
-                sessions.createSession(req, res, 'management');
+                sessions.replaceAllSessions(req, res);
             });
         },
     };

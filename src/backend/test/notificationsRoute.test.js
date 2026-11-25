@@ -1,11 +1,9 @@
-import { once } from 'node:events';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import express from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 import { AppError } from '../src/AppError.js';
-import { diagnosticMiddleware } from '../src/errorReporting.js';
 
 const { sendNotification } = vi.hoisted(() => ({ sendNotification: vi.fn() }));
 vi.mock('../src/notificationDelivery.js', async importOriginal => ({ ...await importOriginal(), sendNotification }));
@@ -22,17 +20,14 @@ beforeAll(async () => {
     const { loadNotificationConfig } = await import('../src/notificationConfig.js');
     await loadNotificationConfig();
 
-    const app = express();
-    app.use(express.json());
-    app.use(diagnosticMiddleware);
-    app.use('/api/notifications', notificationsRouter);
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    testUrl = `http://127.0.0.1:${server.address().port}/api/notifications/test`;
+    server = await serve(app => {
+        app.use('/api/notifications', notificationsRouter);
+    });
+    testUrl = server.url + '/api/notifications/test';
 });
 
 afterAll(async () => {
-    await new Promise(resolve => server.close(resolve));
+    await server.close();
     await rm(configDir, { recursive: true, force: true });
     delete process.env.NOTIFICATIONS_CONFIG_PATH;
 });

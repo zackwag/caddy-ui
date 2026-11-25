@@ -1,5 +1,3 @@
-import express from 'express';
-import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,34 +9,33 @@ import { createCsrfMiddleware } from '../../src/middleware/csrf.js';
 import { createApiTokenMiddleware } from '../../src/middleware/apiToken.js';
 import { instanceMiddleware } from '../../src/middleware/instance.js';
 import { createAuthRouter } from '../../src/routes/auth.js';
+import { serve } from './server.mjs';
 
 export async function authFixture({ env = {}, now, store } = {}) {
     const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-http-'));
     const path = join(directory, 'auth.json');
     store ??= createAuthStore(path, { now });
     const service = await initializeAuthentication({ store, env, now, sessions: createAuthSessions({ now }) });
-    const app = express();
-    app.use(express.json());
-    app.use('/api', createCrossSiteMiddleware(env.CADDY_UI_EXTERNAL_URL));
-    app.use('/api', createApiTokenMiddleware(service));
-    app.use('/api', createCsrfMiddleware(service.sessions));
-    app.use('/api/auth', createAuthRouter(() => service));
-    app.get('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
-    app.put('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
-    for (const path of ['/status', '/metrics', '/metrics/raw']) {
-        app.get('/api' + path, authMiddleware, instanceMiddleware, (req, res) => res.json({ instanceId: req.instance.id }));
-    }
-    app.get('/api/stream', authMiddleware, (req, res) => {
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.write('data: connected\n\n');
-        req.on('close', () => res.end());
+    const server = await serve(app => {
+        app.use('/api', createCrossSiteMiddleware(env.CADDY_UI_EXTERNAL_URL));
+        app.use('/api', createApiTokenMiddleware(service));
+        app.use('/api', createCsrfMiddleware(service.sessions));
+        app.use('/api/auth', createAuthRouter(() => service));
+        app.get('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
+        app.put('/api/protected', authMiddleware, (_req, res) => res.json({ ok: true }));
+        app.get('/api/actor', authMiddleware, (req, res) => res.json({ actor: req.actor }));
+        for (const path of ['/status', '/metrics', '/metrics/raw']) {
+            app.get('/api' + path, authMiddleware, instanceMiddleware, (req, res) => res.json({ instanceId: req.instance.id }));
+        }
+        app.get('/api/stream', authMiddleware, (req, res) => {
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.write('data: connected\n\n');
+            req.on('close', () => res.end());
+        });
     });
-    const server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    return { service, store, directory, path, url: `http://127.0.0.1:${server.address().port}`,
+    return { service, store, directory, path, url: server.url,
         async close() {
-            server.closeAllConnections();
-            await new Promise(resolve => server.close(resolve));
+            await server.close();
             await rm(directory, { recursive: true, force: true });
         },
     };

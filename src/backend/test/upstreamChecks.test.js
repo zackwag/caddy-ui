@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { extractUpstreamTargets, extractUpstreams, getHost, isUpstreamOnline, resultsByUpstream } from '../src/upstreamChecks.js';
+import { extractUpstreamTargets, getHost, isUpstreamOnline, resultsByUpstream } from '../src/upstreamChecks.js';
 
-describe('extractUpstreams', () => {
+// The addresses a route proxies to
+const dials = route => extractUpstreamTargets(route).map(target => target.dial);
+
+describe('extractUpstreamTargets dials', () => {
     it('extracts dial addresses from reverse_proxy handlers', () => {
         const route = {
             handle: [{
@@ -9,7 +12,7 @@ describe('extractUpstreams', () => {
                 upstreams: [{ dial: 'localhost:8080' }],
             }],
         };
-        expect(extractUpstreams(route)).toEqual(['localhost:8080']);
+        expect(dials(route)).toEqual(['localhost:8080']);
     });
 
     it('extracts from nested subroute handlers', () => {
@@ -24,7 +27,7 @@ describe('extractUpstreams', () => {
                 }],
             }],
         };
-        expect(extractUpstreams(route)).toEqual(['app:3000']);
+        expect(dials(route)).toEqual(['app:3000']);
     });
 
     it('extracts multiple upstreams', () => {
@@ -37,18 +40,18 @@ describe('extractUpstreams', () => {
                 ],
             }],
         };
-        expect(extractUpstreams(route)).toEqual(['app1:3000', 'app2:3001']);
+        expect(dials(route)).toEqual(['app1:3000', 'app2:3001']);
     });
 
     it('returns empty array for non-proxy handlers', () => {
         const route = {
             handle: [{ handler: 'file_server' }],
         };
-        expect(extractUpstreams(route)).toEqual([]);
+        expect(dials(route)).toEqual([]);
     });
 
     it('returns empty array for missing handle', () => {
-        expect(extractUpstreams({})).toEqual([]);
+        expect(dials({})).toEqual([]);
     });
 
     it('skips upstreams without dial', () => {
@@ -58,7 +61,7 @@ describe('extractUpstreams', () => {
                 upstreams: [{ dial: 'app:3000' }, {}],
             }],
         };
-        expect(extractUpstreams(route)).toEqual(['app:3000']);
+        expect(dials(route)).toEqual(['app:3000']);
     });
 });
 

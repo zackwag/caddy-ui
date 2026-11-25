@@ -7,8 +7,10 @@ import logger from './logger.js';
 import { getServers } from './observations.js';
 
 // Days before expiry an ACME certificate counts as expiring.
-export const EXPIRING_DAYS = 14;
+const EXPIRING_DAYS = 14;
 const DAY_MS = 86_400_000;
+// Certificates Caddy no longer uses, so deleting them breaks nothing.
+const DELETABLE_STATUSES = new Set(['orphaned', 'superseded']);
 
 // In local mode the certs path is a volume mount the user set up by hand, so
 // say what to check.
@@ -143,6 +145,10 @@ export async function listCertificates({ containerName, dataPath, adminUrl }, { 
         if (cert.isInternal && acmeDomains.has(cert.domain)) {
             cert.status = 'superseded';
         }
+    }
+
+    for (const cert of results) {
+        cert.deletable = DELETABLE_STATUSES.has(cert.status);
     }
 
     return results.sort((a, b) => {

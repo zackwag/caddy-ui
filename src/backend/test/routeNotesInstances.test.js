@@ -1,9 +1,8 @@
-import { once } from 'node:events';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import express from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 import { clearObservations } from '../src/observations.js';
 
 const { caddyGet, instances } = vi.hoisted(() => ({ caddyGet: vi.fn(), instances: [] }));
@@ -17,7 +16,8 @@ const root = await mkdtemp(join(tmpdir(), 'caddy-ui-notes-'));
 const notesPath = join(root, 'route-notes.json');
 process.env.ROUTE_NOTES_PATH = notesPath;
 const store = await import('../src/routeNotes.js');
-const { default: routeNotesRouter, cleanupOrphanedNotes } = await import('../src/routes/routenotes.js');
+const { default: routeNotesRouter } = await import('../src/routes/routenotes.js');
+const { cleanupOrphanedNotes } = await import('../src/noteOwners.js');
 
 const alpha = { id: 'alpha', adminUrl: 'http://alpha:2019' };
 const beta = { id: 'beta', adminUrl: 'http://beta:2019' };
@@ -27,20 +27,18 @@ let server;
 let baseUrl;
 
 beforeAll(async () => {
-    const app = express();
-    app.use(express.json());
-    app.use('/api', (req, res, next) => {
-        req.instance = instances.find(inst => inst.id === req.headers['x-instance-id']);
-        next();
+    server = await serve(app => {
+        app.use('/api', (req, res, next) => {
+            req.instance = instances.find(inst => inst.id === req.headers['x-instance-id']);
+            next();
+        });
+        app.use('/api/route-notes', routeNotesRouter);
     });
-    app.use('/api/route-notes', routeNotesRouter);
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    baseUrl = `http://127.0.0.1:${server.address().port}/api/route-notes`;
+    baseUrl = server.url + '/api/route-notes';
 });
 
 afterAll(async () => {
-    await new Promise(resolve => server.close(resolve));
+    await server.close();
     await rm(root, { recursive: true, force: true });
 });
 

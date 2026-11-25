@@ -31,10 +31,7 @@ export function validatePath(p) {
     return resolved;
 }
 
-export function validateContainerName(name) {
-    return String(name).replace(/[^a-zA-Z0-9._-]/g, '');
-}
-
-export function validateServerName(name) {
+// A container or server name with anything that can't be part of one removed.
+export function sanitizeName(name) {
     return String(name).replace(/[^a-zA-Z0-9._-]/g, '');
 }

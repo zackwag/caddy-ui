@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { caddyfileChildren, caddyfileEntries, extractDirective, extractGlobalBlock, matchesSiteAddress, scanCaddyfile, trailingComments } from '../src/caddyfileBlocks.js';
+import { caddyfileChildren, caddyfileEntries, extractDirective, extractGlobalBlock, siteDomain, scanCaddyfile, trailingComments } from '../src/caddyfileBlocks.js';
 
 describe('Caddyfile structural scanning', () => {
     it.each([
@@ -86,9 +86,9 @@ describe('Caddyfile structural scanning', () => {
         expect(trailingComments(source, entries)).toEqual(['# trailing']);
     });
 
-    it('matches only single-address top-level sites', () => {
+    it('names the domain of single-address top-level sites only', () => {
         const [site, multi] = caddyfileEntries('https://{$HOST} {\n}\na.example.com b.example.com {\n}\n');
-        expect(matchesSiteAddress(site, 'app.example.com', address => address.replace('{$HOST}', 'app.example.com'))).toBe(true);
-        expect(matchesSiteAddress(multi, 'a.example.com')).toBe(false);
+        expect(siteDomain(site, { HOST: 'app.example.com' })).toBe('app.example.com');
+        expect(siteDomain(multi)).toBeNull();
     });
 });

@@ -1,27 +1,33 @@
 import { Router } from 'express';
 import { join, resolve, relative } from 'path';
+import { caddyLocalRootCertificate } from '../caddy.js';
 import { listCertificates } from '../certificates.js';
 import { removeContainerPath } from '../containerFs.js';
 import logger from '../logger.js';
 import { AppError, asAppError } from '../AppError.js';
-import { sendAppError } from '../errorReporting.js';
 
 const router = Router();
 
-router.get('/', async (req, res) => {
-    let certs;
+async function readCertificates(instance) {
     try {
-        certs = await listCertificates(req.instance);
+        return await listCertificates(instance);
     } catch (err) {
-        return sendAppError(res, asAppError(err, 'CERTIFICATE_READ_FAILED', { instanceId: req.instance.id }));
+        throw asAppError(err, 'CERTIFICATE_READ_FAILED', { instanceId: instance.id });
     }
+}
+
+router.get('/', async (req, res) => {
+    const certs = await readCertificates(req.instance);
     logger.info(`TLS certs listed`, { count: certs.length });
     res.json(certs);
 });
 
+// DELETE /api/tls/:domain[?issuer=<issuerDir>] -- without an issuer, the local
+// CA's certificate is preferred
 router.delete('/:domain', async (req, res) => {
     const { domain } = req.params;
-    logger.info(`TLS cert deletion requested`, { domain });
+    const { issuer } = req.query;
+    logger.info(`TLS cert deletion requested`, { domain, issuer });
 
     // Certificate directory names: a host name, with Caddy's wildcard_ prefix
     const DOMAIN_RE = /^(?=.{1,253}$)(?:wildcard_\.)?(?!-)(?:[a-zA-Z0-9-]{1,63}\.)*[a-zA-Z0-9-]{1,63}$/;
@@ -31,25 +37,14 @@ router.delete('/:domain', async (req, res) => {
 
     const { containerName } = req.instance;
     const certsPath = join(req.instance.dataPath, 'certificates');
-    let certs;
-    try {
-        certs = await listCertificates(req.instance);
-    } catch (err) {
-        return sendAppError(res, asAppError(err, 'CERTIFICATE_READ_FAILED', { instanceId: req.instance.id }));
-    }
-    const internalCert = certs.find(c => c.domain === domain && c.isInternal);
-    const acmeCert = certs.find(c => c.domain === domain && !c.isInternal);
-
-    const canDeleteInternal = internalCert && ['orphaned', 'superseded', 'expired'].includes(internalCert.status);
-    const canDeleteAcme = acmeCert && acmeCert.status === 'orphaned';
-
-    if (!canDeleteInternal && !canDeleteAcme) {
-        logger.warn(`Refused to delete cert`, { domain });
-        return sendAppError(res, new AppError('CERTIFICATE_DELETE_DENIED', { context: { domain } }));
+    const candidates = (await readCertificates(req.instance))
+        .filter(cert => cert.domain === domain && cert.deletable && (!issuer || cert.issuerDir === issuer));
+    const target = candidates.find(cert => cert.isInternal) ?? candidates[0];
+    if (!target) {
+        throw new AppError('CERTIFICATE_DELETE_DENIED', { context: { domain, issuer } });
     }
 
-    const target = canDeleteInternal ? internalCert : acmeCert;
-    if (!target?.issuerDir || target.issuerDir.includes('..') || target.issuerDir.includes('/') || target.issuerDir.includes('\\')) {
+    if (!target.issuerDir || target.issuerDir.includes('..') || target.issuerDir.includes('/') || target.issuerDir.includes('\\')) {
         return res.status(400).json({ error: 'Invalid certificate target' });
     }
 
@@ -62,33 +57,24 @@ router.delete('/:domain', async (req, res) => {
 
     try {
         await removeContainerPath(containerName, certDir);
-        logger.info(`TLS cert deleted`, { domain, certDir });
-        res.json({ ok: true, message: `Deleted cert for ${domain}` });
     } catch (err) {
-        logger.error(`Failed to delete cert`, { domain, error: err.message });
-        sendAppError(res, asAppError(err, 'CERTIFICATE_DELETE_FAILED', { domain }));
+        throw asAppError(err, 'CERTIFICATE_DELETE_FAILED', { domain });
     }
+    logger.info(`TLS cert deleted`, { domain, certDir });
+    res.json({ ok: true, message: `Deleted cert for ${domain}` });
 });
 
 router.get('/ca', async (req, res) => {
-    const adminUrl = req.instance.adminUrl;
-    logger.info(`Root CA download requested`);
+    let pem;
     try {
-        const caRes = await fetch(`${adminUrl}/pki/ca/local`, {
-            headers: { 'Origin': 'http://0.0.0.0:2019' },
-        });
-        if (!caRes.ok) throw new Error(`Caddy PKI API returned ${caRes.status}`);
-        const data = await caRes.json();
-        const pem = data.root_certificate;
-        if (!pem) throw new Error('No root certificate in response');
-        logger.info(`Root CA download served`);
-        res.setHeader('Content-Disposition', 'attachment; filename="caddy-root-ca.crt"');
-        res.setHeader('Content-Type', 'application/x-x509-ca-cert');
-        res.send(pem);
+        pem = await caddyLocalRootCertificate(req.instance.adminUrl);
     } catch (err) {
-        logger.error(`Root CA download failed`, { error: err.message });
-        sendAppError(res, asAppError(err, 'CERTIFICATE_CA_UNAVAILABLE'));
+        throw asAppError(err, 'CERTIFICATE_CA_UNAVAILABLE', { instanceId: req.instance.id });
     }
+    logger.info(`Root CA download served`);
+    res.setHeader('Content-Disposition', 'attachment; filename="caddy-root-ca.crt"');
+    res.setHeader('Content-Type', 'application/x-x509-ca-cert');
+    res.send(pem);
 });
 
 export default router;

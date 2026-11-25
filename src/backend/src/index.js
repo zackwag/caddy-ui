@@ -3,34 +3,37 @@ import rateLimit from 'express-rate-limit';
 import { loadCustomThemes } from './customThemes.js';
 import { getInstances, loadInstances, onInstanceRemoved } from './instances.js';
 import logger from './logger.js';
-import { diagnosticMiddleware } from './errorReporting.js';
-import { authMiddleware, initializeAuthentication, publicMetrics } from './middleware/auth.js';
+import { diagnosticMiddleware, errorHandler } from './errorReporting.js';
+import { authMiddleware, initializeAuthentication } from './middleware/auth.js';
 import { createCrossSiteMiddleware, misnamedExternalUrlVariables } from './middleware/crossSite.js';
 import { createCsrfMiddleware } from './middleware/csrf.js';
 import { createApiTokenMiddleware } from './middleware/apiToken.js';
 import { instanceMiddleware } from './middleware/instance.js';
+import { isSafeMethod } from './middleware/safeMethods.js';
 import { forgetInstanceNotifications, initNotifications, notifyCheckResults, notifyConfigurationChange } from './notifications.js';
 import authRouter from './routes/auth.js';
 import pagesRouter from './routes/pages.js';
-import caddyfileRouter, { migrateLegacyHistory } from './routes/caddyfile.js';
+import caddyfileRouter from './routes/caddyfile.js';
 import customThemesRouter from './routes/customThemes.js';
 import healthRouter from './routes/health.js';
 import instancesRouter from './routes/instances.js';
 import logsRouter, { appLogsRouter } from './routes/logs.js';
-import metricsRouter, { rawMetrics } from './routes/metrics.js';
+import metricsRouter, { metricsSummary, rawMetrics } from './routes/metrics.js';
 import notificationsRouter from './routes/notifications.js';
 import auditRouter from './routes/audit.js';
 import { loadAuditLog } from './auditLog.js';
 import settingsRouter from './routes/settings.js';
 import { initCaddyfileTitles } from './caddyfileTitles.js';
-import routenotesRouter, { cleanupOrphanedNotes } from './routes/routenotes.js';
+import routenotesRouter from './routes/routenotes.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
+import { migrateLegacyHistory } from './configurationHistory.js';
 import { detectBackendIdentity } from './dockerDiscovery.js';
 import { loadMaintenance, releaseInstanceMaintenance } from './maintenance.js';
 import { forgetInstanceChecks, onCheckResults, startMonitoring } from './monitoring.js';
+import { cleanupOrphanedNotes } from './noteOwners.js';
 import { releaseInstanceNotes } from './routeNotes.js';
 import { loadServerNames, removeInstanceServerNames } from './serverNames.js';
 import { loadSettings } from './settings.js';
@@ -44,6 +47,7 @@ const authentication = await initializeAuthentication();
 const app = express();
 const PORT = process.env.PORT || 3001;
 const APP_VERSION = process.env.APP_VERSION || 'dev';
+const publicMetrics = process.env.CADDY_UI_PUBLIC_METRICS === 'true';
 
 const proxyTrust = await createProxyTrust(process.env.CADDY_UI_TRUSTED_PROXIES);
 app.set('trust proxy', proxyTrust.trust);
@@ -83,7 +87,7 @@ const apiLimiter = rateLimit({
 const authLimiter = rateLimit({
     ...rateLimitOptions,
     limit: 15,
-    skip: req => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
+    skip: req => isSafeMethod(req.method),
     message: { error: 'Too many login attempts, please try again later' },
 });
 
@@ -134,9 +138,11 @@ app.get('/api/languages', (req, res) => res.json({
 // there is no valid Caddy instance to attach to the request.
 app.use('/api/logs/app', authMiddleware, appLogsRouter);
 
-// GET /api/metrics/raw -- Prometheus scrape endpoint
-// Public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
-app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, instanceMiddleware, rawMetrics);
+// Metrics reads are public if CADDY_UI_PUBLIC_METRICS=true, otherwise they
+// require auth. Configuring metrics always does.
+const metricsAuth = publicMetrics ? [] : [authMiddleware];
+app.get('/api/metrics/raw', metricsAuth, instanceMiddleware, rawMetrics);
+app.get('/api/metrics', metricsAuth, instanceMiddleware, metricsSummary);
 
 // All other /api/* routes require a session, then a valid instance.
 // Auth runs first so unauthenticated callers can't probe which instance ids exist.
@@ -152,10 +158,7 @@ app.use('/api/tls', tlsRouter);
 app.use('/api/health', healthRouter);
 app.use('/api/route-notes', routenotesRouter);
 
-app.use((err, req, res, next) => {
-    logger.error(`Unhandled error`, { requestId: req.diagnosticId, method: req.method, path: req.diagnosticPath || req.path, error: err.message, stack: err.stack });
-    res.status(500).json({ error: err.message || 'Internal server error' });
-});
+app.use(errorHandler);
 
 await detectBackendIdentity();
 await loadInstances();

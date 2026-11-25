@@ -7,6 +7,7 @@ import { getInstances } from './instances.js';
 import { runExclusive } from './instanceQueue.js';
 import logger from './logger.js';
 import { configurationHistory } from './configurationHistory.js';
+import { changedPaths } from './jsonDiff.js';
 import { AppError } from './AppError.js';
 
 // Detects configuration changes made outside caddy-ui by fingerprinting each
@@ -24,7 +25,7 @@ import { AppError } from './AppError.js';
 // Checks run in the instance's change queue, so they never see a local change
 // half-applied, and skip a round while a caddy-ui write to that instance is
 // still unsettled after a timeout.
-export const DRIFT_CHECK_INTERVAL_MS = 60_000;
+const DRIFT_CHECK_INTERVAL_MS = 60_000;
 // Unexplained changes retained per instance for later diff history.
 export const DRIFT_HISTORY_LIMIT = 20;
 
@@ -114,28 +115,6 @@ const jsonText = config => JSON.stringify(ordered(config), null, 2) + '\n';
 // like), unlike the Caddyfile's {$VAR} placeholders. Unless opted in, history
 // keeps only a fingerprint of each side plus the changed JSON Pointer paths.
 const keepLiveJson = () => process.env.CADDY_UI_HISTORY_LIVE_JSON === 'true';
-const pointer = segments => segments.map(segment => '/' + segment.replace(/~/g, '~0').replace(/\//g, '~1')).join('') || '/';
-
-export function changedPaths(before, after, segments = [], paths = []) {
-    const container = value => value !== null && typeof value === 'object';
-    if (!container(before) || !container(after) || Array.isArray(before) !== Array.isArray(after)) {
-        if (!isDeepStrictEqual(before, after)) {
-            paths.push(pointer(segments));
-        }
-        return paths;
-    }
-    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
-    // Array indexes keep their order; object keys are sorted like jsonText.
-    for (const key of Array.isArray(before) ? keys : keys.sort()) {
-        if (!Object.hasOwn(before, key) || !Object.hasOwn(after, key)) {
-            paths.push(pointer([...segments, key]));
-        } else {
-            changedPaths(before[key], after[key], [...segments, key], paths);
-        }
-    }
-    return paths;
-}
-
 async function preserveObservation(instance, state, observed) {
     const previous = state.observed;
     if (previous) {

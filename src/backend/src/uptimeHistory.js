@@ -1,5 +1,6 @@
-import { createSerialQueue, readJsonState, writeJsonFile } from './jsonFile.js';
+import { readJsonState, writeJsonFile } from './jsonFile.js';
 import logger from './logger.js';
+import { createSerialQueue } from './serialQueue.js';
 
 const HISTORY_PATH = process.env.UPTIME_HISTORY_PATH || '/etc/caddy-ui/uptime-history.json';
 const RETENTION_DAYS = Number(process.env.UPTIME_HISTORY_RETENTION_DAYS) || 7;

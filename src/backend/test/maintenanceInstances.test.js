@@ -1,9 +1,8 @@
-import { once } from 'node:events';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import express from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 
 const { files, instances } = vi.hoisted(() => ({ files: new Map(), instances: [] }));
 
@@ -17,7 +16,7 @@ vi.mock('../src/docker.js', async importOriginal => ({
     ...await importOriginal(),
     getCaddyEnv: vi.fn(async () => ({})),
 }));
-vi.mock('../src/routes/caddyfile.js', () => ({
+vi.mock('../src/caddyfileChange.js', () => ({
     saveCaddyfileChange: vi.fn(async (instance, change, { onApplied } = {}) => {
         const content = typeof change === 'function' ? await change(files.get(instance.configPath)) : change;
         files.set(instance.configPath, content);
@@ -26,8 +25,7 @@ vi.mock('../src/routes/caddyfile.js', () => ({
     }),
     changeResultFields: () => ({}),
 }));
-vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getActor: () => null }) }));
-vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));
+vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => instances }));
 
 // Both paths are read at import time
 const dir = mkdtempSync(join(tmpdir(), 'caddy-ui-maintenance-'));
@@ -37,7 +35,7 @@ process.env.CADDY_UI_URL = 'caddy-ui-backend:3001';
 const maintenance = await import('../src/maintenance.js');
 const { default: routesRouter } = await import('../src/routes/routes.js');
 
-const instance = id => ({ id, name: id, adminUrl: `http://${id}:2019`, configPath: `/etc/${id}/Caddyfile`, containerName: '' });
+const instance = id => ({ id, name: id, adminUrl: `http://${id}:2019`, configPath: `/etc/${id}/Caddyfile`, logPath: '/var/log/caddy/access.log', dataPath: '/data/caddy', containerName: '', serverName: 'srv0' });
 const alpha = instance('alpha');
 const beta = instance('beta');
 const site = (upstream) => `app.example.com {\n    reverse_proxy ${upstream}\n}\n`;
@@ -115,18 +113,17 @@ describe('maintenance routes across instances', () => {
     let baseUrl;
 
     beforeAll(async () => {
-        const app = express();
-        app.use('/api', (req, res, next) => {
-            req.instance = instances.find(i => i.id === req.headers['x-instance-id']);
-            next();
+        server = await serve(app => {
+            app.use('/api', (req, res, next) => {
+                req.instance = instances.find(i => i.id === req.headers['x-instance-id']);
+                next();
+            });
+            app.use('/api/routes', routesRouter);
         });
-        app.use('/api/routes', routesRouter);
-        server = app.listen(0, '127.0.0.1');
-        await once(server, 'listening');
-        baseUrl = `http://127.0.0.1:${server.address().port}/api/routes`;
+        baseUrl = server.url + '/api/routes';
     });
 
-    afterAll(() => new Promise(resolve => server.close(resolve)));
+    afterAll(() => server.close());
 
     const call = (method, path, instanceId) => fetch(baseUrl + path, { method, headers: { 'X-Instance-Id': instanceId } });
     const toggle = (method, instanceId) => call(method, '/caddyfile/app.example.com/maintenance', instanceId);
