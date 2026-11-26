@@ -62,7 +62,6 @@ export default {
         caddyfileChangeRejected: 'Caddy hat die Änderung abgelehnt. Vorheriger Caddyfile wurde wiederhergestellt.',
         caddyfileRollbackFailed: 'Caddy hat die Änderung abgelehnt und der vorherige Caddyfile konnte nicht wiederhergestellt werden. Die lokale Datei stimmt nicht mehr mit der aktiven Caddy-Konfiguration überein.',
         caddyfileHistoryReadFailed: 'Der Caddyfile-Verlauf konnte nicht gelesen werden.',
-        routeNotesReadFailed: 'Routen-Notizen konnten nicht gelesen werden. Gespeicherte Notizen wurden nicht verändert.',
         routeNotesSaveFailed: 'Routen-Notiz konnte nicht gespeichert werden.',
         caddyReloadFailed: 'Caddy konnte nicht neu geladen werden.',
         instanceNotFound: 'Die Instanz wurde nicht gefunden.',

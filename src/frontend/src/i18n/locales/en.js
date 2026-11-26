@@ -86,7 +86,6 @@ export default {
         caddyfileHistoryReadFailed: 'Could not read the Caddyfile history.',
         caddyfileHistoryPreserveFailed: 'Could not preserve the previous configuration in history. Nothing was changed.',
         caddyfileHistoryCommitFailed: 'The Caddyfile was saved, but its history version could not be recorded. Check the current file and application logs.',
-        routeNotesReadFailed: 'Could not read route notes. Saved notes were left unchanged.',
         routeNotesSaveFailed: 'Could not save the route note.',
         caddyReloadFailed: 'Could not reload Caddy.',
         instanceNotFound: 'The instance was not found.',

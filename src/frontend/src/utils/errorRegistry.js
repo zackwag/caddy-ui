@@ -21,7 +21,6 @@ export const ERROR_MESSAGES = Object.freeze({
     EXTERNAL_URL_MISMATCH: 'errors.externalUrlMismatch',
     WEBHOOK_DESTINATION_BLOCKED: 'errors.webhookDestinationBlocked',
     NOTIFICATION_SEND_FAILED: 'errors.notificationSendFailed',
-    ROUTE_NOTES_READ_FAILED: 'errors.routeNotesReadFailed',
     ROUTE_NOTES_SAVE_FAILED: 'errors.routeNotesSaveFailed',
     LOG_FILE_MISSING: 'errors.logFileMissing',
     LOG_READ_FAILED: 'errors.logReadFailed',

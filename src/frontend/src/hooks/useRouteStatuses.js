@@ -3,6 +3,10 @@ import { apiFetch } from "../utils/api.js";
 import { getRouteStatus } from "../utils/routes.js";
 import { REFRESH_INTERVAL_MS, usePoll } from "./usePoll.js";
 
+// While a route check hasn't recorded anything yet, such as just after route
+// checks are turned on, its first round is picked up this soon.
+const PENDING_INTERVAL_MS = 5000;
+
 // The live routes, their notes and their status, kept current. Status comes
 // from the monitor's recorded state, like uptime and history, so the three
 // never disagree. `routes` is null until a load succeeds; each error is kept
@@ -30,11 +34,15 @@ export function useRouteStatuses({ toast, routeChecks, routeCheckExcludes }) {
         ]).finally(() => setChecking(false));
     }, [toast, routeChecks]);
 
-    usePoll(reload, REFRESH_INTERVAL_MS);
-
     const excludes = useMemo(() => new Set(routeCheckExcludes), [routeCheckExcludes]);
     const statusOf = useCallback(route => getRouteStatus(route, { uptime, routeUptime, routeChecks, excludes }),
         [uptime, routeUptime, routeChecks, excludes]);
+
+    const checkPending = !!routes?.some(route => {
+        const { checkHost, stats } = statusOf(route);
+        return checkHost && !stats;
+    });
+    usePoll(reload, checkPending ? PENDING_INTERVAL_MS : REFRESH_INTERVAL_MS);
 
     return { routes, routesError, notes, setNotes, notesError, excludes, statusOf, checking, reload };
 }

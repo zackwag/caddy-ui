@@ -3,11 +3,13 @@ import { useEffect, useId, useRef } from "react";
 // Open modals, newest last: Escape closes only the one on top.
 const openModals = [];
 // eslint-disable-next-line i18next/no-literal-string -- CSS selector
-const EDITOR_SELECTOR = ".cm-editor";
+const FIELD_SELECTOR = "input:not([type=checkbox], [type=radio]), textarea, select";
 
-// A dialog over the page, named by its title. Clicking beside it or pressing
-// Escape closes it, unless the press started inside, such as a text selection
-// dragged past the edge. Without `onClose` it stays until its content closes it.
+// A dialog over the page, named by its title. Clicking beside it closes it,
+// unless the press started inside, such as a text selection dragged past the
+// edge; so does Escape, except in a field, where it would discard what was
+// typed (and editors use it themselves). Without `onClose` it stays until its
+// content closes it.
 export default function Modal({ title, onClose, className = "", style, children }) {
     const titleId = useId();
     const pressedOutside = useRef(false);
@@ -19,9 +21,8 @@ export default function Modal({ title, onClose, className = "", style, children 
         const modal = {};
         openModals.push(modal);
         const onKey = e => {
-            // The editor uses Escape itself (Vim, completions, leaving the editor),
-            // and closing would discard its text.
-            if (e.key !== "Escape" || e.defaultPrevented || openModals.at(-1) !== modal || e.target.closest?.(EDITOR_SELECTOR)) {
+            const inField = e.target.isContentEditable || e.target.matches?.(FIELD_SELECTOR);
+            if (e.key !== "Escape" || e.defaultPrevented || openModals.at(-1) !== modal || inField) {
                 return;
             }
             onCloseRef.current?.();

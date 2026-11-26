@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
-import { useLoad } from "../hooks/usePoll.js";
+import { REFRESH_INTERVAL_MS, useLoad } from "../hooks/usePoll.js";
 import { INSTANCE_DEFAULTS } from "../settings.js";
 import { apiFetch, clearInstanceId, getInstanceId } from "../utils/api.js";
 import Modal from "./Modal.jsx";
@@ -39,15 +39,21 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
             .finally(() => setLoading(false));
     }, [toast]);
 
+    // Set once discovery fails, which stops the background scan until
+    // discovery is asked for again: each scan would fail and be logged
+    const [discoveryFailed, setDiscoveryFailed] = useState(false);
+
     const discover = useCallback(async () => {
         setDiscovering(true);
         try {
             const containers = await apiFetch("/instances/discover");
             setDiscovered(containers);
+            setDiscoveryFailed(false);
             if (containers.length === 0) toast.success(t("instances.noNewContainers"));
         } catch (e) {
             toast.error(e);
             setDiscovered(null);
+            setDiscoveryFailed(true);
         } finally {
             setDiscovering(false);
         }
@@ -82,13 +88,16 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
     }, [loading, instances.length, discover]);
 
     useEffect(() => {
+        if (discoveryFailed) {
+            return;
+        }
         const poll = () =>
             apiFetch("/instances/discover")
                 .then(setDiscovered)
-                .catch(() => { });
-        const t = setInterval(poll, 30000);
+                .catch(() => setDiscoveryFailed(true));
+        const t = setInterval(poll, REFRESH_INTERVAL_MS);
         return () => clearInterval(t);
-    }, []);
+    }, [discoveryFailed]);
 
     useEffect(() => {
         setServerIds(null);
