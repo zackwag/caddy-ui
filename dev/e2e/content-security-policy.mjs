@@ -19,7 +19,7 @@ const root = resolve(import.meta.dirname, '../..');
 
 // Exercise the shipped nginx config and built assets, not a policy injected into
 // Vite by the test. API responses are controlled here; auth policy has its own
-// real-backend browser suite. No external font service is needed for this test.
+// real-backend browser suite.
 test('production CSP blocks script injection and keeps HTTP and HTTPS UI features working', { timeout: 180000 }, async t => {
     const scope = new FixtureScope(t.signal);
     t.after(() => scope.close());
@@ -104,7 +104,6 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
         return server;
     }, async server => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
     const browser = await scope.acquire(() => launchChromium({ args: ['--ignore-certificate-errors-spki-list=' + pin] }), value => value.close());
-    const font = await readFile(join(root, 'src/frontend/node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-latin-standard-normal.woff2'));
 
     for (const origin of [httpOrigin, `https://localhost:${proxy.address().port}`]) {
         await t.test(new URL(origin).protocol, async () => {
@@ -120,11 +119,6 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
                     addEventListener('securitypolicyviolation', event => window.cspViolations.push(event.effectiveDirective));
                 });
                 page.on('pageerror', error => errors.push(error.message));
-                await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ contentType: 'text/css',
-                    body: '@font-face { font-family: "IBM Plex Sans"; src: url(https://fonts.gstatic.com/csp-fixture.woff2) format("woff2"); }' }));
-                await page.route('https://fonts.gstatic.com/csp-fixture.woff2', route => {
-                    return route.fulfill({ contentType: 'font/woff2', headers: { 'Access-Control-Allow-Origin': '*' }, body: font });
-                });
                 await page.route('**/api/**', route => {
                     const path = new URL(route.request().url()).pathname.slice(4);
                     const json = data => route.fulfill({ json: data });
@@ -162,8 +156,7 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
                 await page.getByLabel('Password', { exact: true }).fill(randomUUID());
                 await page.getByRole('button', { name: 'Sign in', exact: true }).click();
                 await page.locator('.cm-editor').waitFor();
-                // Exercise the application's font whether it is supplied by the
-                // current Google import or by a subsequent local font bundle.
+                // The bundled fonts must load under font-src 'self'
                 assert.equal(await page.evaluate(async () => {
                     await document.fonts.ready;
                     const faces = await document.fonts.load('400 12px "IBM Plex Sans"');

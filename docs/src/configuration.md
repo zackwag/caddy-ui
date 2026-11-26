@@ -18,9 +18,9 @@ blocks inline scripts and JavaScript evaluation, and rejects embedded frames,
 plugins and changes to the document's base URL. Other origins cannot frame the
 UI; same-origin embedding remains allowed.
 
-React and CodeMirror require inline styles, so those remain allowed. The existing
-Google Fonts stylesheet and font hosts are also allowed, along with bundled fonts
-and the data images used for authenticator QR codes. Downloads remain supported.
+React and CodeMirror require inline styles, so those remain allowed, along with
+the bundled fonts and the data images used for authenticator QR codes. Downloads
+remain supported.
 
 The policy works over HTTP and HTTPS and does not upgrade HTTP requests or
 require TLS. It cannot protect an HTTP connection against network interception;
@@ -36,6 +36,6 @@ The production policy is exercised in Chromium against the real nginx config and
 built frontend, both directly over HTTP and behind a local TLS proxy. With the
 application/dev dependencies, Docker, `nginx:alpine`, OpenSSL and Playwright
 Chromium available, run `node --test dev/e2e/content-security-policy.mjs` from the
-repository root. This also runs in the regular browser suite. API responses and
-font downloads are controlled by the test; it verifies CSP compatibility, not
-backend authentication correctness.
+repository root. This also runs in the regular browser suite. API responses are
+controlled by the test; it verifies CSP compatibility, not backend
+authentication correctness.
