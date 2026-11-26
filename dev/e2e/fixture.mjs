@@ -8,7 +8,7 @@ import { createServer as createHttpsServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { chromium } from 'playwright';
+import { launchChromium } from '../browser.mjs';
 import { createServer } from 'vite';
 import { backendEnvironment } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from '../integration/lifecycle.mjs';
@@ -16,13 +16,16 @@ import { createTestStack, waitForBackendPort, waitForContainerNetwork } from '..
 
 const frontend = resolve(import.meta.dirname, '../../src/frontend');
 
-export function prepareBrowserTests() {
-    return promisify(execFile)(process.execPath, ['scripts/fetch-caddyfile-mode.mjs'], { cwd: frontend, timeout: 30000 });
+// The editor's generated syntax mode, fetched once per scenario file.
+let prepared;
+function prepareFrontend() {
+    return prepared ??= promisify(execFile)(process.execPath, ['scripts/fetch-caddyfile-mode.mjs'], { cwd: frontend, timeout: 30000 });
 }
 
 // One scenario owns the whole stack. No page, registry, locale or viewport state
 // survives into the next scenario, including after failure or cancellation.
 export async function useBrowserFixture(t, options) {
+    await prepareFrontend();
     const scope = new FixtureScope(t.signal);
     const pageErrors = [];
     const requests = [];
@@ -30,7 +33,6 @@ export async function useBrowserFixture(t, options) {
         await scope.close();
         assert.deepEqual(pageErrors, [], 'Uncaught browser JavaScript errors');
     });
-
 
     const stack = await createTestStack(scope, options);
     await scope.run(() => waitForContainerNetwork(stack.instances.get('alpha').instance.containerName, { signal: scope.signal }));
@@ -41,9 +43,7 @@ export async function useBrowserFixture(t, options) {
     }), vite => vite.close());
     await scope.run(() => vite.listen());
     const origin = vite.resolvedUrls.local[0].replace(/\/$/, '');
-    const browser = await scope.acquire(() => chromium.launch({
-        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
-    }), browser => browser.close());
+    const browser = await scope.acquire(() => launchChromium(), browser => browser.close());
     const context = await scope.acquire(() => browser.newContext({ viewport: { width: 1440, height: 900 } }), context => context.close());
     const csrf = await context.request.get(origin + '/api/auth/csrf');
     const login = await context.request.post(origin + '/api/auth/sessions', {
@@ -91,7 +91,8 @@ export async function useBrowserFixture(t, options) {
 }
 
 // Real backend and frontend, with an empty instance registry: auth needs no Docker.
-export async function useAuthBrowserFixture(t, legacy = false, { https = false, configurePasskeys = true, httpsHostname = 'localhost', frontendVersion } = {}) {
+export async function useAuthBrowserFixture(t, { legacy = false, https = false, configurePasskeys = true, httpsHostname = 'localhost', frontendVersion } = {}) {
+    await prepareFrontend();
     const root = resolve(import.meta.dirname, '../..');
     const secret = () => randomBytes(24).toString('base64url');
     const scope = new FixtureScope(t.signal);
@@ -161,10 +162,7 @@ export async function useAuthBrowserFixture(t, legacy = false, { https = false, 
         try { await exited; } finally { clearTimeout(timer); }
     }
     await startBackend();
-    const browser = await scope.acquire(() => chromium.launch({
-        ...(certificatePin ? { args: ['--ignore-certificate-errors-spki-list=' + certificatePin] } : {}),
-        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
-    }), value => value.close());
+    const browser = await scope.acquire(() => launchChromium({ ...(certificatePin ? { args: ['--ignore-certificate-errors-spki-list=' + certificatePin] } : {}) }), value => value.close());
     const context = await scope.acquire(() => browser.newContext({ viewport: { width: 1440, height: 900 } }), value => value.close());
     const page = await context.newPage();
     page.setDefaultTimeout(10000);

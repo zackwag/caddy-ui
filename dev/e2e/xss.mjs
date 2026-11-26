@@ -2,16 +2,14 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { before, test } from 'node:test';
+import { test } from 'node:test';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
-import { prepareBrowserTests, useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
+import { useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
 
 const image = '<img data-xss-probe src=/__xss_probe onerror="window.xssHits++">';
 const svg = '<svg data-xss-probe onload="window.xssHits++"></svg>';
 const payloads = [image, svg, '</textarea>' + image, '">' + svg];
 const options = { timeout: 120000 };
-
-before(prepareBrowserTests, { timeout: 35000 });
 
 async function watchForXss(page) {
     await page.addInitScript(() => { window.xssHits = 0; });

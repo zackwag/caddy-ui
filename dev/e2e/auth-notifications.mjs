@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { before, test } from 'node:test';
-import { prepareBrowserTests, useAuthBrowserFixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import { test } from 'node:test';
+import { useAuthBrowserFixture } from './fixture.mjs';
 
 test('the authentication switch persists and credential events log while notifications are disabled', { timeout: 60000 }, async t => {
     const f = await useAuthBrowserFixture(t);

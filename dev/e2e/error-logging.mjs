@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
-import { before, test } from 'node:test';
+import { test } from 'node:test';
 import de from '../../src/frontend/src/i18n/locales/de.js';
 import en from '../../src/frontend/src/i18n/locales/en.js';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
+import { useBrowserFixture } from './fixture.mjs';
 
 const invalid = ':80 {\n  integration_browser_bad_directive\n}\n';
 const options = { timeout: 120000 };
-
-before(prepareBrowserTests, { timeout: 35000 });
 
 test('unreadable logging configuration has a useful coded error and recovers after correction', options, async t => {
     const { page, stack, origin } = await useBrowserFixture(t);
@@ -215,7 +213,7 @@ test('Caddy logs surface legacy HTTP 200 read errors without exposing raw server
 
 test('Caddy live logs report refused streams and keep loaded lines', options, async t => {
     const { page, go } = await scenario(t);
-    await page.route('**/api/logs/stream', route => route.fulfill({ status: 503, contentType: 'application/json',
+    await page.route(/\/api\/logs\/stream(\?|$)/, route => route.fulfill({ status: 503, contentType: 'application/json',
         body: JSON.stringify({ code: 'LOG_SOURCE_UNAVAILABLE', error: 'Operation failed' }),
     }));
     await go('/logs?dist=caddy');

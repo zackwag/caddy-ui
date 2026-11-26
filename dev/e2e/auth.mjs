@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import test, { before } from 'node:test';
-import { prepareBrowserTests, useAuthBrowserFixture as fixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import test from 'node:test';
+import { useAuthBrowserFixture as fixture } from './fixture.mjs';
 
 const secret = () => randomBytes(24).toString('base64url');
 
@@ -78,7 +76,7 @@ test('HTTP setup, session cookies, CSRF, logout and one-time recovery work in th
 });
 
 test('existing environment login enrolls credentials without changing installation metadata', { timeout: 60000 }, async t => {
-    const { page, previous, env, metadata } = await fixture(t, true);
+    const { page, previous, env, metadata } = await fixture(t, { legacy: true });
     await login(page, previous.password, previous.username);
     await page.getByRole('heading', { name: 'Create administrator' }).waitFor();
     await completeSetup(page, secret());
@@ -225,7 +223,7 @@ async function addPasskey(dialog, password, name) {
 }
 
 test('HTTPS passkeys survive a backend replacement, sign in, and require a password for removal', { timeout: 90000 }, async t => {
-    const f = await fixture(t, false, { https: true });
+    const f = await fixture(t, { https: true });
     const { page, context } = f;
     assert.equal(await page.evaluate(() => isSecureContext), true);
     const password = secret();
@@ -268,7 +266,7 @@ test('HTTPS passkeys survive a backend replacement, sign in, and require a passw
 });
 
 test('HTTPS passkey enrollment checks each password, supports multiple authenticators and enforces three keys', { timeout: 90000 }, async t => {
-    const { page, context } = await fixture(t, false, { https: true });
+    const { page, context } = await fixture(t, { https: true });
     const password = secret();
     await completeSetup(page, password);
     const dialog = await openPasskeys(page);
@@ -300,7 +298,7 @@ test('HTTPS passkey enrollment checks each password, supports multiple authentic
 });
 
 test('HTTPS browsers distinguish missing passkey configuration from unsupported WebAuthn', { timeout: 60000 }, async t => {
-    const { page } = await fixture(t, false, { https: true, configurePasskeys: false });
+    const { page } = await fixture(t, { https: true, configurePasskeys: false });
     await completeSetup(page, secret());
     const dialog = await openPasskeys(page);
     await dialog.getByText('Passkey setup is incomplete.', { exact: false }).waitFor();
@@ -313,7 +311,7 @@ test('HTTPS browsers distinguish missing passkey configuration from unsupported 
 });
 
 test('IP-literal HTTPS addresses explain why passkeys are unavailable while password login works', { timeout: 60000 }, async t => {
-    const { page } = await fixture(t, false, { https: true, httpsHostname: '127.0.0.1' });
+    const { page } = await fixture(t, { https: true, httpsHostname: '127.0.0.1' });
     const password = secret();
     await completeSetup(page, password);
     const dialog = await openPasskeys(page);
@@ -328,7 +326,7 @@ test('IP-literal HTTPS addresses explain why passkeys are unavailable while pass
 });
 
 test('Auth settings explain an origin mismatch instead of reporting missing configuration', { timeout: 60000 }, async t => {
-    const { page } = await fixture(t, false, { https: true });
+    const { page } = await fixture(t, { https: true });
     await completeSetup(page, secret());
     await page.route('**/api/auth/passkeys', async route => {
         await route.fulfill({ json: { enabled: true, origin: 'https://configured.example.com',
@@ -341,7 +339,7 @@ test('Auth settings explain an origin mismatch instead of reporting missing conf
 });
 
 test('passkey sign-in explains an incompatible HTTPS origin and works at the configured address', { timeout: 60000 }, async t => {
-    const { page, context, origin } = await fixture(t, false, { https: true });
+    const { page, context, origin } = await fixture(t, { https: true });
     const password = secret();
     await completeSetup(page, password);
     const device = await virtualAuthenticator(context, page);

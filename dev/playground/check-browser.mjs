@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { launchChromium } from '../browser.mjs';
 import { createServer } from 'vite';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
 import en from '../../src/frontend/src/i18n/locales/en.js';
@@ -14,9 +14,7 @@ let browser;
 try {
     await vite.listen();
     const origin = vite.resolvedUrls.local[0].replace(/\/$/, '');
-    browser = await chromium.launch({
-        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
-    });
+    browser = await launchChromium();
     const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
     const page = await context.newPage();

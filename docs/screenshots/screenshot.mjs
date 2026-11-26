@@ -1,13 +1,11 @@
+import { launchChromium } from '../../dev/browser.mjs';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-const require = createRequire(resolve(import.meta.dirname, '../../dev/package.json'));
-const { chromium } = require('playwright');
 import { createReplayFetch } from '../../dev/playground/capture-format.js';
 import { screenshotRecords } from './replay.mjs';
 
@@ -86,9 +84,7 @@ export async function renderScreenshots({ capturePath = resolve(import.meta.dirn
 
     let browser;
     try {
-        browser = await chromium.launch({
-            ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
-        });
+        browser = await launchChromium();
         const context = await browser.newContext({
             viewport: { width: 1920, height: 1080 },
             deviceScaleFactor: 1,

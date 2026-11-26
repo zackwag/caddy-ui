@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
-import { before, test } from 'node:test';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
+import { test } from 'node:test';
+import { useBrowserFixture } from './fixture.mjs';
 
-before(prepareBrowserTests, { timeout: 35000 });
 const day = 24 * 60 * 60 * 1000;
 
 async function scenario(t, age) {

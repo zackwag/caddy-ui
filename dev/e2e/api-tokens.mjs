@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
-import { before, test } from 'node:test';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import { test } from 'node:test';
+import { useBrowserFixture } from './fixture.mjs';
 
 test('the real UI issues, scopes and revokes read-only tokens without relaxing CSRF', { timeout: 120000 }, async t => {
     const { page, stack } = await useBrowserFixture(t);

@@ -2,10 +2,8 @@ import assert from 'node:assert/strict';
 import { createHmac, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
-import test, { before } from 'node:test';
-import { prepareBrowserTests, useAuthBrowserFixture as fixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import test from 'node:test';
+import { useAuthBrowserFixture as fixture } from './fixture.mjs';
 
 // Independent RFC 6238 oracle: do not generate test codes with the validator.
 function code(secret, step) {
@@ -92,7 +90,7 @@ test('HTTP TOTP survives replacement, gates password sign-in, and permits verifi
 });
 
 test('HTTPS uses fresh passkey proof for TOTP changes and keeps passkey sign-in independent', { timeout: 60000 }, async t => {
-    const f = await fixture(t, false, { https: true });
+    const f = await fixture(t, { https: true });
     const { page, context } = f;
     const { password } = await setup(page);
     const cdp = await context.newCDPSession(page);

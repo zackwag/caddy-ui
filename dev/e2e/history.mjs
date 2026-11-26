@@ -3,12 +3,10 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { before, test } from 'node:test';
+import { test } from 'node:test';
 import { caddyGet, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
 import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import { useBrowserFixture } from './fixture.mjs';
 
 test('external file and admin API changes have independent Unknown-author diffs with protected access and retryable storage failures', { timeout: 120000 }, async t => {
     const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-external-history-'));

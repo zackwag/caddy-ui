@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
-import { chromium } from 'playwright';
+import { launchChromium } from '../browser.mjs';
 import { Harness } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from '../integration/lifecycle.mjs';
 import { waitForContainerNetwork, waitForHttp } from '../integration/stack.mjs';
@@ -103,10 +103,7 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
         await once(server, 'listening');
         return server;
     }, async server => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
-    const browser = await scope.acquire(() => chromium.launch({
-        args: ['--ignore-certificate-errors-spki-list=' + pin],
-        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
-    }), value => value.close());
+    const browser = await scope.acquire(() => launchChromium({ args: ['--ignore-certificate-errors-spki-list=' + pin] }), value => value.close());
     const font = await readFile(join(root, 'src/frontend/node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-latin-standard-normal.woff2'));
 
     for (const origin of [httpOrigin, `https://localhost:${proxy.address().port}`]) {

@@ -1,13 +1,11 @@
+import { launchChromium } from '../../dev/browser.mjs';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { createRequire } from 'node:module';
 import { extname, join, resolve } from 'node:path';
 import { options } from './history-inventory.mjs';
 import { siteBase } from './history-site.mjs';
 
-const require = createRequire(new URL('../../dev/package.json', import.meta.url));
-const { chromium } = require('playwright');
 const args = options(process.argv.slice(2), ['site', 'base', 'screenshot', 'mobile-screenshot', 'footer-screenshot']);
 const directory = resolve(args.site || new URL('../../.docs-site', import.meta.url).pathname);
 const base = siteBase(args.base || '/caddy-ui/');
@@ -30,7 +28,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 let browser;
 try {
-    browser = await chromium.launch({ ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
+    browser = await launchChromium();
     const context = await browser.newContext({ colorScheme: 'dark' });
     await context.route('**/*', route => {
         const url = route.request().url();

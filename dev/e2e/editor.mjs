@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { before, test } from 'node:test';
+import { test } from 'node:test';
 import en from '../../src/frontend/src/i18n/locales/en.js';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import { useBrowserFixture } from './fixture.mjs';
 
 // CodeMirror's tab focus mode toggle from the default keymap.
 const TOGGLE_TAB_FOCUS = process.platform === 'darwin' ? 'Shift+Alt+m' : 'Control+m';

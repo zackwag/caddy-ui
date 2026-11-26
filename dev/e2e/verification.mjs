@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import { chmod } from 'node:fs/promises';
 import { join } from 'node:path';
-import { before, test } from 'node:test';
+import { test } from 'node:test';
 import en from '../../src/frontend/src/i18n/locales/en.js';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import { useBrowserFixture } from './fixture.mjs';
 
 test('a saved change reports its warning even when the editor refresh after it fails', { timeout: 120000 }, async t => {
     const { stack, page, origin, waitForView } = await useBrowserFixture(t);
