@@ -1,7 +1,7 @@
 const stable = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/;
 const development = /^(dev|edge|beta)(?:-[a-f0-9]+)?$/;
 
-export function releaseNotes(catalog, tag) {
+function releaseNotes(catalog, tag) {
     return `https://github.com/${catalog.repository}/releases/tag/${encodeURIComponent(tag)}`;
 }
 

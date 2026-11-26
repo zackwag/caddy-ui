@@ -1,14 +1,13 @@
 import { randomBytes } from 'node:crypto';
-import { once } from 'node:events';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { createServer, request } from 'node:http';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { isolatedBackendEnvironment } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from './lifecycle.mjs';
-import { startBackend } from './stack.mjs';
+import { forward, serveLoopback, startBackend } from './stack.mjs';
 import { createAuthStore } from '../../src/backend/src/authStore.js';
 
 function call(base, path, { headers = {}, method = 'GET', body } = {}) {
@@ -35,7 +34,7 @@ async function backend(t, trustedProxies = '') {
     const store = createAuthStore(env.AUTH_PATH);
     await store.loadAuth();
     await store.initializeAuth(credentials.username, credentials.password);
-    return { ...await startBackend(scope, { env }), credentials };
+    return { ...await startBackend(scope, { env }), credentials, scope };
 }
 
 async function loginClient(url) {
@@ -71,22 +70,11 @@ describe('real backend login rate limits', () => {
     });
 
     it('keeps distinct client budgets behind a configured proxy', { timeout: 15000 }, async t => {
-        const { url, credentials } = await backend(t, '127.0.0.1');
+        const { url, credentials, scope } = await backend(t, '127.0.0.1');
         // Two controlled proxy fixtures represent separate verified clients.
         // Their identities are fixture configuration, never request input.
         async function proxyFor(clientIp) {
-            const proxy = createServer((req, res) => {
-                const upstream = request(url + req.url, { method: req.method,
-                    headers: { ...req.headers, 'x-forwarded-for': clientIp } }, response => {
-                    res.writeHead(response.statusCode, response.headers); response.pipe(res);
-                });
-                upstream.on('error', error => res.destroy(error));
-                res.on('close', () => upstream.destroy());
-                req.pipe(upstream);
-            });
-            t.after(async () => { proxy.closeAllConnections(); await new Promise(resolve => proxy.close(resolve)); });
-            proxy.listen(0, '127.0.0.1');
-            await once(proxy, 'listening');
+            const proxy = await serveLoopback(scope, (req, res) => forward(req, res, url, { 'x-forwarded-for': clientIp }));
             return loginClient(`http://127.0.0.1:${proxy.address().port}`);
         }
         const first = await proxyFor('192.0.2.1');

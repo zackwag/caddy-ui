@@ -9,10 +9,8 @@ const options = { timeout: 120000 };
 
 test('unreadable logging configuration has a useful coded error and recovers after correction', options, async t => {
     const { page, stack, origin } = await useBrowserFixture(t);
-    const { instance } = stack.instances.get('alpha');
     const original = (await stack.api('/caddyfile')).data;
-    const writeConfig = text => stack.harness.run(['exec', instance.containerName, 'sh', '-c',
-        'printf "%s" "$1" > "$2"', 'sh', text, instance.configPath]);
+    const writeConfig = text => stack.harness.writeConfig('alpha', text);
     await writeConfig('{\nlog {\n');
     const pending = page.waitForResponse(response => new URL(response.url()).pathname === '/api/logs/config');
     await page.goto(origin + '/logs?dist=caddy', { waitUntil: 'domcontentloaded' });

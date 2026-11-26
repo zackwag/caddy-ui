@@ -2,12 +2,13 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { backendEnvironment, checkDocker, devFrontendHost, Harness, namespace, STATE, withLock } from './harness.mjs';
+import { backendEnvironment, checkDocker, devFrontendHost, Harness, namespace, STATE, until, withLock } from './harness.mjs';
 import { createExampleInstance } from './examples.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const children = new Set();
-let stopping = false;
+const stopped = new AbortController();
+const stopping = () => stopped.signal.aborted;
 let runnerLock;
 
 async function freePort(port) {
@@ -18,33 +19,27 @@ async function freePort(port) {
     });
 }
 
-async function waitFor(url, expected) {
-    for (let attempt = 0; attempt < 60; attempt++) {
-        if (stopping) throw new Error('Startup interrupted.');
-        try {
-            const response = await fetch(url, { signal: AbortSignal.timeout(1000) });
-            if (response.ok && (!expected || await expected(response))) return;
-        } catch { /* Retry while the service starts. */ }
-        await new Promise(resolve => setTimeout(resolve, 250));
-    }
-    throw new Error(`Service did not become ready: ${url}. Check container logs with npm run dev:instances -- list, then docker logs <containerName>.`);
+function waitFor(url, expected = () => true) {
+    return until(remaining => fetch(url, { signal: AbortSignal.timeout(Math.min(1000, remaining)) }),
+        async response => response.ok && await expected(response), { signal: stopped.signal, intervalMs: 250, retry: () => true,
+            message: `Service did not become ready: ${url}. Check container logs with npm run dev:instances -- list, then docker logs <containerName>.` });
 }
 
 function start(command, args, env) {
-    if (stopping) throw new Error('Startup interrupted.');
+    if (stopping()) throw new Error('Startup interrupted.');
     const child = spawn(command, args, { cwd: root, env, stdio: 'inherit' });
     children.add(child);
     child.once('error', error => { console.error(error.message); void shutdown(1); });
     child.once('exit', code => {
         children.delete(child);
-        if (!stopping) void shutdown(code || 1);
+        if (!stopping()) void shutdown(code || 1);
     });
     return child;
 }
 
 async function shutdown(code = 0) {
-    if (stopping) return;
-    stopping = true;
+    if (stopping()) return;
+    stopped.abort(new Error('Startup interrupted.'));
     for (const child of children) child.kill('SIGTERM');
     const timer = setTimeout(() => { for (const child of children) child.kill('SIGKILL'); }, 3000);
     await Promise.all([...children].map(child => new Promise(resolve => child.once('exit', resolve))));
@@ -61,7 +56,7 @@ try {
     await freePort(3001);
     await freePort(5173);
     await checkDocker();
-    if (stopping) throw new Error('Startup interrupted.');
+    if (stopping()) throw new Error('Startup interrupted.');
     await mkdir(STATE, { recursive: true });
     const lock = resolve(STATE, 'runner.lock');
     await mkdir(lock).catch(() => { throw new Error('A dev:with-caddy runner is already active. Remove .dev-caddy/runner.lock only if the previous runner crashed.'); });
@@ -91,7 +86,7 @@ try {
         predev.once('error', reject);
         predev.once('exit', code => { children.delete(predev); code === 0 ? resolve() : reject(new Error('Frontend predev failed.')); });
     });
-    if (!stopping) {
+    if (!stopping()) {
         // Allow the configured reverse-proxy hostname without disabling Vite's host checks.
         if (env.CADDY_UI_EXTERNAL_URL) {
             const hostnames = env.CADDY_UI_EXTERNAL_URL.split(',').map(u => { try { return new URL(u.trim()).hostname; } catch { return null; } }).filter(Boolean);

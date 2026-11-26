@@ -17,7 +17,7 @@ export function compareVersions(a, b) {
 }
 
 // Read every historical JSON record: the current update-check list is bounded.
-export function publicationHistory(root, ref) {
+function publicationHistory(root, ref) {
     const commit = git(root, ['rev-parse', '--verify', `${ref}^{commit}`]);
     const images = { frontend: new Map(), backend: new Map() };
     const commits = git(root, ['log', '--reverse', '--format=%H', commit, '--', 'versions.json']).split('\n');

@@ -5,10 +5,9 @@ import { mkdtemp, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { checkDocker, Harness, IMAGE, isolatedBackendEnvironment } from '../dev-caddy/harness.mjs';
+import { checkDocker, Harness, IMAGE, isolatedBackendEnvironment, until as poll } from '../dev-caddy/harness.mjs';
 import { spawnBackend, stopProcess } from '../integration/stack.mjs';
 import { CAPTURE_VERSION, normalizeCapture, validateCapture } from './capture-format.js';
 
@@ -80,17 +79,7 @@ export async function runCapture({ name, output, backendEntry = resolve(root, 's
     process.once('SIGINT', interrupt);
     process.once('SIGTERM', interrupt);
 
-    async function until(read, done, message) {
-        const deadline = Date.now() + 15000;
-        while (true) {
-            signal.throwIfAborted();
-            const value = await read();
-            if (done(value)) return value;
-            assert(Date.now() < deadline, message);
-            // An abort reports why, such as the backend exiting
-            await delay(250, undefined, { signal }).catch(() => signal.throwIfAborted());
-        }
-    }
+    const until = (read, done, message) => poll(read, done, { signal, intervalMs: 250, message });
 
     const session = {
         harness, directory, signal, until,

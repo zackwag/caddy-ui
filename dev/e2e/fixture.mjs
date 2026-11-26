@@ -1,18 +1,15 @@
 import assert from 'node:assert/strict';
-import { execFile, fork } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { createHash, randomBytes, X509Certificate } from 'node:crypto';
-import { once } from 'node:events';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { createServer as createHttpServer, request } from 'node:http';
-import { createServer as createHttpsServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { launchChromium } from '../browser.mjs';
 import { createServer } from 'vite';
-import { backendEnvironment } from '../dev-caddy/harness.mjs';
+import { isolatedBackendEnvironment } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from '../integration/lifecycle.mjs';
-import { createTestStack, waitForBackendPort, waitForContainerNetwork } from '../integration/stack.mjs';
+import { createTestStack, forward, serveLoopback, startBackend, stopProcess, waitForContainerNetwork } from '../integration/stack.mjs';
 
 const frontend = resolve(import.meta.dirname, '../../src/frontend');
 
@@ -20,6 +17,26 @@ const frontend = resolve(import.meta.dirname, '../../src/frontend');
 let prepared;
 function prepareFrontend() {
     return prepared ??= promisify(execFile)(process.execPath, ['scripts/fetch-caddyfile-mode.mjs'], { cwd: frontend, timeout: 30000 });
+}
+
+// A one-day certificate for localhost, and the SPKI pin Chromium trusts it by.
+export async function selfSignedCertificate(directory) {
+    const key = join(directory, 'key.pem');
+    const cert = join(directory, 'cert.pem');
+    await promisify(execFile)('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256',
+        '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost'], { timeout: 10000 });
+    const tls = { key: await readFile(key), cert: await readFile(cert) };
+    const pin = createHash('sha256').update(new X509Certificate(tls.cert).publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
+    return { tls, pin };
+}
+
+// Signs `context` in through the API, or enrolls `credentials` as the first administrator.
+export async function apiSignIn(context, origin, credentials, { enroll = false } = {}) {
+    const csrf = await context.request.get(origin + '/api/auth/csrf');
+    const response = await context.request.post(origin + (enroll ? '/api/auth/setup' : '/api/auth/sessions'), {
+        headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken }, data: credentials,
+    });
+    assert.equal(response.status(), 200, `${enroll ? 'Enrollment' : 'Sign-in'} through the API: ${await response.text()}`);
 }
 
 // One scenario owns the whole stack. No page, registry, locale or viewport state
@@ -45,11 +62,7 @@ export async function useBrowserFixture(t, options) {
     const origin = vite.resolvedUrls.local[0].replace(/\/$/, '');
     const browser = await scope.acquire(() => launchChromium(), browser => browser.close());
     const context = await scope.acquire(() => browser.newContext({ viewport: { width: 1440, height: 900 } }), context => context.close());
-    const csrf = await context.request.get(origin + '/api/auth/csrf');
-    const login = await context.request.post(origin + '/api/auth/sessions', {
-        headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken }, data: stack.credentials,
-    });
-    assert.equal(login.status(), 200, 'Browser fixture login');
+    await apiSignIn(context, origin, stack.credentials);
     const page = await scope.run(() => context.newPage());
     page.setDefaultTimeout(10000);
     const record = entry => {
@@ -99,34 +112,18 @@ export async function useAuthBrowserFixture(t, { legacy = false, https = false, 
     t.after(() => scope.close());
     const directory = await scope.acquire(() => mkdtemp(join(tmpdir(), 'caddy-auth-browser-')), value => rm(value, { recursive: true, force: true }));
     let vite;
-    let tls;
-    let certificatePin;
-    if (https) {
-        const key = join(directory, 'key.pem');
-        const cert = join(directory, 'cert.pem');
-        await promisify(execFile)('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256',
-            '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost'], { timeout: 10000 });
-        tls = { key: await readFile(key), cert: await readFile(cert) };
-        certificatePin = createHash('sha256').update(new X509Certificate(tls.cert).publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
-    }
+    const { tls, pin } = https ? await selfSignedCertificate(directory) : {};
     let target;
-    const proxy = await scope.acquire(async () => {
-        const handler = (req, res) => {
-            if (!req.url.startsWith('/api/')) return vite.middlewares(req, res);
-            if (!target) { res.writeHead(502); return res.end(); }
-            const upstream = request(target + req.url, { method: req.method, headers: req.headers }, response => {
-                res.writeHead(response.statusCode, response.headers);
-                response.pipe(res);
-            });
-            upstream.on('error', () => { res.writeHead(502); res.end(); });
-            res.on('close', () => upstream.destroy());
-            req.pipe(upstream);
-        };
-        const server = tls ? createHttpsServer(tls, handler) : createHttpServer(handler);
-        server.listen(0, '127.0.0.1');
-        await once(server, 'listening');
-        return server;
-    }, async value => { value.closeAllConnections(); await new Promise(resolve => value.close(resolve)); });
+    const proxy = await serveLoopback(scope, (req, res) => {
+        if (!req.url.startsWith('/api/')) {
+            return vite.middlewares(req, res);
+        }
+        if (!target) {
+            res.writeHead(502);
+            return res.end();
+        }
+        forward(req, res, target);
+    }, tls);
     vite = await scope.acquire(() => createServer({ root: join(root, 'src/frontend'),
         ...(frontendVersion === undefined ? {} : { define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(frontendVersion) } }),
         server: { middlewareMode: true, hmr: false, ws: { server: proxy } }, cacheDir: join(directory, 'vite-cache'),
@@ -134,35 +131,21 @@ export async function useAuthBrowserFixture(t, { legacy = false, https = false, 
     // HTTP scenarios use an untrustworthy origin; HTTPS pins only this fixture's certificate.
 
     const origin = https ? `https://${httpsHostname}:${proxy.address().port}` : new URL(`http://[::ffff:127.0.0.1]:${proxy.address().port}`).origin;
-    const env = { ...backendEnvironment(directory, {}), PORT: '0', CADDY_UI_EXTERNAL_URL: origin,
-        AUTH_PATH: join(directory, 'backend/auth.json') };
-    if (!configurePasskeys) delete env.CADDY_UI_EXTERNAL_URL;
-    for (const key of ['CADDY_UI_USER', 'CADDY_UI_PASSWORD', 'JWT_SECRET']) delete env[key];
     const previous = { username: 'legacy-administrator', password: secret() };
-    if (legacy) Object.assign(env, { CADDY_UI_USER: previous.username, CADDY_UI_PASSWORD: previous.password, JWT_SECRET: secret() });
+    const env = isolatedBackendEnvironment(directory, {}, {
+        ...(configurePasskeys ? { CADDY_UI_EXTERNAL_URL: origin } : {}),
+        ...(legacy ? { CADDY_UI_USER: previous.username, CADDY_UI_PASSWORD: previous.password, JWT_SECRET: secret() } : {}),
+    });
     await mkdir(join(directory, 'backend'));
     await writeFile(env.INSTANCES_PATH, '[]');
     const metadata = JSON.stringify({ firstTimeRun: false, language: 'en', theme: 'dark', routeColumns: { id: false } });
     await writeFile(env.SETTINGS_PATH, metadata);
-    let output = '';
     let backend;
-    async function startBackend() {
-        backend = await scope.acquire(() => fork(join(root, 'src/backend/src/index.js'), [], { cwd: root, env, silent: true }), stopBackend);
-        backend.stdout.on('data', chunk => { output = (output + chunk).slice(-32000); });
-        backend.stderr.on('data', chunk => { output = (output + chunk).slice(-32000); });
-        const failed = new AbortController();
-        backend.once('exit', () => failed.abort(new Error('Backend exited before readiness: ' + output)));
-        target = 'http://127.0.0.1:' + await waitForBackendPort(backend, { signal: AbortSignal.any([scope.signal, failed.signal]) });
+    async function start() {
+        ({ backend, url: target } = await startBackend(scope, { env }));
     }
-    async function stopBackend(child) {
-        if (child.exitCode !== null || child.signalCode !== null) return;
-        const exited = once(child, 'exit');
-        child.kill('SIGTERM');
-        const timer = setTimeout(() => child.kill('SIGKILL'), 3000);
-        try { await exited; } finally { clearTimeout(timer); }
-    }
-    await startBackend();
-    const browser = await scope.acquire(() => launchChromium({ ...(certificatePin ? { args: ['--ignore-certificate-errors-spki-list=' + certificatePin] } : {}) }), value => value.close());
+    await start();
+    const browser = await scope.acquire(() => launchChromium({ ...(pin ? { args: ['--ignore-certificate-errors-spki-list=' + pin] } : {}) }), value => value.close());
     const context = await scope.acquire(() => browser.newContext({ viewport: { width: 1440, height: 900 } }), value => value.close());
     const page = await context.newPage();
     page.setDefaultTimeout(10000);
@@ -173,6 +156,6 @@ export async function useAuthBrowserFixture(t, { legacy = false, https = false, 
     t.after(() => assert.deepEqual(pageErrors, []));
     await page.goto(origin);
     return { page, context, previous, origin, urls, env, metadata,
-        async restart() { await stopBackend(backend); await startBackend(); },
+        async restart() { await stopProcess(backend); await start(); },
         disconnect() { target = null; } };
 }

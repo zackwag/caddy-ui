@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { inspect, promisify } from 'node:util';
 import { hostname } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 export const LABEL = 'io.caddy-ui.dev';
 export const IMAGE = 'caddy:2.10.2-alpine';
@@ -15,9 +16,40 @@ export function devFrontendHost(value = '127.0.0.1') {
     return value;
 }
 
-export async function docker(args) {
+export async function docker(args, { trim = true } = {}) {
     const { stdout } = await exec('docker', args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 });
-    return stdout.trim();
+    return trim ? stdout.trim() : stdout;
+}
+
+// Calls `read(remainingMs)` until `done(value)` holds, every `intervalMs` for at
+// most `timeoutMs`. A thrown error ends the wait unless `retry(error)` allows
+// another attempt. A timeout names the last value or error it observed.
+export async function until(read, done = Boolean, { signal, timeoutMs = 15000, intervalMs = 100, retry = () => false, message = 'Condition not met' } = {}) {
+    const deadline = Date.now() + timeoutMs;
+    let last;
+    while (true) {
+        signal?.throwIfAborted();
+        try {
+            const value = await read(Math.max(1, deadline - Date.now()));
+            if (await done(value)) {
+                signal?.throwIfAborted();
+                return value;
+            }
+            last = { value };
+        } catch (error) {
+            // An abort, such as a process exiting, explains the failure better than its symptom.
+            signal?.throwIfAborted();
+            if (!retry(error)) {
+                throw error;
+            }
+            last = { error };
+        }
+        if (Date.now() >= deadline) {
+            const observed = last.error ? `error: ${last.error.message}` : `value: ${inspect(last.value, { depth: 2, breakLength: Infinity, maxStringLength: 500 })}`;
+            throw new Error(`${typeof message === 'function' ? message() : message} (after ${timeoutMs} ms; last ${observed})`, { cause: last.error });
+        }
+        await delay(intervalMs, undefined, { signal }).catch(() => signal.throwIfAborted());
+    }
 }
 
 export async function checkDocker(run = docker) {
@@ -177,6 +209,10 @@ export class Harness {
     // Replaces an instance's Caddyfile in place, as an external editor would.
     writeConfig(name, content) {
         return this.run(['exec', this.resource(name), 'sh', '-c', 'printf "%s" "$1" > /data/dev-caddy/Caddyfile', 'sh', content]);
+    }
+
+    readConfig(name) {
+        return this.run(['exec', this.resource(name), 'cat', '/data/dev-caddy/Caddyfile'], { trim: false });
     }
 
     async stop(name) {

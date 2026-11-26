@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { backendEnvironment, isolatedBackendEnvironment, checkDocker, defaultCaddyfile, devFrontendHost, Harness, LABEL, namespace, validateName, withLock } from './harness.mjs';
+import { backendEnvironment, isolatedBackendEnvironment, checkDocker, defaultCaddyfile, devFrontendHost, Harness, LABEL, namespace, until, validateName, withLock } from './harness.mjs';
 
 const project = '0123456789abcdef';
 test('development UI stays loopback-bound unless wide binding is explicitly requested', () => {
@@ -207,4 +207,16 @@ test('purge preflights a colliding foreign volume before removing the owned cont
     await assert.rejects(h.remove('alpha', true), /ownership/);
     assert.equal(e.containers.size, 1);
     assert.equal(e.volumes.size, 1);
+});
+
+test('until retries only what it is told to and names its last observation on timeout', async () => {
+    let reads = 0;
+    assert.equal(await until(async () => ++reads, value => value === 3, { intervalMs: 1 }), 3);
+    await assert.rejects(until(() => { throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }); }, Boolean, { intervalMs: 1 }), /refused/);
+    await assert.rejects(until(() => { throw new Error('starting'); }, Boolean, { timeoutMs: 20, intervalMs: 1, retry: () => true, message: 'Not ready' }),
+        error => /^Not ready \(after 20 ms; last error: starting\)$/.test(error.message) && error.cause.message === 'starting');
+    await assert.rejects(until(() => ({ status: 503 }), value => value.status === 200, { timeoutMs: 20, intervalMs: 1 }), /last value: \{ status: 503 \}/);
+    const stopped = new AbortController();
+    stopped.abort(new Error('interrupted'));
+    await assert.rejects(until(() => true, Boolean, { signal: stopped.signal }), /interrupted/);
 });

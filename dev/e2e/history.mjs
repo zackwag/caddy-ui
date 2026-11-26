@@ -3,7 +3,6 @@ import { chmod, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { caddyGet, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
-import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
 import { checkDrift, driftCheckingBackend } from '../integration/stack.mjs';
 import { useBrowserFixture } from './fixture.mjs';
 
@@ -14,7 +13,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     const instance = stack.instances.get('alpha').instance;
     const initial = (await stack.api('/caddyfile')).data;
     const fileEdit = initial + '\n# external-file-history\n';
-    await writeContainerFile(instance.containerName, instance.configPath, fileEdit);
+    await stack.harness.writeConfig('alpha', fileEdit);
     await check();
     let entries = (await stack.api('/caddyfile/history')).data;
     assert.equal(entries.length, 1, 'Polling records the file without a later UI save');
@@ -33,7 +32,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     assert.equal(entries[0].action, 'route.add');
     assert.equal(entries[0].actor.name, stack.credentials.username);
 
-    const fileBeforeApi = await readContainerFile(instance.containerName, instance.configPath);
+    const fileBeforeApi = await stack.harness.readConfig('alpha');
     const liveBeforeApi = await caddyGet('/config/', instance.adminUrl);
     const injection = '<img src=x onerror="window.historyInjection=true">';
     const route = { '@id': 'external-history-route', match: [{ host: ['external-history.test'] }], handle: [{ handler: 'static_response', body: injection }] };
@@ -50,7 +49,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     assert.deepEqual(JSON.parse(changes.before.live), liveBeforeApi);
     assert.deepEqual(JSON.parse(changes.after.live), await caddyGet('/config/', instance.adminUrl));
     assert.equal((await stack.api(`/caddyfile/history/${apiEntry.filename}`)).status, 409, 'JSON is not downloadable as a Caddyfile');
-    assert.equal(await readContainerFile(instance.containerName, instance.configPath), fileBeforeApi);
+    assert.equal(await stack.harness.readConfig('alpha'), fileBeforeApi);
     assert.equal((await fetch(stack.url + `/api/caddyfile/history/${apiEntry.filename}/changes`)).status, 401);
     const token = await stack.api('/auth/tokens', { method: 'POST', body: { name: 'History access probe', scopes: ['status:read'], instanceIds: ['default'], expiresInDays: 1 } });
     assert.equal(token.status, 201);
@@ -73,7 +72,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     assert.equal(rawConfig.apps.http.servers[instance.serverName].routes.find(candidate => candidate['@id'] === route['@id']).handle[0].body, injection);
     assert.equal(await page.evaluate(() => window.historyInjection), undefined);
 
-    await writeContainerFile(instance.containerName, instance.configPath, fileBeforeApi + '# combined external change\n');
+    await stack.harness.writeConfig('alpha', fileBeforeApi + '# combined external change\n');
     await caddyPatch('/id/external-history-route', { ...route, handle: [{ handler: 'static_response', body: 'combined-live-secret' }] }, instance.adminUrl);
     // By default, live values stay out of history: only fingerprints and changed paths.
     await check({ liveJson: false });
@@ -102,7 +101,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     const historyPath = join(stack.directory, 'backend/history');
     const beforeFailure = (await stack.api('/caddyfile')).data;
     const externalAfterFailure = beforeFailure + '# preserve across history failure\n';
-    await writeContainerFile(instance.containerName, instance.configPath, externalAfterFailure);
+    await stack.harness.writeConfig('alpha', externalAfterFailure);
     const countBeforeFailure = (await stack.api('/caddyfile/history')).data.length;
     await chmod(historyPath, 0o500);
     try {
@@ -111,7 +110,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
         const refused = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', plain: true, body: initial });
         assert.equal(refused.status, 500);
         assert.equal(refused.data.code, 'CADDYFILE_HISTORY_WRITE_FAILED');
-        assert.equal(await readContainerFile(instance.containerName, instance.configPath), externalAfterFailure);
+        assert.equal(await stack.harness.readConfig('alpha'), externalAfterFailure);
     } finally { await chmod(historyPath, 0o700); }
     await check();
     await check();
@@ -179,9 +178,7 @@ test('saved versions show stable attribution, preserve unknown external edits an
     await page.getByText('User: ' + renamed, { exact: false }).first().waitFor();
 
     // Bypass the UI on this fixture's owned container, without claiming an actor.
-    const instance = stack.instances.get('alpha').instance;
-    await stack.harness.run(['exec', instance.containerName, 'sh', '-c',
-        'printf "\\n# external-history-edit\\n" >> "$1"', 'history-test', instance.configPath]);
+    await stack.harness.writeConfig('alpha', await stack.harness.readConfig('alpha') + '\n# external-history-edit\n');
     const external = (await stack.api('/caddyfile')).data;
     assert(external.includes('external-history-edit'));
     await edit(external.replace('first-attributed-save:', 'second-attributed-save:'));

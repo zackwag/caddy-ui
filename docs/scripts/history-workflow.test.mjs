@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
+import { MDBOOK_VERSION } from './history-backfill.mjs';
 
 const workflow = readFileSync(new URL('../../.github/workflows/docs.yml', import.meta.url), 'utf8');
 const archiveWorkflow = readFileSync(new URL('../../.github/workflows/documentation-history.yml', import.meta.url), 'utf8');
@@ -123,4 +124,14 @@ test('release completion cannot publish foreign artifacts or run archive writes 
     assert.match(job('collect'), /ref: main/);
     assert.match(job('collect'), /secrets\.DOCS_ARCHIVE_DISPATCH_TOKEN/);
     assert.doesNotMatch(job('build'), /secrets\.DOCS_ARCHIVE_DISPATCH_TOKEN/);
+});
+
+test('both documentation workflows install the mdBook release that backfill requires', () => {
+    const pins = [workflow, archiveWorkflow].map(source => ({
+        version: source.match(/^ +MDBOOK_VERSION: '([^']+)'$/m)?.[1],
+        checksum: source.match(/^ +MDBOOK_SHA256: '([a-f0-9]{64})'$/m)?.[1],
+    }));
+    assert.equal(pins[0].version, MDBOOK_VERSION);
+    assert.match(pins[0].checksum, /^[a-f0-9]{64}$/);
+    assert.deepEqual(pins[1], pins[0]);
 });

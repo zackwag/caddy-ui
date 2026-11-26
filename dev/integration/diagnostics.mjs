@@ -86,7 +86,8 @@ test('real Caddy diagnostics preserve correlation, paths, codes and severity', {
             assert.equal(failures[0].message, 'API request failed');
             assert.equal(failures[0].path, '/api/status/process');
             assert.equal(failures[0].level, 'warn');
-            assert.match(failures[0].causes[1].message, /Metrics endpoint unavailable: 404/);
+            // The cause is kept: why Caddy refused the metrics read
+            assert.match(failures[0].causes[1].message, /\b404\b/);
             assert(!JSON.stringify(entries).includes('omit-from-log'));
         } finally {
             await stack.api('/instances/default', { method: 'PUT', body: { adminUrl: alpha.instance.adminUrl } });

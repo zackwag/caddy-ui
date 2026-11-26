@@ -14,7 +14,7 @@ test('real Caddy: isolation, reload, logs, restart/recreation persistence, clean
     const beta = await scope.run(() => harness.create('beta'));
     assert.equal(await (await response(alpha.httpUrl + '/health')).text(), 'ok');
     assert.match(await (await response(beta.httpUrl)).text(), /beta/);
-    const file = await docker(['exec', harness.resource('alpha'), 'cat', alpha.instance.configPath]);
+    const file = await harness.readConfig('alpha');
     const updated = file.replace('Caddy UI test instance: alpha', 'persisted integration edit');
     await harness.writeConfig('alpha', updated);
     await docker(['exec', harness.resource('alpha'), 'caddy', 'reload', '--config', alpha.instance.configPath, '--adapter', 'caddyfile']);

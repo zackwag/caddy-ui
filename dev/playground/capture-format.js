@@ -57,7 +57,7 @@ export function validateCapture(capture) {
     return capture;
 }
 
-export function requestKey({ method = 'GET', path, body = null }) {
+function requestKey({ method = 'GET', path, body = null }) {
     return JSON.stringify([method.toUpperCase(), path, body]);
 }
 

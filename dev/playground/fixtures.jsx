@@ -24,7 +24,7 @@ import { apiFetch } from '../../src/frontend/src/utils/api.js';
 
 const noop = () => {};
 
-export function RouteConfirmation() {
+function RouteConfirmation() {
     const { t } = useTranslation();
     return (
         <ConfirmDialog
@@ -38,7 +38,7 @@ export function RouteConfirmation() {
     );
 }
 
-export function CertificateConfirmation() {
+function CertificateConfirmation() {
     const { t } = useTranslation();
     return (
         <ConfirmDialog
@@ -52,7 +52,7 @@ export function CertificateConfirmation() {
     );
 }
 
-export function NotificationToast() {
+function NotificationToast() {
     const { t } = useTranslation();
     return <Toasts toasts={[{ id: 1, type: 'success', msg: t('notifications.saved') }]} />;
 }

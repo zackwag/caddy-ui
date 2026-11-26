@@ -8,6 +8,7 @@ on:
       - 'src/backend/src/**'
       - 'src/backend/package*.json'
       - 'dev/playground/capture*'
+      - 'dev/package.json'
       - 'dev/dev-caddy/harness.mjs'
       - 'dev/integration/stack.mjs'
       - 'dev/integration/lifecycle.mjs'

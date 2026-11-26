@@ -5,7 +5,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { Harness } from '../dev-caddy/harness.mjs';
+import { Harness, until } from '../dev-caddy/harness.mjs';
 import { captureDashboard } from './capture.mjs';
 
 async function assertClean(scope) {
@@ -156,16 +156,11 @@ test('interrupting capture cleans up its own resources without publishing an art
     t.after(async () => {
         if (child.exitCode === null && child.signalCode === null) { child.kill('SIGTERM'); await closed; }
     });
-    const deadline = Date.now() + 15000;
-    let scope;
-    while (Date.now() < deadline) {
-        const namespace = log.match(/Capture owns Docker namespace ([a-f0-9]{16})/);
-        if (namespace) scope = new Harness(namespace[1]);
-        if (scope && (await scope.names()).length) break;
+    const scope = await until(() => {
         assert.equal(child.exitCode, null, log);
-        await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    assert(scope, log);
+        const namespace = log.match(/Capture owns Docker namespace ([a-f0-9]{16})/);
+        return namespace && new Harness(namespace[1]);
+    }, async harness => harness && (await harness.names()).length > 0, { intervalMs: 50, message: () => 'Capture created no containers\n' + log });
     child.kill('SIGTERM');
     assert.equal(await closed, 1, log);
     await assert.rejects(readFile(output), { code: 'ENOENT' });

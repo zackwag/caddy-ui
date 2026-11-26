@@ -12,6 +12,8 @@ const exec = promisify(execFile);
 const digest = value => createHash('sha256').update(value).digest('hex');
 const releaseTag = /^v\d+\.\d+\.\d+$/;
 const commitId = /^[a-f0-9]{40}$/;
+// The documentation workflows install this release, and their checksum pins it.
+export const MDBOOK_VERSION = '0.5.4';
 
 export const requiresBuild = (previous, { reuse = false, retryFailed = false } = {}) =>
     !reuse || !previous || (previous.status !== 'built' && retryFailed);
@@ -44,7 +46,9 @@ export async function backfill({ root, inventory, output, mdbook = 'mdbook', sel
         throw new Error('--releases must contain distinct inventory tags separated by commas');
     }
     const { stdout } = await exec(mdbook, ['--version'], { timeout: 10000, signal });
-    if (stdout.trim() !== 'mdbook v0.5.4') throw new Error('Backfill requires mdBook 0.5.4, matching the historical documentation workflow');
+    if (stdout.trim() !== `mdbook v${MDBOOK_VERSION}`) {
+        throw new Error(`Backfill requires mdBook ${MDBOOK_VERSION}, matching the historical documentation workflow`);
+    }
     const tools = `${stdout.trim()}, Node ${process.version}, npm ${(await exec('npm', ['--version'], { timeout: 10000, signal })).stdout.trim()}`;
     mkdirSync(output, { recursive: true });
     const lock = join(output, '.lock');

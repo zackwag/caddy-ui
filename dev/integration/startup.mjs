@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { Harness } from '../dev-caddy/harness.mjs';
+import { Harness, until } from '../dev-caddy/harness.mjs';
 import { useTestStack } from './stack.mjs';
 
 test('failed backend startup still removes its Caddy containers and volumes', { timeout: 60000 }, async t => {
@@ -75,13 +75,8 @@ setInterval(() => {}, 1000);
         cancellation.abort();
         await started.then(stack => stack.close(), () => {});
     });
-    let pid;
-    for (let attempt = 0; attempt < 200 && !pid; attempt++) {
-        try { pid = Number(await readFile(marker, 'utf8')); }
-        catch (error) { if (error.code !== 'ENOENT') throw error; }
-        if (!pid) await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    assert(pid, 'Fixture backend did not start');
+    const pid = await until(async () => Number(await readFile(marker, 'utf8')), Boolean,
+        { timeoutMs: 20000, retry: error => error.code === 'ENOENT', message: 'Fixture backend did not start' });
     const reason = new Error('cancelled during startup');
     cancellation.abort(reason);
     await assert.rejects(started, error => error.cause === reason);

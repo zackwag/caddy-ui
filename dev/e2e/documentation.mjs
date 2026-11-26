@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { useAuthBrowserFixture } from './fixture.mjs';
+import { apiSignIn, useAuthBrowserFixture } from './fixture.mjs';
 
 const options = { timeout: 120000 };
 const docsOrigin = 'https://zackwag.github.io';
@@ -11,12 +11,7 @@ const resolverPath = '/caddy-ui/resolve.html';
 async function fixture(t, frontend) {
     const f = await useAuthBrowserFixture(t, { frontendVersion: frontend });
     const { page, context, origin } = f;
-    const csrf = await context.request.get(origin + '/api/auth/csrf');
-    const setup = await context.request.post(origin + '/api/auth/setup', {
-        headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken },
-        data: { username: 'documentation-administrator', password: randomBytes(24).toString('base64url') },
-    });
-    assert.equal(setup.status(), 200);
+    await apiSignIn(context, origin, { username: 'documentation-administrator', password: randomBytes(24).toString('base64url') }, { enroll: true });
 
     // Exercise the real documentation resolver and its policy in a local
     // network fixture, independently of the deployed site's current releases.

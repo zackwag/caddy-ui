@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { createHash, randomBytes, randomUUID, X509Certificate } from 'node:crypto';
-import { once } from 'node:events';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { request } from 'node:http';
-import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -12,7 +9,8 @@ import { promisify } from 'node:util';
 import { launchChromium } from '../browser.mjs';
 import { Harness } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from '../integration/lifecycle.mjs';
-import { waitForContainerNetwork, waitForHttp } from '../integration/stack.mjs';
+import { forward, serveLoopback, waitForContainerNetwork, waitForHttp } from '../integration/stack.mjs';
+import { selfSignedCertificate } from './fixture.mjs';
 
 const exec = promisify(execFile);
 const root = resolve(import.meta.dirname, '../..');
@@ -54,10 +52,12 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
     // this disposable name never creates harness resources.
     const network = await new Harness(randomBytes(8).toString('hex')).network();
     const container = 'caddy-ui-csp-' + randomUUID();
+    // The image the frontend ships on, so CI's pull warms exactly this one.
+    const image = (await readFile(join(root, 'src/frontend/Dockerfile'), 'utf8')).match(/^FROM\s+(\S+)/gm).at(-1).split(/\s+/)[1];
     await scope.acquire(() => exec('docker', ['create', '--name', container,
         '--label', 'io.caddy-ui.test-fixture=true', '--add-host', 'caddy-ui-backend:127.0.0.1',
         ...(network ? ['--network', network] : ['-p', '127.0.0.1::80']),
-        'nginx:alpine'], { timeout: 60000, signal: scope.signal }),
+        image], { timeout: 60000, signal: scope.signal }),
     () => exec('docker', ['rm', '-f', container], { timeout: 10000 }));
     // The Docker daemon may run outside this Dev Container, where neither the
     // checkout nor our temporary build directory exists. Copy through the Docker
@@ -82,27 +82,8 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
     await waitForHttp(upstream, { signal: scope.signal });
 
     // Terminate TLS in front of the same nginx, as a normal reverse proxy does.
-    const key = join(directory, 'key.pem');
-    const cert = join(directory, 'cert.pem');
-    await exec('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256',
-        '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=localhost',
-        '-addext', 'subjectAltName=DNS:localhost'], { timeout: 10000 });
-    const tls = { key: await readFile(key), cert: await readFile(cert) };
-    const pin = createHash('sha256').update(new X509Certificate(tls.cert).publicKey.export({ type: 'spki', format: 'der' })).digest('base64');
-    const proxy = await scope.acquire(async () => {
-        const server = createServer(tls, (req, res) => {
-            const remote = request(upstream + req.url, { method: req.method, headers: req.headers }, response => {
-                res.writeHead(response.statusCode, response.headers);
-                response.pipe(res);
-            });
-            remote.on('error', () => { res.writeHead(502); res.end(); });
-            res.on('close', () => remote.destroy());
-            req.pipe(remote);
-        });
-        server.listen(0, '127.0.0.1');
-        await once(server, 'listening');
-        return server;
-    }, async server => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+    const { tls, pin } = await selfSignedCertificate(directory);
+    const proxy = await serveLoopback(scope, (req, res) => forward(req, res, upstream), tls);
     const browser = await scope.acquire(() => launchChromium({ args: ['--ignore-certificate-errors-spki-list=' + pin] }), value => value.close());
 
     for (const origin of [httpOrigin, `https://localhost:${proxy.address().port}`]) {

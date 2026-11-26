@@ -17,7 +17,7 @@ export function siteBase(value) {
     return value;
 }
 
-export function legacyReleases(root, inventory) {
+function legacyReleases(root, inventory) {
     validateInventory(inventory);
     return git(root, ['tag', '--merged', inventory.throughCommit]).split('\n')
         .filter(tag => legacyTag.test(tag) && compareVersions(sortableVersion(tag), inventory.from) < 0)

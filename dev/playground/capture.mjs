@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { caddyGet, caddyPost } from '../../src/backend/src/caddy.js';
 import { captureFromCommandLine, hideInstance, runCapture } from './capture-session.mjs';
 
 const paths = ['/status', '/status/process', '/server-names'];
@@ -88,13 +89,8 @@ export function captureDashboard({ output = resolve(import.meta.dirname, 'captur
         assert(entries.length >= 2);
         for (const entry of entries) caddyfileHistory.requests.push(await successful(`/caddyfile/history/${entry.filename}`));
         caddyfileHistory.requests.push(await successful('/caddyfile/validations?fmt=true', 'POST', revised));
-        const adminHeaders = { 'Content-Type': 'application/json', Origin: 'http://0.0.0.0:2019' };
-        const original = await (await fetch(info.instance.adminUrl + '/config/', { headers: adminHeaders, signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) })).json();
-        async function loadConfig(config) {
-            const response = await fetch(info.instance.adminUrl + '/load', { method: 'POST', headers: adminHeaders,
-                body: JSON.stringify(config), signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) });
-            assert.equal(response.ok, true, await response.text());
-        }
+        const original = await caddyGet('/config/', info.instance.adminUrl);
+        const loadConfig = config => caddyPost('/load', config, info.instance.adminUrl);
         // Issue one real certificate with Caddy's internal CA. Never use ACME
         // or contact an external hostname; this listener stays inside the fixture.
         const certified = structuredClone(original);
@@ -150,8 +146,7 @@ export function captureDashboard({ output = resolve(import.meta.dirname, 'captur
         client = main;
         const empty = structuredClone(original);
         empty.apps.http.servers = {};
-        const reload = await fetch(info.instance.adminUrl + '/load', { method: 'POST', headers: adminHeaders, body: JSON.stringify(empty), signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]) });
-        assert.equal(reload.ok, true, await reload.text());
+        await loadConfig(empty);
         const noServers = await until(() => snapshot('dashboard-empty'), noServers => noServers.requests[0].response.body.serverCount === 0, 'noServers');
         assert.equal(noServers.requests[0].response.body.online, true, JSON.stringify(noServers.requests[0].response.body));
         assert.equal(noServers.requests[0].response.body.serverCount, 0);

@@ -79,7 +79,6 @@ test('a route edit refused for a concurrent change explains it and shows the cur
 
 test('the editor refuses to overwrite a newer Caddyfile and lets the user compare, overwrite or load it', { timeout: 120000 }, async t => {
     const { stack, page, context, origin, waitForView } = await useBrowserFixture(t);
-    const { instance } = stack.instances.get('alpha');
     const initial = (await stack.api('/caddyfile')).data;
     const marked = marker => initial.replace('Caddy UI test instance:', `${marker}:`);
     const file = async () => (await stack.api('/caddyfile')).data;
@@ -124,7 +123,7 @@ test('the editor refuses to overwrite a newer Caddyfile and lets the user compar
 
     // An edit made on the host, then a save from the stale editor
     await page.locator('.editor-hint--desktop', { hasText: en.caddyfile.upToDate }).waitFor();
-    await stack.harness.run(['exec', instance.containerName, 'sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', marked('host-edit'), instance.configPath]);
+    await stack.harness.writeConfig('alpha', marked('host-edit'));
     await replaceText(page, marked('stale-edit'));
     assert.equal((await saveIn(page)).status(), 409);
     await dialog.waitFor();

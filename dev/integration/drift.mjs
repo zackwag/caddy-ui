@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import { caddyGet, caddyGetConfig, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
-import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
 import { checkDrift, driftCheckingBackend, useTestStack } from './stack.mjs';
 
 // The fixture's reads go through caddy.js, which resends a read once when
@@ -11,7 +10,7 @@ import { checkDrift, driftCheckingBackend, useTestStack } from './stack.mjs';
 test('real Caddy route mutations explain only their own changes in the drift monitor', { timeout: 120000 }, async t => {
     const stack = await useTestStack(t, { backendEntry: await driftCheckingBackend(t) });
     const instance = stack.instances.get('alpha').instance;
-    const original = await readContainerFile(instance.containerName, instance.configPath);
+    const original = await stack.harness.readConfig('alpha');
     const local = { '@id': 'drift-local', handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: '127.0.0.1:9' }] }] };
     const other = { '@id': 'drift-other', match: [{ host: ['other.test'] }], handle: [{ handler: 'static_response', body: 'original' }] };
     const adminUrl = instance.adminUrl;
@@ -52,7 +51,7 @@ test('real Caddy route mutations explain only their own changes in the drift mon
                 assert.equal(restored.status, 200);
                 if (diskBacked && operation !== 'add') {
                     await append({ ...local, match: [{ host: ['local.test'] }] });
-                    await writeContainerFile(instance.containerName, instance.configPath,
+                    await stack.harness.writeConfig('alpha',
                         original + '\nlocal.test {\n    reverse_proxy 127.0.0.1:9\n}\n');
                 } else if (!diskBacked) await append(local);
                 await append(other);
@@ -86,7 +85,7 @@ test('real Caddy route mutations explain only their own changes in the drift mon
         assert.equal(restored.status, 200);
         await append(local);
         await check(true);
-        await writeContainerFile(instance.containerName, instance.configPath, original + '\n# external edit\n');
+        await stack.harness.writeConfig('alpha', original + '\n# external edit\n');
         await mutate('replace', local['@id']);
         assert.deepEqual((await check()).changes.map(change => change.representations), [['file']]);
         assert.equal((await check()).changes.length, 1);

@@ -1,12 +1,12 @@
 import { launchChromium } from '../../dev/browser.mjs';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { createReplayFetch } from '../../dev/playground/capture-format.js';
+import { serveDirectory } from '../scripts/static-server.mjs';
 import { screenshotRecords } from './replay.mjs';
 
 const exec = promisify(execFile);
@@ -33,37 +33,6 @@ async function buildFrontend(version, outDir) {
     });
 }
 
-function serveStatic(directory) {
-    const mimeTypes = {
-        '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-        '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml',
-        '.woff': 'font/woff', '.woff2': 'font/woff2',
-    };
-    const server = createServer(async (req, res) => {
-        let filePath = resolve(directory, req.url === '/' ? 'index.html' : req.url.slice(1).split('?')[0]);
-        if (!filePath.startsWith(directory)) { res.writeHead(403); res.end(); return; }
-        try {
-            const data = await readFile(filePath);
-            const ext = filePath.match(/\.[^.]+$/)?.[0] || '';
-            res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
-            res.end(data);
-        } catch {
-            // SPA fallback: serve index.html for unmatched paths.
-            try {
-                const data = await readFile(resolve(directory, 'index.html'));
-                res.writeHead(200, { 'Content-Type': 'text/html' });
-                res.end(data);
-            } catch {
-                res.writeHead(404);
-                res.end();
-            }
-        }
-    });
-    return new Promise(resolve => {
-        server.listen(0, '127.0.0.1', () => resolve(server));
-    });
-}
-
 export async function renderScreenshots({ capturePath = resolve(import.meta.dirname, 'captures/screenshots.json'), outputDirectory = screenshotsDir } = {}) {
     const capture = JSON.parse(await readFile(capturePath, 'utf8'));
     const records = screenshotRecords(capture);
@@ -77,7 +46,7 @@ export async function renderScreenshots({ capturePath = resolve(import.meta.dirn
     }
     await mkdir(outputDirectory, { recursive: true });
 
-    const server = await serveStatic(dist);
+    const server = await serveDirectory(dist, { fallback: 'index.html' });
     const { port } = server.address();
     const origin = `http://127.0.0.1:${port}`;
     console.log(`Serving frontend at ${origin}`);
@@ -122,8 +91,6 @@ export async function renderScreenshots({ capturePath = resolve(import.meta.dirn
             await page.waitForSelector('.shell', { timeout: 10000 });
             await page.waitForSelector(view.ready, { timeout: 10000 });
 
-            // Extra settle time for animations and lazy rendering.
-            await page.waitForTimeout(500);
             if (errors.length) {
                 throw new Error(`Screenshot ${view.name} failed: ${errors.join('\n')}`);
             }
@@ -131,6 +98,7 @@ export async function renderScreenshots({ capturePath = resolve(import.meta.dirn
             await page.screenshot({
                 path: resolve(outputDirectory, `${view.name}.png`),
                 fullPage: false,
+                animations: 'disabled',
             });
             console.log(`  Saved ${view.name}.png`);
         }

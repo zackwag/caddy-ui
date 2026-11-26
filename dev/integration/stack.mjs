@@ -2,12 +2,14 @@ import { execFile, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdtemp, mkdir, readFile, readdir, writeFile, rm } from 'node:fs/promises';
+import { createServer as createHttpServer, request } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
-import { checkDocker, Harness, IMAGE, isolatedBackendEnvironment } from '../dev-caddy/harness.mjs';
+import { checkDocker, Harness, IMAGE, isolatedBackendEnvironment, until } from '../dev-caddy/harness.mjs';
 import { FixtureScope } from './lifecycle.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -69,7 +71,7 @@ export async function waitForContainerNetwork(container, { signal, timeoutMs = 5
     }
 }
 
-export async function claimNamespace(harness) {
+async function claimNamespace(harness) {
     try {
         return await harness.run(['create', '--name', `caddy-ui-test-${harness.project}-lease`,
             '--label', 'io.caddy-ui.test-fixture=true', '--label', `io.caddy-ui.test-project=${harness.project}`,
@@ -82,27 +84,40 @@ export async function claimNamespace(harness) {
     }
 }
 
-export async function waitForHttp(url, { accept = response => response.ok, timeoutMs = 15000, signal } = {}) {
-    const deadline = Date.now() + timeoutMs;
-    let lastError;
-    while (Date.now() < deadline) {
-        signal?.throwIfAborted();
-        try {
-            const timeout = AbortSignal.timeout(Math.max(1, Math.min(1000, deadline - Date.now())));
-            const response = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
-            if (await accept(response)) {
-                signal?.throwIfAborted();
-                return response;
-            }
-        } catch (error) {
-            // Process failures are terminal, even when fetch never connects.
-            signal?.throwIfAborted();
-            lastError = error;
+export function waitForHttp(url, { accept = response => response.ok, timeoutMs = 15000, signal } = {}) {
+    return until(remaining => {
+        const timeout = AbortSignal.timeout(Math.min(1000, remaining));
+        return fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+    }, accept, { signal, timeoutMs, retry: () => true, message: `Readiness timeout at ${url}` });
+}
+
+// Forwards one request to `base` as a reverse proxy would, replacing `headers`.
+export function forward(req, res, base, headers = {}) {
+    const remote = request(base + req.url, { method: req.method, headers: { ...req.headers, ...headers } }, response => {
+        res.writeHead(response.statusCode, response.headers);
+        response.pipe(res);
+    });
+    remote.on('error', () => {
+        if (!res.headersSent) {
+            res.writeHead(502);
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    signal?.throwIfAborted();
-    throw new Error(`Readiness timeout at ${url}`, { cause: lastError });
+        res.end();
+    });
+    res.on('close', () => remote.destroy());
+    req.pipe(remote);
+}
+
+// Serves `handler` on a loopback port, over HTTPS when given `tls`, until `scope` closes.
+export function serveLoopback(scope, handler, tls) {
+    return scope.acquire(async () => {
+        const server = tls ? createHttpsServer(tls, handler) : createHttpServer(handler);
+        server.listen(0, '127.0.0.1');
+        await once(server, 'listening');
+        return server;
+    }, async server => {
+        server.closeAllConnections();
+        await new Promise(resolve => server.close(resolve));
+    });
 }
 
 export function waitForBackendPort(backend, { signal, timeoutMs = 15000 } = {}) {
