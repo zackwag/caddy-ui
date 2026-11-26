@@ -23,7 +23,7 @@ function Section({ id, title, open, onToggle, disabled, nested = false, classNam
     </section>;
 }
 
-export default function SecuritySettings({ onClose }) {
+export default function SecuritySettings({ instances, instancesError, onClose }) {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const dialog = useRef(null);
@@ -66,7 +66,7 @@ export default function SecuritySettings({ onClose }) {
             </Section>
         </Section>
         <Section {...section('tokens', t('apiTokens.title'))}>
-            <ApiTokens busy={tokenBusy} setBusy={setTokenBusy} issued={issued} setIssued={setIssued} disabled={userBusy || authBusy} />
+            <ApiTokens instances={instances} instancesError={instancesError} busy={tokenBusy} setBusy={setTokenBusy} issued={issued} setIssued={setIssued} disabled={userBusy || authBusy} />
         </Section>
         <Section {...section('activity', t('activity.title'))}>
             {open.activity && <ActivityLog />}

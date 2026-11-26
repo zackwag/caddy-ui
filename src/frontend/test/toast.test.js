@@ -71,6 +71,26 @@ describe('tracked requests', () => {
         expect(shown()).toEqual([]);
     });
 
+    it('neither report nor deliver an outcome once their view aborts them', async () => {
+        await toast.track('routes.load', failing()).catch(() => {});
+        const settled = vi.fn();
+        for (const request of [failing(), Promise.resolve('value')]) {
+            const controller = new AbortController();
+            const pending = Promise.withResolvers();
+            toast.track('logs.config', pending.promise, { signal: controller.signal }).then(settled, settled);
+            controller.abort();
+            request.then(pending.resolve, pending.reject);
+            await request.catch(() => {});
+            await new Promise(resolve => setTimeout(resolve));
+        }
+        expect(settled).not.toHaveBeenCalled();
+        // An aborted success doesn't end another request's outage either
+        toast.track('routes.load', Promise.resolve('value'), { signal: AbortSignal.abort() }).then(settled);
+        await new Promise(resolve => setTimeout(resolve));
+        expect(settled).not.toHaveBeenCalled();
+        expect(shown()).toEqual([['error', 'errors.network']]);
+    });
+
     it('leave having no instances to the page shown for it', async () => {
         await toast.track('logs.load', failing('NO_INSTANCES')).catch(() => {});
         expect(shown()).toEqual([]);

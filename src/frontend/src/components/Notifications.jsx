@@ -2,6 +2,7 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFetch } from "../hooks/useFetch.js";
+import { NOTIFICATION_PROVIDERS } from "../settings.js";
 import { apiFetch } from "../utils/api.js";
 import Select from "./Select.jsx";
 
@@ -21,6 +22,9 @@ const DISCORD_URL_PLACEHOLDER = "https://discord.com/api/webhooks/...";
 const SLACK_URL_PLACEHOLDER = "https://hooks.slack.com/services/T.../B.../...";
 // eslint-disable-next-line i18next/no-literal-string -- Example custom webhook endpoint
 const CUSTOM_URL_PLACEHOLDER = "https://hooks.example.com/notify";
+
+// Product names, untranslated; the custom webhook is described instead
+const PROVIDER_NAMES = { ntfy: "ntfy", discord: "Discord", slack: "Slack", pushover: "Pushover" };
 
 export default function Notifications({ toast }) {
     const { t } = useTranslation();
@@ -79,11 +83,9 @@ export default function Notifications({ toast }) {
                     <div>
                         <label className="field-label">{t("notifications.provider")}</label>
                         <Select value={config.provider} onChange={e => update({ provider: e.target.value })}>
-                            <option value="ntfy">ntfy</option>
-                            <option value="discord">Discord</option>
-                            <option value="slack">Slack</option>
-                            <option value="pushover">Pushover</option>
-                            <option value="custom">{t("notifications.customWebhook")}</option>
+                            {NOTIFICATION_PROVIDERS.map(provider => (
+                                <option key={provider} value={provider}>{PROVIDER_NAMES[provider] ?? t("notifications.customWebhook")}</option>
+                            ))}
                         </Select>
                     </div>
                 </div>

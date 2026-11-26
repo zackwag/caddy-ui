@@ -2,6 +2,7 @@ import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { REFRESH_INTERVAL_MS, usePoll } from "../hooks/usePoll.js";
 import ConfigCard from "./ConfigCard.jsx";
 import { apiFetch } from "../utils/api.js";
 import { formatNumber, formatTime } from "../utils/format.js";
@@ -33,11 +34,10 @@ export default function Metrics({ toast, publicMetrics, routeChecks, onRouteChec
     }, []);
 
     useEffect(() => {
-        load();
         apiFetch("/metrics/config").then(setMetricsConfig).catch(() => { });
-        const t = setInterval(load, 30000);
-        return () => clearInterval(t);
-    }, [load]);
+    }, []);
+
+    usePoll(load, REFRESH_INTERVAL_MS);
 
     const toggleMetrics = async (enabled) => {
         setSavingMetrics(true);

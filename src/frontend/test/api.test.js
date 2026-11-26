@@ -30,6 +30,17 @@ describe('cookie authentication client', () => {
         expect(options).toMatchObject({ method: 'PUT', body: '{"theme":"light"}', headers: { 'Content-Type': 'application/json' } });
         expect(options).not.toHaveProperty('json');
     });
+    it('passes an aborted request on as its abort, not a connection failure', async () => {
+        const controller = new AbortController();
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => { controller.abort(); return Promise.reject(controller.signal.reason); }));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        await expect(apiFetch('/logs/config', { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+        expect(fetch.mock.calls[0][1].signal).toBe(controller.signal);
+        expect(console.error).not.toHaveBeenCalled();
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => { const response = json({ enabled: true }); controller.abort(); return response; }));
+        await expect(apiFetch('/logs/config', { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+        console.error.mockRestore();
+    });
     it('reports network loss while establishing CSRF context without sending a mutation', async () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
         await expect(apiFetch('/settings', { method: 'PUT' })).rejects.toMatchObject({ code: 'NETWORK_ERROR' });

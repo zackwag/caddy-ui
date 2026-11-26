@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 // The Caddyfile editor. `onQuit` and `isModified` back Vim's quit commands, where
 // there is something to quit.
-export default function CaddyfileEditor({ value, onChange, onSave, onQuit, isModified, theme, vimMode, padding, className, style }) {
+export default function CaddyfileEditor({ value, onChange, onSave, onQuit, isModified, theme, vimMode, padding, className }) {
     const { t, i18n } = useTranslation();
     const containerRef = useRef(null);
     const viewRef = useRef(null);
@@ -53,5 +53,5 @@ export default function CaddyfileEditor({ value, onChange, onSave, onQuit, isMod
         if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
     }, [value]);
 
-    return <div ref={containerRef} className={className} style={style} />;
+    return <div ref={containerRef} className={className} />;
 }

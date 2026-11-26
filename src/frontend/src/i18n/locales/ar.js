@@ -6,7 +6,6 @@ export default {
     "common": {
         "save": "حفظ",
         "cancel": "إلغاء",
-        "confirm": "تأكيد",
         "loading": "جارٍ التحميل...",
         "saving": "جارٍ الحفظ...",
         "refresh": "تحديث",
@@ -37,7 +36,6 @@ export default {
         "instances": "النسخ"
     },
     "errors": {
-        "backendUnreachable": "تعذّر الوصول إلى الخادم الخلفي",
         "languageLoadFailed": "تعذّر تحميل هذه اللغة. حاول إعادة تحميل الصفحة.",
         "generic": "فشلت العملية. راجع سجلات التطبيق للتفاصيل.",
         "network": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك.",
@@ -51,7 +49,6 @@ export default {
         "conflict": "تتعارض العملية مع الإعدادات الحالية.",
         "upstreamUnavailable": "خادم Caddy غير متاح.",
         "metricsUnavailable": "المقاييس غير متاحة مؤقتًا.",
-        "validationWarning": "اكتمل التحقق مع تحذيرات. راجع سجلات التطبيق.",
         "operationWarning": "اكتملت العملية مع تحذيرات. راجع سجلات التطبيق.",
         "viewLogs": "عرض السجلات",
         "caddyfileReadFailed": "تعذّرت قراءة ملف Caddyfile.",
@@ -126,8 +123,6 @@ export default {
         "light": "فاتح",
         "darkTheme": "السمة الداكنة",
         "lightTheme": "السمة الفاتحة",
-        "builtIn": "مدمجة",
-        "custom": "مخصصة",
         "preview": "معاينة",
         "accent": "لون أساسي",
         "info": "معلومات",
@@ -148,7 +143,6 @@ export default {
         "activeHttpServers": "خوادم HTTP النشطة",
         "tls": "TLS",
         "enabled": "مفعّل",
-        "disabled": "معطّل",
         "certificateManagement": "إدارة الشهادات",
         "upstreams": "الخوادم الخلفية",
         "offlineCount_zero": "غير متصل: {{count}}",
@@ -301,7 +295,6 @@ export default {
         "noLinesLoaded": "لم تُحمّل أي أسطر من السجل"
     },
     "metrics": {
-        "fetchFailed": "تعذّر جلب المقاييس",
         "enabledToast": "تم تفعيل المقاييس",
         "disabledToast": "تم تعطيل المقاييس",
         "configuration": "إعدادات المقاييس",
@@ -362,9 +355,6 @@ export default {
         "testNotification": "إشعار تجريبي"
     },
     "uptime": {
-        "online": "متصل",
-        "partial": "متاح جزئيًا",
-        "offline": "غير متصل",
         "noData": "لا توجد بيانات",
         "offlineCount_zero": "غير متصل: {{count}}",
         "offlineCount_one": "غير متصل: {{count}}",
@@ -495,7 +485,6 @@ export default {
         "valid": "ملف Caddyfile صالح",
         "forceSaveConfirm": "يتجاوز الحفظ الإجباري التحقق ويكتب ملف Caddyfile على القرص حتى إذا تعذّر على Caddy تحميله. هل تريد المتابعة؟",
         "forceSave": "حفظ إجباري",
-        "reloadFailed": "تمت كتابة ملف Caddyfile على القرص؛ لكن فشلت إعادة تحميل Caddy",
         "savedReloaded": "تم حفظ ملف Caddyfile وإعادة تحميله",
         "reloadedFromDisk": "تمت إعادة تحميل Caddy من القرص",
         "importConfirm": "هل تريد استيراد ملف Caddyfile هذا؟ سيجري التحقق منه وإعادة تحميل Caddy واستبدال الملف الحالي.",

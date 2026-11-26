@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getRouteHost, getRouteStatus, getRouteTitle } from '../src/utils/routes.js';
+import { compareUptime, getRouteHost, getRouteStatus, getRouteTitle } from '../src/utils/routes.js';
 
 const route = (...hosts) => ({ match: [{ host: hosts }] });
 
@@ -49,9 +49,12 @@ describe('route status', () => {
         match: host ? [{ host: [host] }] : undefined,
         handle: [{ handler: 'subroute', routes: [{ handle: [{ handler: 'reverse_proxy', upstreams: dials.map(dial => ({ dial })) }] }] }],
     });
-    const status = (entry, { online = {}, uptime = {}, routeUptime = {}, routeChecks = false, excludes = [] } = {}) =>
-        getRouteStatus(entry, { uptime, routeUptime, routeChecks, excludes: new Set(excludes), isOnline: dial => online[dial] });
     const stats = overrides => ({ total: 10, pct: 90, currentlyOnline: true, ...overrides });
+    // `online` is shorthand for each upstream's recorded state
+    const status = (entry, { online = {}, uptime = {}, routeUptime = {}, routeChecks = false, excludes = [] } = {}) => getRouteStatus(entry, {
+        uptime: { ...Object.fromEntries(Object.entries(online).map(([dial, currentlyOnline]) => [dial, stats({ currentlyOnline })])), ...uptime },
+        routeUptime, routeChecks, excludes: new Set(excludes),
+    });
 
     it.each([
         [{}, 'unknown'],
@@ -89,6 +92,10 @@ describe('route status', () => {
         for (const host of ['*.example', '{env.HOST}', null]) {
             expect(status(proxy(host, 'a'), { routeChecks: true, online: { a: true } })).toMatchObject({ status: 'online', probeHost: null });
         }
+    });
+
+    it('sorts the worst uptime first and routes without uptime last', () => {
+        expect([{ pct: null }, { pct: 99 }, { pct: 0 }, { pct: 100 }].sort(compareUptime).map(s => s.pct)).toEqual([0, 99, 100, null]);
     });
 
     it('identifies a route by its hosts, and a hostless one by nothing', () => {

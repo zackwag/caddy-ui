@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Modal from "./Modal.jsx";
 
@@ -24,13 +24,6 @@ export function useConfirm() {
 
 export function ConfirmDialog({ dialog, resolve }) {
     const { t } = useTranslation();
-
-    useEffect(() => {
-        if (!dialog) return;
-        const onKey = e => { if (e.key === "Escape") resolve(false); };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [dialog, resolve]);
 
     if (!dialog) return null;
 

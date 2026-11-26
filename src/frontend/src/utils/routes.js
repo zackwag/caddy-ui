@@ -25,7 +25,7 @@ export function getRouteTitle(route, title) {
 
 // The host route checks request the route by (backend routeChecks.js
 // collectRouteTargets): its first host, unless that's a wildcard or placeholder.
-export function getRouteCheckHost(route) {
+function getRouteCheckHost(route) {
     const [host] = getRouteHosts(route);
     return host && !host.includes("*") && !host.includes("{") ? host : null;
 }
@@ -47,11 +47,22 @@ export function getRouteUpstreams(route) {
     return dials;
 }
 
-// none: nothing to check; unknown: not checked yet. `isOnline` gives an
-// upstream's state, undefined while it's unknown.
-function upstreamsStatus(upstreams, isOnline) {
+// What each route status is called, wherever it's shown. A route in maintenance
+// isn't checked.
+export const STATUS_LABEL_KEYS = {
+    online: 'routes.online',
+    partial: 'routes.partial',
+    offline: 'routes.offline',
+    maintenance: 'routes.maintenance',
+    unknown: 'uptime.noData',
+    none: 'uptime.noData',
+};
+
+// none: nothing to check; unknown: not checked yet. Each upstream's state is
+// the monitor's latest record of it.
+function upstreamsStatus(upstreams, uptime) {
     if (!upstreams.length) return 'none';
-    const known = upstreams.map(isOnline).filter(online => online !== undefined);
+    const known = upstreams.map(upstream => uptime[upstream]?.currentlyOnline).filter(online => online !== undefined);
     if (!known.length) return 'unknown';
     const online = known.filter(Boolean).length;
     return online === upstreams.length ? 'online' : online > 0 ? 'partial' : 'offline';
@@ -62,13 +73,13 @@ function upstreamsStatus(upstreams, isOnline) {
 // upstream; the rest (wildcards, catch-alls) and excluded routes follow their
 // upstreams. Uptime and history follow a route's first upstream, while status
 // considers all of them.
-export function getRouteStatus(route, { uptime, routeUptime, routeChecks, excludes, isOnline }) {
+export function getRouteStatus(route, { uptime, routeUptime, routeChecks, excludes }) {
     const upstreams = getRouteUpstreams(route);
     const probeHost = routeChecks ? getRouteCheckHost(route) : null;
     const excluded = !!probeHost && excludes.has(probeHost.toLowerCase());
     const checkHost = excluded ? null : probeHost;
     const stats = (checkHost ? routeUptime[checkHost] : uptime[upstreams[0]]) || null;
-    const upstreamState = upstreamsStatus(upstreams, isOnline);
+    const upstreamState = upstreamsStatus(upstreams, uptime);
     const status = !checkHost ? upstreamState : !stats ? 'unknown' : stats.currentlyOnline ? 'online' : 'offline';
     return {
         upstreams, probeHost, excluded, checkHost, stats, upstreamState, status,
@@ -78,3 +89,6 @@ export function getRouteStatus(route, { uptime, routeUptime, routeChecks, exclud
         history: checkHost ? { route: checkHost } : upstreams.length ? { upstream: upstreams[0] } : null,
     };
 }
+
+// Worst uptime first, for getRouteStatus results; one with no uptime yet sorts last.
+export const compareUptime = (a, b) => (a.pct ?? 101) - (b.pct ?? 101);

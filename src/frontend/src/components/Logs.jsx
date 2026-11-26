@@ -19,7 +19,7 @@ export default function Logs({ toast, noInstances }) {
     // must apply its destination even when the component is already mounted.
     const [selection, setSelection] = useState(null);
     const source = noInstances ? "app" : selection?.key === location.key
-        ? selection.source : resolveLogSource(location.search, noInstances);
+        ? selection.source : resolveLogSource(location.search);
     const setSource = source => setSelection({ key: location.key, source });
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
@@ -35,23 +35,23 @@ export default function Logs({ toast, noInstances }) {
     const [refreshing, setRefreshing] = useState(false);
     const bottomRef = useRef(null);
     const esRef = useRef(null);
-    // Counts loads, so a response for another source or an older load is ignored
-    const loadIdRef = useRef(0);
+    // The latest load's, aborted by the next load, so a response for another
+    // source or an older load is ignored
+    const loadRef = useRef(null);
 
     const loadLines = useCallback(async () => {
-        loadIdRef.current += 1;
-        const id = loadIdRef.current;
-        const isCurrent = () => id === loadIdRef.current;
+        loadRef.current?.abort();
+        loadRef.current = new AbortController();
+        const { signal } = loadRef.current;
         setRefreshing(true);
         try {
-            const lines = await toast.track('logs.load.' + source, apiFetch(SOURCES[source].path).then(data => readLogResponse(data, source)));
-            if (!isCurrent()) return;
+            const lines = await toast.track('logs.load.' + source, apiFetch(SOURCES[source].path, { signal }).then(data => readLogResponse(data, source)), { signal });
             setLoadError(null);
             setLines(lines);
         } catch (error) {
-            if (isCurrent()) setLoadError(error);
+            setLoadError(error);
         } finally {
-            if (isCurrent()) setRefreshing(false);
+            setRefreshing(false);
         }
     }, [source, toast]);
 
@@ -60,7 +60,7 @@ export default function Logs({ toast, noInstances }) {
         setLoadError(null);
         loadLines();
         return () => {
-            loadIdRef.current += 1;
+            loadRef.current?.abort();
             esRef.current?.close();
             esRef.current = null;
             setLive(false);
@@ -70,12 +70,12 @@ export default function Logs({ toast, noInstances }) {
     const needsConfig = source === "caddy" && !logConfig;
     useEffect(() => {
         if (!needsConfig) return;
-        let ignore = false;
+        const controller = new AbortController();
+        const { signal } = controller;
         setConfigError(null);
-        toast.track('logs.config', apiFetch("/logs/config"))
-            .then(data => { if (!ignore) setLogConfig(data); })
-            .catch(error => { if (!ignore) setConfigError(error); });
-        return () => { ignore = true; };
+        toast.track('logs.config', apiFetch("/logs/config", { signal }), { signal })
+            .then(setLogConfig, setConfigError);
+        return () => controller.abort();
     }, [needsConfig, toast]);
 
     useEffect(() => {

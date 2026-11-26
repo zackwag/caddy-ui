@@ -3,23 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch, getInstanceId } from '../utils/api.js';
 import { formatTs } from '../utils/format.js';
 import { useFetch } from '../hooks/useFetch.js';
+import { API_TOKEN_SCOPE_KEYS as SCOPE_KEYS } from '../settings.js';
 import ErrorNote from './ErrorNote.jsx';
 import Select from './Select.jsx';
 
 const STATUS_SCOPE = 'status:read';
-const SCOPE_KEYS = { [STATUS_SCOPE]: 'apiTokens.status', 'metrics:read': 'apiTokens.metrics' };
 
-export default function ApiTokens({ busy, setBusy, issued, setIssued, disabled }) {
+export default function ApiTokens({ instances, instancesError, busy, setBusy, issued, setIssued, disabled }) {
     const { t } = useTranslation();
     const { data, error: loadError, loading: loadingTokens, setData } = useFetch('/auth/tokens');
-    const { data: instances, error: instancesError, loading: loadingInstances } = useFetch('/instances');
     const [name, setName] = useState('');
     const [scopes, setScopes] = useState([STATUS_SCOPE]);
     const [selectedIds, setSelectedIds] = useState(null);
     const [days, setDays] = useState(90);
     const [error, setError] = useState(null);
     const tokens = data?.tokens || [];
-    const loading = loadingTokens || loadingInstances;
+    const loading = loadingTokens || (!instances && !instancesError);
     const setTokens = change => setData(previous => ({ ...previous, tokens: change(previous.tokens) }));
     // The instance being managed, until a selection is made
     const instanceIds = selectedIds ?? (instances || []).map(instance => instance.id).filter(id => id === getInstanceId());

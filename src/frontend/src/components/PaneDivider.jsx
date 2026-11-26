@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatPercent } from "../utils/format.js";
 
+// The primary pane's percentage until it's resized, and on a double click.
+export const DEFAULT_PRIMARY_SHARE = 60;
+
 export default function PaneDivider({ containerRef, primaryMinimumRef, secondaryMinimumRef, secondaryControlsRef, primaryPaneId, value, onChange }) {
     const { t } = useTranslation();
     const dividerRef = useRef(null);
@@ -12,8 +15,8 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
         const primaryMinimum = primaryMinimumRef.current;
         const secondaryMinimum = secondaryMinimumRef.current;
         const divider = dividerRef.current;
-        const secondaryControls = secondaryControlsRef?.current;
-        if (!container || !primaryMinimum || !secondaryMinimum || !divider) return;
+        const secondaryControls = secondaryControlsRef.current;
+        if (!container || !primaryMinimum || !secondaryMinimum || !secondaryControls || !divider) return;
 
         const measure = () => {
             // Fixed-height layouts hide the divider; keep the desktop split preference intact.
@@ -21,8 +24,8 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
             const available = container.clientHeight - divider.offsetHeight;
             if (available <= 0) return;
             // Leave room for the controls and content in each pane.
-            const reserve = secondaryControls ? (parseFloat(getComputedStyle(secondaryControls).getPropertyValue('--pane-content-reserve')) || 100) : 34;
-            const secondarySize = secondaryMinimum.offsetHeight + (secondaryControls?.offsetHeight || 0) + reserve;
+            const reserve = parseFloat(getComputedStyle(secondaryControls).getPropertyValue('--pane-content-reserve')) || 100;
+            const secondarySize = secondaryMinimum.offsetHeight + secondaryControls.offsetHeight + reserve;
             // On short screens give the preview room while keeping editor controls visible.
             const primarySize = Math.max(primaryMinimum.offsetHeight + 2, Math.min(primaryMinimum.offsetHeight + 34, available - secondarySize));
             const min = Math.min(100, primarySize / available * 100);
@@ -34,7 +37,7 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
         observer.observe(divider);
         observer.observe(primaryMinimum);
         observer.observe(secondaryMinimum);
-        if (secondaryControls) observer.observe(secondaryControls);
+        observer.observe(secondaryControls);
         measure();
         return () => observer.disconnect();
     }, [containerRef, primaryMinimumRef, secondaryMinimumRef, secondaryControlsRef]);
@@ -90,7 +93,7 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
             onPointerUp={release}
             onPointerCancel={release}
             onKeyDown={onKeyDown}
-            onDoubleClick={() => resize(60)}
+            onDoubleClick={() => resize(DEFAULT_PRIMARY_SHARE)}
         />
     );
 }

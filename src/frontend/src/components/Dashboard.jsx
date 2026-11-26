@@ -3,6 +3,7 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
+import { REFRESH_INTERVAL_MS, usePoll } from "../hooks/usePoll.js";
 import Modal from "./Modal.jsx";
 import { apiFetch } from "../utils/api.js";
 import { formatDuration, formatNumber, formatRecentTs } from "../utils/format.js";
@@ -23,21 +24,20 @@ export default function Dashboard({ status, toast }) {
 
     useEffect(() => {
         apiFetch("/server-names").then(setNames).catch(() => { });
-        loadProcess();
-        const t = setInterval(loadProcess, 30000);
-        return () => clearInterval(t);
-    }, [loadProcess]);
+    }, []);
+
+    usePoll(loadProcess, REFRESH_INTERVAL_MS);
 
     const openEdit = (server) => { setEditingServer(server); setEditName(names[server.name] || ""); };
 
     const saveName = async () => {
         try {
             if (editName.trim()) {
-                await apiFetch(`/server-names/${editingServer.name}`, { method: "PUT", json: { name: editName } });
+                await apiFetch(`/server-names/${encodeURIComponent(editingServer.name)}`, { method: "PUT", json: { name: editName } });
                 setNames(n => ({ ...n, [editingServer.name]: editName.trim() }));
                 toast.success(t("dashboard.labelSaved"));
             } else {
-                await apiFetch(`/server-names/${editingServer.name}`, { method: "DELETE" });
+                await apiFetch(`/server-names/${encodeURIComponent(editingServer.name)}`, { method: "DELETE" });
                 setNames(n => { const x = { ...n }; delete x[editingServer.name]; return x; });
                 toast.success(t("dashboard.labelRemoved"));
             }

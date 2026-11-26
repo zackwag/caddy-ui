@@ -1,7 +1,8 @@
 import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { useLoad } from "../hooks/usePoll.js";
 import { useSort } from "../hooks/useSort.jsx";
 import { apiFetch, instanceUrl } from "../utils/api.js";
 import { formatDate } from "../utils/format.js";
@@ -17,20 +18,20 @@ export default function TLS({ toast, confirm }) {
     const [filter, setFilter] = useState("all");
     const sort = useSort("domain");
 
-    const load = useCallback(() => {
+    const load = useCallback(signal => {
         setLoading(true);
-        toast.track('tls.load', apiFetch("/tls"))
+        toast.track('tls.load', apiFetch("/tls", { signal }), { signal })
             .then(data => { setLoadError(null); setCerts(data); })
             .catch(setLoadError)
             .finally(() => setLoading(false));
     }, [toast]);
 
-    useEffect(load, [load]);
+    useLoad(load);
 
     const deleteCert = async (cert) => {
         if (!await confirm(t("tls.deleteConfirm", { status: cert.status, domain: cert.domain }), { confirmLabel: t("tls.delete"), danger: true })) return;
         try {
-            await apiFetch(`/tls/${cert.domain}?issuer=${encodeURIComponent(cert.issuerDir)}`, { method: "DELETE" });
+            await apiFetch(`/tls/${encodeURIComponent(cert.domain)}?issuer=${encodeURIComponent(cert.issuerDir)}`, { method: "DELETE" });
             toast.success(t("tls.deleted", { domain: cert.domain })); load();
         } catch (e) { toast.error(e); }
     };
@@ -69,7 +70,10 @@ export default function TLS({ toast, confirm }) {
 
     const expiryBar = (cert) => {
         if (cert.isInternal) return null;
-        const pct = Math.max(0, Math.min(100, (cert.daysRemaining / 90) * 100));
+        // The share of its lifetime left, whatever its validity period
+        const validTo = new Date(cert.validTo);
+        const remaining = (validTo - Date.now()) / (validTo - new Date(cert.validFrom));
+        const pct = Number.isFinite(remaining) ? Math.max(0, Math.min(1, remaining)) * 100 : 0;
         const color = STATUS_COLORS[cert.status] || 'var(--accent)';
         return <div className="expiry-bar"><div className="expiry-bar-fill" style={{ width: `${pct}%`, background: color }} /></div>;
     };
@@ -106,7 +110,7 @@ export default function TLS({ toast, confirm }) {
                         </div>
                     </div>
                     <div className="btn-row tls-ca-actions">
-                        <button className="btn btn-ghost tls-refresh--mobile" onClick={load}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
+                        <button className="btn btn-ghost tls-refresh--mobile" onClick={() => load()}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
                         <button className="btn btn-primary" onClick={() => window.open(instanceUrl('/tls/ca'), '_blank')}><UtilityIcon name="arrowDown" /> {t("tls.downloadRootCa")}</button>
                     </div>
                 </div>
@@ -151,7 +155,7 @@ export default function TLS({ toast, confirm }) {
                                 {t("tls.supersededCount", { count: summary.superseded })}
                             </span>
                         )}
-                        <button className="btn btn-ghost btn--sm tls-refresh--desktop" onClick={load}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
+                        <button className="btn btn-ghost btn--sm tls-refresh--desktop" onClick={() => load()}><UtilityIcon name="refresh" /> {t("common.refresh")}</button>
                     </div>
                 </div>
                 {sorted.length === 0 ? (

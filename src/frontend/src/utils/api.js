@@ -1,6 +1,9 @@
 /* eslint-disable i18next/no-literal-string -- Internal API protocol identifiers, error codes, and diagnostics are not localized UI copy */
 
-export const API = "/api";
+const API = "/api";
+
+// What the backend selects when a request names no instance.
+export const DEFAULT_INSTANCE_ID = "default";
 
 export class ApiError extends Error {
     constructor(message, { code = 'REQUEST_FAILED', requestId = null, status = null } = {}) {
@@ -58,7 +61,7 @@ export function onUnauthorized(listener) {
     return () => unauthorizedListeners.delete(listener);
 }
 
-export function getInstanceId() { return localStorage.getItem('caddy_ui_instance') || 'default'; }
+export function getInstanceId() { return localStorage.getItem('caddy_ui_instance') || DEFAULT_INSTANCE_ID; }
 export function setInstanceId(id) { localStorage.setItem('caddy_ui_instance', id); }
 
 // The app shell subscribes so views remount on the backend's fallback instance
@@ -101,6 +104,9 @@ export async function apiRequest(path, { json, ...opts } = {}) {
     try {
         res = await fetch(`${API}${path}`, { ...opts, credentials: 'same-origin', headers });
     } catch (cause) {
+        if (opts.signal?.aborted) {
+            throw cause;
+        }
         // No server received this request; keep browser-only details in console.
         console.error('API connection failed', { path, cause });
         throw new ApiError('Network connection failed', { code: 'NETWORK_ERROR' });
@@ -112,6 +118,8 @@ export async function apiRequest(path, { json, ...opts } = {}) {
     } catch {
         body = null;
     }
+    // An aborted body read isn't an empty response
+    opts.signal?.throwIfAborted();
     if (res.status === 401) {
         resetAuthContext();
         for (const listener of unauthorizedListeners) listener();

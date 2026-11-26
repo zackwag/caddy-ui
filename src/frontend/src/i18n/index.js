@@ -24,6 +24,11 @@ export function languageName(locale) {
     }
 }
 
+// For language menus: English first, then by name.
+export function sortedLanguages(languages) {
+    return [...languages].sort((a, b) => a === 'en' ? -1 : b === 'en' ? 1 : languageName(a).localeCompare(languageName(b)));
+}
+
 // Keep the browser's writing direction in sync even on the login screen,
 // during initial locale detection, and when falling back to English.
 i18n.on('languageChanged', language => {

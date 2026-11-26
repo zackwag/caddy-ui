@@ -19,6 +19,7 @@ import { fetchEnabledLanguages, loadLocale, resolveLocale } from "./i18n/index.j
 import ThemeWelcome from "./components/ThemeWelcome.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
+import { STATUS_INTERVAL_MS, usePoll } from "./hooks/usePoll.js";
 import { css, DEFAULT_PALETTES, THEME_LIST, THEME_VAR_KEYS } from "./styles.js";
 import { apiFetch, authRequest, fetchAuthStatus, getInstanceId, onInstanceSelectionReset, onUnauthorized, resetAuthContext, setInstanceId } from "./utils/api.js";
 import { viewAt } from "./views.js";
@@ -34,7 +35,9 @@ export default function App() {
     const [noInstances, setNoInstances] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [instanceKey, setInstanceKey] = useState(getInstanceId);
-    const [instanceListVersion, setInstanceListVersion] = useState(0);
+    // The configured instances, null until loaded; the error is kept until a load succeeds
+    const [instances, setInstances] = useState(null);
+    const [instancesError, setInstancesError] = useState(null);
     const [authState, setAuthState] = useState(null);
     const [authError, setAuthError] = useState(false);
     const [showSecurity, setShowSecurity] = useState(false);
@@ -206,20 +209,27 @@ export default function App() {
         if (noInstances && view.needsInstance) navigate('/instances', { replace: true });
     }, [noInstances, view, navigate]);
 
+    usePoll(authed ? fetchStatus : null, STATUS_INTERVAL_MS);
+
+    const loadInstances = useCallback(() => {
+        apiFetch("/instances")
+            .then(list => { setInstancesError(null); setInstances(list); })
+            .catch(setInstancesError);
+    }, []);
+
     useEffect(() => {
-        if (!authed) return;
-        fetchStatus();
-        const t = setInterval(fetchStatus, 15000);
-        return () => clearInterval(t);
-    }, [authed, fetchStatus, instanceKey]);
+        if (authed) {
+            loadInstances();
+        }
+    }, [authed, loadInstances]);
 
     const refreshInstances = useCallback(() => {
         toast.clearStates();
-        setInstanceListVersion(v => v + 1);
+        loadInstances();
         setNoInstances(false);
         setStatus(null);
         fetchStatus();
-    }, [fetchStatus, toast]);
+    }, [fetchStatus, loadInstances, toast]);
 
     const switchInstance = (id) => {
         setInstanceId(id);
@@ -255,12 +265,12 @@ export default function App() {
                         status={status}
                         onRefreshStatus={fetchStatus}
                         onLogout={logout}
-                        onSecurity={() => { setSidebarOpen(false); setShowSecurity(true); }}
+                        onSecurity={() => { setSidebarOpen(false); loadInstances(); setShowSecurity(true); }}
                         sidebarOpen={sidebarOpen}
                         setSidebarOpen={setSidebarOpen}
                         selectedInstanceId={instanceKey}
                         onSwitchInstance={switchInstance}
-                        instanceListVersion={instanceListVersion}
+                        instances={instances}
                     />
 
                     <div className="main">
@@ -305,7 +315,7 @@ export default function App() {
                     </div>
                     <Toasts toasts={toasts} />
                     <ConfirmDialog dialog={confirmDialog} resolve={resolveConfirm} />
-                    {showSecurity && <SecuritySettings onClose={() => setShowSecurity(false)} />}
+                    {showSecurity && <SecuritySettings instances={instances} instancesError={instancesError} onClose={() => setShowSecurity(false)} />}
                     {showThemeWelcome && <ThemeWelcome themes={allThemes} languages={enabledLanguages} language={language} onLanguageChange={changeLanguage} onComplete={completeWelcome} />}
                 </div>
             )}

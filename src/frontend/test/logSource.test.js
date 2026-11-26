@@ -13,13 +13,6 @@ describe('log source links', () => {
     ])('selects the expected source for %s', (search, expected) => {
         expect(resolveLogSource(search)).toBe(expected);
     });
-
-    it.each(['', '?dist=caddy', '?dist=app', '?dist=unknown'])(
-        'keeps application logs available without instances for %s',
-        search => {
-            expect(resolveLogSource(search, true)).toBe('app');
-        },
-    );
 });
 
 describe('log read responses', () => {

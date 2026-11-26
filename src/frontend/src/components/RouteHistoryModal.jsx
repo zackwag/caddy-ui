@@ -1,9 +1,11 @@
 import { localizeError } from "../utils/errorMessages.js";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { REFRESH_INTERVAL_MS } from "../hooks/usePoll.js";
+import HealthDot from "./HealthDot.jsx";
 import Modal from "./Modal.jsx";
 import { apiFetch } from "../utils/api.js";
-import { currentLocale, formatDuration, formatNumber, formatPercent } from "../utils/format.js";
+import { formatAxisTime, formatDateTime, formatDuration, formatNumber, formatPercent, formatRelativeTime, formatSecondsTs } from "../utils/format.js";
 import { summarizeHistory } from "../utils/uptimeHistory.js";
 
 const RANGES = [
@@ -18,7 +20,6 @@ const RANGES = [
 // Checks taken less often (route checks) get a proportionally longer threshold.
 const GAP_THRESHOLD_MS = 3 * 60 * 1000;
 const GAP_INTERVAL_MULTIPLIER = 2.5;
-const REFRESH_INTERVAL_MS = 30_000;
 const AXIS_TICK_COUNT = 4;
 
 function buildAxisTicks(rangeStart, rangeEnd) {
@@ -27,28 +28,6 @@ function buildAxisTicks(rangeStart, rangeEnd) {
         ticks.push({ ms: rangeStart + ((rangeEnd - rangeStart) * i) / AXIS_TICK_COUNT, isNow: i === AXIS_TICK_COUNT });
     }
     return ticks;
-}
-
-function formatAxisTime(ms, rangeMs) {
-    const d = new Date(ms);
-    return rangeMs > 24 * 60 * 60 * 1000
-        ? d.toLocaleDateString(currentLocale(), { month: "short", day: "numeric" })
-        : d.toLocaleTimeString(currentLocale(), { hour: "numeric", minute: "2-digit" });
-}
-
-function formatRelativeTime(ms, t) {
-    const diffSec = Math.max(0, Math.round((Date.now() - ms) / 1000));
-    if (diffSec < 5) return t("routeHistory.justNow");
-    if (diffSec < 60) return t("routeHistory.secondsAgo", { count: diffSec });
-    const diffMin = Math.round(diffSec / 60);
-    if (diffMin < 60) return t("routeHistory.minutesAgo", { count: diffMin });
-    const diffHr = Math.round(diffMin / 60);
-    if (diffHr < 24) return t("routeHistory.hoursAgo", { count: diffHr });
-    return t("routeHistory.daysAgo", { count: Math.round(diffHr / 24) });
-}
-
-function formatActivityTime(ms) {
-    return new Date(ms).toLocaleString(currentLocale(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
 const STATUS_LABEL_KEYS = { online: "routeHistory.online", offline: "routeHistory.offline", unknown: "routeHistory.noData" };
@@ -97,7 +76,7 @@ export default function RouteHistoryModal({ title, upstream, route, onClose }) {
     const lastCheck = entries && entries.length > 0 ? entries[entries.length - 1] : null;
     const lastStatus = lastCheck ? (now - lastCheck.at > gapThresholdMs ? "unknown" : lastCheck.online ? "online" : "offline") : null;
     const incidentLabel = incident => t("routeHistory.incidentTitle", {
-        start: formatActivityTime(incident.start), duration: formatDuration(incident.end - incident.start),
+        start: formatSecondsTs(incident.start), duration: formatDuration(incident.end - incident.start),
     });
     function inspectIncident(incident) {
         setFocus({ start: Math.max(overviewStart, incident.start - 5 * 60_000), end: Math.min(now, incident.end + 5 * 60_000), incidentEnd: incident.end });
@@ -110,10 +89,7 @@ export default function RouteHistoryModal({ title, upstream, route, onClose }) {
             {entries && (
                 <div className="history-header">
                     <div className="history-header-left">
-                        <span
-                            className={lastStatus && lastStatus !== "unknown" ? "health-dot" : "health-dot health-dot--none"}
-                            style={lastStatus && lastStatus !== "unknown" ? { background: lastStatus === "online" ? "var(--accent)" : "var(--danger)" } : undefined}
-                        />
+                        <HealthDot status={lastStatus || "none"} />
                         <span className="history-header-relative">{lastCheck ? formatRelativeTime(lastCheck.at, t) : t("routeHistory.noDataYet")}</span>
                     </div>
                     {lastStatus && <span className={`history-header-status history-header-status--${lastStatus}`}>{t(STATUS_LABEL_KEYS[lastStatus])}</span>}
@@ -153,7 +129,7 @@ export default function RouteHistoryModal({ title, upstream, route, onClose }) {
                                     key={i}
                                     className={`history-segment history-segment--${seg.status}`}
                                     style={{ flexGrow: seg.end - seg.start }}
-                                    title={t("routeHistory.segmentTitle", { status: t(STATUS_LABEL_KEYS[seg.status]), start: new Date(seg.start).toLocaleString(currentLocale()), end: new Date(seg.end).toLocaleString(currentLocale()) })}
+                                    title={t("routeHistory.segmentTitle", { status: t(STATUS_LABEL_KEYS[seg.status]), start: formatDateTime(seg.start), end: formatDateTime(seg.end) })}
                                 />
                             ))}
                         </div>
@@ -207,9 +183,9 @@ export default function RouteHistoryModal({ title, upstream, route, onClose }) {
                             <button key={incident.start} className="history-incident" onClick={() => inspectIncident(incident)} title={t("routeHistory.inspectIncident")}>
                                 <span className="history-incident-dot" />
                                 <span className="history-incident-details">
-                                    <span className="history-incident-start">{formatActivityTime(incident.start)}</span>
+                                    <span className="history-incident-start">{formatSecondsTs(incident.start)}</span>
                                     <span className="history-incident-recovery">{incident.recoveredAt
-                                        ? t("routeHistory.recoveredAt", { time: formatActivityTime(incident.recoveredAt) })
+                                        ? t("routeHistory.recoveredAt", { time: formatSecondsTs(incident.recoveredAt) })
                                         : t(incident.monitoringGap ? "routeHistory.recoveryGap" : "routeHistory.noRecovery")}</span>
                                 </span>
                                 <span className="history-incident-duration">{formatDuration(incident.end - incident.start)}</span>

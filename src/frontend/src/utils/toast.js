@@ -29,17 +29,25 @@ export function createToast(center, t) {
         },
         incident,
         // An incident that lasts as long as a request keeps failing. Settles
-        // like the request.
-        async track(scope, request) {
+        // like the request, unless `signal` aborts first: its view is gone,
+        // so the outcome is neither reported nor delivered.
+        async track(scope, request, { signal } = {}) {
             const { fail, recover } = incident(scope);
+            let value;
             try {
-                const value = await request;
-                recover();
-                return value;
+                value = await request;
             } catch (error) {
+                if (signal?.aborted) {
+                    return new Promise(() => { });
+                }
                 fail(error);
                 throw error;
             }
+            if (signal?.aborted) {
+                return new Promise(() => { });
+            }
+            recover();
+            return value;
         },
         clearStates: () => center.clearStates(),
     };

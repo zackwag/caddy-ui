@@ -8,7 +8,7 @@ import CaddyfileEditor from "./CaddyfileEditor.jsx";
 import CaddyfileHistory from "./CaddyfileHistory.jsx";
 import { UtilityIcon } from "./Icons.jsx";
 import Modal from "./Modal.jsx";
-import PaneDivider from "./PaneDivider.jsx";
+import PaneDivider, { DEFAULT_PRIMARY_SHARE } from "./PaneDivider.jsx";
 
 // eslint-disable-next-line i18next/no-literal-string -- Caddy CLI command, not translatable UI copy
 const CADDY_FMT_LABEL = "caddy fmt";
@@ -27,7 +27,7 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
     const [runFmt, setRunFmt] = useState(true);
     const [runSort, setRunSort] = useState(true);
     const [historyOpen, setHistoryOpen] = useState(false);
-    const [editorShare, setEditorShare] = useState(60);
+    const [editorShare, setEditorShare] = useState(DEFAULT_PRIMARY_SHARE);
     const history = useCaddyfileHistory(toast);
     const historyView = { mode: useState("diff"), list: useState(false) };
     // A save refused because the file changed since it was loaded: the
@@ -42,8 +42,8 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
     const historyHeaderRef = useRef(null);
     const historyControlsRef = useRef(null);
 
-    const readCaddyfile = async () => {
-        const { body, headers } = await apiRequest("/caddyfile");
+    const readCaddyfile = async (signal) => {
+        const { body, headers } = await apiRequest("/caddyfile", { signal });
         return { text: body, etag: headers.get(ETAG_HEADER) };
     };
 
@@ -53,10 +53,13 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
     };
 
     useEffect(() => {
-        toast.track('caddyfile.load', readCaddyfile())
+        const controller = new AbortController();
+        const { signal } = controller;
+        toast.track('caddyfile.load', readCaddyfile(signal), { signal })
             .then(showSaved)
             .catch(() => { })
             .finally(() => setLoading(false));
+        return () => controller.abort();
         // Reloading would discard unsaved edits
     }, [toast]);
 
@@ -65,13 +68,16 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
         setHistoryOpen(o => !o);
     };
 
-    // Replaces the file and reloads the editor from it. The save's own outcome is
-    // reported first, so a failed refresh only adds its error and keeps the
-    // current editor contents.
+    // Replaces the file and reloads the editor, and the open history, from it.
+    // The save's own outcome is reported first, so a failed refresh only adds
+    // its error and keeps the current editor contents.
     const putCaddyfile = async (path, text, { ifMatch, message }) => {
         const headers = { "Content-Type": "text/plain", ...(ifMatch ? { "If-Match": ifMatch } : {}) };
         const result = await apiFetch(path, { method: "PUT", headers, body: text });
         toast.saved(result, message);
+        if (historyOpen) {
+            history.load(true);
+        }
         try { showSaved(await readCaddyfile()); }
         catch (e) { toast.error(e); }
     };
@@ -80,10 +86,9 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
         const message = t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp) });
         if (!await confirm(entry.kind === 'external' ? `${message} ${t('caddyfile.externalRestoreHint')}` : message, { confirmLabel: t("caddyfile.restore") })) return;
         try {
-            const text = await apiFetch(`/caddyfile/history/${entry.filename}`);
+            const text = await history.fetchSnapshot(entry.filename);
             await putCaddyfile("/caddyfile?action=restore&fmt=false&sort=false", text, { message: t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }) });
             setHistoryOpen(false); history.clear();
-            history.load(true);
         } catch (e) { toast.error(e); }
     };
 
@@ -126,7 +131,6 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
             const path = `/caddyfile?fmt=${runFmt}&sort=${runSort}${force ? "&validate=false" : ""}`; // eslint-disable-line i18next/no-literal-string -- API query parameter
             await putCaddyfile(path, content, { ifMatch: basis, message: t("caddyfile.savedReloaded") });
             closeConflict();
-            if (historyOpen) history.load(true);
         } catch (e) {
             if (e.code === "CADDYFILE_CHANGED") {
                 await showConflict(force, e);
@@ -169,7 +173,6 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
             if (!await confirm(t("caddyfile.importConfirm"), { confirmLabel: t("caddyfile.import") })) return;
             try {
                 await putCaddyfile("/caddyfile?action=import", text, { message: t("caddyfile.importedReloaded") });
-                if (historyOpen) history.load(true);
             } catch (err) { toast.error(err); }
         };
         reader.readAsText(file);

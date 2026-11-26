@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
+import { useLoad } from "../hooks/usePoll.js";
+import { INSTANCE_DEFAULTS } from "../settings.js";
 import { apiFetch, clearInstanceId, getInstanceId } from "../utils/api.js";
 import Modal from "./Modal.jsx";
 import Select from "./Select.jsx";
@@ -9,15 +11,8 @@ import StatusDot from "./StatusDot.jsx";
 // eslint-disable-next-line i18next/no-literal-string -- Example Caddy admin endpoint
 const ADMIN_URL_PLACEHOLDER = "http://caddy:2019";
 
-const EMPTY_FORM = {
-    name: "",
-    adminUrl: "",
-    configPath: "/etc/caddy/Caddyfile",
-    logPath: "/var/log/caddy/access.log",
-    dataPath: "/data/caddy",
-    containerName: "",
-    serverName: "srv0",
-};
+// A blank container name means local mode
+const EMPTY_FORM = { name: "", adminUrl: "", containerName: "", ...INSTANCE_DEFAULTS };
 
 export default function Instances({ toast, confirm, onInstancesChange }) {
     const { t } = useTranslation();
@@ -37,8 +32,8 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
     // Live server IDs per instance, to flag a "new routes go to" server Caddy doesn't have
     const [liveServerIds, setLiveServerIds] = useState({});
 
-    const load = useCallback(() => {
-        toast.track('instances.load', apiFetch("/instances"))
+    const load = useCallback(signal => {
+        toast.track('instances.load', apiFetch("/instances", { signal }), { signal })
             .then(setInstances)
             .catch(() => { })
             .finally(() => setLoading(false));
@@ -60,7 +55,7 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
 
     const didAutoDiscover = useRef(false);
 
-    useEffect(() => { load(); }, [load]);
+    useLoad(load);
 
     useEffect(() => {
         apiFetch("/server-names/all").then(setServerLabels).catch(() => { });

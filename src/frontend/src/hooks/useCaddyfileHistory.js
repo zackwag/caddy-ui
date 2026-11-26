@@ -129,7 +129,7 @@ export function useCaddyfileHistory(toast) {
     };
 
     return {
-        entries: history, loading: historyLoading, error: historyError, load: loadHistory, clear: clearPreview, remove,
+        entries: history, loading: historyLoading, error: historyError, load: loadHistory, clear: clearPreview, remove, fetchSnapshot,
         preview: {
             ref: previewRef, entry: previewEntry, content: previewContent, observation: previewObservation, loading: previewLoading,
             select: previewSnapshot,

@@ -2142,8 +2142,16 @@ export const css = `
     flex-shrink: 0;
   }
 
-  .health-dot--none    { background: var(--border2); }
-  .health-dot--pending { background: var(--muted); }
+  .health-dot--online      { background: var(--accent); box-shadow: 0 0 4px var(--accent); }
+  .health-dot--partial     { background: var(--warn); box-shadow: 0 0 4px var(--warn); }
+  .health-dot--offline     { background: var(--danger); box-shadow: 0 0 4px var(--danger); }
+  .health-dot--maintenance { background: var(--accent3); box-shadow: 0 0 4px var(--accent3); }
+  .health-dot--unknown     { background: var(--muted); }
+  .health-dot--none        { background: var(--border2); }
+  .health-text--online  { color: var(--accent); }
+  .health-text--partial { color: var(--warn); }
+  .health-text--offline { color: var(--danger); }
+  .health-text--unknown, .health-text--none { color: var(--muted); }
 
   .col-status { width: 1%; white-space: nowrap; }
   .col-status--clickable { cursor: pointer; }

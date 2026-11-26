@@ -16,12 +16,11 @@ const FRONTEND_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 // ("edge-c6a3f0f", not "vedge-c6a3f0f")
 const displayVersion = (version) => /^\d/.test(version) ? `v${version}` : version;
 
-export default function Sidebar({ currentPath, status, onRefreshStatus, onLogout, onSecurity, sidebarOpen, setSidebarOpen, selectedInstanceId, onSwitchInstance, instanceListVersion }) {
+export default function Sidebar({ currentPath, status, onRefreshStatus, onLogout, onSecurity, sidebarOpen, setSidebarOpen, selectedInstanceId, onSwitchInstance, instances }) {
     const { t } = useTranslation();
     const newTabDescriptionId = useId();
     const navigate = useNavigate();
     const [backendVersion, setBackendVersion] = useState(null);
-    const [instances, setInstances] = useState([]);
     const instanceStatus = useInstanceStatus();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -45,10 +44,6 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, onLogout
     const updateUrl = updateLink(update, { backend: backendVersion, frontend: FRONTEND_VERSION });
     const documentationUrl = documentationLink({ frontend: FRONTEND_VERSION, backend: backendVersion });
 
-    useEffect(() => {
-        apiFetch("/instances").then(setInstances).catch(() => { });
-    }, [instanceListVersion]);
-
     useClickOutside(dropdownRef, () => setDropdownOpen(false), dropdownOpen);
 
     const switchInstance = (id) => {
@@ -61,7 +56,7 @@ export default function Sidebar({ currentPath, status, onRefreshStatus, onLogout
         setSidebarOpen(false);
     };
 
-    const showSwitcher = instances.length > 1;
+    const showSwitcher = instances?.length > 1;
 
     return (
         <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
