@@ -3,7 +3,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "test": "node --test \"dev-caddy/*.test.mjs\" \"integration/*.test.mjs\"",
+        "test": "node --test \"dev-caddy/*.test.mjs\" \"integration/*.test.mjs\" contracts.test.mjs",
         "test:workflows": "node --test workflows/*.test.mjs",
         "test:playground": "vitest run playground/test/",
         "test:integration": "node --test \"integration/!(stack|lifecycle|*.test).mjs\"",

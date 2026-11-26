@@ -4,7 +4,7 @@ import logger from './logger.js';
 
 const SETTINGS_PATH = process.env.SETTINGS_PATH || '/etc/caddy-ui/settings.json';
 
-const DEFAULT_SETTINGS = Object.freeze({
+export const DEFAULT_SETTINGS = Object.freeze({
     firstTimeRun: true,
     theme: 'dark',
     language: null,

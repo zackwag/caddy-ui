@@ -22,18 +22,9 @@ import { Toasts, useToast } from "./components/Toasts.jsx";
 import { css, DEFAULT_PALETTES, THEME_LIST, THEME_VAR_KEYS } from "./styles.js";
 import { apiFetch, authRequest, fetchAuthStatus, getInstanceId, onInstanceSelectionReset, onUnauthorized, resetAuthContext, setInstanceId } from "./utils/api.js";
 import { viewAt } from "./views.js";
+import { DEFAULT_SETTINGS } from "./settings.js";
 import { useTranslation } from 'react-i18next';
 
-const DEFAULT_SETTINGS = {
-    theme: 'dark',
-    language: null,
-    editorVim: false,
-    darkPalette: DEFAULT_PALETTES.dark,
-    lightPalette: DEFAULT_PALETTES.light,
-    routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
-    routeChecks: false,
-    routeCheckExcludes: [],
-};
 
 export default function App() {
     const { t } = useTranslation();

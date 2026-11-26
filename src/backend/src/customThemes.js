@@ -32,7 +32,7 @@ const THEME_VARS = [
     ['--on-accent', '#fff', 'Text color used on top of a solid `--accent` fill (e.g. primary buttons)'],
     ['--on-danger', '#fff', 'Text color used on top of a solid `--danger` fill'],
 ];
-const REQUIRED_VARS = THEME_VARS.map(([name]) => name);
+export const REQUIRED_VARS = THEME_VARS.map(([name]) => name);
 
 // Dropped into both themes/dark/ and themes/light/ on first run, so the
 // format is documented right where a user is already looking. The two
