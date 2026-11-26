@@ -108,7 +108,6 @@ test('sidebar Documentation uses independent versions, opens a new tab and remai
             await link.hover();
             await page.waitForFunction(color => getComputedStyle(document.querySelector('.sidebar-documentation')).color === color, accent);
             assert.equal(await link.evaluate(node => getComputedStyle(node).backgroundColor), background, 'hover changes text, not the background');
-            await page.locator('.nav-footer').screenshot({ path: '/tmp/caddy-ui-documentation-footer.png' });
             await page.getByRole('button', { name: 'Sign out', exact: true }).focus();
             await page.keyboard.press('Tab');
             assert(await link.evaluate(node => node === document.activeElement && node.matches(':focus-visible')));
@@ -137,7 +136,6 @@ test('sidebar Documentation uses independent versions, opens a new tab and remai
     await link.scrollIntoViewIfNeeded();
     const bounds = await link.boundingBox();
     assert(bounds.x >= 0 && bounds.x + bounds.width <= 390 && bounds.y >= 0 && bounds.y + bounds.height <= 844);
-    await page.screenshot({ path: '/tmp/caddy-ui-documentation-mobile.png' });
     const popup = await open();
     await popup.getByRole('heading', { name: 'Release v3.7.4', exact: true }).waitFor();
     await popup.close();

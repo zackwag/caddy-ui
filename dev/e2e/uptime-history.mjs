@@ -55,7 +55,6 @@ test('uptime history keeps its loaded window stable across unrelated renders and
         'An unrelated render must not move the loaded timeline boundaries');
     await dialog.getByRole('img', { name: 'Observed online, offline and unmonitored intervals', exact: true }).waitFor();
     assert.equal(await dialog.locator('.history-outage-marker').count(), 1);
-    await dialog.screenshot({ path: '/tmp/caddy-ui-uptime-history-desktop.png' });
 });
 
 test('uptime refresh leaves inspection when its outage exits the seven-day window', { timeout: 120000 }, async t => {
@@ -65,7 +64,6 @@ test('uptime refresh leaves inspection when its outage exits the seven-day windo
     await marker.press('Enter');
     await dialog.getByRole('button', { name: 'Back to overview', exact: true }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
-    await dialog.screenshot({ path: '/tmp/caddy-ui-uptime-history-mobile.png' });
     // The outage ends 87 seconds inside the original window. At 90 seconds
     // it is outside, although most of its five-minute context remains inside.
     await load(() => page.clock.fastForward(90_000));

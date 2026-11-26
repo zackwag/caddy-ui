@@ -91,7 +91,6 @@ test('external file and admin API changes have independent Unknown-author diffs 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('.history-external').scrollIntoViewIfNeeded();
     assert(await page.locator('.history-external').isVisible());
-    await page.screenshot({ path: '/tmp/caddy-ui-377-external-history.png' });
     await page.setViewportSize({ width: 1440, height: 900 });
 
     // Record missing baselines explicitly when a representation first becomes readable.

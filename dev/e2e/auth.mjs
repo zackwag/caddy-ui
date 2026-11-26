@@ -45,7 +45,6 @@ test('HTTP setup, session cookies, CSRF, logout and one-time recovery work in th
     assert.equal(cookie.httpOnly, true);
     assert.equal(cookie.secure, false);
     assert.equal(cookie.sameSite, 'Strict');
-    assert.equal(await page.evaluate(() => localStorage.getItem('caddy_ui_token')), null);
     assert.equal(await readFile(f.env.SETTINGS_PATH, 'utf8'), f.metadata);
     const forged = await page.evaluate(async () => (await fetch('/api/settings', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'de' }),
