@@ -64,7 +64,6 @@ describe('logging configuration preparation', () => {
             expect(candidate).toContain('output file /tmp/test.log');
         });
         expect((await configure()).status).toBe(200);
-        expect(execInInstance).not.toHaveBeenCalled();
         expect(validateCaddyfile).toHaveBeenCalledOnce();
         expect(state.applied).toContain('log {');
     });

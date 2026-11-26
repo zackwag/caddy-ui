@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { serve } from './fixtures/server.mjs';
 import routesRouter from '../src/routes/routes.js';
 import tlsRouter from '../src/routes/tls.js';
-import { clearObservations } from '../src/observations.js';
+import { markConfigChanged } from '../src/caddy.js';
 
 const { caddyGet } = vi.hoisted(() => ({ caddyGet: vi.fn() }));
 
@@ -36,7 +36,7 @@ beforeAll(async () => {
 afterAll(() => server.close());
 
 beforeEach(async () => {
-    clearObservations();
+    markConfigChanged('http://caddy:2019');
     dir = await mkdtemp(join(tmpdir(), 'caddy-ui-availability-'));
     instance.dataPath = join(dir, 'caddy');
     caddyGet.mockReset();

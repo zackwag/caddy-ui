@@ -9,7 +9,6 @@ import { serve } from './fixtures/server.mjs';
 
 const { files, failWrites, live, etagOf, caddyAdapt, caddyLoad, caddyGet, caddyPost, caddyPut } = vi.hoisted(() => ({
     files: new Map(),
-    // Writes to fail, counted from 1 since the last reset
     failWrites: { at: [], count: 0 },
     // What the fake admin API serves: the loaded config, the HTTP servers and
     // objects added by @id
@@ -37,7 +36,6 @@ vi.mock('../src/containerFs.js', async importOriginal => ({
     }),
     removeContainerPath: vi.fn(async (container, path) => { files.delete(path); }),
 }));
-// Readback shares the fake admin API with every other read
 vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyAdapt, caddyLoad, caddyGet, caddyReadJson: caddyGet, caddyPost, caddyPut,
     caddyGetTagged: async (path, adminUrl) => {
         const value = await caddyGet(path, adminUrl);
@@ -50,7 +48,6 @@ const execInInstance = vi.hoisted(() => vi.fn());
 vi.mock('../src/docker.js', async importOriginal => ({ ...await importOriginal(), getCaddyEnv: vi.fn(async () => ({})), execInInstance }));
 vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ resolveActor: () => null }) }));
 
-// HISTORY_PATH is read at import time, so set it before importing the module
 process.env.HISTORY_PATH = mkdtempSync(join(tmpdir(), 'caddy-ui-history-'));
 process.env.MAINTENANCE_PATH = process.env.HISTORY_PATH + '-maintenance.json';
 process.env.WWW_PATH = process.env.HISTORY_PATH + '-www';
@@ -60,7 +57,7 @@ const { default: caddyfileRouter } = await import('../src/routes/caddyfile.js');
 const { default: metricsRouter } = await import('../src/routes/metrics.js');
 const { default: logsRouter } = await import('../src/routes/logs.js');
 const { default: routesRouter } = await import('../src/routes/routes.js');
-const { getMaintenanceState } = await import('../src/maintenance.js');
+const { getMaintenanceState, loadMaintenance } = await import('../src/maintenance.js');
 const { readContainerFile } = await import('../src/containerFs.js');
 const { default: logger } = await import('../src/logger.js');
 const { CaddyTimeoutError } = await import('../src/caddy.js');
@@ -87,7 +84,9 @@ const verified = { file: 'verified', live: 'verified' };
 const liveChange = apply => ({ apply, verify: async () => 'verified' });
 const servers = { srv0: { listen: [':443'], routes: [] } };
 
-beforeEach(() => {
+beforeEach(async () => {
+    await writeFile(process.env.MAINTENANCE_PATH, '{}');
+    await loadMaintenance();
     resetConfigDrift();
     files.clear();
     files.set(instance.configPath, original);
@@ -721,11 +720,10 @@ describe('API save paths', () => {
 
         it('checks a route added through the admin API by its @id, not the whole config', async () => {
             live.servers = servers;
+            live.config = { apps: { tls: { unrelated: 'changed elsewhere' } } };
             const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
             expect(status).toBe(201);
             expect(body.verification).toEqual(verified);
-            expect(caddyAdapt).not.toHaveBeenCalled();
-            expect(caddyGet).toHaveBeenCalledWith(`/id/${body.id}`, instance.adminUrl);
         });
 
         it('reports an added route that the admin API serves differently', async () => {

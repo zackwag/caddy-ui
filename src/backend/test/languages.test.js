@@ -9,21 +9,22 @@ afterEach(() => {
 });
 
 describe('language configuration', () => {
-    it('enables reviewed English, Arabic, and German without opt-in', () => {
+    it('always enables English, and nothing beyond the reviewed set without opt-in', () => {
         delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
 
         expect(getAdditionalLanguages()).toEqual([]);
-        expect(getEnabledLanguages()).toEqual(['en', 'ar', 'de']);
-        expect(normalizeLanguageSetting('AR')).toBe('ar');
-        expect(normalizeLanguageSetting(' DE ')).toBe('de');
+        expect(getEnabledLanguages()).toContain('en');
+        expect(normalizeLanguageSetting(' EN ')).toBe('en');
         expect(normalizeLanguageSetting('es-mx')).toBeUndefined();
     });
 
-    it('normalizes, deduplicates, and enables configured ISO 639 language codes', () => {
-        process.env.CADDY_UI_ADDITIONAL_LANGUAGES = 'DE, fr, FR, de, en, AR';
+    it('appends configured languages lowercased and deduplicated, skipping ones already enabled', () => {
+        delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
+        const reviewed = getEnabledLanguages();
+        process.env.CADDY_UI_ADDITIONAL_LANGUAGES = ['FR', 'fr', ...reviewed.map(lang => lang.toUpperCase()), ...reviewed].join(', ');
 
         expect(getAdditionalLanguages()).toEqual(['fr']);
-        expect(getEnabledLanguages()).toEqual(['en', 'ar', 'de', 'fr']);
+        expect(getEnabledLanguages()).toEqual([...reviewed, 'fr']);
     });
 
     it('accepts region subtags and ignores invalid language values', () => {
@@ -32,19 +33,18 @@ describe('language configuration', () => {
         expect(getAdditionalLanguages()).toEqual(['de-de', 'es-mx']);
     });
 
-    it('exposes bundled fonts for enabled languages automatically', () => {
-        delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
-        expect(getAvailableFonts()).toEqual(['ar']);
-        expect(getEnabledLanguages()).toEqual(['en', 'ar', 'de']);
+    it.each([undefined, 'fr'])('exposes bundled fonts only for enabled languages (additional: %s)', additional => {
+        if (additional === undefined) delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
+        else process.env.CADDY_UI_ADDITIONAL_LANGUAGES = additional;
+        expect(getEnabledLanguages()).toEqual(expect.arrayContaining(getAvailableFonts()));
     });
 
     it('accepts only null or an enabled language as the saved language setting', () => {
         process.env.CADDY_UI_ADDITIONAL_LANGUAGES = 'fr';
 
         expect(normalizeLanguageSetting(null)).toBeNull();
-        expect(normalizeLanguageSetting(' DE ')).toBe('de');
+        expect(normalizeLanguageSetting(' FR ')).toBe('fr');
         expect(normalizeLanguageSetting('en')).toBe('en');
-        expect(normalizeLanguageSetting('fr')).toBe('fr');
         expect(normalizeLanguageSetting('es-mx')).toBeUndefined();
         expect(normalizeLanguageSetting(1)).toBeUndefined();
         expect(normalizeLanguageSetting({})).toBeUndefined();

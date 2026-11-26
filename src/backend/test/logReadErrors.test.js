@@ -83,7 +83,9 @@ function streamProcess(emit) {
 }
 
 describe('Caddy live log failures', () => {
-    it.each(failures)('reports %s after collecting stderr', async (_name, detail, status) => {
+    // The classifier matrix runs against snapshots above; streams share it.
+    const streamFailures = failures.filter(([name]) => ['GNU missing file', 'permissions'].includes(name));
+    it.each(streamFailures)('reports %s after collecting stderr', async (_name, detail, status) => {
         streamProcess(child => {
             const split = Math.floor(detail.length / 2);
             child.stderr.emit('data', Buffer.from(detail.slice(0, split)));

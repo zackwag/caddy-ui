@@ -61,8 +61,3 @@ export async function getUpstreamChecks(adminUrl) {
         return { checks, checkedAt: new Date() };
     }, servers);
 }
-
-// For tests, which change what Caddy returns between cases.
-export function clearObservations() {
-    entries.clear();
-}

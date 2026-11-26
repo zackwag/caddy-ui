@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { serve } from './fixtures/server.mjs';
-import { clearObservations } from '../src/observations.js';
+import { markConfigChanged } from '../src/caddy.js';
 
 const { caddyGet, instances } = vi.hoisted(() => ({ caddyGet: vi.fn(), instances: [] }));
 
@@ -11,7 +11,6 @@ vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(),
 vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => instances }));
 vi.mock('../src/caddyfileTitles.js', async importOriginal => ({ ...await importOriginal(), caddyfileTitlesEnabled: () => false }));
 
-// ROUTE_NOTES_PATH is read at import time
 const root = await mkdtemp(join(tmpdir(), 'caddy-ui-notes-'));
 const notesPath = join(root, 'route-notes.json');
 process.env.ROUTE_NOTES_PATH = notesPath;
@@ -43,10 +42,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-    clearObservations();
+    for (const inst of [alpha, beta]) markConfigChanged(inst.adminUrl);
     await rm(notesPath, { force: true });
     instances.splice(0, instances.length, alpha, beta);
-    // Both instances serve the same hostname
     caddyGet.mockReset().mockImplementation(async () => serving('app.example.com'));
 });
 
@@ -56,6 +54,24 @@ const putNote = (instanceId, domain, note) => fetch(`${baseUrl}/${encodeURICompo
 });
 
 describe('route notes per instance', () => {
+    it('treats a missing notes file as no notes', async () => {
+        expect(await getNotes('alpha')).toEqual({});
+    });
+
+    it.each([
+        ['corrupt', '{ not json'],
+        ['not an object', '["app.example.com"]'],
+    ])('reports a %s notes file and refuses to overwrite it', async (_, contents) => {
+        await writeFile(notesPath, contents);
+        const read = await fetch(baseUrl, { headers: { 'X-Instance-Id': 'alpha' } });
+        expect(read.status).toBe(500);
+        expect((await read.json()).code).toBe('ROUTE_NOTES_READ_FAILED');
+        const write = await putNote('alpha', 'app.example.com', 'new');
+        expect(write.status).toBe(500);
+        expect((await write.json()).code).toBe('ROUTE_NOTES_READ_FAILED');
+        expect(await readFile(notesPath, 'utf8')).toBe(contents);
+    });
+
     it('keeps a note written on one instance off another with the same hostname', async () => {
         expect((await putNote('alpha', 'app.example.com', 'Alpha app')).status).toBe(200);
         expect(await getNotes('alpha')).toEqual({ 'app.example.com': 'Alpha app' });
@@ -79,7 +95,6 @@ describe('route notes per instance', () => {
             instances: { alpha: { 'app.example.com': 'Shared' }, beta: { 'app.example.com': 'Shared' } },
             unassigned: { 'gone.example.com': 'Old' },
         });
-        // Each copy is now edited independently
         await putNote('alpha', 'app.example.com', 'Alpha only');
         expect(await getNotes('beta')).toEqual({ 'app.example.com': 'Shared' });
     });
@@ -123,15 +138,23 @@ describe('route notes per instance', () => {
         expect(await getNotes('beta')).toEqual({ 'app.example.com': 'Beta app' });
     });
 
-    it('prunes each instance only against its own routes', async () => {
-        await putNote('alpha', 'app.example.com', 'Alpha app');
-        await putNote('beta', 'app.example.com', 'Beta app');
+    it('prunes each instance only against its own routes, keeping unassigned notes while any config is unreadable', async () => {
+        await writeFile(notesPath, JSON.stringify({ version: 2,
+            instances: { alpha: { 'app.example.com': 'Alpha app' }, beta: { 'app.example.com': 'Beta app' } },
+            unassigned: { 'gone.example.com': 'Old' } }));
         caddyGet.mockImplementation(async (path, adminUrl) => {
             if (adminUrl === beta.adminUrl) throw new Error('connect ECONNREFUSED');
             return serving('other.example.com');
         });
         await cleanupOrphanedNotes();
-        expect((await saved()).instances).toEqual({ beta: { 'app.example.com': 'Beta app' } });
+        expect(await saved()).toEqual({ version: 2, instances: { beta: { 'app.example.com': 'Beta app' } }, unassigned: { 'gone.example.com': 'Old' } });
+    });
+
+    it('prunes old notes for domains no instance serves once every config is readable', async () => {
+        await writeFile(notesPath, JSON.stringify({ 'app.example.com': 'kept', 'gone.example.com': 'removed' }));
+        caddyGet.mockImplementation(async (path, adminUrl) => (adminUrl === alpha.adminUrl ? serving('app.example.com') : null));
+        await cleanupOrphanedNotes();
+        expect(await saved()).toEqual({ version: 2, instances: { alpha: { 'app.example.com': 'kept' } }, unassigned: {} });
     });
 
     it('detects stored notes in either file format', async () => {

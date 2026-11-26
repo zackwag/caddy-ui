@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -104,14 +104,13 @@ describe('failed instance changes', () => {
         await expectPersisted();
         const before = structuredClone(instances.getInstances());
         const persisted = await readFile(file, 'utf8');
-        await chmod(directory, 0o555);
-        try {
-            await expect(changes[operation]()).rejects.toMatchObject({ code: 'EACCES' });
-            expect(instances.getInstances()).toEqual(before);
-            expect(await readFile(file, 'utf8')).toBe(persisted);
-        } finally {
-            await chmod(directory, 0o700);
-        }
+        // A directory in place of the file fails the write for any user, root included.
+        await rm(file);
+        await mkdir(file);
+        await expect(changes[operation]()).rejects.toMatchObject({ code: 'EISDIR' });
+        expect(instances.getInstances()).toEqual(before);
+        await rm(file, { recursive: true });
+        await writeFile(file, persisted);
 
         // Reloading data must not hide a poisoned write queue. Retrying the
         // operation needs to reach the now-writable file and update both views.

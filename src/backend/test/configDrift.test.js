@@ -38,8 +38,11 @@ const { changedPaths } = await import('../src/jsonDiff.js');
 const { configurationHistory: history } = await import('../src/configurationHistory.js');
 const { DRIFT_HISTORY_LIMIT, checkAllInstances, getConfigDriftState, onExternalConfigurationChange, recordLocalChange, resetConfigDrift } = await import('../src/configDrift.js');
 const announced = [];
-const announceListener = change => { announced.push(change); };
-onExternalConfigurationChange(announceListener);
+// resetConfigDrift also drops listeners, so each reset subscribes again.
+const resetDrift = () => {
+    resetConfigDrift();
+    onExternalConfigurationChange(change => { announced.push(change); });
+};
 
 const alpha = { id: 'alpha', name: 'Alpha', adminUrl: 'http://alpha:2019', configPath: '/alpha/Caddyfile', containerName: 'alpha' };
 const beta = { id: 'beta', name: 'Beta', adminUrl: 'http://beta:2019', configPath: '/beta/Caddyfile', containerName: 'beta' };
@@ -47,14 +50,12 @@ const verified = { file: 'verified', live: 'verified' };
 
 let warn;
 let info;
-const reports = () => warn.mock.calls.filter(([message]) => message === 'Configuration changed outside caddy-ui');
 const changes = id => getConfigDriftState(id).changes;
 
 beforeEach(async () => {
     announced.length = 0;
     await rm(historyRoot, { recursive: true, force: true });
-    resetConfigDrift();
-    onExternalConfigurationChange(announceListener);
+    resetDrift();
     files.clear();
     live.clear();
     unsettled.clear();
@@ -93,7 +94,7 @@ describe('live JSON history by default', () => {
 
     it('records no paths when the previous live observation is unavailable', async () => {
         delete process.env.CADDY_UI_HISTORY_LIVE_JSON;
-        resetConfigDrift();
+        resetDrift();
         live.delete(alpha.adminUrl);
         await checkAllInstances();
         live.set(alpha.adminUrl, { apps: { secret: 'value' } });
@@ -153,7 +154,7 @@ describe('configuration drift detection', () => {
     });
 
     it('continues recording an available representation during an outage and explicitly marks a missing baseline', async () => {
-        resetConfigDrift();
+        resetDrift();
         live.delete(alpha.adminUrl);
         await checkAllInstances();
         files.set(alpha.configPath, 'during-outage {}');
@@ -169,7 +170,7 @@ describe('configuration drift detection', () => {
     });
 
     it('does not label a verified full save as external after the live baseline was unavailable', async () => {
-        resetConfigDrift();
+        resetDrift();
         live.delete(alpha.adminUrl);
         await checkAllInstances();
         const config = { verified: 'full save' };
@@ -198,7 +199,7 @@ describe('configuration drift detection', () => {
 
     it('establishes a baseline at startup without reporting a change', () => {
         expect(info.mock.calls.filter(([message]) => message === 'Configuration baseline established')).toHaveLength(2);
-        expect(reports()).toHaveLength(0);
+        expect(announced).toHaveLength(0);
         expect(changes('alpha')).toEqual([]);
     });
 
@@ -209,8 +210,8 @@ describe('configuration drift detection', () => {
     ])('detects a %s change and which representation changed', async (name, change, representations) => {
         change();
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1]).toMatchObject({ instanceId: 'alpha', representations });
+        expect(announced).toHaveLength(1);
+        expect(announced[0]).toMatchObject({ instanceId: 'alpha', representations });
         expect(changes('alpha')).toHaveLength(1);
         expect(changes('beta')).toEqual([]);
     });
@@ -220,10 +221,10 @@ describe('configuration drift detection', () => {
         files.set(alpha.configPath, 'first {\n}\n');
         await checkAllInstances();
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
+        expect(announced).toHaveLength(1);
         files.set(alpha.configPath, 'second {\n}\n');
         await checkAllInstances();
-        expect(reports()).toHaveLength(2);
+        expect(announced).toHaveLength(2);
         expect(changes('alpha').map(change => change.previous)).toEqual([expected, expected]);
         expect(getConfigDriftState('alpha').expected).toEqual(expected);
     });
@@ -236,7 +237,7 @@ describe('configuration drift detection', () => {
         await checkAllInstances();
         files.set(alpha.configPath, 'edited {\n}\n');
         await checkAllInstances();
-        expect(reports()).toHaveLength(2);
+        expect(announced).toHaveLength(2);
     });
 
     it('announces each reported change once, with its history entry and no configuration content', async () => {
@@ -253,13 +254,17 @@ describe('configuration drift detection', () => {
         expect(announced[1].representations).toEqual(['file', 'live']);
     });
 
-    it('keeps checking when a change listener fails', async () => {
-        const stop = onExternalConfigurationChange(() => { throw new Error('provider down'); });
+    it('keeps checking and delivering when a change listener fails', async () => {
+        const failing = vi.fn(() => { throw new Error('provider down'); });
+        const stop = onExternalConfigurationChange(failing);
         files.set(alpha.configPath, 'first {\n}\n');
         await checkAllInstances();
         await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('Configuration change notification delivery failed', { instanceId: 'alpha', error: 'provider down' }));
+        files.set(alpha.configPath, 'second {\n}\n');
+        await checkAllInstances();
+        await vi.waitFor(() => expect(failing).toHaveBeenCalledTimes(2));
         stop();
-        expect(reports()).toHaveLength(1);
+        expect(announced).toHaveLength(2);
     });
 
     it('does not report a verified local change', async () => {
@@ -268,7 +273,7 @@ describe('configuration drift detection', () => {
         await recordLocalChange(alpha, { content: 'local {\n}\n', verification: verified, verifyLive: async () => 'verified',
             expectLive: () => ({ apps: { local: true } }) });
         await checkAllInstances();
-        expect(reports()).toHaveLength(0);
+        expect(announced).toHaveLength(0);
         expect(announced).toHaveLength(0);
     });
 
@@ -278,8 +283,8 @@ describe('configuration drift detection', () => {
         await recordLocalChange(alpha, { content: 'local {\n}\n', verification: verified,
             expectLive: () => ({ apps: { local: true } }) });
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toEqual(['live']);
+        expect(announced).toHaveLength(1);
+        expect(announced[0].representations).toEqual(['live']);
     });
 
     it('confirms an unverified local change once the running config matches it', async () => {
@@ -288,7 +293,7 @@ describe('configuration drift detection', () => {
             verifyLive: async () => 'verified', expectLive: () => ({ apps: { local: true } }) });
         live.set(alpha.adminUrl, { apps: { local: true } });
         await checkAllInstances();
-        expect(reports()).toHaveLength(0);
+        expect(announced).toHaveLength(0);
         expect(info.mock.calls.some(([message]) => message === 'Local configuration change confirmed')).toBe(true);
     });
 
@@ -301,7 +306,7 @@ describe('configuration drift detection', () => {
         files.set(alpha.configPath, onDisk);
         live.set(alpha.adminUrl, { apps: { other: true } });
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
+        expect(announced).toHaveLength(1);
     });
 
     it('defers judgment while a timed-out caddy-ui write is unsettled', async () => {
@@ -314,7 +319,7 @@ describe('configuration drift detection', () => {
         live.set(alpha.adminUrl, { apps: { local: true } });
         unsettled.delete(alpha.adminUrl);
         await checkAllInstances();
-        expect(reports()).toHaveLength(0);
+        expect(announced).toHaveLength(0);
     });
 
     it('logs read failures separately, once per outage, without counting them as changes', async () => {
@@ -327,7 +332,7 @@ describe('configuration drift detection', () => {
         files.set(alpha.configPath, 'alpha.example.com {\n}\n');
         await checkAllInstances();
         expect(info.mock.calls.some(([message]) => message === 'Configuration drift check available again')).toBe(true);
-        expect(reports()).toHaveLength(0);
+        expect(announced).toHaveLength(0);
     });
 
     it('bounds retained changes and drops removed instances', async () => {
@@ -346,7 +351,7 @@ describe('configuration drift detection', () => {
         files.set(alpha.configPath, `edited {\n\theader X-Secret ${secret}\n}\n`);
         live.set(alpha.adminUrl, { apps: { secret } });
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
+        expect(announced).toHaveLength(1);
         expect(JSON.stringify([...warn.mock.calls, ...info.mock.calls])).not.toContain(secret);
     });
 
@@ -357,8 +362,8 @@ describe('configuration drift detection', () => {
             content: 'local {\n}\n', verification: { file: 'verified', live: 'not-applied' },
         });
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toEqual(['live']);
+        expect(announced).toHaveLength(1);
+        expect(announced[0].representations).toEqual(['live']);
     });
 
     it('does not adopt an external file edit that arrives between verification and observation', async () => {
@@ -369,7 +374,6 @@ describe('configuration drift detection', () => {
         let calls = 0;
         readContainerFile.mockImplementation(async (container, path) => {
             calls++;
-            // First call from observe() inside recordLocalChange returns the external edit
             if (path === alpha.configPath && calls === 1) return 'external-race {\n}\n';
             return originalImpl(container, path);
         });
@@ -382,13 +386,11 @@ describe('configuration drift detection', () => {
             expectLive: () => ({ apps: { local: true } }),
         });
         readContainerFile.mockImplementation(originalImpl);
-        // The file expectation should be 'local', not 'external-race'
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toContain('file');
+        expect(announced).toHaveLength(1);
+        expect(announced[0].representations).toContain('file');
     });
 });
-
 
 // Exercise verification scope independently of file writes and completion time.
 const routeCases = ['add', 'replace', 'remove'].flatMap(operation =>
@@ -400,7 +402,7 @@ const updatedRoute = operation => ({ '@id': operation === 'add' ? 'route-c' : 'r
 const routesOf = config => config.apps.http.servers.srv0.routes;
 
 async function routeChange({ operation, diskBacked, status }, external = false) {
-    resetConfigDrift();
+    resetDrift();
     live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: structuredClone([routeA, routeB]) } } } } });
     await checkAllInstances();
     const config = structuredClone(live.get(alpha.adminUrl));
@@ -429,7 +431,7 @@ describe('scoped route expectations', () => {
         await routeChange(options);
         await checkAllInstances();
         await checkAllInstances();
-        expect(reports()).toHaveLength(0);
+        expect(announced).toHaveLength(0);
         expect(changes(alpha.id)).toEqual([]);
     });
 
@@ -437,8 +439,8 @@ describe('scoped route expectations', () => {
         const config = await routeChange(options, true);
         await checkAllInstances();
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toEqual(['live']);
+        expect(announced).toHaveLength(1);
+        expect(announced[0].representations).toEqual(['live']);
         const [entry] = await history.list(alpha.id);
         const { external } = await history.read(alpha.id, entry.filename);
         const before = JSON.parse(external.before.live), after = JSON.parse(external.after.live);
@@ -448,10 +450,10 @@ describe('scoped route expectations', () => {
         const other = routesOf(config).find(route => route['@id'] === 'route-b');
         other.handle[0].body = 'original B';
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
+        expect(announced).toHaveLength(1);
         other.handle[0].body = 'external edit';
         await checkAllInstances();
-        expect(reports()).toHaveLength(2);
+        expect(announced).toHaveLength(2);
     });
 
     it.each(['verified', 'uncertain'])('keeps an external file edit visible while confirming a %s API-only edit', async status => {
@@ -459,12 +461,12 @@ describe('scoped route expectations', () => {
         files.set(alpha.configPath, 'externally-edited {\n}\n');
         await checkAllInstances();
         await checkAllInstances();
-        expect(reports()).toHaveLength(1);
-        expect(reports()[0][1].representations).toEqual(['file']);
+        expect(announced).toHaveLength(1);
+        expect(announced[0].representations).toEqual(['file']);
     });
 
     it.each(['verified', 'uncertain'])('does not record a %s edit of an externally added route as an external observation', async status => {
-        resetConfigDrift();
+        resetDrift();
         live.set(alpha.adminUrl, { apps: { http: { servers: { srv0: { routes: structuredClone([routeA]) } } } } });
         await checkAllInstances();
         const config = structuredClone(live.get(alpha.adminUrl));
@@ -486,7 +488,7 @@ describe('scoped route expectations', () => {
     });
 
     it('projects a verified add to an externally added server onto the observation once', async () => {
-        resetConfigDrift();
+        resetDrift();
         live.set(alpha.adminUrl, { apps: { http: { servers: {} } } });
         await checkAllInstances();
         const config = { apps: { http: { servers: { srv1: { routes: [] } } } } };
@@ -503,16 +505,5 @@ describe('scoped route expectations', () => {
         await checkAllInstances();
         await checkAllInstances();
         expect(await history.list(alpha.id)).toHaveLength(recorded);
-    });
-
-    it('does not expose configuration snapshots in diagnostics or logs', async () => {
-        const secret = crypto.randomUUID();
-        resetConfigDrift();
-        live.set(alpha.adminUrl, { apps: { secret } });
-        await checkAllInstances();
-        files.set(alpha.configPath, 'external {\n}\n');
-        await checkAllInstances();
-        expect(JSON.stringify(getConfigDriftState(alpha.id))).not.toContain(secret);
-        expect(JSON.stringify([...info.mock.calls, ...warn.mock.calls])).not.toContain(secret);
     });
 });

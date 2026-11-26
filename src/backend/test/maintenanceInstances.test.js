@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,7 +27,6 @@ vi.mock('../src/caddyfileChange.js', () => ({
 }));
 vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => instances }));
 
-// Both paths are read at import time
 const dir = mkdtempSync(join(tmpdir(), 'caddy-ui-maintenance-'));
 process.env.MAINTENANCE_PATH = join(dir, 'maintenance.json');
 process.env.WWW_PATH = join(dir, 'www');
@@ -46,6 +45,8 @@ async function resetState(contents) {
     else writeFileSync(process.env.MAINTENANCE_PATH, JSON.stringify(contents));
     await maintenance.loadMaintenance();
 }
+
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 beforeEach(async () => {
     files.clear();

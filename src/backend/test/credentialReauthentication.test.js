@@ -23,7 +23,7 @@ async function fixture() {
         expect(options.status).toBe(200);
         return request(target, '/passkeys/reauthentication', device.assertion(options.data, { counter: ++counter, ...mutation }));
     }
-    return { ...f, client, account, device, recoveryKey: setup.data.recoveryKey, key: key.data, grant, advance: ms => { time += ms; } };
+    return { ...f, client, account, device, recoveryKey: setup.data.recoveryKey, key: key.data, grant, now: () => time, advance: ms => { time += ms; } };
 }
 afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); });
 
@@ -58,7 +58,7 @@ describe('fresh passkey authorization for credential changes', () => {
     it('allows passkey proof instead of password/TOTP for password changes and adding/removing a key', async () => {
         const f = await fixture();
         const seed = await request(f.client, '/totp/setup', (await f.grant()).data);
-        const code = new TOTP({ secret: Secret.fromBase32(seed.data.secret) }).generate();
+        const code = new TOTP({ secret: Secret.fromBase32(seed.data.secret) }).generate({ timestamp: f.now() });
         expect((await request(f.client, '/totp/confirm', { code })).status).toBe(200);
         const other = authClient(f.url);
         const options = await request(other, '/passkeys/authentication/options');
@@ -78,7 +78,7 @@ describe('fresh passkey authorization for credential changes', () => {
     it('keeps passkey sign-in, fresh passkey proof and recovery available during a TOTP cooldown', async () => {
         const f = await fixture();
         const seed = await request(f.client, '/totp/setup', (await f.grant()).data);
-        const code = new TOTP({ secret: Secret.fromBase32(seed.data.secret) }).generate();
+        const code = new TOTP({ secret: Secret.fromBase32(seed.data.secret) }).generate({ timestamp: f.now() });
         expect((await request(f.client, '/totp/confirm', { code })).status).toBe(200);
         for (let i = 0; i < 5; i++) expect((await request(f.client, '/totp', { currentPassword: f.account.password, totpCode: 'bad' }, 'DELETE')).data.code).toBe('TOTP_INVALID');
         const other = authClient(f.url);

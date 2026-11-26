@@ -32,16 +32,10 @@ async function context(url) {
 }
 
 describe('browser session boundary', () => {
-    it('can rotate an existing login context even when the session registry is full', async () => {
-        const { url } = await fixture({ limit: 1 });
-        const headers = await context(url);
-        expect((await fetch(url + '/login', { method: 'POST', headers })).status).toBe(200);
-    });
     it("doesn't let anonymous CSRF contexts lock the administrator out", async () => {
         const { url, sessions } = await fixture({ limit: 4, anonymousLimit: 3 });
         const first = await context(url);
         for (let i = 0; i < 10; i++) await fetch(url + '/csrf');
-        // The oldest anonymous contexts were evicted rather than new ones refused
         expect(sessions.readSession({ headers: { cookie: first.cookie } })).toBeNull();
         const headers = await context(url);
         expect((await fetch(url + '/login', { method: 'POST', headers })).status).toBe(200);

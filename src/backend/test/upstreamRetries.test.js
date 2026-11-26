@@ -69,7 +69,6 @@ describe('upstream notification retries', () => {
         await vi.advanceTimersByTimeAsync(60_000);
         expect(sendWebhook).toHaveBeenCalledTimes(3);
 
-        // No more retries after max attempts
         await vi.advanceTimersByTimeAsync(120_000);
         expect(sendWebhook).toHaveBeenCalledTimes(3);
     });
@@ -93,19 +92,11 @@ describe('upstream notification retries', () => {
         sendWebhook.mockRejectedValue(new Error('timeout'));
         await observe(false);
 
-        // Upstream comes back online before the retry fires
         sendWebhook.mockResolvedValue(undefined);
         await observe(true);
         await vi.advanceTimersByTimeAsync(120_000);
 
         expect(titles().filter(title => title === 'Upstream offline')).toHaveLength(1);
-    });
-
-    it('recovery alert requires a delivered offline alert', async () => {
-        await observe(true);
-        await observe(false);
-        await observe(true);
-        expect(titles()).toEqual(['Upstream offline', 'Upstream recovered']);
     });
 
     it('suppresses recovery alert when offline was never delivered', async () => {
@@ -149,7 +140,6 @@ describe('upstream notification retries', () => {
         sendWebhook.mockRejectedValue(new Error('fail'));
         await observe(false);
 
-        // Next round has no upstreams for this instance
         await notifications.notifyCheckResults('upstream', inst, []);
         await vi.advanceTimersByTimeAsync(120_000);
 

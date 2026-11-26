@@ -1,6 +1,6 @@
 import { caddyfileEntries, trailingComments } from './caddyfileBlocks.js';
 
-export function parseSiteBlocks(content) {
+function parseSiteBlocks(content) {
     const entries = caddyfileEntries(content);
     const blocks = [];
     const loose = [];

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as instances from '../src/instances.js';
 import { createAuthStore } from '../src/authStore.js';
 import { authClient, authFixture } from './fixtures/auth.mjs';
@@ -10,11 +10,22 @@ const secret = () => randomBytes(24).toString('base64url');
 const instance = id => ({ id, name: id, adminUrl: 'http://caddy:2019', configPath: '/etc/caddy/Caddyfile',
     logPath: '/var/log/caddy/access.log', dataPath: '/data/caddy', containerName: 'caddy', serverName: 'srv0' });
 const input = (updates = {}) => ({ name: 'Homepage', scopes: ['status:read'], instanceIds: ['default'], expiresInDays: 30, ...updates });
-beforeEach(() => {
-    vi.spyOn(instances, 'getInstances').mockReturnValue([instance('default'), instance('second')]);
-    vi.spyOn(instances, 'getInstance').mockImplementation(id => !id || id === 'default'
-        ? instances.getInstances().find(instance => instance.id === 'default') || instances.getInstances()[0]
-        : instances.getInstances().find(instance => instance.id === id) || null);
+const instancesDirectory = await vi.hoisted(async () => {
+    const { mkdtemp } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-token-instances-'));
+    process.env.INSTANCES_PATH = join(directory, 'instances.json');
+    return directory;
+});
+async function useInstances(...ids) {
+    await writeFile(process.env.INSTANCES_PATH, JSON.stringify(ids.map(instance)));
+    await instances.loadInstances();
+}
+beforeEach(() => useInstances('default', 'second'));
+afterAll(async () => {
+    await rm(instancesDirectory, { recursive: true, force: true });
+    delete process.env.INSTANCES_PATH;
 });
 afterEach(async () => {
     for (const fixture of fixtures.splice(0)) await fixture.close();
@@ -104,7 +115,7 @@ describe('scoped read-only integration tokens', () => {
         const metrics = await f.issue(input({ scopes: ['metrics:read'], instanceIds: ['second'] }));
         expect((await bearer(f.url, metrics.token, '/metrics/raw', { headers: { 'X-Instance-Id': 'default' } })).status).toBe(403);
         expect((await bearer(f.url, metrics.token, '/metrics/raw', { headers: { 'X-Instance-Id': 'second' } })).status).toBe(200);
-        vi.mocked(instances.getInstances).mockReturnValue([instance('default')]);
+        await useInstances('default');
         for (const headers of [{ 'X-Instance-Id': 'second' }, {}]) {
             const removed = await bearer(f.url, metrics.token, '/metrics/raw', { headers });
             expect(removed.status).toBe(404);
@@ -113,7 +124,7 @@ describe('scoped read-only integration tokens', () => {
     });
 
     it('defaults a header-less request to the token\'s only instance, and broader tokens to default', async () => {
-        vi.mocked(instances.getInstances).mockReturnValue([instance('default'), instance('second'), instance('third')]);
+        await useInstances('default', 'second', 'third');
         const f = await fixture();
         const servedInstance = async instanceIds => {
             const response = await bearer(f.url, (await f.issue(input({ instanceIds }))).token, '/status');

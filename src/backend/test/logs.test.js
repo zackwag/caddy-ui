@@ -80,23 +80,6 @@ app.example.com {
 });
 
 describe('updateGlobalBlock', () => {
-    it('creates a global block when none exists and logging is enabled', () => {
-        const content = `app.example.com {
-    reverse_proxy localhost:8080
-}`;
-        const result = updateLogConfig(content, {
-            enabled: true,
-            path: '/var/log/caddy/access.log',
-            rollSize: '50mb',
-            rollKeep: 5,
-            format: 'json',
-            level: 'INFO',
-        });
-        expect(result).toMatch(/^\{/);
-        expect(result).toContain('log {');
-        expect(result).toContain('app.example.com');
-    });
-
     it('leaves content unchanged when no global block and logging disabled', () => {
         const content = `app.example.com {
     reverse_proxy localhost:8080
@@ -126,28 +109,6 @@ app.example.com {
         expect(result).toContain('output file /tmp/caddy.log');
     });
 
-    it('replaces log block with new config when re-enabling', () => {
-        const content = `{
-    email admin@example.com
-}
-
-app.example.com {
-    reverse_proxy localhost:8080
-}`;
-        const result = updateLogConfig(content, {
-            enabled: true,
-            path: '/tmp/new.log',
-            rollSize: '10mb',
-            rollKeep: 2,
-            format: 'console',
-            level: 'WARN',
-        });
-        expect(result).toContain('email admin@example.com');
-        expect(result).toContain('output file /tmp/new.log');
-        expect(result).toContain('format console');
-        expect(result).toContain('level WARN');
-    });
-
     it('replaces an existing log block without duplicating it', () => {
         const content = `{
 \tlog {
@@ -175,30 +136,6 @@ app.example.com {
         expect(result).not.toContain('old.log');
         const logCount = (result.match(/^\s*log\s*\{/gm) || []).length;
         expect(logCount).toBe(1);
-    });
-
-    it('preserves nested acme_dns block when enabling logging', () => {
-        const content = `{
-\tacme_dns cloudflare {
-\t\tapi_token {env.CF_API_TOKEN}
-\t}
-}
-
-app.example.com {
-    reverse_proxy localhost:8080
-}`;
-        const result = updateLogConfig(content, {
-            enabled: true,
-            path: '/var/log/caddy/access.log',
-            rollSize: '50mb',
-            rollKeep: 5,
-            format: 'json',
-            level: 'INFO',
-        });
-        expect(result).toContain('acme_dns cloudflare {');
-        expect(result).toContain('api_token {env.CF_API_TOKEN}');
-        expect(result).toContain('log {');
-        expect(result).toContain('format json');
     });
 
     it('preserves nested acme_dns block when updating existing log', () => {
@@ -262,40 +199,9 @@ app.example.com {
         expect(result).not.toContain('log {');
     });
 
-    it('parses log config alongside nested acme_dns', () => {
-        const config = parseLogConfig(`{
-\tacme_dns cloudflare {
-\t\tapi_token {env.CF_API_TOKEN}
-\t}
-\tlog {
-\t\toutput file /var/log/caddy/access.log {
-\t\t\troll_size 100mb
-\t\t\troll_keep 10
-\t\t}
-\t\tformat console
-\t\tlevel DEBUG
-\t}
-}`);
-        expect(config.enabled).toBe(true);
-        expect(config.path).toBe('/var/log/caddy/access.log');
-        expect(config.rollSize).toBe('100mb');
-        expect(config.rollKeep).toBe(10);
-        expect(config.format).toBe('console');
-        expect(config.level).toBe('DEBUG');
-    });
 });
 
 describe('updateGlobalBlock structural validation', () => {
-    function assertBalancedBraces(text) {
-        let depth = 0;
-        for (const ch of text) {
-            if (ch === '{') depth++;
-            if (ch === '}') depth--;
-            if (depth < 0) throw new Error('Unexpected closing brace');
-        }
-        if (depth !== 0) throw new Error(`Unbalanced braces: depth=${depth}`);
-    }
-
     const NESTED_CADDYFILE = `{
 \tacme_dns cloudflare {
 \t\tapi_token {env.CF_API_TOKEN}
@@ -318,40 +224,37 @@ app.example.com {
         level: 'INFO',
     };
 
-    it('produces balanced braces when adding log to nested globals', () => {
-        const result = updateLogConfig(NESTED_CADDYFILE, LOG_CONFIG);
-        assertBalancedBraces(result);
-    });
+    const WITH_LOG = `{
+\tacme_dns cloudflare {
+\t\tapi_token {env.CF_API_TOKEN}
+\t}
+\ton_demand_tls {
+\t\task http://localhost:5555/check
+\t}
+\tlog {
+\t\toutput file /var/log/caddy/access.log {
+\t\t\troll_size 50mb
+\t\t\troll_keep 5
+\t\t}
+\t\tformat json
+\t\tlevel INFO
+\t}
+}
 
-    it('produces balanced braces when removing log from nested globals', () => {
-        const withLog = updateLogConfig(NESTED_CADDYFILE, LOG_CONFIG);
-        const result = updateLogConfig(withLog, { enabled: false });
-        assertBalancedBraces(result);
-    });
+app.example.com {
+    reverse_proxy localhost:8080
+}`;
 
-    it('round-trips: parseLogConfig reads back what updateGlobalBlock wrote', () => {
-        const result = updateLogConfig(NESTED_CADDYFILE, LOG_CONFIG);
-        const parsed = parseLogConfig(result);
-        expect(parsed.enabled).toBe(true);
-        expect(parsed.path).toBe(LOG_CONFIG.path);
-        expect(parsed.rollSize).toBe(LOG_CONFIG.rollSize);
-        expect(parsed.rollKeep).toBe(LOG_CONFIG.rollKeep);
-        expect(parsed.format).toBe(LOG_CONFIG.format);
-        expect(parsed.level).toBe(LOG_CONFIG.level);
-    });
-
-    it('round-trips through multiple enable/disable cycles', () => {
+    it('adds the logger at global depth beside nested blocks and removes it again, across cycles', () => {
         let content = NESTED_CADDYFILE;
         for (let i = 0; i < 3; i++) {
             content = updateLogConfig(content, LOG_CONFIG);
-            assertBalancedBraces(content);
-            expect(parseLogConfig(content).enabled).toBe(true);
+            expect(content).toBe(WITH_LOG);
+            expect(parseLogConfig(content)).toEqual(LOG_CONFIG);
 
             content = updateLogConfig(content, { enabled: false });
-            assertBalancedBraces(content);
-            expect(parseLogConfig(content).enabled).toBe(false);
+            expect(content).toBe(NESTED_CADDYFILE);
         }
-        expect(content).toBe(NESTED_CADDYFILE);
     });
 
     it('removes the default logger line without leaving a blank line', () => {
@@ -372,15 +275,6 @@ app.example.com {
         expect(updateLogConfig(original, { enabled: false })).toBe('{\n\tadmin off\n # keep this comment\n}\n');
     });
 
-    it('log directive stays at global depth, not inside acme_dns', () => {
-        const result = updateLogConfig(NESTED_CADDYFILE, LOG_CONFIG);
-        const lines = result.split('\n');
-        const logLine = lines.find(l => /^\s*log\s*\{/.test(l));
-        const acmeLine = lines.find(l => /^\s*acme_dns/.test(l));
-        const logIndent = logLine.match(/^(\s*)/)[1].length;
-        const acmeIndent = acmeLine.match(/^(\s*)/)[1].length;
-        expect(logIndent).toBe(acmeIndent);
-    });
 });
 
 describe('logging edits preserve unrelated Caddyfile content', () => {

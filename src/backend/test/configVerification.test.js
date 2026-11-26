@@ -1,8 +1,8 @@
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { caddyAdapt } from '../src/caddy.js';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { caddyAdapt, setRequestTimeout } from '../src/caddy.js';
 import { verifyLiveConfig, verifyLiveObject, verifyLiveObjectRemoved } from '../src/configVerification.js';
 import logger from '../src/logger.js';
 
@@ -29,28 +29,22 @@ const reply = (status, body, type = 'application/json') => (req, res) => {
     res.end(body);
 };
 
-// Sends headers and part of a JSON body, then stalls. The 10s deadline is
-// replaced with one that fires shortly after, so the test needn't wait for it.
 function stallBody(req, res) {
     req.resume();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.write('{"result":');
 }
-function shortDeadline() {
-    const deadline = new AbortController();
-    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
-    setTimeout(() => deadline.abort(new DOMException('Readback deadline', 'TimeoutError')), 50);
-}
 
 describe('readback deadline', () => {
+    beforeEach(() => setRequestTimeout(50));
+    afterEach(() => setRequestTimeout(10000));
+
     it('covers a running-config body that stalls after its headers', async () => {
-        shortDeadline();
         respond = stallBody;
         expect(await verifyLiveConfig(instance, async () => ({}))).toBe('unavailable');
     });
 
     it('covers an adaptation body that stalls after its headers', async () => {
-        shortDeadline();
         respond = stallBody;
         await expect(caddyAdapt('example.com {\n}\n', instance.adminUrl)).rejects.toMatchObject({ name: 'TimeoutError' });
     });

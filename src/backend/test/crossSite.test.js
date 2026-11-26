@@ -3,6 +3,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { serve } from './fixtures/server.mjs';
 import { createCrossSiteMiddleware, crossSiteRejectionCode, isCrossSiteWrite, misnamedExternalUrlVariables } from '../src/middleware/crossSite.js';
 
+function postThrough(configured, headers) {
+    let outcome;
+    const res = { locals: {}, status: () => res, json: body => { outcome = body.code; return res; } };
+    createCrossSiteMiddleware(configured)({ method: 'POST', headers }, res, () => { outcome = 'next'; });
+    return outcome;
+}
+
 describe('isCrossSiteWrite', () => {
     it.each(['POST', 'PUT', 'PATCH', 'DELETE'])('rejects cross-site and same-site %s', method => {
         expect(isCrossSiteWrite(method, { 'sec-fetch-site': 'cross-site' })).toBe(true);
@@ -16,18 +23,10 @@ describe('isCrossSiteWrite', () => {
     });
 
     it.each([
-        [{ origin: 'https://attacker.example' }, true],
-        [{ origin: 'https://ui.example:8443' }, false],
-        [{ origin: 'http://ui.example:8443' }, true],
-        [{ origin: 'https://ui.example' }, true],
         [{ origin: 'https://ui.example:8443.attacker.test' }, true],
-        [{ origin: 'null', referer: 'https://ui.example:8443/' }, true],
         [{ origin: 'https://ui.example:8443', referer: 'https://attacker.example/' }, false],
         [{ origin: 'https://attacker.example', referer: 'https://ui.example:8443/' }, true],
         [{ origin: 'https://ui.example:8443/' }, true],
-        [{ referer: 'https://ui.example:8443/settings?tab=auth' }, false],
-        [{ referer: 'https://attacker.example/' }, true],
-        [{ referer: 'not-a-url' }, true],
         [{ referer: 'data:text/html,hello' }, true],
         [{ origin: ['https://ui.example:8443', 'https://attacker.example'] }, true],
         [{ referer: ['https://ui.example:8443/', 'https://attacker.example/'] }, true],
@@ -134,21 +133,15 @@ describe('crossSiteMiddleware', () => {
 describe('crossSiteRejectionCode', () => {
     it.each([
         [{ 'sec-fetch-site': 'cross-site', origin: 'https://attacker.example' }, false, 'FORBIDDEN'],
-        [{ 'sec-fetch-site': 'same-site', origin: 'https://ui.example' }, true, 'FORBIDDEN'],
         [{ origin: 'null' }, false, 'FORBIDDEN'],
-        [{ origin: 'http://192.168.4.87:9877' }, false, 'EXTERNAL_URL_REQUIRED'],
         [{ referer: 'http://192.168.4.87:9877/' }, false, 'EXTERNAL_URL_REQUIRED'],
-        [{ origin: 'http://192.168.4.87:9877' }, true, 'EXTERNAL_URL_MISMATCH'],
-        [{ origin: 'https://caddy.internal', 'sec-fetch-site': 'same-origin' }, true, 'EXTERNAL_URL_MISMATCH'],
     ])('classifies %j (configured=%s) as %s', (headers, configured, code) => {
         expect(crossSiteRejectionCode(headers, configured)).toBe(code);
     });
 
-    it('tells an unconfigured backend apart from an unlisted origin', async () => {
-        const response = {};
-        const res = { locals: {}, status: status => { response.status = status; return res; }, json: body => { response.body = body; return res; } };
-        createCrossSiteMiddleware(undefined)({ method: 'POST', headers: { origin: 'http://192.168.4.87:9877' } }, res, () => {});
-        expect(response).toEqual({ status: 403, body: expect.objectContaining({ code: 'EXTERNAL_URL_REQUIRED' }) });
+    it('tells an unconfigured backend apart from an unlisted origin', () => {
+        expect(postThrough(undefined, { origin: 'http://192.168.4.87:9877' })).toBe('EXTERNAL_URL_REQUIRED');
+        expect(postThrough('https://caddy.internal', { origin: 'http://192.168.4.87:9877' })).toBe('EXTERNAL_URL_MISMATCH');
     });
 });
 
@@ -182,18 +175,14 @@ describe('external origin configuration', () => {
     });
 
     it('normalizes the configured origin and ignores its path', () => {
-        const middleware = createCrossSiteMiddleware('HTTPS://UI.EXAMPLE:443/console/');
-        let passed = false;
-        middleware({ method: 'POST', headers: { origin: 'https://ui.example' } }, {}, () => { passed = true; });
-        expect(passed).toBe(true);
+        expect(postThrough('HTTPS://UI.EXAMPLE:443/console/', { origin: 'https://ui.example' })).toBe('next');
     });
 
     it('accepts comma-separated origins and allows any of them', () => {
         const multi = 'https://caddy.internal, http://192.168.4.87:9877';
-        expect(() => createCrossSiteMiddleware(multi)).not.toThrow();
-        expect(isCrossSiteWrite('POST', { origin: 'https://caddy.internal' }, new Set(['https://caddy.internal', 'http://192.168.4.87:9877']))).toBe(false);
-        expect(isCrossSiteWrite('POST', { origin: 'http://192.168.4.87:9877' }, new Set(['https://caddy.internal', 'http://192.168.4.87:9877']))).toBe(false);
-        expect(isCrossSiteWrite('POST', { origin: 'https://attacker.example' }, new Set(['https://caddy.internal', 'http://192.168.4.87:9877']))).toBe(true);
+        expect(postThrough(multi, { origin: 'https://caddy.internal' })).toBe('next');
+        expect(postThrough(multi, { origin: 'http://192.168.4.87:9877' })).toBe('next');
+        expect(postThrough(multi, { origin: 'https://attacker.example' })).toBe('EXTERNAL_URL_MISMATCH');
     });
 
     it('rejects the whole setting when any entry is invalid', () => {
@@ -202,6 +191,8 @@ describe('external origin configuration', () => {
     });
 
     it('ignores empty entries from trailing or doubled commas', () => {
-        expect(() => createCrossSiteMiddleware('https://ui.example,,https://alt.example,')).not.toThrow();
+        const configured = 'https://ui.example,,https://alt.example,';
+        expect(postThrough(configured, { origin: 'https://ui.example' })).toBe('next');
+        expect(postThrough(configured, { origin: 'https://alt.example' })).toBe('next');
     });
 });

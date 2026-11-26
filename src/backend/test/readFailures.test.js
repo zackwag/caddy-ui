@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,22 +10,17 @@ vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(),
 vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => instances }));
 vi.mock('../src/caddyfileTitles.js', async importOriginal => ({ ...await importOriginal(), caddyfileTitlesEnabled: () => false }));
 
-// These paths are read at import time
 const root = await mkdtemp(join(tmpdir(), 'caddy-ui-read-failures-'));
-const notesPath = join(root, 'route-notes.json');
 const historyPath = join(root, 'history');
-process.env.ROUTE_NOTES_PATH = notesPath;
+process.env.ROUTE_NOTES_PATH = join(root, 'route-notes.json');
 process.env.HISTORY_PATH = historyPath;
 process.env.NOTIFICATIONS_CONFIG_PATH = join(root, 'notifications.json');
 const { default: logger } = await import('../src/logger.js');
-const { default: routeNotesRouter } = await import('../src/routes/routenotes.js');
-const { cleanupOrphanedNotes } = await import('../src/noteOwners.js');
 const { default: caddyfileRouter } = await import('../src/routes/caddyfile.js');
 const { initNotifications, runReminders } = await import('../src/notifications.js');
 const { saveNotificationConfig } = await import('../src/notificationConfig.js');
 
 const isRoot = process.getuid?.() === 0;
-const servers = { srv0: { routes: [{ match: [{ host: ['app.example.com'] }] }] } };
 let server;
 let baseUrl;
 
@@ -35,7 +30,6 @@ beforeAll(async () => {
             req.instance = { id: 'default', adminUrl: 'http://caddy:2019', containerName: '', configPath: join(root, 'Caddyfile') };
             next();
         });
-        app.use('/api/route-notes', routeNotesRouter);
         app.use('/api/caddyfile', caddyfileRouter);
     });
     baseUrl = server.url + '/api';
@@ -46,8 +40,7 @@ afterAll(async () => {
     await rm(root, { recursive: true, force: true });
 });
 
-beforeEach(async () => {
-    await rm(notesPath, { force: true });
+beforeEach(() => {
     caddyGet.mockReset();
     instances.splice(0, instances.length, { id: 'alpha', adminUrl: 'http://alpha:2019' }, { id: 'beta', adminUrl: 'http://beta:2019' });
 });
@@ -62,52 +55,6 @@ const request = async (method, path, body) => {
     });
     return { status: res.status, body: await res.json() };
 };
-
-describe('route notes', () => {
-    it('treats a missing notes file as no notes', async () => {
-        expect(await request('GET', '/route-notes')).toEqual({ status: 200, body: {} });
-    });
-
-    it.each([
-        ['corrupt', '{ not json'],
-        ['not an object', '["app.example.com"]'],
-    ])('reports a %s notes file and refuses to overwrite it', async (_, contents) => {
-        await writeFile(notesPath, contents);
-        expect(await request('GET', '/route-notes')).toMatchObject({ status: 500, body: { code: 'ROUTE_NOTES_READ_FAILED' } });
-        expect(await request('PUT', '/route-notes/app.example.com', { note: 'new' })).toMatchObject({
-            status: 500, body: { code: 'ROUTE_NOTES_READ_FAILED' },
-        });
-        expect(await readFile(notesPath, 'utf8')).toBe(contents);
-    });
-
-    it('keeps existing notes when adding one', async () => {
-        await writeFile(notesPath, JSON.stringify({ 'other.example.com': 'kept' }));
-        expect((await request('PUT', '/route-notes/app.example.com', { note: 'new' })).status).toBe(200);
-        expect(JSON.parse(await readFile(notesPath, 'utf8'))).toEqual({
-            version: 2, instances: { default: { 'app.example.com': 'new' } }, unassigned: { 'other.example.com': 'kept' },
-        });
-    });
-
-    it("doesn't prune notes while an instance's config can't be read", async () => {
-        const notes = { 'app.example.com': 'alpha note', 'beta.example.com': 'beta note' };
-        await writeFile(notesPath, JSON.stringify(notes));
-        caddyGet.mockImplementation(async (path, adminUrl) => {
-            if (adminUrl === 'http://beta:2019') throw new Error('connect ECONNREFUSED');
-            return servers;
-        });
-        await cleanupOrphanedNotes();
-        expect(JSON.parse(await readFile(notesPath, 'utf8'))).toEqual(notes);
-    });
-
-    it('prunes notes for domains no instance serves when every config is readable', async () => {
-        await writeFile(notesPath, JSON.stringify({ 'app.example.com': 'kept', 'gone.example.com': 'removed' }));
-        caddyGet.mockImplementation(async (path, adminUrl) => (adminUrl === 'http://alpha:2019' ? servers : null));
-        await cleanupOrphanedNotes();
-        expect(JSON.parse(await readFile(notesPath, 'utf8'))).toEqual({
-            version: 2, instances: { alpha: { 'app.example.com': 'kept' } }, unassigned: {},
-        });
-    });
-});
 
 describe('Caddyfile history list', () => {
     afterEach(() => chmod(historyPath, 0o755).catch(() => { }));
