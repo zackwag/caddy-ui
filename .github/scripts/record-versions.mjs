@@ -33,7 +33,12 @@ function main([file, channel, ...pairs]) {
     if (!entries.length) throw new Error('nothing to record');
 
     let data = null;
-    try { data = JSON.parse(readFileSync(file, 'utf8')); } catch { /* first run */ }
+    try {
+        data = JSON.parse(readFileSync(file, 'utf8'));
+    } catch (error) {
+        // A first run has no file yet; a corrupt one must not be overwritten
+        if (error.code !== 'ENOENT') throw error;
+    }
     writeFileSync(file, `${JSON.stringify(recordVersions(data, channel, entries), null, 2)}\n`);
 }
 

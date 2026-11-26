@@ -112,3 +112,16 @@ test('beta record-versions CLI updates preserve other channels and omitted compo
         }
     }
 });
+
+test('record-versions refuses to replace a versions file it cannot read', t => {
+    const directory = mkdtempSync(join(tmpdir(), 'caddy-ui-channels-'));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    const file = join(directory, 'versions.json');
+    const script = join(root, '.github/scripts/record-versions.mjs');
+    writeFileSync(file, '{ truncated');
+    assert.throws(() => execFileSync(process.execPath, [script, file, 'edge', 'backend=edge-abcdef0'], { stdio: 'pipe' }));
+    assert.equal(readFileSync(file, 'utf8'), '{ truncated');
+    rmSync(file);
+    execFileSync(process.execPath, [script, file, 'edge', 'backend=edge-abcdef0']);
+    assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).channels.edge.backend, ['edge-abcdef0']);
+});
