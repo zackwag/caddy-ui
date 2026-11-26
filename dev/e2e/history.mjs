@@ -1,53 +1,15 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { chmod, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { caddyGet, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
 import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
+import { checkDrift, driftCheckingBackend } from '../integration/stack.mjs';
 import { useBrowserFixture } from './fixture.mjs';
 
 test('external file and admin API changes have independent Unknown-author diffs with protected access and retryable storage failures', { timeout: 120000 }, async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-external-history-'));
-    t.after(() => rm(directory, { recursive: true, force: true }));
-    const entry = join(directory, 'backend.mjs');
-    const moduleUrl = file => pathToFileURL(resolve(import.meta.dirname, '../..', file)).href;
-    // Exercise the real monitor over the owned backend's IPC channel, without
-    // exposing a test endpoint or waiting a minute for each production poll.
-    await writeFile(entry, `
-        await import(${JSON.stringify(moduleUrl('src/backend/src/index.js'))});
-        const drift = await import(${JSON.stringify(moduleUrl('src/backend/src/configDrift.js'))});
-        const nativeFetch = globalThis.fetch;
-        let failRead = false;
-        globalThis.fetch = (url, options) => {
-            if (failRead && String(url).endsWith('/config/')) {
-                failRead = false;
-                return Promise.reject(new TypeError('Injected unavailable config read'));
-            }
-            return nativeFetch(url, options);
-        };
-        process.on('message', async message => {
-            if (message?.type !== 'test:history-check') return;
-            if (message.reset) drift.resetConfigDrift();
-            failRead = Boolean(message.failRead);
-            if (message.liveJson !== undefined) process.env.CADDY_UI_HISTORY_LIVE_JSON = String(message.liveJson);
-            await drift.checkAllInstances();
-            process.send({ type: 'test:history-result', state: drift.getConfigDriftState('default') });
-        });
-    `);
-    const { stack, page, origin } = await useBrowserFixture(t, { backendEntry: entry });
-    const check = (options = {}) => new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => finish(new Error('History IPC check timed out')), 15000);
-        const listener = message => { if (message?.type === 'test:history-result') finish(null, message.state); };
-        function finish(error, state) {
-            clearTimeout(timeout);
-            stack.backend.removeListener('message', listener);
-            if (error) reject(error); else resolve(state);
-        }
-        stack.backend.on('message', listener);
-        stack.backend.send({ type: 'test:history-check', ...options }, error => { if (error) finish(error); });
-    });
+    const { stack, page, origin } = await useBrowserFixture(t, { backendEntry: await driftCheckingBackend(t) });
+    const check = options => checkDrift(stack.backend, options);
     await check({ reset: true });
     const instance = stack.instances.get('alpha').instance;
     const initial = (await stack.api('/caddyfile')).data;

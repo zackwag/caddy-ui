@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { mkdtemp, mkdir, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { checkDocker, Harness, IMAGE, isolatedBackendEnvironment } from '../dev-caddy/harness.mjs';
@@ -151,6 +152,70 @@ export async function startBackend(scope, options) {
         scope.signal.throwIfAborted();
         throw new Error(`${cause?.message ?? String(cause)}\n${output()}`, { cause });
     }
+}
+
+// The entry of a backend that runs a drift check when its test asks over IPC
+// (`checkDrift`), so scenarios exercise the real monitor without a test
+// endpoint or a minute-long wait for each poll.
+export async function driftCheckingBackend(t) {
+    const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-drift-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const module = file => JSON.stringify(pathToFileURL(join(root, 'src/backend/src', file)).href);
+    const entry = join(directory, 'backend.mjs');
+    await writeFile(entry, `
+        await import(${module('index.js')});
+        const drift = await import(${module('configDrift.js')});
+        const { hasUnsettledWrites } = await import(${module('caddy.js')});
+        const { getInstances } = await import(${module('instances.js')});
+        const { getRecentLogEntries } = await import(${module('logger.js')});
+        const nativeFetch = globalThis.fetch;
+        let failNextConfigRead = false;
+        globalThis.fetch = (url, options) => {
+            if (failNextConfigRead && String(url).endsWith('/config/')) {
+                failNextConfigRead = false;
+                return Promise.reject(new TypeError('Injected unavailable config read'));
+            }
+            return nativeFetch(url, options);
+        };
+        process.on('message', async ({ type, id, reset, failRead, liveJson } = {}) => {
+            if (type !== 'test:drift') return;
+            try {
+                if (reset) drift.resetConfigDrift();
+                if (failRead) failNextConfigRead = true;
+                if (liveJson !== undefined) process.env.CADDY_UI_HISTORY_LIVE_JSON = String(liveJson);
+                const deferred = getInstances().some(instance => hasUnsettledWrites(instance.adminUrl));
+                await drift.checkAllInstances();
+                process.send({ type: 'test:drift-result', id, state: drift.getConfigDriftState('default'), deferred,
+                    diagnostics: getRecentLogEntries().filter(entry => entry.message.startsWith('Configuration drift')).slice(-5) });
+            } catch (error) {
+                process.send({ type: 'test:drift-result', id, error: error.name });
+            }
+        });
+    `);
+    return entry;
+}
+
+let nextDriftCheck = 0;
+
+// One drift check by a `driftCheckingBackend`: `reset` starts from a new
+// baseline, `failRead` fails its next config read, and `liveJson` sets whether
+// history keeps the full live config.
+export function checkDrift(backend, { reset, failRead, liveJson } = {}, timeoutMs = 15000) {
+    const id = ++nextDriftCheck;
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => finish(new Error('Drift IPC check timed out')), timeoutMs);
+        const onMessage = message => {
+            if (message?.type === 'test:drift-result' && message.id === id) finish(message.error && new Error(message.error), message);
+        };
+        function finish(error, result) {
+            clearTimeout(timeout);
+            backend.removeListener('message', onMessage);
+            if (error) reject(error);
+            else resolve(result);
+        }
+        backend.on('message', onMessage);
+        backend.send({ type: 'test:drift', id, reset, failRead, liveJson }, error => { if (error) finish(error); });
+    });
 }
 
 export async function stopProcess(child) {

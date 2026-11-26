@@ -1,88 +1,27 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import { caddyGet, caddyGetConfig, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
 import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
-import { useTestStack } from './stack.mjs';
-
-const root = resolve(import.meta.dirname, '../..');
+import { checkDrift, driftCheckingBackend, useTestStack } from './stack.mjs';
 
 // The fixture's reads go through caddy.js, which resends a read once when
 // Caddy closes the connection while a reload replaces its admin server.
 
 test('real Caddy route mutations explain only their own changes in the drift monitor', { timeout: 120000 }, async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-drift-test-'));
-    t.after(() => rm(directory, { recursive: true, force: true }));
-    const entry = join(directory, 'backend.mjs');
-    const moduleUrl = file => pathToFileURL(join(root, file)).href;
-    // Exercise the production backend and its actual monitor state. A temporary
-    // launcher lets this scenario request checks over its existing IPC channel,
-    // without a test endpoint, environment switch or a minute-long timer wait.
-    await writeFile(entry, `
-        await import(${JSON.stringify(moduleUrl('src/backend/src/index.js'))});
-        const nativeFetch = globalThis.fetch;
-        let failNextConfigRead = false;
-        globalThis.fetch = (url, options) => {
-            if (failNextConfigRead && String(url).endsWith('/config/')) {
-                failNextConfigRead = false;
-                return Promise.reject(new TypeError('Injected unavailable drift read'));
-            }
-            return nativeFetch(url, options);
-        };
-        const drift = await import(${JSON.stringify(moduleUrl('src/backend/src/configDrift.js'))});
-        const { hasUnsettledWrites } = await import(${JSON.stringify(moduleUrl('src/backend/src/caddy.js'))});
-        const { getInstances } = await import(${JSON.stringify(moduleUrl('src/backend/src/instances.js'))});
-        const { getRecentLogEntries } = await import(${JSON.stringify(moduleUrl('src/backend/src/logger.js'))});
-        process.on('message', async message => {
-            if (message?.type !== 'test:drift') return;
-            try {
-                if (message.baseline) drift.resetConfigDrift();
-                if (message.failRead) failNextConfigRead = true;
-                const deferred = getInstances().some(instance => hasUnsettledWrites(instance.adminUrl));
-                await drift.checkAllInstances();
-                process.send({ type: 'test:drift-result', id: message.id,
-                    state: drift.getConfigDriftState('default'), deferred,
-                    diagnostics: getRecentLogEntries().filter(entry => entry.message.startsWith('Configuration drift')).slice(-5) });
-            } catch (error) {
-                process.send({ type: 'test:drift-result', id: message.id, error: error.name });
-            }
-        });
-    `);
-    const stack = await useTestStack(t, { backendEntry: entry });
+    const stack = await useTestStack(t, { backendEntry: await driftCheckingBackend(t) });
     const instance = stack.instances.get('alpha').instance;
     const original = await readContainerFile(instance.containerName, instance.configPath);
     const local = { '@id': 'drift-local', handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: '127.0.0.1:9' }] }] };
     const other = { '@id': 'drift-other', match: [{ host: ['other.test'] }], handle: [{ handler: 'static_response', body: 'original' }] };
     const adminUrl = instance.adminUrl;
     const append = route => caddyPost(`/config/apps/http/servers/${instance.serverName}/routes`, route, adminUrl);
-    let nextCheck = 0;
     let unavailableSamples = 0;
-    function requestCheck(baseline, failRead, timeoutMs) {
-        const id = ++nextCheck;
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => finish(new Error('Drift IPC check timed out')), timeoutMs);
-            const onMessage = message => {
-                if (message?.type === 'test:drift-result' && message.id === id) finish(message.error && new Error(message.error), message);
-            };
-            function finish(error, result) {
-                clearTimeout(timeout);
-                stack.backend.removeListener('message', onMessage);
-                if (error) reject(error);
-                else resolve(result);
-            }
-            stack.backend.on('message', onMessage);
-            stack.backend.send({ type: 'test:drift', id, baseline, failRead }, error => { if (error) finish(error); });
-        });
-    }
     async function check(baseline = false, { expectedLive, failRead = false } = {}) {
         const deadline = Date.now() + 15000;
         let result;
         do {
-            result = await requestCheck(baseline, failRead, Math.max(1, deadline - Date.now()));
+            result = await checkDrift(stack.backend, { reset: baseline, failRead }, Math.max(1, deadline - Date.now()));
             // A reset or injected outage applies to the first request only.
             baseline = false;
             failRead = false;
