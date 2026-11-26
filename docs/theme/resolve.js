@@ -1,4 +1,4 @@
-import { documentationOptions, documentationTarget, resolveDocumentation } from './versions-model.js';
+import { documentationOptions, documentationTarget, fetchCatalog, resolveDocumentation } from './versions-model.js';
 
 const site = new URL('../', import.meta.url);
 const content = document.getElementById('docs-resolution');
@@ -10,10 +10,7 @@ const element = (tag, text) => {
 
 async function resolve() {
     try {
-        const response = await fetch(new URL('documentation.json', site), { cache: 'no-cache' });
-        if (!response.ok) throw new Error('Catalogue unavailable');
-        const catalog = await response.json();
-        if (catalog.schema !== 1) throw new Error('Unsupported catalogue');
+        const catalog = await fetchCatalog(site);
         const parameters = new URLSearchParams(location.search);
         const tag = document.querySelector('script[data-docs-version]').dataset.docsVersion;
         if (tag && !parameters.has('version') && !parameters.has('frontend') && !parameters.has('backend')) parameters.set('version', tag);

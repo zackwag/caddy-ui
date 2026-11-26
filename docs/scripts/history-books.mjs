@@ -132,3 +132,13 @@ export function writeBookReport(directory, inventory, results, config) {
     writeFileSync(join(directory, 'report.md'), historyReport(inventory, results, groups));
     return groups;
 }
+
+// An archive's backfill.json, after checking it describes the inventory it holds.
+export function readArchiveManifest(directory) {
+    const manifest = JSON.parse(readFileSync(join(directory, 'backfill.json'), 'utf8'));
+    if (manifest.schema !== 1 || !manifest.inventory
+        || manifest.inventoryFingerprint !== createHash('sha256').update(JSON.stringify(manifest.inventory)).digest('hex')) {
+        throw new Error('Invalid historical archive manifest');
+    }
+    return manifest;
+}

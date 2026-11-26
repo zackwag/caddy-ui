@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { fingerprintBook, validateBookAssets, validateBookResults, writeBookReport } from './history-books.mjs';
+import { fingerprintBook, readArchiveManifest, validateBookAssets, validateBookResults, writeBookReport } from './history-books.mjs';
 import { git, options, repository } from './history-inventory.mjs';
 
 const exec = promisify(execFile);
@@ -54,10 +54,7 @@ export async function backfill({ root, inventory, output, mdbook = 'mdbook', sel
     let results = [];
     try {
         if (existsSync(manifestPath)) {
-            const previous = JSON.parse(readFileSync(manifestPath, 'utf8'));
-            if (previous.schema !== 1 || !previous.inventory || previous.inventoryFingerprint !== digest(JSON.stringify(previous.inventory))) {
-                throw new Error('Invalid historical archive manifest');
-            }
+            const previous = readArchiveManifest(output);
             if (previous.inventoryFingerprint !== inventoryFingerprint && !reuse) {
                 throw new Error('Output belongs to a different inventory; choose another --output directory');
             }

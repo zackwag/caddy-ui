@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { replaceMarker, runPreprocessor } from './mdbook-preprocessor.mjs';
 
 export function repositoryFiles(root) {
     // Include new, non-ignored files, but exclude deleted tracked files.
@@ -46,32 +46,11 @@ export function renderTree(paths, notes = {}) {
 }
 
 export function preprocess(context, book) {
-    const root = resolve(context.root, '..');
-    const notes = JSON.parse(readFileSync(join(context.root, 'project-structure-notes.json'), 'utf8'));
-    const tree = renderTree(repositoryFiles(root), notes);
-    function walk(sections) {
-        for (const section of sections) {
-            const chapter = section.Chapter;
-            if (!chapter) continue;
-            if (chapter.content.includes('{{#project-structure}}')) {
-                chapter.content = chapter.content.replaceAll('{{#project-structure}}', tree);
-            }
-            walk(chapter.sub_items || []);
-        }
-    }
-    walk(book.items || book.sections);
-    return book;
+    return replaceMarker(book, 'project-structure', () => {
+        const root = resolve(context.root, '..');
+        const notes = JSON.parse(readFileSync(join(context.root, 'project-structure-notes.json'), 'utf8'));
+        return renderTree(repositoryFiles(root), notes);
+    });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    if (process.argv[2] === 'supports') {
-        process.exit(process.argv[3] === 'html' ? 0 : 1);
-    }
-    try {
-        const [context, book] = JSON.parse(readFileSync(0, 'utf8'));
-        process.stdout.write(JSON.stringify(preprocess(context, book)));
-    } catch (error) {
-        process.stderr.write(`Project structure: ${error.message}\n`);
-        process.exitCode = 1;
-    }
-}
+runPreprocessor(import.meta.url, 'Project structure', preprocess);

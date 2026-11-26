@@ -1,4 +1,4 @@
-import { defaultDocumentation, documentationOptions, documentationTarget } from './versions-model.js';
+import { defaultDocumentation, documentationOptions, documentationTarget, fetchCatalog } from './versions-model.js';
 
 const site = new URL('../', import.meta.url);
 const element = (tag, text, className) => {
@@ -38,10 +38,7 @@ async function showVersions() {
     footer.classList.add('docs-sidebar-footer');
     footer.prepend(box);
     try {
-        const response = await fetch(new URL('documentation.json', site), { cache: 'no-cache' });
-        if (!response.ok) throw new Error('Catalogue unavailable');
-        const catalog = await response.json();
-        if (catalog.schema !== 1) throw new Error('Unsupported catalogue');
+        const catalog = await fetchCatalog(site);
         const book = script.dataset.docsBook;
         const parameters = new URLSearchParams(location.search);
         const bookRoot = new URL(script.dataset.docsBase, site);

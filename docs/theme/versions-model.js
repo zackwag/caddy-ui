@@ -60,3 +60,12 @@ export function resolveDocumentation(catalog, parameters, hash = '') {
     }
     return { kind: 'choose', choices };
 }
+
+// The published catalogue of every book, from the site's root.
+export async function fetchCatalog(site) {
+    const response = await fetch(new URL('documentation.json', site), { cache: 'no-cache' });
+    if (!response.ok) throw new Error('Catalogue unavailable');
+    const catalog = await response.json();
+    if (catalog.schema !== 1) throw new Error('Unsupported catalogue');
+    return catalog;
+}
