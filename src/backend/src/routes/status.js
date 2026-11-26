@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { execInInstance } from '../docker.js';
-import logger from '../logger.js';
+import { getCaddyVersion } from '../docker.js';
 import { asAppError } from '../AppError.js';
 import { formatUptime, readCaddyMetrics, summarizeProcess, uptimeSeconds } from '../caddyMetrics.js';
 import { sendFailure } from '../errorReporting.js';
@@ -8,18 +7,6 @@ import { getServers, getUpstreamChecks } from '../observations.js';
 import { resultsByUpstream } from '../upstreamChecks.js';
 
 const router = Router();
-
-async function getCaddyVersion(containerName) {
-    try {
-        const { stdout } = await execInInstance(containerName, 'caddy', ['version']);
-        const version = stdout.trim().split(' ')[0] || 'unknown';
-        logger.debug(`Caddy version detected`, { version });
-        return version;
-    } catch (err) {
-        logger.warn(`Could not detect Caddy version`, { error: err.message });
-        return 'unknown';
-    }
-}
 
 // GET /api/status
 router.get('/', async (req, res) => {

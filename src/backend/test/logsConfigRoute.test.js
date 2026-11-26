@@ -8,7 +8,7 @@ const { execInInstance, validateCaddyfile, saveCaddyfileChange, state } = vi.hoi
 }));
 vi.mock('../src/docker.js', async original => ({ ...await original(), execInInstance }));
 vi.mock('../src/containerFs.js', () => ({ readContainerFile: vi.fn(async () => state.original) }));
-vi.mock('../src/caddyfileChange.js', () => ({ changeResultFields: () => ({}), saveCaddyfileChange }));
+vi.mock('../src/caddyfileChange.js', async original => ({ ...await original(), changeResultFields: () => ({}), saveCaddyfileChange }));
 vi.mock('../src/caddyfileRuntime.js', () => ({ validateCaddyfile }));
 import logsRouter from '../src/routes/logs.js';
 import { readContainerFile } from '../src/containerFs.js';
@@ -97,6 +97,22 @@ describe('logging configuration preparation', () => {
         expect(response.status).toBe(400);
         expect(response.body.code).toBe('VALIDATION_FAILED');
         expect(saveCaddyfileChange).not.toHaveBeenCalled();
+        expect(validateCaddyfile).not.toHaveBeenCalled();
+        expect(state.applied).toBeNull();
+    });
+
+    it('rejects a log path that cannot be quoted', async () => {
+        const response = await configure({ ...settings, path: '/tmp/a`b"c\\' });
+        expect(response.status).toBe(400);
+        expect(response.body.code).toBe('VALIDATION_FAILED');
+        expect(state.applied).toBeNull();
+    });
+
+    it('reports a Caddyfile the scanner cannot structure as a parse failure, not a validation failure', async () => {
+        state.original = '{\nlog {\n';
+        const response = await configure();
+        expect(response.status).toBe(500);
+        expect(response.body.code).toBe('LOG_CONFIG_PARSE_FAILED');
         expect(validateCaddyfile).not.toHaveBeenCalled();
         expect(state.applied).toBeNull();
     });

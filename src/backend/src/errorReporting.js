@@ -41,7 +41,8 @@ export function errorHandler(err, req, res, next) {
     if (res.headersSent) return next(err);
     if (err instanceof AppError) return sendAppError(res, err);
     logger.error('Unhandled error', { requestId: req.diagnosticId, method: req.method, path: req.diagnosticPath || req.path, error: err.message, stack: err.stack });
-    res.status(500).json({ error: err.message || 'Internal server error' });
+    // The message can quote paths or configuration, so it stays in the log.
+    res.status(500).json({ error: 'Internal server error' });
 }
 
 function details(body) {

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createAuthService } from '../src/authService.js';
 import { createAuthStore } from '../src/authStore.js';
+import { parseExternalUrls } from '../src/externalUrls.js';
 import { initializeAuthentication } from '../src/middleware/auth.js';
 import logger from '../src/logger.js';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +45,7 @@ describe('authentication startup warnings', () => {
         const env = { CADDY_UI_EXTERNAL_URL: externalUrl,
             ...(state === 'legacy' ? values : {}),
         };
-        const service = await initializeAuthentication({ store, env });
+        const service = await initializeAuthentication({ store, env, externalUrls: parseExternalUrls(externalUrl) });
         expect(service.getAuthState({ headers: {} }).authEnabled).toBe(true);
         const messages = warn.mock.calls.map(([message]) => message);
         expect(messages.filter(message => message.includes('Administrator enrollment is open'))).toHaveLength(state === 'setup' ? 1 : 0);
@@ -73,7 +74,7 @@ describe('authentication startup warnings', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
         directories.push(directory);
         const store = createAuthStore(join(directory, 'auth.json'));
-        await initializeAuthentication({ store, env: { CADDY_UI_EXTERNAL_URL: externalUrl } });
+        await initializeAuthentication({ store, externalUrls: parseExternalUrls(externalUrl) });
         const cookieWarnings = warn.mock.calls.map(([m]) => m).filter(m => m.includes('Secure session cookies are not enabled'));
         expect(cookieWarnings).toHaveLength(expectsWarning ? 1 : 0);
         for (const message of cookieWarnings) {
@@ -92,9 +93,8 @@ describe('authentication startup warnings', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
         directories.push(directory);
         const store = createAuthStore(join(directory, 'auth.json'));
-        const env = { CADDY_UI_EXTERNAL_URL: externalUrl };
         vi.spyOn(logger, 'warn').mockImplementation(() => {});
-        const service = await createAuthService({ store, env });
+        const service = await createAuthService({ store, env: {}, externalUrls: parseExternalUrls(externalUrl) });
         await store.initializeAuth('administrator', 'Test-Password-1!');
         const cookies = [];
         const res = { cookie: (name, value, opts) => cookies.push({ name, ...opts }) };

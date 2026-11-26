@@ -1,6 +1,9 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { caddyfileChildren } from './caddyfileBlocks.js';
+import { readSites } from './caddyfileChange.js';
+import { extractSiteBlock } from './caddyfileSites.js';
+import { getInstances } from './instances.js';
 import { createJsonStore } from './jsonFile.js';
 import logger from './logger.js';
 
@@ -149,11 +152,64 @@ export function hasUnassignedMaintenance() {
     return store.get().unassigned.length > 0;
 }
 
+// Whether the instance's Caddyfile currently serves the maintenance page for
+// the domain; null when the file can't be read. This is the only evidence used
+// to assign saved state whose owner isn't recorded.
+async function servesMaintenance(instance, domain) {
+    try {
+        const { caddyfile, env } = await readSites(instance);
+        return isMaintenanceBlock(extractSiteBlock(caddyfile, domain, env));
+    } catch {
+        return null;
+    }
+}
+
+// Whether the last claim couldn't read every instance's Caddyfile, so it's
+// worth trying again, and how many claims are running.
+let claimIncomplete = false;
+let claimsRunning = 0;
+
+// Run at startup and whenever an instance is saved, since either can make an
+// owner provable. A claim that couldn't read some instance is retried by
+// retrySavedMaintenanceClaim; entries that were read and match nothing aren't.
+export async function claimSavedMaintenance() {
+    claimsRunning++;
+    let unreadable = false;
+    const serves = async (instance, domain) => {
+        const result = await servesMaintenance(instance, domain);
+        if (result === null) {
+            unreadable = true;
+        }
+        return result;
+    };
+    try {
+        if (hasUnassignedMaintenance()) {
+            await claimUnassignedMaintenance(getInstances(), serves);
+        }
+    } catch (err) {
+        logger.warn('Could not assign saved maintenance state', { error: err.message });
+    } finally {
+        claimsRunning--;
+    }
+    claimIncomplete = unreadable;
+}
+
+// Called after monitor rounds: repeats a claim that couldn't read every
+// instance, unless one is already running.
+export function retrySavedMaintenanceClaim() {
+    if (claimIncomplete && !claimsRunning) {
+        return claimSavedMaintenance();
+    }
+}
+
 export async function getMaintenancePage() {
     const filePath = join(WWW_PATH, MAINTENANCE_HTML);
     try {
         return await readFile(filePath, 'utf8');
-    } catch {
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            throw err;
+        }
         await mkdir(WWW_PATH, { recursive: true });
         await writeFile(filePath, DEFAULT_PAGE, 'utf8');
         logger.info('Created default maintenance page', { path: filePath });

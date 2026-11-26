@@ -1,5 +1,4 @@
 import { caddyfileEntries, siteDomain } from './caddyfileBlocks.js';
-import { getCaddyEnv } from './docker.js';
 import logger from './logger.js';
 import { hasStoredNotes } from './routeNotes.js';
 
@@ -13,7 +12,7 @@ export async function initCaddyfileTitles() {
         return;
     }
 
-    if (await hasStoredNotes()) {
+    if (hasStoredNotes()) {
         _enabled = false;
         logger.info('Caddyfile titles', { enabled: false, source: 'auto', reason: 'existing route-notes.json entries found' });
         return;
@@ -66,8 +65,8 @@ export function injectTitleComment(blockContent, title) {
     return lines.join('\n');
 }
 
-export async function parseCaddyfileTitles(caddyfileContent, containerName) {
-    const env = await getCaddyEnv(containerName);
+// Each site's title, by domain. `env` resolves {$VAR} site addresses.
+export function parseCaddyfileTitles(caddyfileContent, env) {
     const titles = {};
 
     for (const entry of caddyfileEntries(caddyfileContent)) {

@@ -33,24 +33,25 @@ function assertSafePathArg(pathArg) {
     }
 }
 
+// Rejects when the container's environment can't be read, so {$VAR} site
+// addresses never silently resolve to nothing.
 export async function getCaddyEnv(containerName) {
+    // Local mode: caddy-ui's own environment, the closest available to Caddy's.
     if (!containerName) return { ...process.env };
     const cached = _envCaches.get(containerName);
     if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) return cached.env;
-    try {
-        const { stdout } = await dockerExec(containerName, ['env']);
-        const env = {};
-        for (const line of stdout.split('\n')) {
-            const eq = line.indexOf('=');
-            if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
-        }
-        _envCaches.set(containerName, { env, ts: Date.now() });
-        logger.debug('Cached Caddy container env vars', { container: containerName, count: Object.keys(env).length });
-        return env;
-    } catch {
-        return {};
+    const { stdout } = await dockerExec(containerName, ['env']);
+    const env = {};
+    for (const line of stdout.split('\n')) {
+        const eq = line.indexOf('=');
+        if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
     }
+    _envCaches.set(containerName, { env, ts: Date.now() });
+    logger.debug('Cached Caddy container env vars', { container: containerName, count: Object.keys(env).length });
+    return env;
 }
+
+const PATH_COMMANDS = new Set(['cat', 'tee', 'ls', 'rm', 'test']);
 
 export function dockerExec(containerName, args, input) {
     assertSafeCommand(containerName);
@@ -60,16 +61,13 @@ export function dockerExec(containerName, args, input) {
     }
     assertSafeCommand(args[0]);
 
-    const pathArgIndexesByCmd = {
-        cat: [1],
-        tee: [1],
-        ls: [2],
-        rm: [2],
-        test: [2],
-    };
-    const pathIndexes = pathArgIndexesByCmd[args[0]] || [];
-    for (const idx of pathIndexes) {
-        if (idx < args.length) assertSafePathArg(args[idx]);
+    // File commands take their paths after `--`, so a path can't be read as an option.
+    if (PATH_COMMANDS.has(args[0])) {
+        const separator = args.indexOf('--');
+        if (separator === -1 || separator === args.length - 1) {
+            throw new Error('Missing path argument');
+        }
+        args.slice(separator + 1).forEach(assertSafePathArg);
     }
 
     return execAndCollect('docker', ['exec', '-i', containerName, ...args], input);
@@ -89,6 +87,20 @@ export function spawnInInstance(containerName, cmd, args) {
     assertSafeArgs(args);
     if (containerName) return spawn('docker', ['exec', containerName, cmd, ...args], { shell: false });
     return spawn(cmd, args, { shell: false });
+}
+
+// The instance's Caddy version, or 'unknown' when its binary can't say, which
+// /api/status/process reports as is.
+export async function getCaddyVersion(containerName) {
+    try {
+        const { stdout } = await execInInstance(containerName, 'caddy', ['version']);
+        const version = stdout.trim().split(' ')[0] || 'unknown';
+        logger.debug(`Caddy version detected`, { version });
+        return version;
+    } catch (err) {
+        logger.warn(`Could not detect Caddy version`, { error: err.message });
+        return 'unknown';
+    }
 }
 
 // Docker couldn't reach the instance's container at all. A command missing

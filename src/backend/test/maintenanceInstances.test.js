@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,7 +16,8 @@ vi.mock('../src/docker.js', async importOriginal => ({
     ...await importOriginal(),
     getCaddyEnv: vi.fn(async () => ({})),
 }));
-vi.mock('../src/caddyfileChange.js', () => ({
+vi.mock('../src/caddyfileChange.js', async importOriginal => ({
+    ...await importOriginal(),
     saveCaddyfileChange: vi.fn(async (instance, change, { onApplied } = {}) => {
         const content = typeof change === 'function' ? await change(files.get(instance.configPath)) : change;
         files.set(instance.configPath, content);
@@ -101,6 +102,41 @@ describe('maintenance state store', () => {
         expect(maintenance.getMaintenanceState('beta')).toEqual({});
     });
 
+    it("retries a claim that couldn't read an instance after a later monitor round", async () => {
+        const served = `app.example.com {\n    rewrite * /public/responses/maintenance\n    reverse_proxy caddy-ui-backend:3001\n}\n`;
+        files.set(alpha.configPath, served);
+        await resetState({ 'app.example.com': { originalContent: site('alpha-app:3000'), enabledAt: '2026-01-01T00:00:00.000Z' } });
+        files.delete(beta.configPath);
+        await maintenance.claimSavedMaintenance();
+        expect(maintenance.hasUnassignedMaintenance()).toBe(true);
+
+        files.set(beta.configPath, site('beta-app:3000'));
+        await maintenance.retrySavedMaintenanceClaim();
+        expect(maintenance.getMaintenanceState('alpha')['app.example.com'].originalContent).toBe(site('alpha-app:3000'));
+    });
+
+    it('does not retry a claim that read every instance and matched nothing', async () => {
+        await resetState({ 'app.example.com': { originalContent: 'legacy block' } });
+        await maintenance.claimSavedMaintenance();
+        files.set(alpha.configPath, 'app.example.com {\n    rewrite * /public/responses/maintenance\n}\n');
+        await maintenance.retrySavedMaintenanceClaim();
+        expect(maintenance.hasUnassignedMaintenance()).toBe(true);
+        // An instance save still tries again
+        await maintenance.claimSavedMaintenance();
+        expect(maintenance.hasUnassignedMaintenance()).toBe(false);
+    });
+
+    it('creates the default maintenance page only when there is none', async () => {
+        const page = join(process.env.WWW_PATH, 'maintenance.html');
+        rmSync(page, { recursive: true, force: true });
+        mkdirSync(page, { recursive: true });
+        await expect(maintenance.getMaintenancePage()).rejects.toMatchObject({ code: 'EISDIR' });
+        rmSync(page, { recursive: true });
+        expect(await maintenance.getMaintenancePage()).toContain('Under Maintenance');
+        writeFileSync(page, 'custom page');
+        expect(await maintenance.getMaintenancePage()).toBe('custom page');
+    });
+
     it("unassigns a removed instance's state so a reused id can't restore it", async () => {
         await maintenance.setMaintenance('beta', 'app.example.com', 'beta block');
         await maintenance.releaseInstanceMaintenance('beta');
@@ -154,7 +190,10 @@ describe('maintenance routes across instances', () => {
         expect((await toggle('POST', 'alpha')).status).toBe(200);
         const { originalContent, enabledAt } = maintenance.getMaintenanceState('alpha')['app.example.com'];
         await resetState({ 'app.example.com': { originalContent, enabledAt } });
+        expect(await (await call('GET', '/maintenance', 'alpha')).json()).toEqual({});
 
+        // Assigned at startup or when an instance is saved, not by a request
+        await maintenance.claimSavedMaintenance();
         expect(await (await call('GET', '/maintenance', 'beta')).json()).toEqual({});
         expect(Object.keys(await (await call('GET', '/maintenance', 'alpha')).json())).toEqual(['app.example.com']);
         expect((await toggle('DELETE', 'alpha')).status).toBe(200);

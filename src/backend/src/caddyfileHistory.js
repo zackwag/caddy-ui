@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir, stat, unlink } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
+import { DEFAULT_INSTANCE_ID } from './instances.js';
 import { writeJsonFile } from './jsonFile.js';
 import logger from './logger.js';
 import { createSerialQueue } from './serialQueue.js';
@@ -37,7 +38,7 @@ export function createCaddyfileHistory(root, { limit = 20, observationLimit = li
     let identities;
     const metadata = new Map();
     const directory = id => {
-        if (id === undefined || id === null || id === '' || id === 'default') {
+        if (id === undefined || id === null || id === '' || id === DEFAULT_INSTANCE_ID) {
             return root;
         }
         if (typeof id !== 'string' || id === '.' || id === '..' || /[^A-Za-z0-9_.-]/.test(id)) {
@@ -171,7 +172,7 @@ export function createCaddyfileHistory(root, { limit = 20, observationLimit = li
     return {
         directory, validFilename, read, record,
         async recordExternal(id, external) {
-            const observation = { ...external, instanceId: id || 'default' };
+            const observation = { ...external, instanceId: id || DEFAULT_INSTANCE_ID };
             if (!validExternal(observation)) throw new Error('Invalid external configuration observation');
             return record(id, observation.after.file ?? null, { action: 'configuration.external', external: observation });
         },

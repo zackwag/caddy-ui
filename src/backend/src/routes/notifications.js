@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { audited } from '../auditLog.js';
-import { asAppError } from '../AppError.js';
+import { AppError, asAppError } from '../AppError.js';
 import { getNotificationConfig, saveNotificationConfig } from '../notificationConfig.js';
 import { sendNotification } from '../notificationDelivery.js';
 
@@ -20,7 +20,7 @@ router.put('/config', async (req, res) => {
 router.post('/test', async (req, res) => {
     const config = getNotificationConfig();
     if (!config.enabled) {
-        return res.status(400).json({ error: 'Notifications are disabled' });
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'enabled' } });
     }
     try {
         await sendNotification(config, {

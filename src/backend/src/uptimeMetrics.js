@@ -1,4 +1,3 @@
-import { PROBES } from './monitoring.js';
 import { formatGauge, formatLabels } from './prometheus.js';
 
 // Targets whose last recorded check is stale are left out of the scrape:
@@ -15,11 +14,12 @@ function uptimeFamilies(kind) {
 }
 
 // Uptime history as Prometheus text exposition, from [{ id, name, stats }] where
-// stats holds getStatsForInstance()'s result per kind. Each series is labeled
-// with its target: the upstream, or the route's site host.
-export function formatUptimeMetrics(instances, now = Date.now()) {
+// stats holds getStatsForInstance()'s result per kind. `staleMs` gives, per
+// kind, how old a target's last check may be. Each series is labeled with its
+// target: the upstream, or the route's site host.
+export function formatUptimeMetrics(instances, staleMsByKind, now = Date.now()) {
     let out = '';
-    for (const [kind, { staleMs }] of Object.entries(PROBES)) {
+    for (const [kind, staleMs] of Object.entries(staleMsByKind)) {
         const series = [];
         for (const { id, name, stats: byKind } of instances) {
             for (const [target, stats] of Object.entries(byKind[kind] || {})) {
@@ -38,11 +38,11 @@ export function formatUptimeMetrics(instances, now = Date.now()) {
 // (when reachable), then caddy-ui's uptime series for every instance in
 // `uptimeInstances`. Uptime is served even when Caddy's metrics are off, with
 // caddy_ui_caddy_metrics_up standing in for the 503 this endpoint used to return.
-export function buildRawMetrics({ instanceId, caddyText, caddyError, uptimeInstances, now = Date.now() }) {
+export function buildRawMetrics({ instanceId, caddyText, caddyError, uptimeInstances, staleMs, now = Date.now() }) {
     let out = '';
     if (caddyError) out += `# Caddy metrics unavailable: ${caddyError.replace(/\s+/g, ' ')}\n`;
     else if (caddyText) out += caddyText.endsWith('\n') ? caddyText : `${caddyText}\n`;
     out += formatGauge('caddy_ui_caddy_metrics_up', 'Whether Caddy\'s /metrics endpoint could be scraped for this instance',
         [{ labels: formatLabels({ instance_id: instanceId }), value: caddyError ? 0 : 1 }]);
-    return out + formatUptimeMetrics(uptimeInstances, now);
+    return out + formatUptimeMetrics(uptimeInstances, staleMs, now);
 }

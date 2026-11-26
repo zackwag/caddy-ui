@@ -1,3 +1,4 @@
+import { AppError } from './AppError.js';
 import { createJsonStore } from './jsonFile.js';
 import { normalizeLanguageSetting } from './languages.js';
 import logger from './logger.js';
@@ -60,19 +61,21 @@ export function getSettings() {
     return store.get();
 }
 
-export class InvalidSettingError extends Error {}
-
-// The known settings in `body`, normalized. Throws InvalidSettingError when
+// The known settings in `body`, normalized. Throws VALIDATION_FAILED when
 // none are given or one can't be stored.
 export function settingsUpdate(body) {
     const updates = {};
     for (const [key, normalize] of Object.entries(NORMALIZERS)) {
         if (!isObject(body) || !(key in body)) continue;
         const value = normalize(body[key]);
-        if (value === undefined) throw new InvalidSettingError(`Unsupported ${key}`);
+        if (value === undefined) {
+            throw new AppError('VALIDATION_FAILED', { context: { field: key } });
+        }
         updates[key] = value;
     }
-    if (!Object.keys(updates).length) throw new InvalidSettingError('No valid settings provided');
+    if (!Object.keys(updates).length) {
+        throw new AppError('VALIDATION_FAILED');
+    }
     return updates;
 }
 

@@ -1,15 +1,13 @@
 import { Router } from 'express';
-import { asAppError } from '../AppError.js';
+import { AppError, asAppError } from '../AppError.js';
 import { caddyMetrics } from '../caddy.js';
-import { changeResultFields, saveCaddyfileChange } from '../caddyfileChange.js';
+import { changeResultFields, readCaddyfile, saveCaddyfileChange } from '../caddyfileChange.js';
 import { metricsEnabled, setMetricsEnabled } from '../caddyfileMetrics.js';
 import { readCaddyMetrics, summarizeRequests } from '../caddyMetrics.js';
-import { readContainerFile } from '../containerFs.js';
 import { sendFailure } from '../errorReporting.js';
 import { getInstances } from '../instances.js';
 import logger from '../logger.js';
-import { PROBES } from '../monitoring.js';
-import { getStatsForInstance } from '../uptimeHistory.js';
+import { uptimeSnapshot } from '../monitoring.js';
 import { buildRawMetrics } from '../uptimeMetrics.js';
 
 const router = Router();
@@ -23,13 +21,9 @@ export async function rawMetrics(req, res) {
     } catch (err) {
         caddyError = err.message;
     }
-    const uptimeInstances = getInstances().filter(inst => !req.apiToken || req.apiToken.instanceIds.includes(inst.id)).map(({ id, name }) => ({
-        id,
-        name,
-        stats: Object.fromEntries(Object.keys(PROBES).map(kind => [kind, getStatsForInstance(id, kind)])),
-    }));
+    const { instances: uptimeInstances, staleMs } = uptimeSnapshot(getInstances().filter(inst => !req.apiToken || req.apiToken.instanceIds.includes(inst.id)));
     res.setHeader('Content-Type', 'text/plain; version=0.0.4');
-    res.send(buildRawMetrics({ instanceId: req.instance.id, caddyText, caddyError, uptimeInstances }));
+    res.send(buildRawMetrics({ instanceId: req.instance.id, caddyText, caddyError, uptimeInstances, staleMs }));
 }
 
 // GET /api/metrics -- parsed metrics for the UI
@@ -45,12 +39,7 @@ export async function metricsSummary(req, res) {
 
 // GET /api/metrics/config
 router.get('/config', async (req, res) => {
-    let content;
-    try {
-        content = await readContainerFile(req.instance.containerName, req.instance.configPath);
-    } catch (err) {
-        throw asAppError(err, 'CADDYFILE_READ_FAILED', { instanceId: req.instance.id });
-    }
+    const content = await readCaddyfile(req.instance);
     try {
         res.json({ enabled: metricsEnabled(content) });
     } catch (err) {
@@ -61,6 +50,9 @@ router.get('/config', async (req, res) => {
 // PUT /api/metrics/config
 router.put('/config', async (req, res) => {
     const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'enabled' } });
+    }
     logger.info('Metrics config update requested', { enabled });
     let result;
     try {

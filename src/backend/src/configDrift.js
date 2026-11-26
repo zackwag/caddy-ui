@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { caddyGetConfig, hasUnsettledWrites } from './caddy.js';
+import { caddyGetConfig, fingerprintText, hasUnsettledWrites } from './caddy.js';
 import { NOT_APPLIED, UNCHANGED, VERIFIED } from './configVerification.js';
 import { readContainerFile } from './containerFs.js';
 import { getInstances } from './instances.js';
@@ -40,8 +39,6 @@ export function onExternalConfigurationChange(listener) {
     return () => listeners.delete(listener);
 }
 
-// Also the editor's ETag for the Caddyfile, so both name a file the same way.
-export const fingerprintText = text => `sha256:${createHash('sha256').update(text).digest('hex')}`;
 // Enough of a fingerprint to tell states apart in logs.
 const shortFingerprint = fingerprint => fingerprint?.replace(/^(sha256|etag):/, '').replace(/\W/g, '').slice(-12) ?? null;
 

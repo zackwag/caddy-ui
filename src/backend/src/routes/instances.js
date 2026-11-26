@@ -2,40 +2,11 @@ import { Router } from 'express';
 import { caddyGet, isCaddyOnline } from '../caddy.js';
 import { discoverCaddyContainers } from '../dockerDiscovery.js';
 import { audited } from '../auditLog.js';
-import { INSTANCE_DEFAULTS, addInstance, getInstances, removeInstance, updateInstance } from '../instances.js';
-import { asAppError } from '../AppError.js';
-import { validatePath, validateUrl } from '../validation.js';
+import { INSTANCE_DEFAULTS, addInstance, generateId, getInstances, removeInstance, serverIdsFromConfig, updateInstance } from '../instances.js';
+import { AppError, asAppError } from '../AppError.js';
+import { validateUrl } from '../validation.js';
 
 const router = Router();
-
-function generateId(name, existingIds) {
-    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'instance';
-    if (!existingIds.has(base)) return base;
-    let suffix = 2;
-    while (existingIds.has(`${base}-${suffix}`)) suffix++;
-    return `${base}-${suffix}`;
-}
-
-// Server IDs from Caddy's /config/apps/http/servers response, which is null
-// when no http app is configured.
-function serverIdsFromConfig(servers) {
-    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) return [];
-    return Object.keys(servers).sort();
-}
-
-function validateInstanceFields(fields) {
-    const errors = [];
-    if (fields.adminUrl !== undefined) {
-        try { fields.adminUrl = validateUrl(fields.adminUrl); } catch (e) { errors.push(e.message); }
-    }
-    for (const key of ['configPath', 'logPath', 'dataPath']) {
-        if (fields[key] !== undefined) {
-            try { fields[key] = validatePath(fields[key]); } catch (e) { errors.push(`${key}: ${e.message}`); }
-        }
-    }
-    if (errors.length) throw new Error(errors.join('; '));
-    return fields;
-}
 
 // GET /api/instances
 router.get('/', (req, res) => {
@@ -65,8 +36,8 @@ router.get('/servers', async (req, res) => {
     let adminUrl;
     try {
         adminUrl = validateUrl(req.query.adminUrl);
-    } catch (err) {
-        return res.status(400).json({ error: err.message });
+    } catch (cause) {
+        throw new AppError('VALIDATION_FAILED', { cause, context: { field: 'adminUrl' } });
     }
     try {
         const servers = await caddyGet('/config/apps/http/servers', adminUrl);
@@ -79,30 +50,21 @@ router.get('/servers', async (req, res) => {
 // POST /api/instances
 router.post('/', async (req, res) => {
     const { name, adminUrl, configPath, logPath, dataPath, containerName, serverName } = req.body;
-    if (!name || !adminUrl) {
-        return res.status(400).json({ error: 'name and adminUrl are required' });
+    if (!name || typeof name !== 'string') {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'name' } });
     }
-    let fields;
-    try {
-        fields = validateInstanceFields({
-            adminUrl,
-            configPath: configPath || INSTANCE_DEFAULTS.configPath,
-            logPath: logPath || INSTANCE_DEFAULTS.logPath,
-            dataPath: dataPath || INSTANCE_DEFAULTS.dataPath,
-        });
-    } catch (err) {
-        return res.status(400).json({ error: err.message });
-    }
-    const existingIds = new Set(getInstances().map(i => i.id));
-    const id = generateId(name, existingIds);
+    const id = generateId(name);
     let instance;
     try {
         instance = await audited(req, { action: 'instance.add', instanceId: id, instanceName: name }, () => addInstance({
             id,
             name,
-            ...fields,
+            adminUrl,
+            configPath: configPath || undefined,
+            logPath: logPath || undefined,
+            dataPath: dataPath || undefined,
             containerName: containerName ?? INSTANCE_DEFAULTS.containerName,
-            serverName: serverName || INSTANCE_DEFAULTS.serverName,
+            serverName,
         }));
     } catch (err) {
         throw asAppError(err, 'INSTANCE_SAVE_FAILED');
@@ -118,11 +80,6 @@ router.put('/:id', async (req, res) => {
         Object.entries({ name, adminUrl, configPath, logPath, dataPath, containerName, serverName })
             .filter(([, v]) => v !== undefined)
     );
-    try {
-        validateInstanceFields(raw);
-    } catch (err) {
-        return res.status(400).json({ error: err.message });
-    }
     let instance;
     try {
         instance = await audited(req, { action: 'instance.edit', instanceId: id, details: { fields: Object.keys(raw) } }, () => updateInstance(id, raw));
@@ -144,5 +101,4 @@ router.delete('/:id', async (req, res) => {
     res.json({ ok: true });
 });
 
-export { serverIdsFromConfig };
 export default router;

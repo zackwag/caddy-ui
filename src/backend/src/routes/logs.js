@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import { AppError, asAppError, errorChain, publicError } from '../AppError.js';
-import { changeResultFields, saveCaddyfileChange } from '../caddyfileChange.js';
+import { changeResultFields, readCaddyfile, saveCaddyfileChange } from '../caddyfileChange.js';
 import { parseLogConfig, updateLogConfig, validateLogConfig } from '../caddyfileLogging.js';
 import { validateCaddyfile } from '../caddyfileRuntime.js';
-import { readContainerFile } from '../containerFs.js';
 import { execInInstance, spawnInInstance } from '../docker.js';
 import { errorDefinition } from '../errorRegistry.js';
 import { openEventStream } from '../eventStream.js';
@@ -24,17 +23,11 @@ appLogsRouter.get('/stream', (req, res) => {
 });
 
 router.get('/config', async (req, res) => {
-    const context = { instanceId: req.instance.id, configPath: req.instance.configPath };
-    let content;
-    try {
-        content = await readContainerFile(req.instance.containerName, req.instance.configPath);
-    } catch (cause) {
-        throw asAppError(cause, 'CADDYFILE_READ_FAILED', context);
-    }
+    const content = await readCaddyfile(req.instance);
     try {
         res.json(parseLogConfig(content));
     } catch (cause) {
-        throw asAppError(cause, 'LOG_CONFIG_PARSE_FAILED', context);
+        throw asAppError(cause, 'LOG_CONFIG_PARSE_FAILED', { instanceId: req.instance.id, configPath: req.instance.configPath });
     }
 });
 
@@ -45,13 +38,22 @@ router.put('/config', async (req, res) => {
     let result;
     try {
         result = await saveCaddyfileChange(req.instance, async previous => {
+            let updated;
             try {
-                const updated = updateLogConfig(previous, config);
+                updated = updateLogConfig(previous, config);
+            } catch (cause) {
+                // The scanner couldn't structure the current file
+                if (!(cause instanceof SyntaxError)) {
+                    throw cause;
+                }
+                throw new AppError('LOG_CONFIG_PARSE_FAILED', { cause, context: { instanceId: req.instance.id } });
+            }
+            try {
                 await validateCaddyfile(updated, req.instance);
-                return updated;
             } catch (cause) {
                 throw new AppError('CADDYFILE_VALIDATION_FAILED', { cause });
             }
+            return updated;
         }, { actor: req.actor, action: 'logs.configure' });
     } catch (err) {
         throw asAppError(err, 'CADDYFILE_WRITE_FAILED', { instanceId: req.instance.id });

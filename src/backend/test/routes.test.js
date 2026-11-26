@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { extractSiteBlock, removeSiteBlock, replaceSiteBlock } from '../src/caddyfileSites.js';
 import { buildReverseProxyRoute, buildSiteBlock } from '../src/reverseProxyRoute.js';
-import { checkPrimaryServer } from '../src/routes/routes.js';
 
 describe('buildReverseProxyRoute', () => {
     it('builds a basic reverse proxy route', () => {
@@ -136,25 +135,5 @@ describe('site block edits with literal braces', () => {
         const caddyfile = 'proxy.example.com {\n    reverse_proxy app.example.com {\n        header_up Host {host}\n    }\n}\n';
         expect(extractSiteBlock(caddyfile, 'app.example.com')).toBeNull();
         expect(removeSiteBlock(caddyfile, 'app.example.com')).toBe(caddyfile);
-    });
-});
-
-describe('checkPrimaryServer', () => {
-    const servers = { srv0: { listen: [':443'] }, srv1: { listen: [':80'] } };
-
-    it('accepts a server that exists', () => {
-        expect(checkPrimaryServer(servers, 'srv0')).toBeNull();
-    });
-
-    it('rejects a missing server and lists the real ones', () => {
-        const err = checkPrimaryServer(servers, 'media.home');
-        expect(err).toContain('"media.home" doesn\'t exist');
-        expect(err).toContain('srv0, srv1');
-        expect(err).toContain('Instances page');
-    });
-
-    it('explains when Caddy has no HTTP servers', () => {
-        expect(checkPrimaryServer({}, 'srv0')).toContain('no HTTP servers');
-        expect(checkPrimaryServer(null, 'srv0')).toContain('no HTTP servers');
     });
 });

@@ -18,7 +18,8 @@ vi.mock('../src/containerFs.js', () => ({
         return files.get(path);
     }),
 }));
-vi.mock('../src/caddy.js', () => ({
+vi.mock('../src/caddy.js', async importOriginal => ({
+    ...await importOriginal(),
     caddyGetConfig: vi.fn(async adminUrl => {
         if (!live.has(adminUrl)) throw Object.assign(new Error('Caddy API error: 503'), { status: 503 });
         // Like Caddy's ETag: a hash of the config, never the config itself
@@ -28,7 +29,7 @@ vi.mock('../src/caddy.js', () => ({
     }),
     hasUnsettledWrites: adminUrl => unsettled.has(adminUrl),
 }));
-vi.mock('../src/instances.js', () => ({ getInstances: () => instances }));
+vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => instances }));
 
 const { default: logger } = await import('../src/logger.js');
 const historyRoot = await mkdtemp(join(tmpdir(), 'caddy-ui-drift-history-'));

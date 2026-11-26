@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -128,6 +128,65 @@ describe('failed instance changes', () => {
     ])('rejects a %s without preventing the next valid change', async (_, change, code) => {
         await expect(change()).rejects.toMatchObject({ code });
         await instances.addInstance(instance('gamma'));
+        expect(instances.getInstance('gamma')).toEqual(instance('gamma'));
+        await expectPersisted();
+    });
+});
+
+describe('stored instances', () => {
+    const reload = async contents => {
+        await writeFile(file, JSON.stringify(contents));
+        return instances.loadInstances();
+    };
+
+    it('normalizes a hand-edited file into the form requests use', async () => {
+        const [loaded] = await reload([{ id: 'alpha', adminUrl: 'http://Caddy:2019/', configPath: '/etc/caddy/../caddy/Caddyfile', containerName: 'cad dy' }]);
+        expect(loaded).toEqual({
+            id: 'alpha', name: 'alpha', adminUrl: 'http://caddy:2019', configPath: '/etc/caddy/Caddyfile',
+            logPath: '/var/log/caddy/access.log', dataPath: '/data/caddy', containerName: 'caddy', serverName: 'srv0',
+        });
+        expect(instances.getInstance('alpha')).toBe(loaded);
+    });
+
+    it('treats a missing container name as local mode', async () => {
+        const { containerName, ...local } = instance('alpha');
+        expect(containerName).toBe('');
+        await reload([local]);
+        expect(instances.getInstance('alpha').containerName).toBe('');
+    });
+
+    it.each([
+        ['an admin URL that is not http', { adminUrl: 'ftp://caddy:2019' }],
+        ['a path outside the allowed directories', { configPath: '/root/Caddyfile' }],
+        ['an instance without an id', { id: undefined }],
+    ])('sets aside a file with %s instead of using it', async (_, override) => {
+        expect(await reload([instance('beta'), { ...instance('alpha'), ...override }])).toEqual([]);
+        expect((await readdir(directory)).some(name => name.startsWith('instances.json.corrupt-'))).toBe(true);
+    });
+
+    it.each([
+        ['containerName', 'caddy;rm'],
+        ['serverName', 'srv 0'],
+        ['adminUrl', 'file:///etc/passwd'],
+        ['logPath', '/root/access.log'],
+    ])('rejects an added or updated %s that would need changing', async (field, value) => {
+        await expect(instances.addInstance({ ...instance('gamma'), [field]: value }))
+            .rejects.toMatchObject({ code: 'VALIDATION_FAILED', context: { field } });
+        await expect(instances.updateInstance('alpha', { [field]: value }))
+            .rejects.toMatchObject({ code: 'VALIDATION_FAILED', context: { field } });
+        expect(instances.getInstance('gamma')).toBeNull();
+        expect(instances.getInstance('alpha')).toEqual(instance('alpha'));
+        await expectPersisted();
+    });
+});
+
+describe('instance listeners', () => {
+    it('tells listeners about each saved instance, without failing the save when one fails', async () => {
+        const saved = vi.fn().mockRejectedValueOnce(new Error('listener failed'));
+        instances.onInstanceSaved(saved);
+        await instances.addInstance(instance('gamma'));
+        await instances.updateInstance('alpha', { name: 'Alpha updated' });
+        expect(saved.mock.calls).toEqual([['gamma'], ['alpha']]);
         expect(instances.getInstance('gamma')).toEqual(instance('gamma'));
         await expectPersisted();
     });

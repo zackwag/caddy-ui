@@ -149,8 +149,6 @@ async function caddyRequest(method, path, body, adminUrl, { ifMatch } = {}) {
             logger.error(`Caddy API failed`, { method, path, elapsed, error: err.message });
         }
         throw err;
-    } finally {
-        if (method !== 'GET') markConfigChanged(adminUrl);
     }
 }
 
@@ -188,6 +186,10 @@ export async function caddyReadJson(path, adminUrl) {
     return value;
 }
 
+// A fingerprint of text: of the running config when Caddy sends no ETag, and of
+// a Caddyfile, where it's also the editor's ETag, so both name a file the same way.
+export const fingerprintText = text => `sha256:${createHash('sha256').update(text).digest('hex')}`;
+
 // The whole running config with a fingerprint of it: Caddy's ETag when it sends
 // one (Caddy 2.6+), otherwise a hash of the response body. Equal fingerprints
 // mean the same config. The deadline keeps a stalled response from holding the
@@ -198,7 +200,7 @@ export async function caddyGetConfig(adminUrl) {
     const etag = res.headers.get('etag');
     return {
         config: text ? JSON.parse(text) : null,
-        fingerprint: etag ? `etag:${etag}` : `sha256:${createHash('sha256').update(text).digest('hex')}`,
+        fingerprint: etag ? `etag:${etag}` : fingerprintText(text),
     };
 }
 
@@ -284,7 +286,5 @@ export async function caddyLoad(caddyfileContent, adminUrl) {
             logger.error(`Caddy reload error`, { elapsed, error: err.message });
         }
         throw err;
-    } finally {
-        markConfigChanged(adminUrl);
     }
 }

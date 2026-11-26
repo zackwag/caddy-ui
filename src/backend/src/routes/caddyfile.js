@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { AppError, asAppError } from '../AppError.js';
 import { audited } from '../auditLog.js';
-import { caddyfileETag, changeResultFields, reloadCaddyfile, saveCaddyfileChange } from '../caddyfileChange.js';
+import { caddyfileETag, changeResultFields, readCaddyfile, reloadCaddyfile, saveCaddyfileChange } from '../caddyfileChange.js';
 import { describeValidationFailure, fmtCaddyfile, validateCaddyfile } from '../caddyfileRuntime.js';
 import { sortCaddyfile } from '../caddyfileSort.js';
 import { configurationHistory as history } from '../configurationHistory.js';
-import { readContainerFile } from '../containerFs.js';
 import { sendFailure } from '../errorReporting.js';
 import logger from '../logger.js';
 import { getAuthentication } from '../middleware/auth.js';
@@ -24,7 +23,7 @@ function ifMatchTags(header) {
 
 function requireContent(req, res, next) {
     if (!req.body || typeof req.body !== 'string') {
-        return res.status(400).json({ error: 'Body must be plain text Caddyfile content' });
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'content' } });
     }
     next();
 }
@@ -46,13 +45,7 @@ async function validOrRespond(content, req, res) {
 // GET /api/caddyfile
 // GET /api/caddyfile?download=true
 router.get('/', async (req, res) => {
-    const { configPath, containerName } = req.instance;
-    let content;
-    try {
-        content = await readContainerFile(containerName, configPath);
-    } catch (error) {
-        throw asAppError(error, 'CADDYFILE_READ_FAILED', { instanceId: req.instance.id, configPath });
-    }
+    const content = await readCaddyfile(req.instance);
     // The editor sends this back as If-Match, so a save can't overwrite edits
     // made since it loaded the file. Never cached: the file changes outside caddy/ui.
     res.setHeader('ETag', caddyfileETag(content));
@@ -77,27 +70,39 @@ router.get('/history', async (req, res) => {
 });
 
 router.param('filename', (req, res, next, filename) => {
-    if (!history.validFilename(filename)) return res.status(400).json({ error: 'Invalid filename' });
+    if (!history.validFilename(filename)) {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'filename' } });
+    }
     next();
 });
 
+// The requested history version. NOT_FOUND when there is no such version.
+async function readVersion(req) {
+    try {
+        return await history.read(req.instance.id, req.params.filename);
+    } catch (error) {
+        throw asAppError(error, error.code === 'ENOENT' ? 'NOT_FOUND' : 'CADDYFILE_HISTORY_READ_FAILED', { instanceId: req.instance.id });
+    }
+}
+
 // GET /api/caddyfile/history/:filename/changes
 router.get('/history/:filename/changes', async (req, res) => {
-    let version;
-    try {
-        version = await history.read(req.instance.id, req.params.filename);
-    } catch (error) {
-        throw asAppError(error, 'CADDYFILE_HISTORY_READ_FAILED', { instanceId: req.instance.id });
+    const version = await readVersion(req);
+    // Only external observations record changes
+    if (!version.external) {
+        throw new AppError('NOT_FOUND');
     }
-    if (!version.external) return res.status(404).json({ error: 'This version is not an external observation' });
     res.setHeader('Cache-Control', 'no-store');
     res.json(version.external);
 });
 
 // GET /api/caddyfile/history/:filename
 router.get('/history/:filename', async (req, res) => {
-    const { content } = await history.read(req.instance.id, req.params.filename);
-    if (content === null) return res.status(409).json({ error: 'This observation contains live JSON, not a saved Caddyfile' });
+    const { content } = await readVersion(req);
+    // An observation of a live JSON change has no Caddyfile to serve
+    if (content === null) {
+        throw new AppError('CONFLICT');
+    }
     res.setHeader('Cache-Control', 'no-store');
     res.type('text/plain').send(content);
 });
@@ -105,8 +110,15 @@ router.get('/history/:filename', async (req, res) => {
 // DELETE /api/caddyfile/history/:filename
 router.delete('/history/:filename', async (req, res) => {
     const { filename } = req.params;
-    await audited(req, { action: 'history.delete', instanceId: req.instance.id, resource: filename },
-        () => history.remove(req.instance.id, filename));
+    try {
+        await audited(req, { action: 'history.delete', instanceId: req.instance.id, resource: filename },
+            () => history.remove(req.instance.id, filename));
+    } catch (error) {
+        if (error.code !== 'ENOENT') {
+            throw error;
+        }
+        throw new AppError('NOT_FOUND', { cause: error, context: { instanceId: req.instance.id } });
+    }
     res.json({ ok: true });
 });
 

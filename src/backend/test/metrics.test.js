@@ -37,6 +37,7 @@ describe('GET /api/metrics/raw', () => {
 });
 
 const NOW = Date.UTC(2026, 0, 1, 12, 0, 0);
+const STALE = { upstream: 5 * 60_000, route: 12.5 * 60_000 };
 
 function stats(overrides = {}) {
     return {
@@ -49,7 +50,7 @@ function stats(overrides = {}) {
 
 describe('formatUptimeMetrics', () => {
     it('emits HELP/TYPE headers and one sample per family per upstream', () => {
-        const out = formatUptimeMetrics([{ id: 'default', name: 'Home', stats: { upstream: { '10.0.0.5:8080': stats() } } }], NOW);
+        const out = formatUptimeMetrics([{ id: 'default', name: 'Home', stats: { upstream: { '10.0.0.5:8080': stats() } } }], STALE, NOW);
         const labels = 'instance_id="default",instance_name="Home",upstream="10.0.0.5:8080"';
         expect(out).toContain('# TYPE caddy_ui_upstream_up gauge\n');
         expect(out).toContain(`caddy_ui_upstream_up{${labels}} 1\n`);
@@ -58,7 +59,7 @@ describe('formatUptimeMetrics', () => {
     });
 
     it('reports 0 for an upstream that is currently offline', () => {
-        const out = formatUptimeMetrics([{ id: 'a', name: 'A', stats: { upstream: { 'x:1': stats({ currentlyOnline: false }) } } }], NOW);
+        const out = formatUptimeMetrics([{ id: 'a', name: 'A', stats: { upstream: { 'x:1': stats({ currentlyOnline: false }) } } }], STALE, NOW);
         expect(out).toMatch(/caddy_ui_upstream_up\{[^}]+\} 0\n/);
     });
 
@@ -66,7 +67,7 @@ describe('formatUptimeMetrics', () => {
         const out = formatUptimeMetrics([
             { id: 'a', name: 'A', stats: { upstream: { 'x:1': stats() } } },
             { id: 'b', name: 'B', stats: { upstream: { 'x:1': stats() } } },
-        ], NOW);
+        ], STALE, NOW);
         expect(out).toContain('caddy_ui_upstream_up{instance_id="a",instance_name="A",upstream="x:1"} 1');
         expect(out).toContain('caddy_ui_upstream_up{instance_id="b",instance_name="B",upstream="x:1"} 1');
     });
@@ -77,14 +78,14 @@ describe('formatUptimeMetrics', () => {
                 'empty:1': null,
                 'gone:1': stats({ lastCheckAt: new Date(NOW - 10 * 60_000) }),
             } },
-        }], NOW);
+        }], STALE, NOW);
         expect(out).not.toContain('empty:1');
         expect(out).not.toContain('gone:1');
         expect(out).toContain('# TYPE caddy_ui_upstream_uptime_ratio gauge');
     });
 
     it('emits route series labeled by host', () => {
-        const out = formatUptimeMetrics([{ id: 'default', name: 'Home', stats: { route: { 'files.example.com': stats({ currentlyOnline: false }) } } }], NOW);
+        const out = formatUptimeMetrics([{ id: 'default', name: 'Home', stats: { route: { 'files.example.com': stats({ currentlyOnline: false }) } } }], STALE, NOW);
         const labels = 'instance_id="default",instance_name="Home",route="files.example.com"';
         expect(out).toContain('# TYPE caddy_ui_route_up gauge\n');
         expect(out).toContain(`caddy_ui_route_up{${labels}} 0\n`);
@@ -98,19 +99,19 @@ describe('formatUptimeMetrics', () => {
                 'recent.example.com': stats({ lastCheckAt: new Date(NOW - 7 * 60_000) }),
                 'gone.example.com': stats({ lastCheckAt: new Date(NOW - 13 * 60_000) }),
             } },
-        }], NOW);
+        }], STALE, NOW);
         expect(out).toContain('route="recent.example.com"');
         expect(out).not.toContain('gone.example.com');
     });
 
     it('declares route families even without route checks', () => {
-        const out = formatUptimeMetrics([{ id: 'a', name: 'A', stats: { upstream: { 'x:1': stats() } } }], NOW);
+        const out = formatUptimeMetrics([{ id: 'a', name: 'A', stats: { upstream: { 'x:1': stats() } } }], STALE, NOW);
         expect(out).toContain('# TYPE caddy_ui_route_up gauge\n');
         expect(out).not.toContain('caddy_ui_route_up{');
     });
 
     it('escapes quotes, backslashes, and newlines in label values', () => {
-        const out = formatUptimeMetrics([{ id: 'a', name: 'My "lab"\\box\nx', stats: { upstream: { 'x:1': stats() } } }], NOW);
+        const out = formatUptimeMetrics([{ id: 'a', name: 'My "lab"\\box\nx', stats: { upstream: { 'x:1': stats() } } }], STALE, NOW);
         expect(out).toContain('instance_name="My \\"lab\\"\\\\box\\nx"');
     });
 });
@@ -120,19 +121,19 @@ describe('buildRawMetrics', () => {
 
     it('passes Caddy metrics through and appends uptime series', () => {
         const caddyText = '# TYPE caddy_up gauge\ncaddy_up 1\n';
-        const out = buildRawMetrics({ instanceId: 'default', caddyText, caddyError: null, uptimeInstances, now: NOW });
+        const out = buildRawMetrics({ instanceId: 'default', caddyText, caddyError: null, uptimeInstances, staleMs: STALE, now: NOW });
         expect(out.startsWith(caddyText)).toBe(true);
         expect(out).toContain('caddy_ui_caddy_metrics_up{instance_id="default"} 1\n');
         expect(out).toContain('caddy_ui_upstream_up{');
     });
 
     it('adds a trailing newline to Caddy output that lacks one', () => {
-        const out = buildRawMetrics({ instanceId: 'default', caddyText: 'caddy_up 1', caddyError: null, uptimeInstances: [], now: NOW });
+        const out = buildRawMetrics({ instanceId: 'default', caddyText: 'caddy_up 1', caddyError: null, uptimeInstances: [], staleMs: STALE, now: NOW });
         expect(out.startsWith('caddy_up 1\n# HELP')).toBe(true);
     });
 
     it('still serves uptime when Caddy metrics are unavailable', () => {
-        const out = buildRawMetrics({ instanceId: 'default', caddyText: '', caddyError: 'Metrics unavailable:\n404', uptimeInstances, now: NOW });
+        const out = buildRawMetrics({ instanceId: 'default', caddyText: '', caddyError: 'Metrics unavailable:\n404', uptimeInstances, staleMs: STALE, now: NOW });
         expect(out.startsWith('# Caddy metrics unavailable: Metrics unavailable: 404\n')).toBe(true);
         expect(out).toContain('caddy_ui_caddy_metrics_up{instance_id="default"} 0\n');
         expect(out).toContain('caddy_ui_upstream_up{');

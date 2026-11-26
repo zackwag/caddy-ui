@@ -1,6 +1,7 @@
 import { AppError } from './AppError.js';
 import { caddyfileChildren, extractDirective, extractGlobalBlock } from './caddyfileBlocks.js';
 import { setGlobalOption } from './caddyfileGlobals.js';
+import { INSTANCE_DEFAULTS } from './instances.js';
 
 // The default logger in a Caddyfile's global options, as settings and back.
 
@@ -12,7 +13,7 @@ function defaultLogger(source) {
 export function parseLogConfig(content) {
     const defaultConfig = {
         enabled: false,
-        path: '/var/log/caddy/access.log',
+        path: INSTANCE_DEFAULTS.logPath,
         rollSize: '50mb',
         rollKeep: 5,
         format: 'json',
@@ -44,7 +45,7 @@ export function parseLogConfig(content) {
 function quoteLogPath(path) {
     if (!/[\s"`]/.test(path) && !path.startsWith('#')) return path;
     if (!path.includes('`')) return '`' + path + '`';
-    if (path.endsWith('\\')) throw new SyntaxError('Cannot quote the log path');
+    if (path.endsWith('\\')) throw new AppError('VALIDATION_FAILED', { context: { field: 'path' } });
     return '"' + path.replaceAll('"', '\\"') + '"';
 }
 

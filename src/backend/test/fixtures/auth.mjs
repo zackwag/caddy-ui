@@ -5,6 +5,7 @@ import { createAuthStore } from '../../src/authStore.js';
 import { createAuthSessions } from '../../src/authSessions.js';
 import { authMiddleware, initializeAuthentication } from '../../src/middleware/auth.js';
 import { createCrossSiteMiddleware } from '../../src/middleware/crossSite.js';
+import { parseExternalUrls } from '../../src/externalUrls.js';
 import { createCsrfMiddleware } from '../../src/middleware/csrf.js';
 import { createApiTokenMiddleware } from '../../src/middleware/apiToken.js';
 import { instanceMiddleware } from '../../src/middleware/instance.js';
@@ -15,7 +16,7 @@ export async function authFixture({ env = {}, now, store } = {}) {
     const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-http-'));
     const path = join(directory, 'auth.json');
     store ??= createAuthStore(path, { now });
-    const service = await initializeAuthentication({ store, env, now, sessions: createAuthSessions({ now }) });
+    const service = await initializeAuthentication({ store, env, now, sessions: createAuthSessions({ now }), externalUrls: parseExternalUrls(env.CADDY_UI_EXTERNAL_URL) });
     const server = await serve(app => {
         app.use('/api', createCrossSiteMiddleware(env.CADDY_UI_EXTERNAL_URL));
         app.use('/api', createApiTokenMiddleware(service));

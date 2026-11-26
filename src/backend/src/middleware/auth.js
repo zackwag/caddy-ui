@@ -1,5 +1,5 @@
 import { createAuthService } from '../authService.js';
-import { parseExternalUrls, servesOnlyHttps } from '../externalUrls.js';
+import { servesOnlyHttps } from '../externalUrls.js';
 import logger from '../logger.js';
 
 let authentication;
@@ -10,7 +10,7 @@ export async function initializeAuthentication(options) {
     if (state.setupRequired && !state.enrollmentRequired) {
         logger.warn('Administrator enrollment is open: no stored or legacy credentials exist. The first person reaching the setup page can claim administrator access. Restrict access until enrollment is complete.');
     }
-    if (!servesOnlyHttps(parseExternalUrls((options?.env ?? process.env).CADDY_UI_EXTERNAL_URL))) {
+    if (!servesOnlyHttps(options?.externalUrls ?? [])) {
         logger.warn('Secure session cookies are not enabled. For HTTPS deployments, set CADDY_UI_EXTERNAL_URL=https://your-public-hostname to enable them. Adding any HTTP origin disables Secure cookies for all origins. TLS setup can help you with that.');
     }
     return authentication;

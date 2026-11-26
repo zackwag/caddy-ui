@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { serverIdsFromConfig } from '../src/routes/instances.js';
+import { serverIdsFromConfig } from '../src/instances.js';
 
 describe('serverIdsFromConfig', () => {
     it('returns sorted server IDs', () => {

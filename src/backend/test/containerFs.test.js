@@ -1,5 +1,38 @@
-import { describe, expect, it } from 'vitest';
-import { describeReadError } from '../src/containerFs.js';
+import { describe, expect, it, vi } from 'vitest';
+
+const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
+vi.mock('child_process', () => ({ spawn }));
+
+const { containerPathExists, describeReadError, readContainerDir, readContainerFile, removeContainerPath, writeContainerFile }
+    = await import('../src/containerFs.js');
+const { dockerExec } = await import('../src/docker.js');
+
+describe('Docker-mode paths', () => {
+    const operations = {
+        read: path => readContainerFile('caddy', path),
+        write: path => writeContainerFile('caddy', path, 'content'),
+        list: path => readContainerDir('caddy', path),
+        remove: path => removeContainerPath('caddy', path),
+    };
+
+    for (const path of ['/etc/caddy/../../root/.ssh/id_rsa', '/etc/caddy/Caddy\0file', '/etc/caddy/Caddyfile\nother']) {
+        it.each(Object.keys(operations))(`rejects ${JSON.stringify(path)} for %s before running anything`, async operation => {
+            await expect(operations[operation](path)).rejects.toThrow(/^Invalid (path|command) argument$/);
+            expect(spawn).not.toHaveBeenCalled();
+        });
+
+        it(`never reports ${JSON.stringify(path)} as existing`, async () => {
+            expect(await containerPathExists('caddy', path)).toBe(false);
+            expect(spawn).not.toHaveBeenCalled();
+        });
+    }
+
+    it('requires file commands to separate their paths with --', () => {
+        expect(() => dockerExec('caddy', ['cat', '/etc/caddy/Caddyfile'])).toThrow('Missing path argument');
+        expect(() => dockerExec('caddy', ['rm', '-rf', '--'])).toThrow('Missing path argument');
+        expect(spawn).not.toHaveBeenCalled();
+    });
+});
 
 describe('describeReadError', () => {
     it('reports missing paths in local mode', () => {

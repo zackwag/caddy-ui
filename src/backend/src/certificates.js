@@ -1,8 +1,8 @@
 import { X509Certificate } from 'crypto';
-import { join } from 'path';
-import { AppError } from './AppError.js';
+import { join, relative, resolve } from 'path';
+import { AppError, asAppError } from './AppError.js';
 import { caddyGet } from './caddy.js';
-import { containerPathExists, describeReadError, listContainerDir, readContainerDir, readContainerFile } from './containerFs.js';
+import { containerPathExists, describeReadError, listContainerDir, readContainerDir, readContainerFile, removeContainerPath } from './containerFs.js';
 import logger from './logger.js';
 import { getServers } from './observations.js';
 
@@ -158,3 +158,44 @@ export async function listCertificates({ containerName, dataPath, adminUrl }, { 
     });
 }
 
+
+// Certificate directory names: a host name, with Caddy's wildcard_ prefix
+const CERTIFICATE_DOMAIN = /^(?=.{1,253}$)(?:wildcard_\.)?(?!-)(?:[a-zA-Z0-9-]{1,63}\.)*[a-zA-Z0-9-]{1,63}$/;
+
+// Deletes a certificate Caddy no longer uses (see DELETABLE_STATUSES), from
+// the issuer directory named, or else preferring the local CA's. Resolves to
+// the directory removed. Throws CERTIFICATE_DELETE_DENIED when there is no
+// such deletable certificate.
+export async function deleteCertificate(instance, domain, issuer) {
+    if (typeof domain !== 'string' || !CERTIFICATE_DOMAIN.test(domain)) {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'domain' } });
+    }
+    let certs;
+    try {
+        certs = await listCertificates(instance);
+    } catch (err) {
+        throw asAppError(err, 'CERTIFICATE_READ_FAILED', { instanceId: instance.id });
+    }
+    const candidates = certs.filter(cert => cert.domain === domain && cert.deletable && (!issuer || cert.issuerDir === issuer));
+    const target = candidates.find(cert => cert.isInternal) ?? candidates[0];
+    if (!target) {
+        throw new AppError('CERTIFICATE_DELETE_DENIED', { context: { domain, issuer } });
+    }
+
+    if (!target.issuerDir || target.issuerDir.includes('..') || target.issuerDir.includes('/') || target.issuerDir.includes('\\')) {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'issuer' } });
+    }
+    const baseCertsDir = resolve(join(instance.dataPath, 'certificates'));
+    const certDir = resolve(baseCertsDir, target.issuerDir, domain);
+    const rel = relative(baseCertsDir, certDir);
+    if (rel.startsWith('..') || rel.startsWith('/') || rel === '') {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'domain' } });
+    }
+
+    try {
+        await removeContainerPath(instance.containerName, certDir);
+    } catch (err) {
+        throw asAppError(err, 'CERTIFICATE_DELETE_FAILED', { domain });
+    }
+    return certDir;
+}

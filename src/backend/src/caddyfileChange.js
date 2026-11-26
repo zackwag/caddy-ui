@@ -1,12 +1,38 @@
 import { AppError, asAppError } from './AppError.js';
-import { CaddyTimeoutError } from './caddy.js';
+import { CaddyTimeoutError, fingerprintText } from './caddy.js';
 import { adaptedConfig, reloadCaddy } from './caddyfileRuntime.js';
-import { checkInstance, fingerprintText, recordLocalChange } from './configDrift.js';
+import { checkInstance, recordLocalChange } from './configDrift.js';
 import { NOT_APPLIED, UNCHANGED, verificationWarning, verifyAfterTimeout, verifyFile, verifyLiveConfig } from './configVerification.js';
 import { configurationHistory } from './configurationHistory.js';
 import { describeReadError, readContainerFile, removeContainerPath, writeContainerFile } from './containerFs.js';
+import { getCaddyEnv } from './docker.js';
 import { runExclusive } from './instanceQueue.js';
 import logger from './logger.js';
+
+// The instance's Caddyfile. Throws CADDYFILE_READ_FAILED when it can't be read.
+export async function readCaddyfile({ id, configPath, containerName }) {
+    try {
+        return await readContainerFile(containerName, configPath);
+    } catch (cause) {
+        throw new AppError('CADDYFILE_READ_FAILED', { cause, context: { instanceId: id, configPath } });
+    }
+}
+
+// The environment the Caddyfile's {$VAR} site addresses resolve from. Without
+// it no site block can be found, so it fails like reading the file.
+export async function readSiteEnv({ id, configPath, containerName }) {
+    try {
+        return await getCaddyEnv(containerName);
+    } catch (cause) {
+        throw new AppError('CADDYFILE_READ_FAILED', { cause, context: { instanceId: id, configPath } });
+    }
+}
+
+// The Caddyfile with what's needed to find its sites: { caddyfile, env }.
+export async function readSites(instance) {
+    const [caddyfile, env] = await Promise.all([readCaddyfile(instance), readSiteEnv(instance)]);
+    return { caddyfile, env };
+}
 
 // Reads the file a change would replace: null when there is no file yet, so a
 // rollback removes it. Any other read failure stops the change, since the
@@ -134,7 +160,7 @@ export function queueCaddyfileChange(instance, operation) {
 // can't observe another change mid-write.
 export function reloadCaddyfile(instance) {
     return queueCaddyfileChange(instance, async () => {
-        const content = await readContainerFile(instance.containerName, instance.configPath);
+        const content = await readCaddyfile(instance);
         return applyLiveChange(instance, reloadChange(instance, content), content);
     });
 }

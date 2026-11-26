@@ -1,7 +1,12 @@
 import { createConnection } from 'net';
 import { caddyUpstreamPool } from './caddy.js';
+import logger from './logger.js';
 
 const TCP_TIMEOUT_MS = 3000;
+
+// Admin APIs whose upstream pool couldn't be read on the last check, so the
+// failure is logged once per outage rather than on every check.
+const poolReadFailures = new Set();
 
 // Caddy only counts failures (`fails` in /reverse_proxy/upstreams) when the
 // handler has passive health checks with a non-zero fail_duration. Without
@@ -84,11 +89,20 @@ export async function checkInstanceUpstreams(adminUrl, servers) {
 
     const caddyPool = {};
     if (checks.some(c => c.passive)) {
+        // Without the pool, upstreams are judged by the dial alone
         try {
             for (const entry of await caddyUpstreamPool(adminUrl)) {
                 if (entry.address) caddyPool[entry.address] = entry;
             }
-        } catch { }
+            if (poolReadFailures.delete(adminUrl)) {
+                logger.info('Caddy upstream pool readable again', { adminUrl });
+            }
+        } catch (err) {
+            if (!poolReadFailures.has(adminUrl)) {
+                poolReadFailures.add(adminUrl);
+                logger.warn('Caddy upstream pool unavailable; passive health check failures are not counted', { adminUrl, error: err.message });
+            }
+        }
     }
 
     // Upstreams shared by several routes are dialed once per call

@@ -48,35 +48,54 @@ function findContainerIP(container, targetNetworks) {
     return null;
 }
 
-let _backendContainerName = null;
+// The port the backend listens on, which Caddy proxies maintenance pages to.
+export const BACKEND_PORT = process.env.PORT || 3001;
 
-export function getBackendUrl() {
-    if (process.env.CADDY_UI_URL) return process.env.CADDY_UI_URL;
-    const port = process.env.PORT || 3001;
-    if (_backendContainerName) return `${_backendContainerName}:${port}`;
-    return null;
-}
+let backendContainerName = null;
+let detectionFailureLogged = false;
 
-export async function detectBackendIdentity() {
+// The backend's own container name, from Docker. Kept once found; a failed
+// lookup is tried again next time and its reason logged once.
+async function detectBackendContainerName() {
     const hostname = process.env.HOSTNAME;
-    if (!hostname || _backendContainerName) return;
+    if (backendContainerName || !hostname) {
+        return backendContainerName;
+    }
     try {
-        const detail = await dockerGet(`/containers/${hostname}/json`);
-        const name = detail.Name?.replace(/^\//, '');
+        const name = (await dockerGet(`/containers/${hostname}/json`)).Name?.replace(/^\//, '');
         if (name) {
-            _backendContainerName = name;
+            backendContainerName = name;
             logger.info('Detected backend container name', { name });
         }
-    } catch { }
+    } catch (err) {
+        if (!detectionFailureLogged) {
+            detectionFailureLogged = true;
+            logger.warn('Could not detect the backend container name; set CADDY_UI_URL for maintenance pages', { error: err.message });
+        }
+    }
+    return backendContainerName;
 }
+
+// Where Caddy reaches the backend, or null when it can't be known.
+export async function getBackendUrl() {
+    if (process.env.CADDY_UI_URL) return process.env.CADDY_UI_URL;
+    const name = await detectBackendContainerName();
+    return name ? `${name}:${BACKEND_PORT}` : null;
+}
+
+// Connecting to a socket that doesn't exist, or that nothing listens on
+const NO_DOCKER = new Set(['ENOENT', 'ECONNREFUSED']);
 
 export async function discoverCaddyContainers() {
     let containers;
     try {
         containers = await dockerGet('/containers/json?all=false');
     } catch (err) {
-        logger.warn('Docker discovery unavailable', { error: err.message });
-        return [];
+        // No Docker socket at all, as in a local-mode install: nothing to discover
+        if (NO_DOCKER.has(err.code)) {
+            return [];
+        }
+        throw err;
     }
 
     const backendNetworks = new Set();
@@ -85,7 +104,6 @@ export async function discoverCaddyContainers() {
         for (const c of containers) {
             const names = (c.Names || []).map(n => n.replace(/^\//, ''));
             if (names.includes('caddy-ui-backend') || c.Id?.startsWith(hostname)) {
-                _backendContainerName = names.includes('caddy-ui-backend') ? 'caddy-ui-backend' : names[0];
                 const nets = c.NetworkSettings?.Networks || {};
                 for (const name of Object.keys(nets)) backendNetworks.add(name);
             }

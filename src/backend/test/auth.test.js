@@ -148,7 +148,7 @@ describe('browser authentication HTTP contracts', () => {
         });
 
         expect(navigation.status).toBe(403);
-        expect(navigation.data.code).toBe('CSRF_NAVIGATION');
+        expect(navigation.data.code).toBe('FORBIDDEN');
         expect(navigation.setCookie).toBeUndefined();
         expect((await fetch(url + '/api/protected', { headers: { cookie: oldCookie } })).status).toBe(200);
         const normal = await fetch(url + '/api/auth/csrf');

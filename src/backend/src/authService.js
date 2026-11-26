@@ -3,7 +3,7 @@ import { AppError } from './AppError.js';
 import { createAuthStore, validateCredentials } from './authStore.js';
 import { createAuthSessions } from './authSessions.js';
 import { API_TOKEN_SCOPES, MAX_API_TOKENS, validApiTokenInput } from './apiTokenPolicy.js';
-import { parseExternalUrls, servesOnlyHttps } from './externalUrls.js';
+import { servesOnlyHttps } from './externalUrls.js';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { createPasskeyService } from './passkeys.js';
@@ -19,7 +19,10 @@ function sameSecret(actual, expected) {
     return timingSafeEqual(hash(actual), hash(expected));
 }
 
-export async function createAuthService({ store = createAuthStore(), env = process.env, sessions, now = Date.now } = {}) {
+// `env` supplies legacy credentials. `externalUrls` (CADDY_UI_EXTERNAL_URL,
+// parsed) and `publicMetrics` (CADDY_UI_PUBLIC_METRICS) come from the caller,
+// which reads them once for the whole app.
+export async function createAuthService({ store = createAuthStore(), env = process.env, sessions, now = Date.now, externalUrls = [], publicMetrics = false } = {}) {
     await store.loadAuth();
     let legacy = null;
     if (!store.isInitialized()) {
@@ -31,7 +34,6 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         }
         if (provided.length) legacy = { username: env.CADDY_UI_USER, password: env.CADDY_UI_PASSWORD };
     }
-    const externalUrls = parseExternalUrls(env.CADDY_UI_EXTERNAL_URL);
     sessions ??= createAuthSessions({ now, secure: servesOnlyHttps(externalUrls) });
     const serialize = createSerialQueue();
     function validate(username, password) {
@@ -133,7 +135,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                 enrollmentAuthenticated: session?.permission === 'enrollment',
                 totpEnabled: store.isTotpEnabled(),
                 totpPending: totp.loginPending(req),
-                publicMetrics: env.CADDY_UI_PUBLIC_METRICS === 'true',
+                publicMetrics,
                 ...passkeys.state(),
             };
         },

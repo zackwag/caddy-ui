@@ -57,10 +57,10 @@ describe('API error reporting', () => {
         }));
     });
 
-    it('responds to anything else thrown as an unhandled error', async () => {
-        const { status, body, requestId } = await request(async () => { throw new Error('unexpected'); });
+    it('responds to anything else thrown as an unhandled error without its message', async () => {
+        const { status, body, requestId } = await request(async () => { throw new Error('ENOENT: /etc/caddy/secret'); });
         expect(status).toBe(500);
-        expect(body).toEqual({ error: 'unexpected', code: 'REQUEST_FAILED', requestId });
+        expect(body).toEqual({ error: 'Internal server error', code: 'REQUEST_FAILED', requestId });
     });
 
     it('leaves an error after the response started to Express', () => {

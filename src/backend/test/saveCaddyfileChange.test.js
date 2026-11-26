@@ -59,6 +59,7 @@ const { default: logsRouter } = await import('../src/routes/logs.js');
 const { default: routesRouter } = await import('../src/routes/routes.js');
 const { getMaintenanceState, loadMaintenance } = await import('../src/maintenance.js');
 const { readContainerFile } = await import('../src/containerFs.js');
+const { getCaddyEnv } = await import('../src/docker.js');
 const { default: logger } = await import('../src/logger.js');
 const { CaddyTimeoutError } = await import('../src/caddy.js');
 const { checkInstance, getConfigDriftState, resetConfigDrift } = await import('../src/configDrift.js');
@@ -385,6 +386,44 @@ describe('API save paths', () => {
         expect(files.get(instance.configPath)).toBe('x {\n}\n');
     });
 
+    it.each([undefined, 'true', 1, null])('rejects a metrics setting of %j without touching the Caddyfile', async enabled => {
+        const { status, body } = await send('PUT', '/metrics/config', { enabled });
+        expect(status).toBe(400);
+        expect(body).toMatchObject({ code: 'VALIDATION_FAILED' });
+        expect(failWrites.count).toBe(0);
+        expect(caddyLoad).not.toHaveBeenCalled();
+        expect(files.get(instance.configPath)).toBe(original);
+    });
+
+    it.each([
+        ['PATCH', { content: 'old.example.com {\n    respond "new"\n}' }],
+        ['DELETE', undefined],
+    ])("doesn't %s a site block as missing when the container's environment can't be read", async (method, body) => {
+        getCaddyEnv.mockRejectedValueOnce(new Error('Cannot connect to the Docker daemon'));
+        const { status, body: response } = await send(method, '/routes/caddyfile/old.example.com', body);
+        expect(status).toBe(500);
+        expect(response).toMatchObject({ code: 'CADDYFILE_READ_FAILED' });
+        expect(files.get(instance.configPath)).toBe(original);
+    });
+
+    it('reports a Caddyfile that cannot be read when reading a site block', async () => {
+        files.delete(instance.configPath);
+        const { status, body } = await send('GET', '/routes/caddyfile/old.example.com');
+        expect(status).toBe(500);
+        expect(body).toMatchObject({ code: 'CADDYFILE_READ_FAILED' });
+    });
+
+    it.each([
+        ['GET', ''],
+        ['GET', '/changes'],
+        ['DELETE', ''],
+    ])('reports %s of a history version that does not exist%s as not found', async (method, suffix) => {
+        const missing = `Caddyfile-2026-01-01T00-00-00-000Z-${randomUUID()}.json`;
+        const { status, body } = await send(method, `/caddyfile/history/${missing}${suffix}`);
+        expect(status).toBe(404);
+        expect(body).toMatchObject({ code: 'NOT_FOUND' });
+    });
+
     it('restores the Caddyfile when Caddy rejects a new route', async () => {
         live.servers = servers;
         caddyPost.mockRejectedValue(new Error('Caddy API error: 400 invalid route'));
@@ -482,6 +521,37 @@ describe('API save paths', () => {
             expect(live.objects.has('route-admin')).toBe(true);
             expect(patch).toHaveBeenCalledTimes(1);
             expect(remove).toHaveBeenCalledTimes(1);
+        });
+
+        it.each([
+            ['a primary server Caddy does not have', { srv1: { listen: [':443'] } }],
+            ['no HTTP servers', null],
+        ])('refuses to add a route when Caddy has %s', async (_, current) => {
+            live.servers = current;
+            const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
+            expect(status).toBe(400);
+            expect(body).toMatchObject({ code: 'VALIDATION_FAILED' });
+            expect(caddyPost).not.toHaveBeenCalled();
+            expect(caddyPut).not.toHaveBeenCalled();
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
+        it.each(['PATCH', 'DELETE'])("doesn't %s a route whose read failed for a reason other than its absence", async method => {
+            live.objects.set('route-managed', managed('route-managed'));
+            caddyGet.mockImplementation(async () => { throw Object.assign(new Error('Caddy API error: 500'), { status: 500 }); });
+            const { status, body } = await send(method, '/routes/route-managed', { domain: 'new.example.com', upstream: 'app:3000' });
+            expect(status).toBe(503);
+            expect(body).toMatchObject({ code: 'CADDY_CONFIG_UNAVAILABLE' });
+            expect(patch).not.toHaveBeenCalled();
+            expect(remove).not.toHaveBeenCalled();
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
+        it('changes only the running config for a route Caddy reports missing', async () => {
+            const { status } = await send('DELETE', '/routes/route-unknown');
+            expect(status).toBe(200);
+            expect(remove).toHaveBeenCalledWith('/id/route-unknown', instance.adminUrl, { ifMatch: undefined });
+            expect(files.get(instance.configPath)).toBe(original);
         });
 
         it('writes unconditionally when Caddy sends no ETag', async () => {
@@ -663,9 +733,8 @@ describe('API save paths', () => {
                 expect(caddyPost).toHaveBeenCalledTimes(1);
             });
 
-            it('leaves the file unchanged when the queued route preflight times out before dispatching a write', async () => {
-                caddyGet.mockResolvedValueOnce(servers)
-                    .mockRejectedValueOnce(new CaddyTimeoutError('GET /config/apps/http/servers', 10000));
+            it("leaves the file unchanged when the route's server read times out before dispatching a write", async () => {
+                caddyGet.mockRejectedValueOnce(new CaddyTimeoutError('GET /config/apps/http/servers', 10000));
                 const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
                 expect(status).toBe(503);
                 expect(body).toMatchObject({ code: 'CADDY_CONFIG_UNAVAILABLE' });

@@ -1,7 +1,5 @@
-import { AppError } from './AppError.js';
-import { readJsonFile, writeJsonFile } from './jsonFile.js';
+import { CorruptJsonError, createJsonStore } from './jsonFile.js';
 import logger from './logger.js';
-import { createSerialQueue } from './serialQueue.js';
 
 const ROUTE_NOTES_PATH = process.env.ROUTE_NOTES_PATH || '/etc/caddy-ui/route-notes.json';
 const STATE_VERSION = 2;
@@ -11,75 +9,59 @@ const STATE_VERSION = 2;
 // no recorded owner and load as unassigned. A domain key may list several
 // hosts ("a.example.com, b.example.com").
 
-const serialize = createSerialQueue();
-
 const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
-const readFailed = (cause) => new AppError('ROUTE_NOTES_READ_FAILED', { cause, context: { path: ROUTE_NOTES_PATH } });
 
 function notesOnly(entries) {
     return Object.fromEntries(Object.entries(isObject(entries) ? entries : {}).filter(([, note]) => typeof note === 'string'));
 }
 
-// The file is read on every call, so manual edits apply without a restart. A
-// missing file means no notes yet; an unreadable or corrupt file throws, so
-// it's never treated as empty and then overwritten.
-async function readStore() {
-    let parsed;
-    try {
-        parsed = await readJsonFile(ROUTE_NOTES_PATH);
-    } catch (err) {
-        throw readFailed(err);
-    }
+// A missing file means no notes yet. A file that isn't an object is set aside
+// rather than overwritten.
+function parseNotes(parsed) {
     if (parsed === undefined) return { instances: {}, unassigned: {} };
-    if (!isObject(parsed)) throw readFailed();
+    if (!isObject(parsed)) {
+        throw new CorruptJsonError(ROUTE_NOTES_PATH, new TypeError('Route notes must be a JSON object'));
+    }
     if (parsed.version !== STATE_VERSION) return { instances: {}, unassigned: notesOnly(parsed) };
     const instances = {};
     for (const [id, entries] of Object.entries(isObject(parsed.instances) ? parsed.instances : {})) instances[id] = notesOnly(entries);
     return { instances, unassigned: notesOnly(parsed.unassigned) };
 }
 
-async function writeStore(store) {
-    for (const [id, entries] of Object.entries(store.instances)) {
-        if (!Object.keys(entries).length) delete store.instances[id];
-    }
-    await writeJsonFile(ROUTE_NOTES_PATH, { version: STATE_VERSION, ...store });
+const store = createJsonStore(ROUTE_NOTES_PATH, {
+    parse: parseNotes,
+    serialize: ({ instances, unassigned }) => ({
+        version: STATE_VERSION,
+        instances: Object.fromEntries(Object.entries(instances).filter(([, entries]) => Object.keys(entries).length)),
+        unassigned,
+    }),
+});
+
+export function loadRouteNotes() {
+    return store.load();
 }
 
-// Serializes read-modify-write cycles so concurrent edits don't drop each other
-function update(change) {
-    return serialize(async () => {
-        const store = await readStore();
-        if (await change(store) !== false) await writeStore(store);
-    });
+export function getInstanceNotes(instanceId) {
+    return { ...(store.get().instances[instanceId] || {}) };
 }
 
-export async function getInstanceNotes(instanceId) {
-    const store = await readStore();
-    return { ...(store.instances[instanceId] || {}) };
+export function hasUnassignedNotes() {
+    return Object.keys(store.get().unassigned).length > 0;
 }
 
-export async function hasUnassignedNotes() {
-    return Object.keys((await readStore()).unassigned).length > 0;
-}
-
-// Whether any note is stored, in either format. Unreadable counts as none,
-// matching how Caddyfile title detection treated it before.
-export async function hasStoredNotes() {
-    try {
-        const store = await readStore();
-        return Object.keys(store.unassigned).length > 0
-            || Object.values(store.instances).some(entries => Object.keys(entries).length > 0);
-    } catch {
-        return false;
-    }
+// Whether any note is stored, in either format.
+export function hasStoredNotes() {
+    const { instances, unassigned } = store.get();
+    return Object.keys(unassigned).length > 0
+        || Object.values(instances).some(entries => Object.keys(entries).length > 0);
 }
 
 export function setInstanceNote(instanceId, domain, note) {
-    return update(store => {
-        const entries = { ...(store.instances[instanceId] || {}) };
+    return store.update(state => {
+        const entries = { ...(state.instances[instanceId] || {}) };
         if (note) entries[domain] = note;
         else delete entries[domain];
-        store.instances[instanceId] = entries;
+        state.instances[instanceId] = entries;
     });
 }
 
@@ -87,13 +69,13 @@ export function setInstanceNote(instanceId, domain, note) {
 // id doesn't inherit them, while an instance that serves the same hosts can
 // still pick them up.
 export function releaseInstanceNotes(instanceId) {
-    return update(store => {
-        const entries = store.instances[instanceId];
+    return store.update(state => {
+        const entries = state.instances[instanceId];
         if (!entries) return false;
         for (const [domain, note] of Object.entries(entries)) {
-            if (!(domain in store.unassigned)) store.unassigned[domain] = note;
+            if (!(domain in state.unassigned)) state.unassigned[domain] = note;
         }
-        delete store.instances[instanceId];
+        delete state.instances[instanceId];
     });
 }
 
@@ -106,22 +88,22 @@ const servedBy = (hosts, domain) => hosts && domain.split(', ').some(host => hos
 // when its config can't be read; nothing is assigned until every instance can
 // be read. Notes no instance serves stay unassigned for pruneOrphanedNotes.
 export function claimUnassignedNotes(instances, hostsFor) {
-    return update(async store => {
-        if (!Object.keys(store.unassigned).length) return false;
+    return store.update(async state => {
+        if (!Object.keys(state.unassigned).length) return false;
         const hosts = await Promise.all(instances.map(hostsFor));
         if (hosts.includes(null)) return false;
         let claimed = false;
-        for (const [domain, note] of Object.entries(store.unassigned)) {
+        for (const [domain, note] of Object.entries(state.unassigned)) {
             const owners = instances.filter((_, i) => servedBy(hosts[i], domain));
             if (!owners.length) continue;
             for (const inst of owners) {
-                store.instances[inst.id] = { [domain]: note, ...(store.instances[inst.id] || {}) };
+                state.instances[inst.id] = { [domain]: note, ...(state.instances[inst.id] || {}) };
             }
-            delete store.unassigned[domain];
+            delete state.unassigned[domain];
             claimed = true;
             logger.info('Assigned a route note saved before notes were per instance', { domain, instances: owners.map(inst => inst.id) });
         }
-        return claimed;
+        return claimed ? undefined : false;
     });
 }
 
@@ -129,10 +111,10 @@ export function claimUnassignedNotes(instances, hostsFor) {
 // config can't be read keeps all of its notes, and unassigned notes are only
 // removed when every instance could be read.
 export function pruneOrphanedNotes(instances, hostsFor) {
-    return update(async store => {
+    return store.update(async state => {
         const hosts = new Map(await Promise.all(instances.map(async inst => [inst.id, await hostsFor(inst)])));
         const removed = [];
-        for (const [id, entries] of Object.entries(store.instances)) {
+        for (const [id, entries] of Object.entries(state.instances)) {
             if (!hosts.has(id) || !hosts.get(id)) continue;
             for (const domain of Object.keys(entries)) {
                 if (!servedBy(hosts.get(id), domain)) {
@@ -143,9 +125,9 @@ export function pruneOrphanedNotes(instances, hostsFor) {
         }
         const unreadable = [...hosts].filter(([, served]) => !served).map(([id]) => id);
         if (!unreadable.length) {
-            for (const domain of Object.keys(store.unassigned)) {
+            for (const domain of Object.keys(state.unassigned)) {
                 if (![...hosts.values()].some(served => servedBy(served, domain))) {
-                    delete store.unassigned[domain];
+                    delete state.unassigned[domain];
                     removed.push(domain);
                 }
             }

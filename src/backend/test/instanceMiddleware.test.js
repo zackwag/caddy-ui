@@ -20,6 +20,7 @@ let server;
 let baseUrl;
 let instances;
 const handler = vi.fn((req, res) => res.json({ instance: req.instance.id }));
+const adminUrlHandler = vi.fn((req, res) => res.json({ adminUrl: req.instance.adminUrl }));
 
 beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'caddy-ui-instances-'));
@@ -31,6 +32,7 @@ beforeAll(async () => {
         app.use('/api', instanceMiddleware);
         app.get('/api/caddyfile', handler);
         app.put('/api/caddyfile', handler);
+        app.get('/api/admin-url', adminUrlHandler);
     });
     baseUrl = server.url + '/api/caddyfile';
 });
@@ -96,6 +98,14 @@ describe('instance selection', () => {
         expect(res.status).toBe(404);
         expect(await res.json()).toMatchObject({ code: 'INSTANCE_SELECTION_INVALID' });
         expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('gives a request the admin URL background work keys its state by', async () => {
+        await writeFile(process.env.INSTANCES_PATH, JSON.stringify([{ ...instance('alpha'), adminUrl: 'http://Caddy:2019/' }]));
+        await instances.loadInstances();
+        const res = await fetch(`${server.url}/api/admin-url`, { headers: { 'X-Instance-Id': 'alpha' } });
+        expect(await res.json()).toEqual({ adminUrl: 'http://caddy:2019' });
+        expect(instances.getInstances()[0].adminUrl).toBe('http://caddy:2019');
     });
 
     it('still reports NO_INSTANCES when nothing is configured', async () => {
