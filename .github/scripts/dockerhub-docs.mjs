@@ -190,35 +190,9 @@ export function parseBlocks(markdown) {
         }
 
         // Inside a fenced code block, markers are literal text.
-        if (fence) {
-            if (active) active.lines.push(line);
-
-            const closing = line.match(/^ {0,3}(`+|~+)\s*$/);
-            if (
-                closing &&
-                closing[1][0] === fence.character &&
-                closing[1].length >= fence.length
-            ) {
-                fence = null;
-            }
-
-            continue;
-        }
-
-        const openingFence = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-        if (
-            openingFence &&
-            !(
-                openingFence[1][0] === '`' &&
-                openingFence[2].includes('`')
-            )
-        ) {
-            fence = {
-                character: openingFence[1][0],
-                length: openingFence[1].length,
-                line: lineNumber,
-            };
-
+        const fenced = fence;
+        fence = fenceAfter(fence, line, lineNumber);
+        if (fenced || fence) {
             if (active) active.lines.push(line);
             continue;
         }
@@ -322,6 +296,18 @@ export function parseBlocks(markdown) {
     return blocks;
 }
 
+// The fenced code block open after `line`: `fence` until a line closes it,
+// or a new one when `line` opens one.
+function fenceAfter(fence, line, lineNumber) {
+    if (fence) {
+        const closing = line.match(/^ {0,3}(`+|~+)\s*$/);
+        return closing && closing[1][0] === fence.character && closing[1].length >= fence.length ? null : fence;
+    }
+    const opening = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (!opening || (opening[1][0] === '`' && opening[2].includes('`'))) return null;
+    return { character: opening[1][0], length: opening[1].length, line: lineNumber };
+}
+
 // Use the same protected-region scanner for parsing and link conversion.
 export function absoluteLinks(markdown) {
     const lines = markdown.split('\n');
@@ -332,18 +318,9 @@ export function absoluteLinks(markdown) {
         if (state.htmlRegion || state.inlineTicks !== null) {
             return scanLine(line, index, lines, state, rewriteAnchors);
         }
-        if (fence) {
-            const closing = line.match(/^ {0,3}(`+|~+)\s*$/);
-            if (closing && closing[1][0] === fence.character && closing[1].length >= fence.length) {
-                fence = null;
-            }
-            return line;
-        }
-        const opening = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-        if (opening && !(opening[1][0] === '`' && opening[2].includes('`'))) {
-            fence = { character: opening[1][0], length: opening[1].length };
-            return line;
-        }
+        const fenced = fence;
+        fence = fenceAfter(fence, line, index + 1);
+        if (fenced || fence) return line;
         if (/^(?: {4}|\t)/.test(line)) return line;
         return scanLine(line, index, lines, state, rewriteAnchors);
     }).join('\n');

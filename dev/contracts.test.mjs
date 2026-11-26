@@ -1,6 +1,7 @@
 // What the backend and frontend packages must agree on. They're built and
 // deployed separately, so nothing else connects these lists.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { ERROR_REGISTRY } from '../src/backend/src/errorRegistry.js';
 import { REQUIRED_VARS } from '../src/backend/src/customThemes.js';
@@ -32,4 +33,15 @@ test('the UI starts from the settings the backend stores', () => {
 
 test('every notification trigger is labeled in the UI', () => {
     assert.deepEqual(Object.keys(getNotificationConfig().triggers).filter(trigger => typeof message(`notifications.${trigger}`) !== 'string'), []);
+});
+
+test("the documentation's mdBook themes use the UI's default palettes", () => {
+    const css = readFileSync(new URL('../docs/theme/palettes.css', import.meta.url), 'utf8');
+    const modes = { light: 'light', rust: 'light', navy: 'dark', coal: 'dark', ayu: 'dark' };
+    const themes = Object.fromEntries([...css.matchAll(/^\.(\w+) \{([^}]*)\}/gm)].map(([, name, body]) =>
+        [name, Object.fromEntries([...body.matchAll(/--app-([\w-]+): ([^;]+);/g)].map(([, name, value]) => [`--${name}`, value]))]));
+    assert.deepEqual(Object.keys(themes).sort(), Object.keys(modes).sort());
+    for (const [name, mode] of Object.entries(modes)) {
+        assert.deepEqual(themes[name], THEME_LIST.find(theme => theme.id === DEFAULT_PALETTES[mode]).vars, name);
+    }
 });
