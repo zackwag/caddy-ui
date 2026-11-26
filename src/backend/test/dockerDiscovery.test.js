@@ -7,10 +7,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // A fake Docker API on a socket of its own
 const dir = mkdtempSync(join(tmpdir(), 'caddy-ui-docker-'));
-const docker = { requests: [], self: null, containers: null };
+const docker = { requests: [], self: null, named: null, containers: null };
 const server = createServer((req, res) => {
     docker.requests.push(req.url);
-    const body = req.url === '/containers/backend-host/json' ? docker.self : req.url.startsWith('/containers/json') ? docker.containers : null;
+    const body = { '/containers/backend-host/json': docker.self, '/containers/caddy-ui-backend/json': docker.named }[req.url]
+        ?? (req.url.startsWith('/containers/json') ? docker.containers : null);
     res.statusCode = body ? 200 : 500;
     res.end(body ? JSON.stringify(body) : 'daemon error');
 });
@@ -75,5 +76,16 @@ describe('Docker discovery', () => {
         expect(await getBackendUrl()).toBe('caddy-ui-backend:3001');
         expect(docker.requests).toHaveLength(lookups);
         warn.mockRestore();
+    });
+
+    it('falls back to a container named caddy-ui-backend when the hostname is not its id', async () => {
+        vi.resetModules();
+        const { getBackendUrl: backendUrl } = await import('../src/dockerDiscovery.js');
+        docker.self = null;
+        docker.named = { Name: '/caddy-ui-backend' };
+        expect(await backendUrl()).toBe('caddy-ui-backend:3001');
+        expect(docker.requests).toEqual(['/containers/backend-host/json', '/containers/caddy-ui-backend/json']);
+        expect(await backendUrl()).toBe('caddy-ui-backend:3001');
+        expect(docker.requests).toHaveLength(2);
     });
 });

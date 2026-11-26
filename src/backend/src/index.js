@@ -1,7 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { loadCustomThemes } from './customThemes.js';
-import { getInstances, loadInstances, onInstanceRemoved, onInstanceSaved } from './instances.js';
+import { getInstances, loadInstances, onInstanceRemoved, onInstanceSaved, storedInstanceIds } from './instances.js';
 import logger from './logger.js';
 import { diagnosticMiddleware, errorHandler } from './errorReporting.js';
 import { parseExternalUrls } from './externalUrls.js';
@@ -162,7 +162,7 @@ app.use(errorHandler);
 
 await loadInstances();
 await migrateLegacyHistory();
-await loadServerNames(getInstances().map(i => i.id));
+await loadServerNames(storedInstanceIds());
 await loadSettings();
 await loadAuditLog();
 await loadMaintenance();
@@ -181,14 +181,14 @@ onInstanceSaved(() => {
 });
 await initNotifications({ apiTokens: () => authentication.apiTokenMetadata() });
 onCheckResults(notifyCheckResults);
-// A Caddy that wasn't up when caddy-ui started can now be read. Upstream
-// rounds run every 30s whatever the settings.
-onCheckResults(kind => {
+// An instance whose check succeeded can be read again, so a claim that
+// couldn't read it is retried. Upstream rounds run every 30s whatever the settings.
+onCheckResults((kind, instance) => {
     if (kind !== 'upstream') {
         return;
     }
-    retrySavedMaintenanceClaim();
-    retryNoteClaims();
+    retrySavedMaintenanceClaim(instance.id);
+    retryNoteClaims(instance.id);
 });
 onExternalConfigurationChange(notifyConfigurationChange);
 startMonitoring();

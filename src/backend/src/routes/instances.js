@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { caddyGet, isCaddyOnline } from '../caddy.js';
 import { discoverCaddyContainers } from '../dockerDiscovery.js';
 import { audited } from '../auditLog.js';
-import { INSTANCE_DEFAULTS, addInstance, generateId, getInstances, removeInstance, serverIdsFromConfig, updateInstance } from '../instances.js';
+import { addInstance, generateId, getInstances, removeInstance, serverIdsFromConfig, updateInstance } from '../instances.js';
 import { AppError, asAppError } from '../AppError.js';
 import { validateUrl } from '../validation.js';
 
@@ -63,7 +63,7 @@ router.post('/', async (req, res) => {
             configPath: configPath || undefined,
             logPath: logPath || undefined,
             dataPath: dataPath || undefined,
-            containerName: containerName ?? INSTANCE_DEFAULTS.containerName,
+            containerName,
             serverName,
         }));
     } catch (err) {

@@ -18,7 +18,7 @@ import { getHost } from './upstreamChecks.js';
 // between instead of overwriting someone else's change. That's a confirmed
 // rejection, never retried: a retry would act on a state nobody reviewed.
 // Without an ETag (Caddy before 2.6) the write is unconditional, as before.
-export function ifUnchanged(write) {
+function ifUnchanged(write) {
     return async () => {
         try {
             return await write();

@@ -75,7 +75,7 @@ export async function writeJsonFile(path, value, { mode = 0o644, dirMode, exclus
 
 // Like readJsonFile, but a file that can't be parsed is moved out of the way
 // and reads as missing, so starting from defaults can't overwrite it. `parse`
-// turns the contents into state.
+// turns the contents into state, and is told when the file was set aside.
 export async function readJsonState(path, parse = value => value) {
     try {
         return parse(await readJsonFile(path));
@@ -86,7 +86,7 @@ export async function readJsonState(path, parse = value => value) {
         const target = `${path}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
         await rename(path, target);
         logger.error('A state file could not be parsed; it was set aside and defaults are used', { path, savedAs: target, error: error.cause?.message });
-        return parse(undefined);
+        return parse(undefined, { setAside: true });
     }
 }
 

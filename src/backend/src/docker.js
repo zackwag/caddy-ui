@@ -51,7 +51,7 @@ export async function getCaddyEnv(containerName) {
     return env;
 }
 
-const PATH_COMMANDS = new Set(['cat', 'tee', 'ls', 'rm', 'test']);
+const PATH_COMMANDS = new Set(['cat', 'tee', 'ls', 'rm']);
 
 export function dockerExec(containerName, args, input) {
     assertSafeCommand(containerName);

@@ -1,7 +1,7 @@
 import { mkdir, readdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createCaddyfileHistory } from './caddyfileHistory.js';
-import { DEFAULT_INSTANCE_ID, getInstances } from './instances.js';
+import { DEFAULT_INSTANCE_ID, getInstances, instancesComplete } from './instances.js';
 import logger from './logger.js';
 
 const HISTORY_PATH = process.env.HISTORY_PATH || '/etc/caddy-ui/history';
@@ -27,6 +27,10 @@ export function planLegacyHistoryMigration(instances, rootFiles, targetFiles) {
 // by the next save, as usual.
 export async function migrateLegacyHistory() {
     try {
+        // An ignored instances entry could be the default instance they belong to
+        if (!instancesComplete()) {
+            return;
+        }
         const rootFiles = await readdir(HISTORY_PATH).catch(() => []);
         const instances = getInstances();
         const targetId = instances.length === 1 ? instances[0].id : null;

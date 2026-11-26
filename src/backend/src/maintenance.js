@@ -2,8 +2,9 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { caddyfileChildren } from './caddyfileBlocks.js';
 import { readSites } from './caddyfileChange.js';
+import { createClaimReads } from './claimReads.js';
 import { extractSiteBlock } from './caddyfileSites.js';
-import { getInstances } from './instances.js';
+import { getInstances, instancesComplete } from './instances.js';
 import { createJsonStore } from './jsonFile.js';
 import logger from './logger.js';
 
@@ -152,53 +153,48 @@ export function hasUnassignedMaintenance() {
     return store.get().unassigned.length > 0;
 }
 
-// Whether the instance's Caddyfile currently serves the maintenance page for
-// the domain; null when the file can't be read. This is the only evidence used
-// to assign saved state whose owner isn't recorded.
-async function servesMaintenance(instance, domain) {
+// Each instance's Caddyfile and the env its sites resolve from; null when they
+// can't be read. Whether a site serves the maintenance page is the only
+// evidence used to assign saved state whose owner isn't recorded.
+const reads = createClaimReads(async instance => {
     try {
-        const { caddyfile, env } = await readSites(instance);
-        return isMaintenanceBlock(extractSiteBlock(caddyfile, domain, env));
+        return await readSites(instance);
     } catch {
         return null;
     }
-}
-
-// Whether the last claim couldn't read every instance's Caddyfile, so it's
-// worth trying again, and how many claims are running.
-let claimIncomplete = false;
+});
 let claimsRunning = 0;
 
 // Run at startup and whenever an instance is saved, since either can make an
-// owner provable. A claim that couldn't read some instance is retried by
-// retrySavedMaintenanceClaim; entries that were read and match nothing aren't.
-export async function claimSavedMaintenance() {
+// owner provable. Nothing is assigned on behalf of an instance that couldn't
+// be read: retrySavedMaintenanceClaim tries again on its next monitor round.
+// Entries that were read and match nothing aren't retried.
+export async function claimSavedMaintenance({ onlyFailed = false } = {}) {
     claimsRunning++;
-    let unreadable = false;
-    const serves = async (instance, domain) => {
-        const result = await servesMaintenance(instance, domain);
-        if (result === null) {
-            unreadable = true;
-        }
-        return result;
-    };
     try {
-        if (hasUnassignedMaintenance()) {
-            await claimUnassignedMaintenance(getInstances(), serves);
+        // An ignored instances entry could be the owner
+        if (!hasUnassignedMaintenance() || !instancesComplete()) {
+            reads.clear();
+            return;
         }
+        const instances = getInstances();
+        const sites = await reads.readAll(instances, { onlyFailed });
+        await claimUnassignedMaintenance(instances, async (instance, domain) => {
+            const read = sites[instances.indexOf(instance)];
+            return read ? isMaintenanceBlock(extractSiteBlock(read.caddyfile, domain, read.env)) : null;
+        });
     } catch (err) {
         logger.warn('Could not assign saved maintenance state', { error: err.message });
     } finally {
         claimsRunning--;
     }
-    claimIncomplete = unreadable;
 }
 
-// Called after monitor rounds: repeats a claim that couldn't read every
-// instance, unless one is already running.
-export function retrySavedMaintenanceClaim() {
-    if (claimIncomplete && !claimsRunning) {
-        return claimSavedMaintenance();
+// Called after an instance's monitor round: repeats the claim if that
+// instance couldn't be read last time, re-reading only the ones that failed.
+export function retrySavedMaintenanceClaim(instanceId) {
+    if (reads.failed(instanceId) && !claimsRunning) {
+        return claimSavedMaintenance({ onlyFailed: true });
     }
 }
 

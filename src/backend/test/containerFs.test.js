@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock('child_process', () => ({ spawn }));
@@ -8,6 +8,8 @@ const { containerPathExists, describeReadError, readContainerDir, readContainerF
 const { dockerExec } = await import('../src/docker.js');
 
 describe('Docker-mode paths', () => {
+    beforeEach(() => spawn.mockReset());
+
     const operations = {
         read: path => readContainerFile('caddy', path),
         write: path => writeContainerFile('caddy', path, 'content'),
@@ -26,6 +28,17 @@ describe('Docker-mode paths', () => {
             expect(spawn).not.toHaveBeenCalled();
         });
     }
+
+    it('checks that a path exists with a command every test implementation accepts', async () => {
+        const { EventEmitter } = await import('node:events');
+        spawn.mockImplementationOnce(() => {
+            const proc = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter() });
+            setImmediate(() => proc.emit('close', 0));
+            return proc;
+        });
+        expect(await containerPathExists('caddy', '/data/caddy')).toBe(true);
+        expect(spawn).toHaveBeenCalledWith('docker', ['exec', '-i', 'caddy', 'ls', '-d', '--', '/data/caddy'], { shell: false });
+    });
 
     it('requires file commands to separate their paths with --', () => {
         expect(() => dockerExec('caddy', ['cat', '/etc/caddy/Caddyfile'])).toThrow('Missing path argument');

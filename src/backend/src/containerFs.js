@@ -56,7 +56,8 @@ export async function removeContainerPath(containerName, targetPath) {
 export async function containerPathExists(containerName, targetPath) {
     try {
         if (containerName) {
-            await dockerExec(containerName, ['test', '-e', '--', targetPath]);
+            // `test -e -- path` is a syntax error in GNU, BSD and busybox test
+            await dockerExec(containerName, ['ls', '-d', '--', targetPath]);
             return true;
         }
         await access(targetPath);

@@ -54,26 +54,32 @@ export const BACKEND_PORT = process.env.PORT || 3001;
 let backendContainerName = null;
 let detectionFailureLogged = false;
 
-// The backend's own container name, from Docker. Kept once found; a failed
-// lookup is tried again next time and its reason logged once.
+// The backend's own container name, from Docker: the container whose id is
+// this hostname, or else one named caddy-ui-backend, for a compose file that
+// sets `hostname:`. Kept once found; a failed lookup is tried again next time
+// and its reason logged once.
 async function detectBackendContainerName() {
-    const hostname = process.env.HOSTNAME;
-    if (backendContainerName || !hostname) {
+    if (backendContainerName) {
         return backendContainerName;
     }
-    try {
-        const name = (await dockerGet(`/containers/${hostname}/json`)).Name?.replace(/^\//, '');
-        if (name) {
-            backendContainerName = name;
-            logger.info('Detected backend container name', { name });
-        }
-    } catch (err) {
-        if (!detectionFailureLogged) {
-            detectionFailureLogged = true;
-            logger.warn('Could not detect the backend container name; set CADDY_UI_URL for maintenance pages', { error: err.message });
+    let failure;
+    for (const id of [process.env.HOSTNAME, 'caddy-ui-backend'].filter(Boolean)) {
+        try {
+            const name = (await dockerGet(`/containers/${encodeURIComponent(id)}/json`)).Name?.replace(/^\//, '');
+            if (name) {
+                backendContainerName = name;
+                logger.info('Detected backend container name', { name });
+                return name;
+            }
+        } catch (err) {
+            failure = err;
         }
     }
-    return backendContainerName;
+    if (failure && !detectionFailureLogged) {
+        detectionFailureLogged = true;
+        logger.warn('Could not detect the backend container name; set CADDY_UI_URL for maintenance pages', { error: failure.message });
+    }
+    return null;
 }
 
 // Where Caddy reaches the backend, or null when it can't be known.

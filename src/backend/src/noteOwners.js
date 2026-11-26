@@ -1,4 +1,5 @@
-import { getInstances } from './instances.js';
+import { createClaimReads } from './claimReads.js';
+import { getInstances, instancesComplete } from './instances.js';
 import logger from './logger.js';
 import { getServers } from './observations.js';
 import { claimUnassignedNotes, hasUnassignedNotes, pruneOrphanedNotes } from './routeNotes.js';
@@ -23,42 +24,40 @@ async function servedHosts(inst) {
     return hosts;
 }
 
-// Whether the last claim couldn't read every instance's config, so it's worth
-// trying again, and how many claims are running.
-let claimIncomplete = false;
+const reads = createClaimReads(servedHosts);
 let claimsRunning = 0;
 
 // Assigns notes saved before notes were per instance, if there are any. Run
-// at startup and whenever an instance is saved. A claim that couldn't read
-// some instance is retried by retryNoteClaims; notes that were read and match
-// nothing aren't.
-export async function claimNotes() {
+// at startup and whenever an instance is saved. Configs are read outside the
+// notes queue, so a hung instance doesn't hold up note edits. Nothing is
+// assigned while an instance can't be read: retryNoteClaims tries again on
+// that instance's next monitor round. Notes that were read and match nothing
+// aren't retried.
+export async function claimNotes({ onlyFailed = false } = {}) {
     claimsRunning++;
-    let unreadable = false;
-    const hostsFor = async inst => {
-        const hosts = await servedHosts(inst);
-        if (hosts === null) {
-            unreadable = true;
-        }
-        return hosts;
-    };
     try {
-        if (hasUnassignedNotes()) {
-            await claimUnassignedNotes(getInstances(), hostsFor);
+        // An ignored instances entry may serve a note's domain too
+        if (!hasUnassignedNotes() || !instancesComplete()) {
+            reads.clear();
+            return;
+        }
+        const instances = getInstances();
+        const hosts = await reads.readAll(instances, { onlyFailed });
+        if (!hosts.includes(null)) {
+            await claimUnassignedNotes(instances, hosts);
         }
     } catch (e) {
         logger.warn('Route notes could not be assigned', { error: e.message });
     } finally {
         claimsRunning--;
     }
-    claimIncomplete = unreadable;
 }
 
-// Called after monitor rounds: repeats a claim that couldn't read every
-// instance, unless one is already running.
-export function retryNoteClaims() {
-    if (claimIncomplete && !claimsRunning) {
-        return claimNotes();
+// Called after an instance's monitor round: repeats the claim if that
+// instance couldn't be read last time, re-reading only the ones that failed.
+export function retryNoteClaims(instanceId) {
+    if (reads.failed(instanceId) && !claimsRunning) {
+        return claimNotes({ onlyFailed: true });
     }
 }
 
@@ -67,7 +66,9 @@ export function retryNoteClaims() {
 export async function cleanupOrphanedNotes() {
     await claimNotes();
     try {
-        await pruneOrphanedNotes(getInstances(), servedHosts);
+        const instances = getInstances();
+        const hosts = await Promise.all(instances.map(servedHosts));
+        await pruneOrphanedNotes(instances, hosts, { complete: instancesComplete() });
     } catch (e) {
         logger.warn(`Route notes cleanup failed`, { error: e.message });
     }

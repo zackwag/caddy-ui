@@ -33,6 +33,7 @@ process.env.MAINTENANCE_PATH = join(dir, 'maintenance.json');
 process.env.WWW_PATH = join(dir, 'www');
 process.env.CADDY_UI_URL = 'caddy-ui-backend:3001';
 const maintenance = await import('../src/maintenance.js');
+const { readContainerFile } = await import('../src/containerFs.js');
 const { default: routesRouter } = await import('../src/routes/routes.js');
 
 const instance = id => ({ id, name: id, adminUrl: `http://${id}:2019`, configPath: `/etc/${id}/Caddyfile`, logPath: '/var/log/caddy/access.log', dataPath: '/data/caddy', containerName: '', serverName: 'srv0' });
@@ -110,8 +111,12 @@ describe('maintenance state store', () => {
         await maintenance.claimSavedMaintenance();
         expect(maintenance.hasUnassignedMaintenance()).toBe(true);
 
+        // Only the round of the instance that couldn't be read retries, and only it is read again
         files.set(beta.configPath, site('beta-app:3000'));
-        await maintenance.retrySavedMaintenanceClaim();
+        expect(maintenance.retrySavedMaintenanceClaim('alpha')).toBeUndefined();
+        readContainerFile.mockClear();
+        await maintenance.retrySavedMaintenanceClaim('beta');
+        expect(readContainerFile.mock.calls.map(([, path]) => path)).toEqual([beta.configPath]);
         expect(maintenance.getMaintenanceState('alpha')['app.example.com'].originalContent).toBe(site('alpha-app:3000'));
     });
 
@@ -119,7 +124,9 @@ describe('maintenance state store', () => {
         await resetState({ 'app.example.com': { originalContent: 'legacy block' } });
         await maintenance.claimSavedMaintenance();
         files.set(alpha.configPath, 'app.example.com {\n    rewrite * /public/responses/maintenance\n}\n');
-        await maintenance.retrySavedMaintenanceClaim();
+        for (const { id } of [alpha, beta]) {
+            expect(maintenance.retrySavedMaintenanceClaim(id)).toBeUndefined();
+        }
         expect(maintenance.hasUnassignedMaintenance()).toBe(true);
         // An instance save still tries again
         await maintenance.claimSavedMaintenance();

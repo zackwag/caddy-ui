@@ -84,14 +84,12 @@ const servedBy = (hosts, domain) => hosts && domain.split(', ').some(host => hos
 // Gives each unassigned note to every instance that currently serves its
 // domain. Before notes were per instance, a note showed on all of those
 // instances, so copying keeps what each one displayed without picking an
-// owner. hostsFor(instance) resolves to the hosts the instance serves, or null
-// when its config can't be read; nothing is assigned until every instance can
-// be read. Notes no instance serves stay unassigned for pruneOrphanedNotes.
-export function claimUnassignedNotes(instances, hostsFor) {
-    return store.update(async state => {
-        if (!Object.keys(state.unassigned).length) return false;
-        const hosts = await Promise.all(instances.map(hostsFor));
-        if (hosts.includes(null)) return false;
+// owner. hosts[i] is the set of hosts instances[i] serves; the caller reads
+// them all first, outside the queue, and assigns nothing unless every
+// instance could be read. Notes no instance serves stay unassigned for
+// pruneOrphanedNotes.
+export function claimUnassignedNotes(instances, hosts) {
+    return store.update(state => {
         let claimed = false;
         for (const [domain, note] of Object.entries(state.unassigned)) {
             const owners = instances.filter((_, i) => servedBy(hosts[i], domain));
@@ -107,32 +105,33 @@ export function claimUnassignedNotes(instances, hostsFor) {
     });
 }
 
-// Removes notes for domains their instance no longer serves. An instance whose
-// config can't be read keeps all of its notes, and unassigned notes are only
-// removed when every instance could be read.
-export function pruneOrphanedNotes(instances, hostsFor) {
-    return store.update(async state => {
-        const hosts = new Map(await Promise.all(instances.map(async inst => [inst.id, await hostsFor(inst)])));
+// Removes notes for domains their instance no longer serves. hosts[i] is what
+// instances[i] serves, or null when its config couldn't be read; such an
+// instance keeps all of its notes. Unassigned notes are only removed when
+// every instance could be read and `complete` says the list has them all.
+export function pruneOrphanedNotes(instances, hosts, { complete }) {
+    return store.update(state => {
+        const served = new Map(instances.map((inst, i) => [inst.id, hosts[i]]));
         const removed = [];
         for (const [id, entries] of Object.entries(state.instances)) {
-            if (!hosts.has(id) || !hosts.get(id)) continue;
+            if (!served.get(id)) continue;
             for (const domain of Object.keys(entries)) {
-                if (!servedBy(hosts.get(id), domain)) {
+                if (!servedBy(served.get(id), domain)) {
                     delete entries[domain];
                     removed.push(`${id}:${domain}`);
                 }
             }
         }
-        const unreadable = [...hosts].filter(([, served]) => !served).map(([id]) => id);
-        if (!unreadable.length) {
+        const unreadable = [...served].filter(([, hostSet]) => !hostSet).map(([id]) => id);
+        if (!unreadable.length && complete) {
             for (const domain of Object.keys(state.unassigned)) {
-                if (![...hosts.values()].some(served => servedBy(served, domain))) {
+                if (![...served.values()].some(hostSet => servedBy(hostSet, domain))) {
                     delete state.unassigned[domain];
                     removed.push(domain);
                 }
             }
         } else {
-            logger.warn('Route notes cleanup skipped instances whose Caddy config is unavailable', { instances: unreadable });
+            logger.warn('Route notes cleanup kept unassigned notes: not every instance could be read', { instances: unreadable, instancesComplete: complete });
         }
         if (!removed.length) return false;
         logger.info('Cleaned up orphaned route notes', { removed: removed.length });

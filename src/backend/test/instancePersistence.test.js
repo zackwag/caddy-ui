@@ -140,7 +140,7 @@ describe('stored instances', () => {
     };
 
     it('normalizes a hand-edited file into the form requests use', async () => {
-        const [loaded] = await reload([{ id: 'alpha', adminUrl: 'http://Caddy:2019/', configPath: '/etc/caddy/../caddy/Caddyfile', containerName: 'cad dy' }]);
+        const { instances: [loaded] } = await reload([{ id: 'alpha', adminUrl: 'http://Caddy:2019/', configPath: '/etc/caddy/../caddy/Caddyfile' }]);
         expect(loaded).toEqual({
             id: 'alpha', name: 'alpha', adminUrl: 'http://caddy:2019', configPath: '/etc/caddy/Caddyfile',
             logPath: '/var/log/caddy/access.log', dataPath: '/data/caddy', containerName: 'caddy', serverName: 'srv0',
@@ -148,20 +148,47 @@ describe('stored instances', () => {
         expect(instances.getInstance('alpha')).toBe(loaded);
     });
 
-    it('treats a missing container name as local mode', async () => {
-        const { containerName, ...local } = instance('alpha');
+    it('fills a missing container name from the defaults and keeps an empty one as local mode', async () => {
+        const { containerName, ...unnamed } = instance('alpha');
         expect(containerName).toBe('');
-        await reload([local]);
-        expect(instances.getInstance('alpha').containerName).toBe('');
+        await reload([unnamed, instance('beta')]);
+        expect(instances.getInstance('alpha').containerName).toBe('caddy');
+        expect(instances.getInstance('beta').containerName).toBe('');
+        const { containerName: omitted, ...added } = instance('gamma');
+        expect(omitted).toBe('');
+        expect((await instances.addInstance(added)).containerName).toBe('caddy');
     });
 
     it.each([
         ['an admin URL that is not http', { adminUrl: 'ftp://caddy:2019' }],
         ['a path outside the allowed directories', { configPath: '/root/Caddyfile' }],
-        ['an instance without an id', { id: undefined }],
-    ])('sets aside a file with %s instead of using it', async (_, override) => {
-        expect(await reload([instance('beta'), { ...instance('alpha'), ...override }])).toEqual([]);
+        ['a container name that would need changing', { containerName: 'cad dy' }],
+        ['no id', { id: undefined }],
+    ])('ignores an entry with %s but keeps it in the file', async (_, override) => {
+        const bad = { ...instance('alpha'), ...override };
+        await reload([instance('beta'), bad, instance('delta')]);
+        expect(instances.getInstances().map(value => value.id)).toEqual(['beta', 'delta']);
+        expect(instances.getInstance('alpha')).toBeNull();
+        expect(instances.instancesComplete()).toBe(false);
+        expect((await readdir(directory)).some(name => name.startsWith('instances.json.corrupt-'))).toBe(false);
+
+        await instances.updateInstance('beta', { name: 'Beta updated' });
+        await instances.addInstance(instance('gamma'));
+        expect(JSON.parse(await readFile(file, 'utf8'))).toEqual([
+            { ...instance('beta'), name: 'Beta updated' }, instance('delta'), instance('gamma'), JSON.parse(JSON.stringify(bad)),
+        ]);
+    });
+
+    it("won't add an instance with an ignored entry's id", async () => {
+        await reload([{ ...instance('alpha'), configPath: '/root/Caddyfile' }]);
+        await expect(instances.addInstance(instance('alpha'))).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(instances.generateId('alpha')).toBe('alpha-2');
+    });
+
+    it('sets aside a file that is not a list of instances', async () => {
+        expect((await reload({ alpha: instance('alpha') })).instances).toEqual([]);
         expect((await readdir(directory)).some(name => name.startsWith('instances.json.corrupt-'))).toBe(true);
+        expect(instances.instancesComplete()).toBe(false);
     });
 
     it.each([
@@ -169,7 +196,7 @@ describe('stored instances', () => {
         ['serverName', 'srv 0'],
         ['adminUrl', 'file:///etc/passwd'],
         ['logPath', '/root/access.log'],
-    ])('rejects an added or updated %s that would need changing', async (field, value) => {
+    ])('rejects an added or updated %s that is not safe', async (field, value) => {
         await expect(instances.addInstance({ ...instance('gamma'), [field]: value }))
             .rejects.toMatchObject({ code: 'VALIDATION_FAILED', context: { field } });
         await expect(instances.updateInstance('alpha', { [field]: value }))

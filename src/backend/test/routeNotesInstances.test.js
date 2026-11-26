@@ -5,10 +5,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { serve } from './fixtures/server.mjs';
 import { markConfigChanged } from '../src/caddy.js';
 
-const { caddyGet, instances } = vi.hoisted(() => ({ caddyGet: vi.fn(), instances: [] }));
+const { caddyGet, instances, listed } = vi.hoisted(() => ({ caddyGet: vi.fn(), instances: [], listed: { complete: true } }));
 
 vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyGet }));
-vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => instances }));
+vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => instances, instancesComplete: () => listed.complete }));
 vi.mock('../src/caddyfileTitles.js', async importOriginal => ({ ...await importOriginal(), caddyfileTitlesEnabled: () => false }));
 
 const root = await mkdtemp(join(tmpdir(), 'caddy-ui-notes-'));
@@ -55,6 +55,7 @@ beforeEach(async () => {
     for (const name of await readdir(root)) await rm(join(root, name), { force: true });
     await store.loadRouteNotes();
     instances.splice(0, instances.length, alpha, beta);
+    listed.complete = true;
     caddyGet.mockReset().mockImplementation(async () => serving('app.example.com'));
 });
 
@@ -123,9 +124,12 @@ describe('route notes per instance', () => {
         expect(await getNotes('alpha')).toEqual({});
         expect(JSON.parse(await readFile(notesPath, 'utf8'))).toEqual({ 'app.example.com': 'Shared' });
 
-        // The next monitor round retries it
+        // Only the unreadable instance's next round retries it, reading only that instance
         caddyGet.mockImplementation(async () => serving('app.example.com'));
-        await retryNoteClaims();
+        expect(retryNoteClaims('alpha')).toBeUndefined();
+        caddyGet.mockClear();
+        await retryNoteClaims('beta');
+        expect(caddyGet.mock.calls.map(([, adminUrl]) => adminUrl)).toEqual([beta.adminUrl]);
         expect(await getNotes('alpha')).toEqual({ 'app.example.com': 'Shared' });
     });
 
@@ -134,7 +138,9 @@ describe('route notes per instance', () => {
         await loadAndClaim({ 'app.example.com': 'Shared' });
         caddyGet.mockImplementation(async () => serving('app.example.com'));
         for (const inst of [alpha, beta]) markConfigChanged(inst.adminUrl);
-        await retryNoteClaims();
+        for (const { id } of [alpha, beta]) {
+            expect(retryNoteClaims(id)).toBeUndefined();
+        }
         expect(await getNotes('alpha')).toEqual({});
         // An instance save still tries again
         await claimNotes();
@@ -194,5 +200,24 @@ describe('route notes per instance', () => {
     it('serializes concurrent edits so none is lost', async () => {
         await Promise.all(['a', 'b', 'c', 'd'].map(n => putNote('alpha', `${n}.example.com`, n)));
         expect(Object.keys((await saved()).instances.alpha).sort()).toEqual(['a.example.com', 'b.example.com', 'c.example.com', 'd.example.com']);
+    });
+
+    it("doesn't hold up note edits while a claim waits on an instance", async () => {
+        const hung = Promise.withResolvers();
+        caddyGet.mockImplementation(async (path, adminUrl) => (adminUrl === beta.adminUrl ? hung.promise : serving('app.example.com')));
+        await load({ 'app.example.com': 'Shared' });
+        const claim = claimNotes();
+        expect((await putNote('alpha', 'other.example.com', 'Edited')).status).toBe(200);
+        hung.resolve(serving('app.example.com'));
+        await claim;
+        expect(await getNotes('alpha')).toEqual({ 'other.example.com': 'Edited', 'app.example.com': 'Shared' });
+    });
+
+    it('neither assigns nor prunes old notes while an instances entry is ignored', async () => {
+        listed.complete = false;
+        await load({ 'app.example.com': 'Shared', 'gone.example.com': 'Old' });
+        await cleanupOrphanedNotes();
+        expect(await getNotes('alpha')).toEqual({});
+        expect(await saved()).toEqual({ 'app.example.com': 'Shared', 'gone.example.com': 'Old' });
     });
 });
