@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "source": {
-    "commit": "42e8ba75cf6cb4f64974158cf5f6eb03f674f72b",
+    "commit": "f35afd5e033a58c1f978ec3fa5a68cadcf08c192",
     "caddyImage": "caddy:2.10.2-alpine"
   },
   "csrfContext": {
     "source": {
-      "commit": "42e8ba75cf6cb4f64974158cf5f6eb03f674f72b"
+      "commit": "f35afd5e033a58c1f978ec3fa5a68cadcf08c192"
     },
     "record": {
       "request": {
@@ -18,7 +18,7 @@
         "status": 200,
         "headers": {
           "content-type": "application/json; charset=utf-8",
-          "x-request-id": "62cf17e2-4398-4553-bef2-dec4a8472c27"
+          "x-request-id": "e8d41326-be7d-413d-a77b-32c77b7f64a7"
         },
         "body": {
           "csrfToken": "offline-preview-context"
@@ -57,7 +57,7 @@
               "routeCount": 3,
               "upstreamsOnline": 0,
               "upstreamsTotal": 0,
-              "uptime": "1s",
+              "uptime": "2s",
               "tlsEnabled": true,
               "servers": [
                 {
@@ -87,9 +87,9 @@
             "body": {
               "ok": true,
               "version": "v2.10.2",
-              "uptime": "1s",
-              "uptimeSeconds": 1,
-              "memAlloc": 4.7,
+              "uptime": "2s",
+              "uptimeSeconds": 2,
+              "memAlloc": 4.6,
               "memSys": 18.1,
               "lastReload": "2025-01-01T12:00:00.000Z",
               "lastReloadSuccess": true
@@ -161,7 +161,7 @@
               "routeCount": 0,
               "upstreamsOnline": 0,
               "upstreamsTotal": 0,
-              "uptime": "13s",
+              "uptime": "14s",
               "tlsEnabled": true,
               "servers": [],
               "adminUrl": "http://caddy-preview:2019"
@@ -183,11 +183,11 @@
             "body": {
               "ok": true,
               "version": "v2.10.2",
-              "uptime": "13s",
-              "uptimeSeconds": 13,
-              "memAlloc": 10.1,
+              "uptime": "14s",
+              "uptimeSeconds": 14,
+              "memAlloc": 10,
               "memSys": 22.1,
-              "lastReload": "2025-01-01T12:00:07.239Z",
+              "lastReload": "2025-01-01T12:00:07.524Z",
               "lastReloadSuccess": true
             }
           }
@@ -354,8 +354,8 @@
               "p95": 0,
               "p99": 0,
               "rps": 0,
-              "uptimeSeconds": 1,
-              "scrapedAt": "2025-01-01T12:00:00.454Z"
+              "uptimeSeconds": 2,
+              "scrapedAt": "2025-01-01T11:59:59.984Z"
             }
           }
         },
@@ -527,8 +527,8 @@
             },
             "body": {
               "lines": [
-                "{\"level\":\"info\",\"ts\":1795643255.9056466,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"49759\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:49740\",\"uri\":\"/health\",\"headers\":{\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000036875,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
-                "{\"level\":\"error\",\"ts\":1795643255.9120505,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"49761\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"127.0.0.1:49740\",\"uri\":\"/error\",\"headers\":{\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000023875,\"size\":21,\"status\":503,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}"
+                "{\"level\":\"info\",\"ts\":1795672805.697234,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"57343\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-preview:80\",\"uri\":\"/health\",\"headers\":{\"Accept\":[\"*/*\"],\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000025292,\"size\":2,\"status\":200,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}",
+                "{\"level\":\"error\",\"ts\":1795672805.7059612,\"logger\":\"http.log.access.log0\",\"msg\":\"handled request\",\"request\":{\"remote_ip\":\"192.0.2.10\",\"remote_port\":\"57345\",\"client_ip\":\"192.0.2.10\",\"proto\":\"HTTP/1.1\",\"method\":\"GET\",\"host\":\"caddy-preview:80\",\"uri\":\"/error\",\"headers\":{\"Accept-Language\":[\"*\"],\"Sec-Fetch-Mode\":[\"cors\"],\"User-Agent\":[\"node\"],\"Accept-Encoding\":[\"gzip, deflate\"],\"Connection\":[\"keep-alive\"],\"Accept\":[\"*/*\"]}},\"bytes_read\":0,\"user_id\":\"\",\"duration\":0.000014333,\"size\":21,\"status\":503,\"resp_headers\":{\"Server\":[\"Caddy\"],\"Content-Type\":[\"text/plain; charset=utf-8\"]}}"
               ],
               "path": "/data/dev-caddy/logs/access.log"
             }
@@ -667,7 +667,7 @@
               "routeCount": 3,
               "upstreamsOnline": 0,
               "upstreamsTotal": 0,
-              "uptime": "2s",
+              "uptime": "3s",
               "tlsEnabled": true,
               "servers": [
                 {
@@ -965,8 +965,8 @@
                 "domain": "preview.internal",
                 "issuer": "internal",
                 "issuerDir": "local",
-                "validFrom": "Nov 25 21:47:37 2026 GMT",
-                "validTo": "Nov 26 09:47:37 2026 GMT",
+                "validFrom": "Nov 26 06:00:07 2026 GMT",
+                "validTo": "Nov 26 18:00:07 2026 GMT",
                 "daysRemaining": 0,
                 "isManaged": false,
                 "isInternal": true,
@@ -1057,12 +1057,12 @@
     },
     {
       "id": "route-history-empty",
-      "clock": 1795643256713,
+      "clock": 1795672806025,
       "requests": [
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1795639656713",
+            "path": "/health/history?route=preview.home.arpa&since=1795669206025",
             "body": null
           },
           "response": {
@@ -1081,7 +1081,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1795621656713",
+            "path": "/health/history?route=preview.home.arpa&since=1795651206025",
             "body": null
           },
           "response": {
@@ -1100,7 +1100,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1795556856713",
+            "path": "/health/history?route=preview.home.arpa&since=1795586406025",
             "body": null
           },
           "response": {
@@ -1119,7 +1119,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/health/history?route=preview.home.arpa&since=1795038456713",
+            "path": "/health/history?route=preview.home.arpa&since=1795068006025",
             "body": null
           },
           "response": {
@@ -1204,9 +1204,9 @@
             },
             "body": [
               {
-                "filename": "Caddyfile-2026-11-25T21-47-37-101Z-00000000-0000-4000-8000-000000000052.json",
-                "timestamp": "2025-01-01T12:00:01.454Z",
-                "parent": "Caddyfile-2026-11-25T21-47-35-933Z-00000000-0000-4000-8000-000000000053.json",
+                "filename": "Caddyfile-2026-11-26T06-00-06-524Z-00000000-0000-4000-8000-000000000052.json",
+                "timestamp": "2025-01-01T12:00:01.076Z",
+                "parent": "Caddyfile-2026-11-26T06-00-05-271Z-00000000-0000-4000-8000-000000000053.json",
                 "actor": {
                   "type": "user",
                   "id": "00000000-0000-4000-8000-000000000054",
@@ -1216,9 +1216,9 @@
                 "outcome": "applied"
               },
               {
-                "filename": "Caddyfile-2026-11-25T21-47-35-933Z-00000000-0000-4000-8000-000000000053.json",
-                "timestamp": "2025-01-01T12:00:00.286Z",
-                "parent": "Caddyfile-2026-11-25T21-47-35-728Z-00000000-0000-4000-8000-000000000055.json",
+                "filename": "Caddyfile-2026-11-26T06-00-05-271Z-00000000-0000-4000-8000-000000000053.json",
+                "timestamp": "2025-01-01T11:59:59.823Z",
+                "parent": "Caddyfile-2026-11-26T06-00-05-071Z-00000000-0000-4000-8000-000000000055.json",
                 "actor": {
                   "type": "user",
                   "id": "00000000-0000-4000-8000-000000000054",
@@ -1228,8 +1228,8 @@
                 "outcome": "applied"
               },
               {
-                "filename": "Caddyfile-2026-11-25T21-47-35-728Z-00000000-0000-4000-8000-000000000055.json",
-                "timestamp": "2025-01-01T12:00:00.081Z",
+                "filename": "Caddyfile-2026-11-26T06-00-05-071Z-00000000-0000-4000-8000-000000000055.json",
+                "timestamp": "2025-01-01T11:59:59.623Z",
                 "parent": null,
                 "actor": null,
                 "action": null,
@@ -1241,7 +1241,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/caddyfile/history/Caddyfile-2026-11-25T21-47-37-101Z-00000000-0000-4000-8000-000000000052.json",
+            "path": "/caddyfile/history/Caddyfile-2026-11-26T06-00-06-524Z-00000000-0000-4000-8000-000000000052.json",
             "body": null
           },
           "response": {
@@ -1256,7 +1256,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/caddyfile/history/Caddyfile-2026-11-25T21-47-35-933Z-00000000-0000-4000-8000-000000000053.json",
+            "path": "/caddyfile/history/Caddyfile-2026-11-26T06-00-05-271Z-00000000-0000-4000-8000-000000000053.json",
             "body": null
           },
           "response": {
@@ -1271,7 +1271,7 @@
         {
           "request": {
             "method": "GET",
-            "path": "/caddyfile/history/Caddyfile-2026-11-25T21-47-35-728Z-00000000-0000-4000-8000-000000000055.json",
+            "path": "/caddyfile/history/Caddyfile-2026-11-26T06-00-05-071Z-00000000-0000-4000-8000-000000000055.json",
             "body": null
           },
           "response": {
@@ -1400,8 +1400,8 @@
                 "domain": "preview.internal",
                 "issuer": "internal",
                 "issuerDir": "local",
-                "validFrom": "Nov 25 21:47:37 2026 GMT",
-                "validTo": "Nov 26 09:47:37 2026 GMT",
+                "validFrom": "Nov 26 06:00:07 2026 GMT",
+                "validTo": "Nov 26 18:00:07 2026 GMT",
                 "daysRemaining": 0,
                 "isManaged": true,
                 "isInternal": true,
@@ -1501,8 +1501,8 @@
               "x-request-id": "00000000-0000-4000-8000-000000000067"
             },
             "body": {
-              "error": "site block not found",
               "code": "NOT_FOUND",
+              "error": "Operation failed",
               "requestId": "00000000-0000-4000-8000-000000000067"
             }
           }
@@ -1529,8 +1529,8 @@
                 "domain": "preview.internal",
                 "issuer": "internal",
                 "issuerDir": "local",
-                "validFrom": "Nov 25 21:47:37 2026 GMT",
-                "validTo": "Nov 26 09:47:37 2026 GMT",
+                "validFrom": "Nov 26 06:00:07 2026 GMT",
+                "validTo": "Nov 26 18:00:07 2026 GMT",
                 "daysRemaining": 0,
                 "isManaged": true,
                 "isInternal": true,
@@ -1562,8 +1562,8 @@
                 "domain": "preview.internal",
                 "issuer": "internal",
                 "issuerDir": "local",
-                "validFrom": "Nov 25 21:47:37 2026 GMT",
-                "validTo": "Nov 26 09:47:37 2026 GMT",
+                "validFrom": "Nov 26 06:00:07 2026 GMT",
+                "validTo": "Nov 26 18:00:07 2026 GMT",
                 "daysRemaining": 0,
                 "isManaged": false,
                 "isInternal": true,
@@ -1956,8 +1956,8 @@
               "x-request-id": "00000000-0000-4000-8000-000000000087"
             },
             "body": {
-              "error": "No instances configured",
               "code": "NO_INSTANCES",
+              "error": "Operation failed",
               "requestId": "00000000-0000-4000-8000-000000000087"
             }
           }
