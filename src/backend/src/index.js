@@ -109,7 +109,6 @@ app.use('/api', createCrossSiteMiddleware(process.env.CADDY_UI_EXTERNAL_URL));
 app.use('/api', createApiTokenMiddleware(authentication));
 app.use('/api', createCsrfMiddleware(authentication.sessions));
 
-// Auth routes are always public
 app.use('/api/auth', authLimiter, authRouter);
 
 // GET /api/version -- always public, non-sensitive. ?frontend=<version> lets

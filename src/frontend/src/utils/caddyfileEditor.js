@@ -320,7 +320,6 @@ function openSnippetMenu(view, target, x, y, t) {
     document.body.appendChild(backdrop);
     closeOpenSnippetMenu = close;
 
-    // Reposition if the menu extends past the bottom of the viewport.
     const rect = menu.getBoundingClientRect();
     if (rect.bottom > window.innerHeight - pad) {
         menu.style.top = `${Math.max(pad, window.innerHeight - rect.height - pad)}px`;

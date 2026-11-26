@@ -19,7 +19,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
 const MAX_EXCLUDES = 500;
 const MAX_HOST_LENGTH = 253;
 
-// Unique, trimmed, lowercased hosts.
 export function sanitizeHostList(value) {
     if (!Array.isArray(value)) return [];
     const hosts = value
