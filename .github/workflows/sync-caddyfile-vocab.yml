@@ -4,13 +4,11 @@ name: Sync caddyfile-codemirror vocabulary
 # has changed (that repo regenerates it daily from the upstream Caddyfile
 # lexer). src/frontend/scripts/fetch-caddyfile-mode.mjs already fetches that file
 # fresh at every dev/build, but the fetched file isn't committed here, so a
-# vocabulary change alone never shows up as a `src/frontend/` diff — which means
-# release.yml's per-directory change detection never rebuilds the frontend
-# Docker image for it. This workflow closes that gap: when the upstream
+# vocabulary change alone never produces a commit, and release-please never
+# cuts a release for it. This workflow closes that gap: when the upstream
 # blob SHA changes, it bumps a tracked marker file (src/frontend/caddyfile-mode.sha)
-# via a `fix(frontend)` commit, so the change is real, conventional-commits
-# and release-please can see it, and the next release actually republishes
-# the frontend image with the new vocabulary baked in.
+# via a `fix(frontend)` commit, so release-please sees a conventional change and
+# the next release republishes the frontend image with the new vocabulary.
 
 on:
   schedule:

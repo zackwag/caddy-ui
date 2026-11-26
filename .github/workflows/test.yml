@@ -34,9 +34,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-          cache-dependency-path: |
-            src/${{ matrix.project }}/package-lock.json
-            dev/package-lock.json
+          cache-dependency-path: src/${{ matrix.project }}/package-lock.json
 
       - name: Install dependencies
         run: npm ci

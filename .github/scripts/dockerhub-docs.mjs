@@ -365,7 +365,7 @@ async function main() {
         (argumentsList.length === 1 && argumentsList[0] !== '--dry-run')
     ) {
         throw new Error(
-            'Usage: node scripts/dockerhub-docs.mjs [--dry-run]',
+            'Usage: node .github/scripts/dockerhub-docs.mjs [--dry-run]',
         );
     }
 
