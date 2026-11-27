@@ -106,9 +106,15 @@ async function readBack(instance, { applied, uncertain }, { verify, expectLive }
     return verification;
 }
 
-// A change to the running config that leaves the Caddyfile as it is.
-async function applyLiveChange(instance, live, content = null) {
-    const result = await attempt(live.apply);
+// A change to the running config that leaves the Caddyfile as it is. A
+// rejection is thrown as `code`, unless the change named its own.
+async function applyLiveChange(instance, live, code, content = null) {
+    let result;
+    try {
+        result = await attempt(live.apply);
+    } catch (err) {
+        throw asAppError(err, code, { instanceId: instance.id });
+    }
     const verification = await readBack(instance, result, live, { content, file: UNCHANGED });
     return { ...result, verification, ...verificationWarning(verification) };
 }
@@ -151,7 +157,7 @@ export function queueCaddyfileChange(instance, operation) {
         catch (cause) { throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context: { instanceId: instance.id } }); }
         return operation({
             save: (change, options) => saveChange(instance, change, options),
-            applyLive: live => applyLiveChange(instance, live),
+            applyLive: live => applyLiveChange(instance, live, 'CADDY_CHANGE_REJECTED'),
         });
     });
 }
@@ -161,7 +167,7 @@ export function queueCaddyfileChange(instance, operation) {
 export function reloadCaddyfile(instance) {
     return queueCaddyfileChange(instance, async () => {
         const content = await readCaddyfile(instance);
-        return applyLiveChange(instance, reloadChange(instance, content), content);
+        return applyLiveChange(instance, reloadChange(instance, content), 'CADDY_RELOAD_FAILED', content);
     });
 }
 

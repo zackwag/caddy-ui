@@ -82,6 +82,7 @@ export default {
         caddyfileReadFailed: 'Could not read the Caddyfile.',
         caddyfileWriteFailed: 'Could not write the Caddyfile. Nothing was changed.',
         caddyfileChangeRejected: 'Caddy rejected the change, so the previous Caddyfile was restored.',
+        caddyChangeRejected: 'Caddy rejected the change, so nothing was changed.',
         caddyfileRollbackFailed: 'Caddy rejected the change and the previous Caddyfile could not be restored. The file on disk does not match what Caddy is running.',
         caddyfileHistoryReadFailed: 'Could not read the Caddyfile history.',
         caddyfileHistoryPreserveFailed: 'Could not preserve the previous configuration in history. Nothing was changed.',

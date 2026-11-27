@@ -1,3 +1,4 @@
+import { getInstances } from './instances.js';
 import { CorruptJsonError, createJsonStore } from './jsonFile.js';
 import logger from './logger.js';
 
@@ -87,12 +88,14 @@ const servedBy = (hosts, domain) => hosts && domain.split(', ').some(host => hos
 // owner. hosts[i] is the set of hosts instances[i] serves; the caller reads
 // them all first, outside the queue, and assigns nothing unless every
 // instance could be read. Notes no instance serves stay unassigned for
-// pruneOrphanedNotes.
+// pruneOrphanedNotes. An instance removed since its hosts were read gets
+// nothing, since its notes were released.
 export function claimUnassignedNotes(instances, hosts) {
     return store.update(state => {
+        const current = new Set(getInstances().map(inst => inst.id));
         let claimed = false;
         for (const [domain, note] of Object.entries(state.unassigned)) {
-            const owners = instances.filter((_, i) => servedBy(hosts[i], domain));
+            const owners = instances.filter((inst, i) => current.has(inst.id) && servedBy(hosts[i], domain));
             if (!owners.length) continue;
             for (const inst of owners) {
                 state.instances[inst.id] = { [domain]: note, ...(state.instances[inst.id] || {}) };

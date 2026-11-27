@@ -523,6 +523,13 @@ describe('API save paths', () => {
             expect(remove).toHaveBeenCalledTimes(1);
         });
 
+        it('reports a rejected change to a route without a Caddyfile block', async () => {
+            live.objects.set('route-admin', hostless('route-admin'));
+            remove.mockRejectedValueOnce(new Error('Caddy API error: 400 bad request'));
+            expect(await send('DELETE', '/routes/route-admin')).toMatchObject({ status: 422, body: { code: 'CADDY_CHANGE_REJECTED' } });
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
         it.each([
             ['a primary server Caddy does not have', { srv1: { listen: [':443'] } }],
             ['no HTTP servers', null],
@@ -760,6 +767,11 @@ describe('API save paths', () => {
                 expect(status).toBe(200);
                 expect(body).toMatchObject({ warningCode: 'CADDY_APPLY_UNCERTAIN', verification: { file: 'unchanged', live: 'uncertain' } });
             });
+        });
+
+        it('reports a reload from disk that Caddy rejected', async () => {
+            caddyLoad.mockRejectedValueOnce(new Error('Caddy API error: 400 loading config'));
+            expect(await send('POST', '/caddyfile/reloads')).toMatchObject({ status: 502, body: { code: 'CADDY_RELOAD_FAILED' } });
         });
 
         it('keeps a force-saved file Caddy rejected distinct from applied configuration', async () => {

@@ -136,10 +136,12 @@ export async function claimUnassignedMaintenance(instances, servesMaintenance) {
     }
     if (!claims.length) return;
     await store.update(state => {
+        // An owner removed since it was read had its state released
+        const current = new Set(getInstances().map(inst => inst.id));
         let claimed = false;
         for (const { domain, owner } of claims) {
             const index = state.unassigned.findIndex(e => e.domain === domain);
-            if (index === -1 || state.instances[owner.id]?.[domain]) continue;
+            if (index === -1 || !current.has(owner.id) || state.instances[owner.id]?.[domain]) continue;
             const [{ originalContent, enabledAt }] = state.unassigned.splice(index, 1);
             state.instances[owner.id] = { ...(state.instances[owner.id] || {}), [domain]: { originalContent, enabledAt } };
             claimed = true;

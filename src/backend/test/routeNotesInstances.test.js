@@ -8,7 +8,7 @@ import { markConfigChanged } from '../src/caddy.js';
 const { caddyGet, instances, listed } = vi.hoisted(() => ({ caddyGet: vi.fn(), instances: [], listed: { complete: true } }));
 
 vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyGet }));
-vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => instances, instancesComplete: () => listed.complete }));
+vi.mock('../src/instances.js', async importOriginal => ({ ...await importOriginal(), getInstances: () => [...instances], instancesComplete: () => listed.complete }));
 vi.mock('../src/caddyfileTitles.js', async importOriginal => ({ ...await importOriginal(), caddyfileTitlesEnabled: () => false }));
 
 const root = await mkdtemp(join(tmpdir(), 'caddy-ui-notes-'));
@@ -211,6 +211,21 @@ describe('route notes per instance', () => {
         hung.resolve(serving('app.example.com'));
         await claim;
         expect(await getNotes('alpha')).toEqual({ 'other.example.com': 'Edited', 'app.example.com': 'Shared' });
+    });
+
+    it("doesn't give notes to an instance removed while a claim read its config", async () => {
+        const hung = Promise.withResolvers();
+        caddyGet.mockImplementation(async (path, adminUrl) => (adminUrl === alpha.adminUrl ? hung.promise : serving('app.example.com')));
+        await load({ 'app.example.com': 'Shared' });
+        const claim = claimNotes();
+        instances.splice(1, 1);
+        await store.releaseInstanceNotes('beta');
+        hung.resolve(serving('other.example.com'));
+        await claim;
+        expect(store.hasUnassignedNotes()).toBe(true);
+        // A new instance reusing the id doesn't inherit them
+        instances.push({ ...beta, adminUrl: 'http://beta-new:2019' });
+        expect(await getNotes('beta')).toEqual({});
     });
 
     it('neither assigns nor prunes old notes while an instances entry is ignored', async () => {

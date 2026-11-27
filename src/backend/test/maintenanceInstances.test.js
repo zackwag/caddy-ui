@@ -91,6 +91,16 @@ describe('maintenance state store', () => {
         expect(savedFile().unassigned).toEqual([]);
     });
 
+    it("doesn't give saved state to an instance removed while the claim read it", async () => {
+        await resetState({ 'app.example.com': { originalContent: 'legacy block' } });
+        await maintenance.claimUnassignedMaintenance([alpha, beta], async inst => {
+            instances.splice(instances.indexOf(beta), 1);
+            return inst.id === 'beta';
+        });
+        expect(maintenance.getMaintenanceState('beta')).toEqual({});
+        expect(maintenance.hasUnassignedMaintenance()).toBe(true);
+    });
+
     it.each([
         ['several instances serve it', async () => true],
         ['no instance serves it', async () => false],
