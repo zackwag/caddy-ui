@@ -77,6 +77,14 @@ describe('Caddyfile history list', () => {
     });
 });
 
+describe('Caddyfile body', () => {
+    it.each([['PUT', '/caddyfile'], ['POST', '/caddyfile/validations']])('%s %s rejects a body that is not text', async (method, path) => {
+        expect(await request(method, path, ['a {', '}'])).toMatchObject({
+            status: 400, body: { code: 'VALIDATION_FAILED' },
+        });
+    });
+});
+
 describe('certificate expiry checks', () => {
     const inst = (dataPath) => ({ id: 'alpha', name: 'Alpha', containerName: '', dataPath, adminUrl: 'http://alpha:2019' });
     const triggers = { upstreamOffline: false, upstreamOnline: false, certExpiring: true, updateAvailable: false, apiTokenExpiring: false };

@@ -21,11 +21,13 @@ function ifMatchTags(header) {
     return header.split(',').map(tag => tag.trim().replace(/^W\//, '')).filter(Boolean);
 }
 
-function requireContent(req, res, next) {
-    if (!req.body || typeof req.body !== 'string') {
+// Checked where it's used, not in middleware, so CodeQL sees the guard.
+function caddyfileText(req) {
+    const content = req.body;
+    if (typeof content !== 'string' || !content) {
         throw new AppError('VALIDATION_FAILED', { context: { field: 'content' } });
     }
-    next();
+    return content;
 }
 
 // Responds and resolves to false when Caddy rejects the content.
@@ -123,8 +125,8 @@ router.delete('/history/:filename', async (req, res) => {
 });
 
 // POST /api/caddyfile/validations
-router.post('/validations', requireContent, async (req, res) => {
-    const content = req.body;
+router.post('/validations', async (req, res) => {
+    const content = caddyfileText(req);
     const fmt = req.query.fmt === 'true';
     logger.info(`Validating Caddyfile`, { bytes: content.length, fmt });
     if (!await validOrRespond(content, req, res)) return;
@@ -139,8 +141,8 @@ router.post('/reloads', async (req, res) => {
 });
 
 // PUT /api/caddyfile
-router.put('/', requireContent, async (req, res) => {
-    const content = req.body;
+router.put('/', async (req, res) => {
+    const content = caddyfileText(req);
     const restoring = req.query.action === 'restore';
     const fmt = !restoring && req.query.fmt !== 'false';
     const sort = !restoring && req.query.sort !== 'false';
