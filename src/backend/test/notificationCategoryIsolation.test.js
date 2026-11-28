@@ -10,7 +10,7 @@ const { listCertificates } = vi.hoisted(() => ({ listCertificates: vi.fn() }));
 vi.mock('../src/certificates.js', async importOriginal => ({ ...await importOriginal(), listCertificates }));
 
 vi.mock('../src/updateCheck.js', () => ({
-    getUpdateNotification: () => ({ key: 'v9.9.9', title: 'Update available', message: 'v9.9.9 is out' }),
+    getUpdateNotification: () => ({ key: 'v9.9.9', versions: 'backend v9.9.8 → v9.9.9', releaseNotes: 'https://example.com' }),
 }));
 
 const logger = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
@@ -48,19 +48,19 @@ describe('notification category isolation', () => {
 
     it('a category whose delivery fails does not prevent the others from sending', async () => {
         sendWebhook.mockImplementation(async (url, request) => {
-            if (request.headers.Title === 'Update available') {
+            if (request.headers.Title === 'caddy/ui update available') {
                 throw new Error('simulated provider failure');
             }
         });
         await remind();
-        expect(titles()).toEqual(['API token expiring', 'Certificate expiring', 'Update available']);
+        expect(titles()).toEqual(['API token expiring', 'Certificate expiring', 'caddy/ui update available']);
         expect(logger.error).toHaveBeenCalledWith('Notification check failed', { category: 'updates', error: 'simulated provider failure' });
     });
 
     it('unreadable certificate storage does not prevent the other categories from sending', async () => {
         listCertificates.mockRejectedValue(new Error('simulated cert failure'));
         await remind();
-        expect(titles()).toEqual(['API token expiring', 'Update available']);
+        expect(titles()).toEqual(['API token expiring', 'caddy/ui update available']);
         expect(logger.warn).toHaveBeenCalledWith('Certificate expiry checks skipped: certificates could not be read', { instance: 'Main', reason: 'simulated cert failure' });
     });
 });

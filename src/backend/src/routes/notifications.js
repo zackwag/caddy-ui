@@ -3,6 +3,7 @@ import { audited } from '../auditLog.js';
 import { AppError, asAppError } from '../AppError.js';
 import { getNotificationConfig, saveNotificationConfig } from '../notificationConfig.js';
 import { sendNotification } from '../notificationDelivery.js';
+import { renderNotification } from '../notificationEvents.js';
 
 const router = Router();
 
@@ -23,11 +24,7 @@ router.post('/test', async (req, res) => {
         throw new AppError('VALIDATION_FAILED', { context: { field: 'enabled' } });
     }
     try {
-        await sendNotification(config, {
-            title: 'caddy/ui test',
-            message: 'Notifications are working correctly.',
-            priority: 'low',
-        });
+        await sendNotification(config, renderNotification('test'));
     } catch (err) {
         // The cause, including the destination's response, goes to the logs only.
         throw asAppError(err, 'NOTIFICATION_SEND_FAILED');
