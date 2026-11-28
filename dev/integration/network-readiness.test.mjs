@@ -13,7 +13,9 @@ function probeFixture({ visible = true, vanished = false, disabled = '0', genera
     const probe = containerNetworkProbe('owned-container', { platform: 'linux', peer: async () => { peerCalls++; return 31; },
         list: async () => visible ? ['lo', ...(vanished ? ['veth-removed'] : []), 'veth-owned'] : ['lo'],
         read: async path => {
-            if (path.includes('veth-removed')) throw Object.assign(new Error('interface removed'), { code: 'ENOENT' });
+            if (path.includes('veth-removed')) {
+                throw Object.assign(new Error('interface removed'), { code: 'ENOENT' });
+            }
             assert.ok(Object.hasOwn(files, path), path); return files[path];
         } });
     return { probe, files, peerCalls: () => peerCalls };
@@ -24,7 +26,9 @@ test('owned IPv6 address must finish duplicate-address detection before browser 
     let polls = 0;
     const ready = await waitForContainerNetwork('owned-container', { probe: async signal => {
         polls++;
-        if (polls === 2) fixture.files['/proc/net/if_inet6'] = fixture.files['/proc/net/if_inet6'].replace('c0', '80');
+        if (polls === 2) {
+            fixture.files['/proc/net/if_inet6'] = fixture.files['/proc/net/if_inet6'].replace('c0', '80');
+        }
         return fixture.probe(signal);
     } });
     assert.equal(polls, 2);

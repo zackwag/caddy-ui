@@ -7,10 +7,18 @@ import { ApiError, authRequest } from './api.js';
 // key and its values, or null. `reason` and `enabled` are what the backend says
 // about its own configuration.
 export function passkeyProblem({ origin, reason = null, enabled = true }) {
-    if (window.location.protocol !== 'https:' || !window.isSecureContext) return { key: 'passkeys.httpsRequired' };
-    if (!browserSupportsWebAuthn()) return { key: 'passkeys.unsupported' };
-    if (reason === 'ip-address') return { key: 'errors.passkeyIpUnavailable' };
-    if (!enabled) return { key: 'errors.passkeyUnavailable' };
+    if (window.location.protocol !== 'https:' || !window.isSecureContext) {
+        return { key: 'passkeys.httpsRequired' };
+    }
+    if (!browserSupportsWebAuthn()) {
+        return { key: 'passkeys.unsupported' };
+    }
+    if (reason === 'ip-address') {
+        return { key: 'errors.passkeyIpUnavailable' };
+    }
+    if (!enabled) {
+        return { key: 'errors.passkeyUnavailable' };
+    }
     return origin === window.location.origin ? null : { key: 'passkeys.originMismatch', values: { origin } };
 }
 

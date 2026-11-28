@@ -27,7 +27,11 @@ export default function Workbench({ catalogs }) {
         const url = new URL(location.href);
         url.searchParams.set('key', selected);
         url.searchParams.set('locale', locale);
-        if (active) url.searchParams.set('state', active.id); else url.searchParams.delete('state');
+        if (active) {
+            url.searchParams.set('state', active.id);
+        } else {
+            url.searchParams.delete('state');
+        }
         history.replaceState(null, '', url);
     }, [selected, locale, active]);
     const filtered = entries.filter(([key, value]) =>

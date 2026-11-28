@@ -31,7 +31,9 @@ BLOCKED.addAddress('100.100.100.200', 'ipv4');
 
 export function isBlockedAddress(address) {
     const version = isIP(address);
-    if (!version) return true;
+    if (!version) {
+        return true;
+    }
     return BLOCKED.check(address, version === 4 ? 'ipv4' : 'ipv6');
 }
 
@@ -67,9 +69,13 @@ export async function resolveWebhookDestination(rawUrl) {
     const records = literal
         ? [{ address: host, family: literal }]
         : await dns.lookup(host, { all: true, verbatim: true });
-    if (!records.length) throw new Error(`Webhook URL host does not resolve: ${host}`);
+    if (!records.length) {
+        throw new Error(`Webhook URL host does not resolve: ${host}`);
+    }
     // Reject the host if any answer is blocked, so it can't fall back to one.
-    if (records.some(record => isBlockedAddress(record.address))) throw blockedDestination(host);
+    if (records.some(record => isBlockedAddress(record.address))) {
+        throw blockedDestination(host);
+    }
 
     return { url, address: records[0].address, family: records[0].family, addresses: records };
 }
@@ -94,7 +100,9 @@ function withSignal(promise, signal) {
                 reject(error);
             },
         );
-        if (signal.aborted) onAbort();
+        if (signal.aborted) {
+            onAbort();
+        }
     });
 }
 
@@ -129,8 +137,11 @@ export async function sendWebhook(rawUrl, { name, method = 'POST', headers = {},
                 family: 0,
                 autoSelectFamily: true,
                 lookup: (_host, options, callback) => {
-                    if (options.all) callback(null, addresses);
-                    else callback(null, addresses[0].address, addresses[0].family);
+                    if (options.all) {
+                        callback(null, addresses);
+                    } else {
+                        callback(null, addresses[0].address, addresses[0].family);
+                    }
                 },
             }, response => {
                 const chunks = [];
@@ -138,21 +149,30 @@ export async function sendWebhook(rawUrl, { name, method = 'POST', headers = {},
                 response.on('error', reject);
                 response.on('data', chunk => {
                     size += chunk.length;
-                    if (size > MAX_RESPONSE_BYTES) request.destroy(new Error(`${name} response exceeds size limit`));
-                    else chunks.push(chunk);
+                    if (size > MAX_RESPONSE_BYTES) {
+                        request.destroy(new Error(`${name} response exceeds size limit`));
+                    } else {
+                        chunks.push(chunk);
+                    }
                 });
                 response.on('end', () => {
                     const status = response.statusCode;
-                    if (status >= 200 && status < 300) resolve();
-                    else if (status >= 300 && status < 400) reject(new Error(`${name} responded ${status}; redirects are not followed, so configure the final URL`));
-                    else reject(new Error(`${name} responded ${status}: ${Buffer.concat(chunks).toString('utf8').slice(0, ERROR_SNIPPET_CHARS)}`));
+                    if (status >= 200 && status < 300) {
+                        resolve();
+                    } else if (status >= 300 && status < 400) {
+                        reject(new Error(`${name} responded ${status}; redirects are not followed, so configure the final URL`));
+                    } else {
+                        reject(new Error(`${name} responded ${status}: ${Buffer.concat(chunks).toString('utf8').slice(0, ERROR_SNIPPET_CHARS)}`));
+                    }
                 });
             });
             request.on('error', reject);
             request.end(payload);
         }), signal);
     } catch (error) {
-        if (signal.aborted) throw signal.reason;
+        if (signal.aborted) {
+            throw signal.reason;
+        }
         throw error;
     } finally {
         clearTimeout(timer);

@@ -14,9 +14,15 @@ export default function PreviewFrame({ config, title }) {
     }
     useEffect(() => {
         const receive = event => {
-            if (event.source !== frame.current?.contentWindow || event.origin !== location.origin || event.data?.channel !== 'caddy-ui-playground') return;
-            if (event.data.type === 'preview-ready') configure();
-            if (event.data.type === 'preview-error') setError(event.data.message);
+            if (event.source !== frame.current?.contentWindow || event.origin !== location.origin || event.data?.channel !== 'caddy-ui-playground') {
+                return;
+            }
+            if (event.data.type === 'preview-ready') {
+                configure();
+            }
+            if (event.data.type === 'preview-error') {
+                setError(event.data.message);
+            }
             if (event.data.type === 'preview-report' && event.data.scenario === latest.current.scenario &&
                 event.data.selected === latest.current.selected && event.data.locale === latest.current.locale) {
                 setReport(event.data); setHeight(event.data.height);

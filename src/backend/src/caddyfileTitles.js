@@ -31,14 +31,18 @@ export function extractTitleComment(blockContent) {
 
     for (let i = 0; i < lines.length; i++) {
         const trimmed = lines[i].trim();
-        if (trimmed === '' || trimmed.endsWith('{')) continue;
+        if (trimmed === '' || trimmed.endsWith('{')) {
+            continue;
+        }
         if (trimmed.startsWith('#')) {
             titleLine = i;
         }
         break;
     }
 
-    if (titleLine === -1) return { title: '', content: blockContent };
+    if (titleLine === -1) {
+        return { title: '', content: blockContent };
+    }
 
     const title = lines[titleLine].trim().replace(/^#\s*/, '');
     const remaining = [...lines.slice(0, titleLine), ...lines.slice(titleLine + 1)];
@@ -46,7 +50,9 @@ export function extractTitleComment(blockContent) {
 }
 
 export function injectTitleComment(blockContent, title) {
-    if (!title || !title.trim()) return blockContent;
+    if (!title || !title.trim()) {
+        return blockContent;
+    }
 
     const lines = blockContent.split('\n');
     let insertAt = -1;
@@ -58,7 +64,9 @@ export function injectTitleComment(blockContent, title) {
         }
     }
 
-    if (insertAt === -1) return blockContent;
+    if (insertAt === -1) {
+        return blockContent;
+    }
 
     const indent = lines[insertAt]?.match(/^(\s*)/)?.[1] || '    ';
     lines.splice(insertAt, 0, `${indent}# ${title.trim()}`);
@@ -71,16 +79,22 @@ export function parseCaddyfileTitles(caddyfileContent, env) {
 
     for (const entry of caddyfileEntries(caddyfileContent)) {
         const domain = siteDomain(entry, env);
-        if (domain === null) continue;
+        if (domain === null) {
+            continue;
+        }
         // The title is the first comment before the block's first directive.
         // Skip the remainder of the opening `{` line.
         for (const line of entry.block.inner.split('\n').slice(1)) {
             const trimmed = line.trim();
             if (trimmed.startsWith('#')) {
-                if (!titles[domain]) titles[domain] = trimmed.replace(/^#\s*/, '');
+                if (!titles[domain]) {
+                    titles[domain] = trimmed.replace(/^#\s*/, '');
+                }
                 break;
             }
-            if (trimmed !== '') break;
+            if (trimmed !== '') {
+                break;
+            }
         }
     }
 

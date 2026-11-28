@@ -7,8 +7,12 @@ export function createFontLoader(loaders, warn = console.warn) {
             enabled = new Set(Array.isArray(fonts) ? fonts.filter(font => Object.hasOwn(loaders, font)) : []);
         },
         async load(locale) {
-            if (!enabled.has(locale)) return;
-            if (!loaded.has(locale)) loaded.set(locale, Promise.resolve().then(() => loaders[locale]()));
+            if (!enabled.has(locale)) {
+                return;
+            }
+            if (!loaded.has(locale)) {
+                loaded.set(locale, Promise.resolve().then(() => loaders[locale]()));
+            }
             const pending = loaded.get(locale);
             try { await pending; }
             catch (error) {

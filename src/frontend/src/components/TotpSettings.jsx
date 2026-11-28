@@ -18,7 +18,9 @@ export default function TotpSettings({ authState, onChange, busy, setBusy, disab
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
-        if (!enrollment) return;
+        if (!enrollment) {
+            return;
+        }
         const timer = setTimeout(() => {
             setEnrollment(null);
             setCode('');
@@ -54,12 +56,15 @@ export default function TotpSettings({ authState, onChange, busy, setBusy, disab
                 const result = await authRequest(mode === 'disable' ? '/totp' : '/totp/setup', {
                     method: mode === 'disable' ? 'DELETE' : 'POST', json: proof,
                 });
-                if (mode === 'disable') { clear(); await onChange(); setSaved(true); }
-                else setEnrollment({ ...result, qr: await QRCode.toDataURL(result.uri, { width: 240, margin: 2 }) });
+                if (mode === 'disable') { clear(); await onChange(); setSaved(true); } else {
+                    setEnrollment({ ...result, qr: await QRCode.toDataURL(result.uri, { width: 240, margin: 2 }) });
+                }
             }
         } catch (error) {
             setError(error);
-            if (error.code === 'TOTP_SETUP_EXPIRED') clear();
+            if (error.code === 'TOTP_SETUP_EXPIRED') {
+                clear();
+            }
         } finally { setVerification({}); setCode(''); setBusy(false); }
     }
     return <fieldset className="security-fields" disabled={disabled || busy || !authState}>

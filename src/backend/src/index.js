@@ -199,7 +199,9 @@ const server = app.listen(BACKEND_PORT, error => {
     // Express wraps this callback with `once`, which fires it for whichever
     // server event comes first — 'listening' or 'error'. Keep bind failures
     // fatal so startup cannot report success without a bound HTTP server.
-    if (error) throw error;
+    if (error) {
+        throw error;
+    }
     const port = server.address().port;
     logger.info(`Caddy UI backend running`, { port, version: APP_VERSION });
     logger.info(`Caddy instances`, { instances: getInstances().map(({ id, adminUrl, configPath }) => ({ id, adminUrl, configPath })) });
@@ -207,7 +209,9 @@ const server = app.listen(BACKEND_PORT, error => {
     logger.info(`Enabled languages`, { languages: getEnabledLanguages() });
     logger.info(`Available UI fonts`, { languages: getAvailableFonts() });
     // Launchers using IPC can discover an OS-assigned port after it is bound.
-    if (process.connected) process.send({ type: 'caddy-ui:listening', port });
+    if (process.connected) {
+        process.send({ type: 'caddy-ui:listening', port });
+    }
     cleanupOrphanedNotes();
     claimSavedMaintenance();
 });

@@ -54,8 +54,12 @@ describe('authentication startup warnings', () => {
             expect(messages[0]).toContain('Restrict access until enrollment is complete');
         }
         for (const message of messages) {
-            for (const value of Object.values(values)) expect(message).not.toContain(value);
-            if (externalUrl) expect(message).not.toContain(externalUrl);
+            for (const value of Object.values(values)) {
+                expect(message).not.toContain(value);
+            }
+            if (externalUrl) {
+                expect(message).not.toContain(externalUrl);
+            }
         }
         // Polling authentication state must not repeat startup warnings.
         service.getAuthState({ headers: {} });
@@ -106,7 +110,9 @@ describe('authentication startup warnings', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
         directories.push(directory);
         const env = { ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info', AUTH_PATH: join(directory, 'auth.json') };
-        for (const key of [...KEYS, 'CADDY_UI_EXTERNAL_URL']) delete env[key];
+        for (const key of [...KEYS, 'CADDY_UI_EXTERNAL_URL']) {
+            delete env[key];
+        }
         const script = `import { initializeAuthentication } from ${JSON.stringify(new URL('../src/middleware/auth.js', import.meta.url).href)};
             const authentication = await initializeAuthentication();
             authentication.getAuthState({ headers: {} });`;
@@ -137,7 +143,9 @@ describe('auth configuration', () => {
             expect(error).toBeInstanceOf(Error);
             expect(error.message).toContain('Refusing to start');
             expect(error.message).toContain(`Missing, empty or whitespace-only: ${KEYS.filter(key => !present.includes(key)).join(', ')}.`);
-            for (const value of Object.values(env)) expect(error.message).not.toContain(value);
+            for (const value of Object.values(env)) {
+                expect(error.message).not.toContain(value);
+            }
         }
     });
 
@@ -190,5 +198,7 @@ it('rejects partial configuration in the actual backend before any listener is a
     expect(result.stderr).toContain('Refusing to start');
     expect(result.stderr).toContain('JWT_SECRET');
     expect(result.stderr).not.toContain('AUTH_TEST_LISTEN_ATTEMPT');
-    for (const value of Object.values(values)) expect(result.stderr + result.stdout).not.toContain(value);
+    for (const value of Object.values(values)) {
+        expect(result.stderr + result.stdout).not.toContain(value);
+    }
 });

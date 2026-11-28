@@ -24,12 +24,16 @@ function observe(kind, adminUrl, collect, sourceConfig) {
     const key = `${kind} ${adminUrl}`;
     const now = Date.now();
     const existing = entries.get(key);
-    if (existing && existing.sourceConfig === sourceConfig && isCurrent(existing, adminUrl, now)) return existing.promise;
+    if (existing && existing.sourceConfig === sourceConfig && isCurrent(existing, adminUrl, now)) {
+        return existing.promise;
+    }
 
     // Expired entries are dropped as new ones are made, so removed instances
     // don't accumulate.
     for (const [other, entry] of entries) {
-        if (entry.settledAt !== null && now - entry.settledAt > OBSERVATION_MAX_AGE_MS) entries.delete(other);
+        if (entry.settledAt !== null && now - entry.settledAt > OBSERVATION_MAX_AGE_MS) {
+            entries.delete(other);
+        }
     }
     // Taken before collecting, so a write that lands mid-read retires the result.
     const entry = { generation: configGeneration(adminUrl), settledAt: null, sourceConfig };
@@ -37,7 +41,9 @@ function observe(kind, adminUrl, collect, sourceConfig) {
         entry.settledAt = Date.now();
         return value;
     }, err => {
-        if (entries.get(key) === entry) entries.delete(key);
+        if (entries.get(key) === entry) {
+            entries.delete(key);
+        }
         throw err;
     });
     entries.set(key, entry);

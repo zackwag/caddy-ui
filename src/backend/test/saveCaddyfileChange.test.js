@@ -26,12 +26,16 @@ const { files, failWrites, live, etagOf, caddyAdapt, caddyLoad, caddyGet, caddyP
 vi.mock('../src/containerFs.js', async importOriginal => ({
     ...await importOriginal(),
     readContainerFile: vi.fn(async (container, path) => {
-        if (!files.has(path)) throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
+        if (!files.has(path)) {
+            throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
+        }
         return files.get(path);
     }),
     writeContainerFile: vi.fn(async (container, path, content) => {
         failWrites.count++;
-        if (failWrites.at.includes(failWrites.count)) throw new Error('EACCES: permission denied');
+        if (failWrites.at.includes(failWrites.count)) {
+            throw new Error('EACCES: permission denied');
+        }
         files.set(path, content);
     }),
     removeContainerPath: vi.fn(async (container, path) => { files.delete(path); }),
@@ -99,10 +103,16 @@ beforeEach(async () => {
     caddyAdapt.mockReset().mockImplementation(adapted);
     caddyLoad.mockReset().mockImplementation(load);
     caddyGet.mockReset().mockImplementation(async path => {
-        if (path === '/config/') return live.config;
-        if (path === '/config/apps/http/servers') return live.servers;
+        if (path === '/config/') {
+            return live.config;
+        }
+        if (path === '/config/apps/http/servers') {
+            return live.servers;
+        }
         const id = path.match(/^\/id\/(.+)$/)?.[1];
-        if (id && live.objects.has(decodeURIComponent(id))) return live.objects.get(decodeURIComponent(id));
+        if (id && live.objects.has(decodeURIComponent(id))) {
+            return live.objects.get(decodeURIComponent(id));
+        }
         throw Object.assign(new Error('Caddy API error: 404 unknown object ID'), { status: 404 });
     });
     caddyPost.mockReset().mockImplementation(addObject);
@@ -112,7 +122,9 @@ beforeEach(async () => {
             await load(config);
             return { stdout: '' };
         }
-        if (args[0] === 'adapt') return { stdout: JSON.stringify(await adapted(config)) };
+        if (args[0] === 'adapt') {
+            return { stdout: JSON.stringify(await adapted(config)) };
+        }
         return { stdout: '' };
     });
     caddyPut.mockReset().mockImplementation(async (path, body) => addObject(path, body[0]));
@@ -124,7 +136,9 @@ describe('saveCaddyfileChange', () => {
         await checkInstance(instance);
         const external = `external-${randomUUID()} {}`;
         files.set(instance.configPath, external);
-        if (polled) await checkInstance(instance);
+        if (polled) {
+            await checkInstance(instance);
+        }
         const actor = { type: 'user', id: randomUUID(), name: 'Saving administrator' };
         await saveCaddyfileChange(instance, 'saved {}', { actor });
         await checkInstance(instance);
@@ -181,13 +195,20 @@ describe('saveCaddyfileChange', () => {
         const root = process.env.HISTORY_PATH;
         const backup = root + '-backup';
         const block = async () => { await rename(root, backup); await writeFile(root, 'blocked'); };
-        if (!afterApply) await block();
+        if (!afterApply) {
+            await block();
+        }
         try {
             const operation = saveCaddyfileChange(instance, 'saved despite history failure', { live: liveChange(afterApply ? block : caddyLoad) });
-            if (afterApply) await expect(operation).resolves.toMatchObject({ applied: true, warningCode: 'CADDYFILE_HISTORY_COMMIT_FAILED' });
-            else await expect(operation).rejects.toMatchObject({ code: 'CADDYFILE_HISTORY_WRITE_FAILED' });
+            if (afterApply) {
+                await expect(operation).resolves.toMatchObject({ applied: true, warningCode: 'CADDYFILE_HISTORY_COMMIT_FAILED' });
+            } else {
+                await expect(operation).rejects.toMatchObject({ code: 'CADDYFILE_HISTORY_WRITE_FAILED' });
+            }
             expect(files.get(instance.configPath)).toBe(afterApply ? 'saved despite history failure' : original);
-            if (!afterApply) expect(caddyLoad).not.toHaveBeenCalled();
+            if (!afterApply) {
+                expect(caddyLoad).not.toHaveBeenCalled();
+            }
             expect((await readFile(root, 'utf8'))).toBe('blocked');
         } finally {
             await rm(root);

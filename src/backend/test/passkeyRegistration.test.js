@@ -26,7 +26,7 @@ async function register(f, device = authenticator()) {
     const result = await f.client.request('/auth/passkeys/registration', { method: 'POST', body: response });
     return { device, response, result };
 }
-afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); });
+afterEach(async () => { for (const f of fixtures.splice(0)) { await f.close(); } });
 
 describe('passkey enrollment and removal', () => {
     it('requires a management session, CSRF, HTTPS configuration and a fresh password for every enrollment', async () => {

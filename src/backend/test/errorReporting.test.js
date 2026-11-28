@@ -14,7 +14,9 @@ beforeAll(async () => {
 });
 afterAll(() => server.close());
 beforeEach(() => {
-    for (const level of ['warn', 'error']) vi.spyOn(logger, level).mockImplementation(() => {});
+    for (const level of ['warn', 'error']) {
+        vi.spyOn(logger, level).mockImplementation(() => {});
+    }
 });
 afterEach(() => vi.restoreAllMocks());
 

@@ -14,14 +14,18 @@ const { files, live, instances, unsettled } = vi.hoisted(() => ({
 
 vi.mock('../src/containerFs.js', () => ({
     readContainerFile: vi.fn(async (container, path) => {
-        if (!files.has(path)) throw Object.assign(new Error('EIO: i/o error'), { code: 'EIO' });
+        if (!files.has(path)) {
+            throw Object.assign(new Error('EIO: i/o error'), { code: 'EIO' });
+        }
         return files.get(path);
     }),
 }));
 vi.mock('../src/caddy.js', async importOriginal => ({
     ...await importOriginal(),
     caddyGetConfig: vi.fn(async adminUrl => {
-        if (!live.has(adminUrl)) throw Object.assign(new Error('Caddy API error: 503'), { status: 503 });
+        if (!live.has(adminUrl)) {
+            throw Object.assign(new Error('Caddy API error: 503'), { status: 503 });
+        }
         // Like Caddy's ETag: a hash of the config, never the config itself
         const { createHash } = await import('node:crypto');
         const digest = createHash('sha256').update(JSON.stringify(live.get(adminUrl))).digest('hex').slice(0, 16);
@@ -119,8 +123,12 @@ describe('configuration drift detection', () => {
     ])('persists inspectable %s transitions without exposing their content in list metadata', async (kind, representations) => {
         const beforeFile = files.get(alpha.configPath);
         const beforeLive = structuredClone(live.get(alpha.adminUrl));
-        if (representations.includes('file')) files.set(alpha.configPath, 'external-secret.test {}\n');
-        if (representations.includes('live')) live.set(alpha.adminUrl, { external: 'external-secret' });
+        if (representations.includes('file')) {
+            files.set(alpha.configPath, 'external-secret.test {}\n');
+        }
+        if (representations.includes('live')) {
+            live.set(alpha.adminUrl, { external: 'external-secret' });
+        }
         await checkAllInstances();
         await checkAllInstances();
         const entries = await history.list(alpha.id);
@@ -375,7 +383,9 @@ describe('configuration drift detection', () => {
         let calls = 0;
         readContainerFile.mockImplementation(async (container, path) => {
             calls++;
-            if (path === alpha.configPath && calls === 1) return 'external-race {\n}\n';
+            if (path === alpha.configPath && calls === 1) {
+                return 'external-race {\n}\n';
+            }
             return originalImpl(container, path);
         });
         files.set(alpha.configPath, 'external-race {\n}\n');
@@ -408,22 +418,34 @@ async function routeChange({ operation, diskBacked, status }, external = false) 
     await checkAllInstances();
     const config = structuredClone(live.get(alpha.adminUrl));
     const routes = routesOf(config);
-    if (external) routes[1].handle[0].body = 'external edit';
+    if (external) {
+        routes[1].handle[0].body = 'external edit';
+    }
     const route = updatedRoute(operation);
-    if (operation === 'add') routes.push(route);
-    else if (operation === 'replace') routes[0] = route;
-    else routes.splice(0, 1);
+    if (operation === 'add') {
+        routes.push(route);
+    } else if (operation === 'replace') {
+        routes[0] = route;
+    } else {
+        routes.splice(0, 1);
+    }
     const verifyLive = async () => {
         const actual = routesOf(live.get(alpha.adminUrl)).find(candidate => candidate['@id'] === route['@id']);
         return operation === 'remove' ? (actual ? 'mismatch' : 'verified')
             : (JSON.stringify(actual) === JSON.stringify(route) ? 'verified' : 'mismatch');
     };
     const content = diskBacked ? 'local-file {\n}\n' : null;
-    if (diskBacked) files.set(alpha.configPath, content);
-    if (status === 'verified') live.set(alpha.adminUrl, config);
+    if (diskBacked) {
+        files.set(alpha.configPath, content);
+    }
+    if (status === 'verified') {
+        live.set(alpha.adminUrl, config);
+    }
     await recordLocalChange(alpha, { content, verification: { file: diskBacked ? 'verified' : 'unchanged', live: status },
         verifyLive, expectLive: routeExpectation({ operation, id: 'route-a', serverName: 'srv0', route }) });
-    if (status === 'uncertain') live.set(alpha.adminUrl, config);
+    if (status === 'uncertain') {
+        live.set(alpha.adminUrl, config);
+    }
     return config;
 }
 
@@ -479,10 +501,14 @@ describe('scoped route expectations', () => {
         const edited = structuredClone(config);
         routesOf(edited)[1] = route;
         const verifyLive = async () => (JSON.stringify(routesOf(live.get(alpha.adminUrl))[1]) === JSON.stringify(route) ? 'verified' : 'mismatch');
-        if (status === 'verified') live.set(alpha.adminUrl, edited);
+        if (status === 'verified') {
+            live.set(alpha.adminUrl, edited);
+        }
         await recordLocalChange(alpha, { content: null, verification: { file: 'unchanged', live: status }, verifyLive,
             expectLive: routeExpectation({ operation: 'replace', id: 'route-b', route }) });
-        if (status === 'uncertain') live.set(alpha.adminUrl, edited);
+        if (status === 'uncertain') {
+            live.set(alpha.adminUrl, edited);
+        }
         await checkAllInstances();
         await checkAllInstances();
         expect(await history.list(alpha.id)).toHaveLength(recorded);

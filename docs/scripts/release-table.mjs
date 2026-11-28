@@ -8,7 +8,9 @@ export function renderReleaseTable(changelog) {
         const [heading, ...lines] = section.split('\n');
         const release = /^\[(\d+\.\d+\.\d+(?:-[\w.-]+)?)\]\((\S+)\) \((\d{4}-\d{2}-\d{2})\)$/.exec(heading);
         // Unreleased headings are not published versions.
-        if (!release) continue;
+        if (!release) {
+            continue;
+        }
         const [, version, url, date] = release;
         const description = lines.map(line => line.trim()).filter(Boolean).map(line => line
             .replace(/^### (.+)$/, '**$1**')
@@ -16,7 +18,9 @@ export function renderReleaseTable(changelog) {
             .replace(/\\?\|/g, '\\|')).join('<br>');
         rows.push(`| [v${version}](${url}) | ${date} | ${description} |`);
     }
-    if (!rows.length) throw new Error('No release-please entries found in CHANGELOG.md');
+    if (!rows.length) {
+        throw new Error('No release-please entries found in CHANGELOG.md');
+    }
     return ['| Version | Date | Changes |', '|---------|------|---------|', ...rows].join('\n');
 }
 

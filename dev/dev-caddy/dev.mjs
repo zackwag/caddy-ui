@@ -26,25 +26,35 @@ function waitFor(url, expected = () => true) {
 }
 
 function start(command, args, env) {
-    if (stopping()) throw new Error('Startup interrupted.');
+    if (stopping()) {
+        throw new Error('Startup interrupted.');
+    }
     const child = spawn(command, args, { cwd: root, env, stdio: 'inherit' });
     children.add(child);
     child.once('error', error => { console.error(error.message); void shutdown(1); });
     child.once('exit', code => {
         children.delete(child);
-        if (!stopping()) void shutdown(code || 1);
+        if (!stopping()) {
+            void shutdown(code || 1);
+        }
     });
     return child;
 }
 
 async function shutdown(code = 0) {
-    if (stopping()) return;
+    if (stopping()) {
+        return;
+    }
     stopped.abort(new Error('Startup interrupted.'));
-    for (const child of children) child.kill('SIGTERM');
-    const timer = setTimeout(() => { for (const child of children) child.kill('SIGKILL'); }, 3000);
+    for (const child of children) {
+        child.kill('SIGTERM');
+    }
+    const timer = setTimeout(() => { for (const child of children) { child.kill('SIGKILL'); } }, 3000);
     await Promise.all([...children].map(child => new Promise(resolve => child.once('exit', resolve))));
     clearTimeout(timer);
-    if (runnerLock) await rm(runnerLock, { recursive: true });
+    if (runnerLock) {
+        await rm(runnerLock, { recursive: true });
+    }
     process.exitCode = code;
 }
 
@@ -56,7 +66,9 @@ try {
     await freePort(3001);
     await freePort(5173);
     await checkDocker();
-    if (stopping()) throw new Error('Startup interrupted.');
+    if (stopping()) {
+        throw new Error('Startup interrupted.');
+    }
     await mkdir(STATE, { recursive: true });
     const lock = resolve(STATE, 'runner.lock');
     await mkdir(lock).catch(() => { throw new Error('A dev:with-caddy runner is already active. Remove .dev-caddy/runner.lock only if the previous runner crashed.'); });
@@ -69,10 +81,14 @@ try {
     let instances;
     try { instances = JSON.parse(await readFile(env.INSTANCES_PATH, 'utf8')); }
     catch (error) {
-        if (error.code !== 'ENOENT') throw error;
+        if (error.code !== 'ENOENT') {
+            throw error;
+        }
         instances = [{ id: 'default', ...info.instance }];
     }
-    if (!Array.isArray(instances)) throw new Error('Development instances.json must be an array.');
+    if (!Array.isArray(instances)) {
+        throw new Error('Development instances.json must be an array.');
+    }
     // Published ports and container IPs can change after recreation. Preserve UI edits.
     instances = instances.map(instance => instance.containerName === info.instance.containerName
         ? { ...instance, adminUrl: info.instance.adminUrl } : instance);

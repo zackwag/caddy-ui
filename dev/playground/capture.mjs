@@ -14,7 +14,9 @@ export function captureDashboard({ output = resolve(import.meta.dirname, 'captur
         const successful = (...args) => client.successful(...args);
         async function snapshot(id) {
             const requests = [];
-            for (const path of paths) requests.push(await api(path));
+            for (const path of paths) {
+                requests.push(await api(path));
+            }
             return { id, requests };
         }
         const info = await harness.create('preview');
@@ -44,7 +46,9 @@ export function captureDashboard({ output = resolve(import.meta.dirname, 'captur
         }
         const metrics = { id: 'metrics-enabled', requests: [] };
         for (const path of ['/metrics', '/metrics/config', '/auth/status', '/routes', '/health/uptime',
-            '/health/uptime?kind=route', '/route-notes']) metrics.requests.push(await successful(path));
+            '/health/uptime?kind=route', '/route-notes']) {
+            metrics.requests.push(await successful(path));
+        }
         assert.equal(metrics.requests[0].response.body.ok, true);
         const logs = { id: 'logs-default', requests: [await successful('/logs'), await successful('/logs/config')] };
         assert(logs.requests[0].response.body.lines.length >= 2, 'Seeded access logs were not captured');
@@ -56,13 +60,17 @@ export function captureDashboard({ output = resolve(import.meta.dirname, 'captur
         const sidebarPaths = ['/version?frontend=dev', '/instances', '/instances/status', '/status'];
         async function sidebarSnapshot(id) {
             const requests = [];
-            for (const path of sidebarPaths) requests.push(await successful(path));
+            for (const path of sidebarPaths) {
+                requests.push(await successful(path));
+            }
             return { id, requests };
         }
         const routePaths = ['/routes', '/tls', '/route-notes', '/server-names', '/routes/maintenance', '/health', '/health/uptime'];
         async function routeSnapshot(id) {
             const requests = [];
-            for (const path of routePaths) requests.push(await successful(path));
+            for (const path of routePaths) {
+                requests.push(await successful(path));
+            }
             return { id, requests };
         }
         const routesOnline = await routeSnapshot('routes-online');
@@ -87,7 +95,9 @@ export function captureDashboard({ output = resolve(import.meta.dirname, 'captur
         const caddyfileHistory = { id: 'caddyfile-history', requests: [await successful('/caddyfile'), await successful('/caddyfile/history')] };
         const entries = caddyfileHistory.requests[1].response.body;
         assert(entries.length >= 2);
-        for (const entry of entries) caddyfileHistory.requests.push(await successful(`/caddyfile/history/${entry.filename}`));
+        for (const entry of entries) {
+            caddyfileHistory.requests.push(await successful(`/caddyfile/history/${entry.filename}`));
+        }
         caddyfileHistory.requests.push(await successful('/caddyfile/validations?fmt=true', 'POST', revised));
         const original = await caddyGet('/config/', info.instance.adminUrl);
         const loadConfig = config => caddyPost('/load', config, info.instance.adminUrl);

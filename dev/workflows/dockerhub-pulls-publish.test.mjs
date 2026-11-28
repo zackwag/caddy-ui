@@ -81,7 +81,9 @@ test('creates an orphan history branch, then keeps the first sample on a same-da
     const initialHead = f.head();
     assert.equal(f.git('--git-dir=' + f.remote, 'rev-list', '--count', branch), '1');
     assert.equal(f.git('--git-dir=' + f.remote, 'ls-tree', '--name-only', branch), 'history.json');
-    for (const repository of repositories) assert.equal(f.readHistory().repositories[repository][0].pullCount, 85000);
+    for (const repository of repositories) {
+        assert.equal(f.readHistory().repositories[repository][0].pullCount, 85000);
+    }
     assert.equal(readFileSync(f.requests, 'utf8').trim().split('\n').length, 2);
 
     const second = f.run({ PULL_TEST_COUNT: '99999', PULL_TEST_NOW: '2026-10-26T23:00:00.000Z' });
@@ -100,7 +102,9 @@ test('a failure on either repository cannot publish partial history', t => {
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /HTTP 503/);
     assert.equal(f.head(), initialHead);
-    for (const repository of repositories) assert.equal(f.readHistory().repositories[repository].length, 1);
+    for (const repository of repositories) {
+        assert.equal(f.readHistory().repositories[repository].length, 1);
+    }
     f.assertClean();
 });
 
@@ -121,8 +125,11 @@ test('missing and corrupt files on an existing data branch fail without resettin
     f.git('checkout', '--quiet', '--detach', 'FETCH_HEAD');
     for (const body of [null, '{broken', 'null']) {
         const file = join(f.checkout, 'history.json');
-        if (body === null) f.git('rm', '--quiet', 'history.json');
-        else writeFileSync(file, body);
+        if (body === null) {
+            f.git('rm', '--quiet', 'history.json');
+        } else {
+            writeFileSync(file, body);
+        }
         f.git('add', '-A');
         f.git('commit', '--quiet', '-m', 'Fixture unreadable history');
         f.git('push', '--quiet', 'origin', 'HEAD:' + branch);

@@ -42,7 +42,9 @@ describe('tracked requests', () => {
     });
 
     it('report an outage once, until a request succeeds again', async () => {
-        for (let i = 0; i < 3; i++) await toast.track('routes.load', failing()).catch(() => {});
+        for (let i = 0; i < 3; i++) {
+            await toast.track('routes.load', failing()).catch(() => {});
+        }
         expect(shown()).toEqual([['error', 'errors.network']]);
         await toast.track('routes.load', Promise.resolve());
         expect(shown()).toEqual([]);

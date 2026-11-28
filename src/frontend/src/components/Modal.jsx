@@ -40,7 +40,7 @@ export default function Modal({ title, onClose, dirty = false, className = "", s
         <div
             className="modal-overlay"
             onMouseDown={e => { pressedOutside.current = e.target === e.currentTarget; }}
-            onClick={e => { if (pressedOutside.current && e.target === e.currentTarget) onClose?.(); }}
+            onClick={e => { if (pressedOutside.current && e.target === e.currentTarget) { onClose?.(); } }}
         >
             <div className={`modal ${className}`.trim()} style={style} role="dialog" aria-modal="true" aria-labelledby={titleId}>
                 <div className="modal-title" id={titleId}>{title}</div>

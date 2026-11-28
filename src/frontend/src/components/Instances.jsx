@@ -51,7 +51,9 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
             const containers = await apiFetch("/instances/discover");
             setDiscovered(containers);
             setDiscoveryFailed(false);
-            if (containers.length === 0) toast.success(t("instances.noNewContainers"));
+            if (containers.length === 0) {
+                toast.success(t("instances.noNewContainers"));
+            }
         } catch (e) {
             toast.error(e);
             setDiscovered(null);
@@ -103,11 +105,13 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
 
     useEffect(() => {
         setServerIds(null);
-        if (!editing || !form.adminUrl.trim()) return;
+        if (!editing || !form.adminUrl.trim()) {
+            return;
+        }
         let cancelled = false;
         const t = setTimeout(() => {
             apiFetch(`/instances/servers?adminUrl=${encodeURIComponent(form.adminUrl.trim())}`)
-                .then(ids => { if (!cancelled) setServerIds(ids); })
+                .then(ids => { if (!cancelled) { setServerIds(ids); } })
                 .catch(() => { });
         }, 400);
         return () => { cancelled = true; clearTimeout(t); };
@@ -156,13 +160,18 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
     };
 
     const remove = async (inst) => {
-        if (!await confirm(t("instances.removeConfirm", { name: inst.name }), { confirmLabel: t("instances.remove"), danger: true })) return;
+        if (!await confirm(t("instances.removeConfirm", { name: inst.name }), { confirmLabel: t("instances.remove"), danger: true })) {
+            return;
+        }
         try {
             await apiFetch(`/instances/${inst.id}`, { method: "DELETE" });
             toast.success(t("instances.removed"));
             load();
-            if (inst.id === getInstanceId()) clearInstanceId();
-            else onInstancesChange();
+            if (inst.id === getInstanceId()) {
+                clearInstanceId();
+            } else {
+                onInstancesChange();
+            }
         } catch (e) {
             toast.error(e);
         }
@@ -170,7 +179,9 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
 
     const update = (patch) => setForm(f => ({ ...f, ...patch }));
 
-    if (loading) return <div className="loading">{t("common.loading")}</div>;
+    if (loading) {
+        return <div className="loading">{t("common.loading")}</div>;
+    }
 
     return (
         <>

@@ -29,7 +29,9 @@ describe('TOTP policy and durable replay protection', () => {
         expect(totpStep(secret, '287082', 89000)).toBe(1);
         expect(totpStep(secret, '287082', 29000)).toBe(1);
         expect(totpStep(secret, '287082', 119000)).toBeNull();
-        for (const code of [287082, ' 287082', '287082\n', '28708', '0287082']) expect(totpStep(secret, code, 59000)).toBeNull();
+        for (const code of [287082, ' 287082', '287082\n', '28708', '0287082']) {
+            expect(totpStep(secret, code, 59000)).toBeNull();
+        }
         expect(totpStep(secret, '287082', 59000, 1)).toBeNull();
     });
     it('generates unique 160-bit seeds and a compatible local enrollment URI', () => {
@@ -58,9 +60,13 @@ describe('TOTP policy and durable replay protection', () => {
     it('clears consecutive failures on success and restarts the budget after a cooldown', async () => {
         const f = await fixture();
         await f.store.setTotp({ secret, lastAcceptedStep: 0, createdAt: new Date(0).toISOString() });
-        for (let i = 0; i < 4; i++) expect(await f.store.consumeTotp('bad')).toBe(false);
+        for (let i = 0; i < 4; i++) {
+            expect(await f.store.consumeTotp('bad')).toBe(false);
+        }
         expect(await f.store.consumeTotp(token(59000))).toBe(true);
-        for (let i = 0; i < 5; i++) expect(await f.store.consumeTotp('bad')).toBe(false);
+        for (let i = 0; i < 5; i++) {
+            expect(await f.store.consumeTotp('bad')).toBe(false);
+        }
         await expect(f.store.consumeTotp(token(89000))).rejects.toMatchObject({ retryAfter: 300 });
         f.advance(300000);
         expect(await f.store.consumeTotp('bad')).toBe(false);

@@ -61,10 +61,12 @@ function DashboardFixture({ loading }) {
     const [status, setStatus] = useState(null);
     const { toast, toasts } = useToast();
     useEffect(() => {
-        if (loading) return;
+        if (loading) {
+            return;
+        }
         let cancelled = false;
-        apiFetch('/status').then(value => { if (!cancelled) setStatus(value); })
-            .catch(e => { if (!cancelled) toast.error(e); });
+        apiFetch('/status').then(value => { if (!cancelled) { setStatus(value); } })
+            .catch(e => { if (!cancelled) { toast.error(e); } });
         return () => { cancelled = true; };
     }, [loading, toast]);
     return <><Dashboard status={loading ? null : status} toast={toast} /><Toasts toasts={toasts} /></>;
@@ -116,9 +118,11 @@ function SidebarFixture({ loading }) {
     const [open, setOpen] = useState(true);
     const { pathname } = useLocation();
     useEffect(() => {
-        if (loading) return;
+        if (loading) {
+            return;
+        }
         let cancelled = false;
-        apiFetch('/status').then(value => { if (!cancelled) setStatus(value); });
+        apiFetch('/status').then(value => { if (!cancelled) { setStatus(value); } });
         return () => { cancelled = true; };
     }, [loading]);
     // A finite shell gives the sidebar its normal flex layout without tying

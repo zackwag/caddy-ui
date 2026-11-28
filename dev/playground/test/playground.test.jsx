@@ -24,9 +24,15 @@ describe('localization playground', () => {
     });
 
     it.each(scenarios.map(scenario => [scenario.id, scenario]))('%s is reachable from what was captured', (_id, scenario) => {
-        for (const key of scenario.keys) expect(typeof readValue(en, key), key).toBe('string');
-        if (scenario.setup) expect(setups).toHaveProperty([scenario.setup]);
-        if (!scenario.profile) return;
+        for (const key of scenario.keys) {
+            expect(typeof readValue(en, key), key).toBe('string');
+        }
+        if (scenario.setup) {
+            expect(setups).toHaveProperty([scenario.setup]);
+        }
+        if (!scenario.profile) {
+            return;
+        }
         const profile = capture.scenarios.find(profile => profile.id === scenario.profile);
         const writes = profile.requests.map(record => record.request).filter(request => request.method !== 'GET');
         expect(RECORDED_WRITES).toEqual(expect.arrayContaining(writes.map(request => request.path)));

@@ -9,7 +9,9 @@ export default function CaddyfileDiff({ oldText, newText, previewRef, label }) {
     const removed = lines.filter(l => l.type === "del").length;
     const shown = useMemo(() => collapseUnchanged(lines), [lines]);
 
-    if (!added && !removed) return <div ref={previewRef} className="history-preview history-diff-empty" role="region" aria-label={label || t("caddyfile.versionPreview")} tabIndex={0}>{t("caddyfile.noDifferences")}</div>;
+    if (!added && !removed) {
+        return <div ref={previewRef} className="history-preview history-diff-empty" role="region" aria-label={label || t("caddyfile.versionPreview")} tabIndex={0}>{t("caddyfile.noDifferences")}</div>;
+    }
 
     return (
         <>

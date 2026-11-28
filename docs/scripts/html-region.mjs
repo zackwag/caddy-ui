@@ -25,7 +25,9 @@ export function readHtmlRegion(source) {
 
     parser.on('startTag', token => {
         if (region?.kind === 'element') {
-            if (token.tagName === region.name) depth++;
+            if (token.tagName === region.name) {
+                depth++;
+            }
         } else if (token.sourceCodeLocation.startOffset === 0 && CODE_ELEMENTS.has(token.tagName)) {
             region = { kind: 'element', name: token.tagName, endOffset: source.length, unclosed: true };
             depth = 1;
@@ -43,13 +45,19 @@ export function readHtmlRegion(source) {
         }
     });
     parser.on('comment', token => {
-        if (!region) finish('comment', token);
+        if (!region) {
+            finish('comment', token);
+        }
     });
     parser.on('doctype', token => {
-        if (!region) finish('tag', token);
+        if (!region) {
+            finish('tag', token);
+        }
     });
     parser.on('text', () => {
-        if (!region) parser.stop();
+        if (!region) {
+            parser.stop();
+        }
     });
 
     parser.write(source);

@@ -65,10 +65,14 @@ export const PROVIDERS = {
 
 export async function sendNotification(config, alert) {
     const provider = PROVIDERS[config.provider];
-    if (!provider) throw new Error(`Unknown provider: ${config.provider}`);
+    if (!provider) {
+        throw new Error(`Unknown provider: ${config.provider}`);
+    }
     const settings = config[config.provider] || {};
     const missing = provider.missing(settings);
-    if (missing) throw new Error(missing);
+    if (missing) {
+        throw new Error(missing);
+    }
     const { url, ...request } = provider.request(settings, alert);
     await sendWebhook(url, { name: provider.label, ...request });
     logger.info(`Notification sent via ${provider.label}`, { title: alert.title });

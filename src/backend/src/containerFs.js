@@ -39,9 +39,15 @@ export async function listContainerDir(containerName, dirPath) {
 // and the stderr of commands run through docker exec.
 export function describeReadError(err) {
     const text = `${err?.code || ''} ${err?.stderr || ''} ${err?.message || ''}`;
-    if (isContainerUnreachable(err)) return err.message;
-    if (/ENOENT|no such file/i.test(text)) return 'not found';
-    if (/EACCES|EPERM|permission denied/i.test(text)) return 'permission denied';
+    if (isContainerUnreachable(err)) {
+        return err.message;
+    }
+    if (/ENOENT|no such file/i.test(text)) {
+        return 'not found';
+    }
+    if (/EACCES|EPERM|permission denied/i.test(text)) {
+        return 'permission denied';
+    }
     return err?.message || 'unknown error';
 }
 

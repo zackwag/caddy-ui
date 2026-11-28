@@ -198,7 +198,9 @@ async function exerciseEditor(page, root, label) {
                 await page.keyboard.type(' ' + opening);
                 await page.keyboard.press('ArrowLeft');
                 await page.keyboard.type(context.prefix);
-                if (context.newline) await page.keyboard.press('Enter');
+                if (context.newline) {
+                    await page.keyboard.press('Enter');
+                }
                 await page.keyboard.press('ArrowRight');
                 assert.equal(await text(), SITE.replace('    respond ok', literalLine + opening + closing));
             }

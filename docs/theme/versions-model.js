@@ -21,7 +21,9 @@ export function defaultDocumentation(catalog, options) {
 // Both the selector and installed-version resolver use this policy. A missing
 // historical book never silently becomes development documentation.
 export function documentationTarget(catalog, value, { component, page = 'index.html', hash = '' } = {}) {
-    if (typeof value !== 'string') return null;
+    if (typeof value !== 'string') {
+        return null;
+    }
     let book, tag, entry;
     if (development.test(value)) {
         book = catalog.development;
@@ -33,11 +35,15 @@ export function documentationTarget(catalog, value, { component, page = 'index.h
             return { kind: 'notes', tag, href: entry ? releaseNotes(catalog, tag) : `https://github.com/${catalog.repository}/releases` };
         }
         book = catalog.books[entry.snapshot];
-    } else return null;
+    } else {
+        return null;
+    }
     const available = book.pages.includes(page);
     const target = available ? page : 'index.html';
     const query = new URLSearchParams({ version: tag });
-    if (!available) query.set('missing', page);
+    if (!available) {
+        query.set('missing', page);
+    }
     const fragment = available && hash ? '#' + hash.replace(/^#/, '') : '';
     return { kind: 'book', tag, href: book.path + target.split('/').map(encodeURIComponent).join('/') + '?' + query + fragment };
 }
@@ -45,16 +51,22 @@ export function documentationTarget(catalog, value, { component, page = 'index.h
 export function resolveDocumentation(catalog, parameters, hash = '') {
     const version = parameters.get('version');
     const requested = ['frontend', 'backend'].filter(component => parameters.has(component));
-    if (version && requested.length) return { kind: 'invalid' };
+    if (version && requested.length) {
+        return { kind: 'invalid' };
+    }
     const options = { page: parameters.get('page') || 'index.html', hash };
     if (version) {
         const target = documentationTarget(catalog, version, options);
         return target ? { kind: 'redirect', target } : { kind: 'invalid' };
     }
-    if (!requested.length) return { kind: 'empty' };
+    if (!requested.length) {
+        return { kind: 'empty' };
+    }
     const choices = requested.map(component => ({ component, version: parameters.get(component),
         target: documentationTarget(catalog, parameters.get(component), { ...options, component }) }));
-    if (choices.some(choice => !choice.target)) return { kind: 'invalid' };
+    if (choices.some(choice => !choice.target)) {
+        return { kind: 'invalid' };
+    }
     if (choices.length === 1 || choices.every(choice => choice.target.href === choices[0].target.href)) {
         return { kind: 'redirect', target: choices[0].target };
     }
@@ -64,8 +76,12 @@ export function resolveDocumentation(catalog, parameters, hash = '') {
 // The published catalogue of every book, from the site's root.
 export async function fetchCatalog(site) {
     const response = await fetch(new URL('documentation.json', site), { cache: 'no-cache' });
-    if (!response.ok) throw new Error('Catalogue unavailable');
+    if (!response.ok) {
+        throw new Error('Catalogue unavailable');
+    }
     const catalog = await response.json();
-    if (catalog.schema !== 1) throw new Error('Unsupported catalogue');
+    if (catalog.schema !== 1) {
+        throw new Error('Unsupported catalogue');
+    }
     return catalog;
 }

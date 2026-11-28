@@ -80,7 +80,9 @@ export function createTotpService({ store, sessions, serialize, persist, require
         disable(req, res, input) {
             return serialize(async () => {
                 requireManagement(req, res);
-                if (!store.isTotpEnabled()) throw new AppError('CONFLICT');
+                if (!store.isTotpEnabled()) {
+                    throw new AppError('CONFLICT');
+                }
                 await authorizeChange(req, input, 'totp.disable');
                 await persist(() => store.setTotp(null));
                 sessions.replaceAllSessions(req, res);

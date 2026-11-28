@@ -60,7 +60,9 @@ describe('real backend login rate limits', () => {
             'X-Forwarded-For': '192.0.2.1', Forwarded: 'for=198.51.100.1', 'X-Real-IP': '203.0.113.1',
         } })).status, 200);
         const login = await loginClient(url);
-        for (let i = 1; i <= 15; i++) assert.equal((await login(`192.0.2.${i}`)).status, 401);
+        for (let i = 1; i <= 15; i++) {
+            assert.equal((await login(`192.0.2.${i}`)).status, 401);
+        }
         for (const forwarded of [undefined, '198.51.100.1', '203.0.113.1, 198.51.100.2']) {
             assert.equal((await login(forwarded)).status, 429);
         }
@@ -78,7 +80,9 @@ describe('real backend login rate limits', () => {
             return loginClient(`http://127.0.0.1:${proxy.address().port}`);
         }
         const first = await proxyFor('192.0.2.1');
-        for (let i = 1; i <= 15; i++) assert.equal((await first(`203.0.113.${i}`)).status, 401);
+        for (let i = 1; i <= 15; i++) {
+            assert.equal((await first(`203.0.113.${i}`)).status, 401);
+        }
         assert.equal((await first('198.51.100.1')).status, 429);
         const second = await proxyFor('192.0.2.2');
         assert.equal((await second('198.51.100.2', credentials.password)).status, 200);
@@ -87,7 +91,9 @@ describe('real backend login rate limits', () => {
     it('ignores direct forwarding headers when only another peer is trusted', { timeout: 15000 }, async t => {
         const { url } = await backend(t, '192.0.2.99');
         const login = await loginClient(url);
-        for (let i = 1; i <= 15; i++) assert.equal((await login(`203.0.113.${i}`)).status, 401);
+        for (let i = 1; i <= 15; i++) {
+            assert.equal((await login(`203.0.113.${i}`)).status, 401);
+        }
         assert.equal((await login('198.51.100.1')).status, 429);
     });
 

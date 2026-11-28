@@ -12,7 +12,9 @@ router.put('/', async (req, res) => {
     const updates = settingsUpdate(req.body);
     const wasChecking = getSettings().routeChecks;
     const settings = await saveSettings(updates);
-    if (settings.routeChecks && !wasChecking) runChecks('route');
+    if (settings.routeChecks && !wasChecking) {
+        runChecks('route');
+    }
     res.json(settings);
 });
 

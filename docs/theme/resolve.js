@@ -13,7 +13,9 @@ async function resolve() {
         const catalog = await fetchCatalog(site);
         const parameters = new URLSearchParams(location.search);
         const tag = document.querySelector('script[data-docs-version]').dataset.docsVersion;
-        if (tag && !parameters.has('version') && !parameters.has('frontend') && !parameters.has('backend')) parameters.set('version', tag);
+        if (tag && !parameters.has('version') && !parameters.has('frontend') && !parameters.has('backend')) {
+            parameters.set('version', tag);
+        }
         const result = resolveDocumentation(catalog, parameters, location.hash);
         if (result.kind === 'redirect') {
             location.replace(new URL(result.target.href, site));
@@ -43,7 +45,9 @@ async function resolve() {
         }
         select.addEventListener('change', () => {
             const target = documentationTarget(catalog, select.value);
-            if (target) location.assign(new URL(target.href, site));
+            if (target) {
+                location.assign(new URL(target.href, site));
+            }
         });
         content.append(label, select);
     } catch {

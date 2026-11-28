@@ -64,7 +64,9 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
     }, [toast]);
 
     const toggleHistory = () => {
-        if (!historyOpen) history.load();
+        if (!historyOpen) {
+            history.load();
+        }
         setHistoryOpen(o => !o);
     };
 
@@ -84,7 +86,9 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
 
     const restoreSnapshot = async (entry) => {
         const message = t("caddyfile.restoreConfirm", { timestamp: formatTs(entry.timestamp) });
-        if (!await confirm(entry.kind === 'external' ? `${message} ${t('caddyfile.externalRestoreHint')}` : message, { confirmLabel: t("caddyfile.restore") })) return;
+        if (!await confirm(entry.kind === 'external' ? `${message} ${t('caddyfile.externalRestoreHint')}` : message, { confirmLabel: t("caddyfile.restore") })) {
+            return;
+        }
         try {
             const text = await history.fetchSnapshot(entry.filename);
             await putCaddyfile("/caddyfile?action=restore&fmt=false&sort=false", text, { message: t("caddyfile.restoredFrom", { timestamp: formatTs(entry.timestamp) }) });
@@ -93,7 +97,9 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
     };
 
     const deleteSnapshot = async (entry) => {
-        if (!await confirm(t("caddyfile.deleteSnapshotConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("common.delete"), danger: true })) return;
+        if (!await confirm(t("caddyfile.deleteSnapshotConfirm", { timestamp: formatTs(entry.timestamp) }), { confirmLabel: t("common.delete"), danger: true })) {
+            return;
+        }
         try {
             await history.remove(entry);
             toast.success(t("caddyfile.snapshotDeleted"));
@@ -104,7 +110,9 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
         setValidating(true);
         try {
             const result = await apiFetch(`/caddyfile/validations?fmt=${runFmt}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: content });
-            if (result.formatted) setContent(result.formatted);
+            if (result.formatted) {
+                setContent(result.formatted);
+            }
             toast.success(t("caddyfile.valid"));
         } catch (e) { toast.error(e); }
         finally { setValidating(false); }
@@ -142,7 +150,9 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
     };
 
     const save = async ({ force = false } = {}) => {
-        if (force && !await confirm(t("caddyfile.forceSaveConfirm"), { confirmLabel: t("caddyfile.forceSave"), danger: true })) return;
+        if (force && !await confirm(t("caddyfile.forceSaveConfirm"), { confirmLabel: t("caddyfile.forceSave"), danger: true })) {
+            return;
+        }
         await saveContent({ force, basis: savedETag.current });
     };
 
@@ -166,11 +176,15 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
 
     const importFile = (e) => {
         const file = e.target.files?.[0];
-        if (!file) return;
+        if (!file) {
+            return;
+        }
         const reader = new FileReader();
         reader.onload = async (ev) => {
             const text = ev.target.result;
-            if (!await confirm(t("caddyfile.importConfirm"), { confirmLabel: t("caddyfile.import") })) return;
+            if (!await confirm(t("caddyfile.importConfirm"), { confirmLabel: t("caddyfile.import") })) {
+                return;
+            }
             try {
                 await putCaddyfile("/caddyfile?action=import", text, { message: t("caddyfile.importedReloaded") });
             } catch (err) { toast.error(err); }
@@ -181,7 +195,9 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
 
     const isDirty = content !== original;
 
-    if (loading) return <div className="loading">{t("caddyfile.loading")}</div>;
+    if (loading) {
+        return <div className="loading">{t("caddyfile.loading")}</div>;
+    }
 
     return (
         <div
@@ -190,7 +206,7 @@ export default function CaddyFile({ toast, theme, confirm, editorVim, onEditorVi
             style={{ "--editor-share": `${editorShare}fr`, "--history-share": `${100 - editorShare}fr` }}
         >
             <div id={EDITOR_PANE_ID} className="editor-wrap">
-                <CaddyfileEditor className="caddyfile-editor" padding="16px" value={content} onChange={setContent} onSave={() => { if (!saving && isDirty) save(); }} theme={theme} vimMode={editorVim} />
+                <CaddyfileEditor className="caddyfile-editor" padding="16px" value={content} onChange={setContent} onSave={() => { if (!saving && isDirty) { save(); } }} theme={theme} vimMode={editorVim} />
                 <div ref={toolbarRef} className="editor-toolbar">
                     <div className="btn-row">
                         <label className="editor-checkbox-label">

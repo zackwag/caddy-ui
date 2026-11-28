@@ -67,17 +67,21 @@ export async function useBrowserFixture(t, options) {
     page.setDefaultTimeout(10000);
     const record = entry => {
         requests.push(entry);
-        if (requests.length > 80) requests.shift();
+        if (requests.length > 80) {
+            requests.shift();
+        }
     };
     let networkChanged;
     page.on('pageerror', error => pageErrors.push(error.message));
     page.on('request', request => record({ url: request.url() }));
     page.on('response', response => record({ url: response.url(), status: response.status() }));
     page.on('requestfailed', request => {
-        if (request.failure()?.errorText === 'net::ERR_NETWORK_CHANGED') networkChanged = true;
+        if (request.failure()?.errorText === 'net::ERR_NETWORK_CHANGED') {
+            networkChanged = true;
+        }
         record({ url: request.url(), failure: request.failure() });
     });
-    page.on('console', message => { if (message.type() === 'error') record({ error: message.text() }); });
+    page.on('console', message => { if (message.type() === 'error') { record({ error: message.text() }); } });
 
     async function waitForView(selector) {
         try { await page.locator(selector).waitFor(); }
@@ -97,7 +101,9 @@ export async function useBrowserFixture(t, options) {
             await waitForView('.shell');
             break;
         } catch (error) {
-            if (!networkChanged || attempt === 2) throw error;
+            if (!networkChanged || attempt === 2) {
+                throw error;
+            }
         }
     }
     return { stack, page, context, origin, waitForView };

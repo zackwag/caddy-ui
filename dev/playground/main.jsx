@@ -10,8 +10,9 @@ const catalogs = Object.fromEntries(
     Object.entries(modules).map(([path, catalog]) => [path.split('/').pop().slice(0, -3), catalog]),
 );
 const palette = THEME_LIST.find((theme) => theme.id === DEFAULT_PALETTES.dark);
-for (const [key, value] of Object.entries(palette.vars))
+for (const [key, value] of Object.entries(palette.vars)) {
     document.documentElement.style.setProperty(key, value);
+}
 const style = document.createElement('style');
 style.textContent = css;
 document.head.prepend(style);

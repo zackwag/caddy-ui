@@ -6,7 +6,9 @@ import proxyaddr from 'proxy-addr';
 // An explicit address list avoids trusting a caller just because it is one hop
 // away. In particular, a directly exposed backend must ignore forwarded IPs.
 export function parseTrustedProxies(value = '') {
-    if (!value.trim()) return false;
+    if (!value.trim()) {
+        return false;
+    }
     const addresses = value.split(',').map(address => address.trim());
     for (const cidr of addresses) {
         const [address, prefix, ...extra] = cidr.split('/');
@@ -35,7 +37,9 @@ export async function createProxyTrust(value, { resolve = lookup, refreshMs = 30
     const refresh = () => pending ??= (async () => {
         try {
             const addresses = await resolve('caddy-ui-frontend', { all: true });
-            if (!closed) trusts = proxyaddr.compile(addresses.map(({ address }) => address));
+            if (!closed) {
+                trusts = proxyaddr.compile(addresses.map(({ address }) => address));
+            }
         } catch {
             // Fail closed on lookup failure, including frontend recreation.
             trusts = () => false;

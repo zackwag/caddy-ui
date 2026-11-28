@@ -16,13 +16,19 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
         const secondaryMinimum = secondaryMinimumRef.current;
         const divider = dividerRef.current;
         const secondaryControls = secondaryControlsRef.current;
-        if (!container || !primaryMinimum || !secondaryMinimum || !secondaryControls || !divider) return;
+        if (!container || !primaryMinimum || !secondaryMinimum || !secondaryControls || !divider) {
+            return;
+        }
 
         const measure = () => {
             // Fixed-height layouts hide the divider; keep the desktop split preference intact.
-            if (!divider.getClientRects().length) return;
+            if (!divider.getClientRects().length) {
+                return;
+            }
             const available = container.clientHeight - divider.offsetHeight;
-            if (available <= 0) return;
+            if (available <= 0) {
+                return;
+            }
             // Leave room for the controls and content in each pane.
             const reserve = parseFloat(getComputedStyle(secondaryControls).getPropertyValue('--pane-content-reserve')) || 100;
             const secondarySize = secondaryMinimum.offsetHeight + secondaryControls.offsetHeight + reserve;
@@ -44,27 +50,37 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
 
     useEffect(() => {
         const clamped = Math.max(limits.min, Math.min(limits.max, value));
-        if (clamped !== value) onChange(clamped);
+        if (clamped !== value) {
+            onChange(clamped);
+        }
     }, [limits, value, onChange]);
 
     const resize = next => onChange(Math.max(limits.min, Math.min(limits.max, next)));
 
     const move = event => {
-        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+            return;
+        }
         const container = containerRef.current;
         const available = container.clientHeight - event.currentTarget.offsetHeight;
-        if (available <= 0) return;
+        if (available <= 0) {
+            return;
+        }
         const offset = event.clientY - container.getBoundingClientRect().top - event.currentTarget.offsetHeight / 2;
         resize(offset / available * 100);
     };
 
     const release = event => {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
     };
 
     const onKeyDown = event => {
         const targets = { ArrowUp: value - 5, ArrowDown: value + 5, Home: limits.min, End: limits.max };
-        if (!(event.key in targets)) return;
+        if (!(event.key in targets)) {
+            return;
+        }
         event.preventDefault();
         resize(targets[event.key]);
     };
@@ -84,7 +100,9 @@ export default function PaneDivider({ containerRef, primaryMinimumRef, secondary
             tabIndex={0}
             title={t("caddyfile.resizePanesHint")}
             onPointerDown={event => {
-                if (event.button !== 0) return;
+                if (event.button !== 0) {
+                    return;
+                }
                 event.preventDefault();
                 event.currentTarget.focus();
                 event.currentTarget.setPointerCapture(event.pointerId);

@@ -11,6 +11,7 @@ export default [
         },
         rules: {
             'no-unused-vars': ['error', { args: 'none' }],
+            curly: ['error', 'all'],
             'no-empty': ['error', { allowEmptyCatch: true }],
         },
     },

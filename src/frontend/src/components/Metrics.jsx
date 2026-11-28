@@ -45,8 +45,11 @@ export default function Metrics({ toast, publicMetrics, routeChecks, onRouteChec
             const result = await apiFetch("/metrics/config", { method: "PUT", json: { enabled } });
             setMetricsConfig({ enabled });
             toast.saved(result, enabled ? t("metrics.enabledToast") : t("metrics.disabledToast"));
-            if (enabled) load();
-            else setMetrics({ ok: false });
+            if (enabled) {
+                load();
+            } else {
+                setMetrics({ ok: false });
+            }
         } catch (e) { toast.error(e); }
         finally { setSavingMetrics(false); }
     };

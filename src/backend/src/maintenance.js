@@ -47,12 +47,18 @@ const isObject = value => value && typeof value === 'object' && !Array.isArray(v
 function parseMaintenance(parsed) {
     const state = { instances: {}, unassigned: [] };
     if (isObject(parsed) && parsed.version === STATE_VERSION) {
-        if (isObject(parsed.instances)) state.instances = parsed.instances;
-        if (Array.isArray(parsed.unassigned)) state.unassigned = parsed.unassigned;
+        if (isObject(parsed.instances)) {
+            state.instances = parsed.instances;
+        }
+        if (Array.isArray(parsed.unassigned)) {
+            state.unassigned = parsed.unassigned;
+        }
     } else if (isObject(parsed)) {
         // Version 1 was keyed by domain alone, so its owner is unknown
         for (const [domain, entry] of Object.entries(parsed)) {
-            if (isObject(entry)) state.unassigned.push({ domain, ...entry });
+            if (isObject(entry)) {
+                state.unassigned.push({ domain, ...entry });
+            }
         }
     }
     return state;
@@ -88,10 +94,14 @@ export async function setMaintenance(instanceId, domain, originalContent) {
 
 export async function clearMaintenance(instanceId, domain) {
     const entry = store.get().instances[instanceId]?.[domain];
-    if (!entry) return undefined;
+    if (!entry) {
+        return undefined;
+    }
     await store.update(state => {
         delete state.instances[instanceId][domain];
-        if (Object.keys(state.instances[instanceId]).length === 0) delete state.instances[instanceId];
+        if (Object.keys(state.instances[instanceId]).length === 0) {
+            delete state.instances[instanceId];
+        }
     });
     logger.info('Maintenance disabled', { instance: instanceId, domain });
     return entry;
@@ -102,9 +112,13 @@ export async function clearMaintenance(instanceId, domain) {
 // can't restore them.
 export async function releaseInstanceMaintenance(instanceId) {
     const entries = store.get().instances[instanceId];
-    if (!entries) return;
+    if (!entries) {
+        return;
+    }
     await store.update(state => {
-        for (const [domain, entry] of Object.entries(entries)) state.unassigned.push({ domain, ...entry, instanceId });
+        for (const [domain, entry] of Object.entries(entries)) {
+            state.unassigned.push({ domain, ...entry, instanceId });
+        }
         delete state.instances[instanceId];
     });
     logger.info('Maintenance state unassigned for removed instance', { instance: instanceId, domains: Object.keys(entries) });
@@ -117,7 +131,9 @@ export async function releaseInstanceMaintenance(instanceId) {
 // which leaves the entry for a later attempt.
 export async function claimUnassignedMaintenance(instances, servesMaintenance) {
     const counts = new Map();
-    for (const { domain } of store.get().unassigned) counts.set(domain, (counts.get(domain) || 0) + 1);
+    for (const { domain } of store.get().unassigned) {
+        counts.set(domain, (counts.get(domain) || 0) + 1);
+    }
     const claims = [];
     for (const [domain, count] of counts) {
         const results = await Promise.all(instances.map(inst => servesMaintenance(inst, domain)));
@@ -134,14 +150,18 @@ export async function claimUnassignedMaintenance(instances, servesMaintenance) {
         }
         claims.push({ domain, owner });
     }
-    if (!claims.length) return;
+    if (!claims.length) {
+        return;
+    }
     await store.update(state => {
         // An owner removed since it was read had its state released
         const current = new Set(getInstances().map(inst => inst.id));
         let claimed = false;
         for (const { domain, owner } of claims) {
             const index = state.unassigned.findIndex(e => e.domain === domain);
-            if (index === -1 || !current.has(owner.id) || state.instances[owner.id]?.[domain]) continue;
+            if (index === -1 || !current.has(owner.id) || state.instances[owner.id]?.[domain]) {
+                continue;
+            }
             const [{ originalContent, enabledAt }] = state.unassigned.splice(index, 1);
             state.instances[owner.id] = { ...(state.instances[owner.id] || {}), [domain]: { originalContent, enabledAt } };
             claimed = true;
@@ -217,10 +237,16 @@ export async function getMaintenancePage() {
 
 // Recognizes a site block written by buildMaintenanceBlock (current or legacy).
 export function isMaintenanceBlock(block) {
-    if (typeof block !== 'string') return false;
-    if (/^\s*rewrite \* \/public\/responses\/maintenance\s*$/m.test(block)) return true;
+    if (typeof block !== 'string') {
+        return false;
+    }
+    if (/^\s*rewrite \* \/public\/responses\/maintenance\s*$/m.test(block)) {
+        return true;
+    }
     // Legacy: inlined heredoc from before the responses endpoint
-    if (/^\s*respond <<CADDY_UI_MAINTENANCE_*\s*$/m.test(block)) return true;
+    if (/^\s*respond <<CADDY_UI_MAINTENANCE_*\s*$/m.test(block)) {
+        return true;
+    }
     return false;
 }
 
@@ -248,7 +274,9 @@ export function buildMaintenanceBlock(originalBlock, backendUrl) {
                 const nl = inner.indexOf('\n', child.end);
                 return { start: lineStart, end: nl === -1 ? inner.length : nl + 1 };
             });
-        for (const r of ranges.reverse()) kept = kept.slice(0, r.start) + kept.slice(r.end);
+        for (const r of ranges.reverse()) {
+            kept = kept.slice(0, r.start) + kept.slice(r.end);
+        }
     } catch { /* parse failure: keep inner as-is, maintenance directives still get appended */ }
 
     kept = kept.replace(/\n{3,}/g, '\n\n').trim();

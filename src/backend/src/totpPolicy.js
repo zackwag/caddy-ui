@@ -39,9 +39,13 @@ export function createTotpEnrollment(username) {
 // Persist the accepted step before granting access, including a future step
 // accepted within clock tolerance. This floor survives backend restarts.
 export function totpStep(secret, code, timestamp, lastAcceptedStep = -1) {
-    if (typeof code !== 'string' || code.length !== 6 || !/^\d{6}$/.test(code)) return null;
+    if (typeof code !== 'string' || code.length !== 6 || !/^\d{6}$/.test(code)) {
+        return null;
+    }
     const delta = authenticator(secret).validate({ token: code, timestamp, window: 1 });
-    if (delta === null) return null;
+    if (delta === null) {
+        return null;
+    }
     const step = Math.floor(timestamp / TOTP_PERIOD_MS) + delta;
     return step > lastAcceptedStep ? step : null;
 }

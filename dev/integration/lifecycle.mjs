@@ -18,7 +18,9 @@ export class FixtureScope {
             void this.close().catch(() => {});
         };
         signal?.addEventListener('abort', this.#onAbort, { once: true });
-        if (signal?.aborted) this.#onAbort();
+        if (signal?.aborted) {
+            this.#onAbort();
+        }
     }
 
     get signal() { return this.#controller.signal; }
@@ -27,7 +29,9 @@ export class FixtureScope {
 
     async run(action) {
         this.signal.throwIfAborted();
-        if (this.#cleanup) throw new Error('Fixture is closed');
+        if (this.#cleanup) {
+            throw new Error('Fixture is closed');
+        }
         const pending = Promise.resolve().then(() => {
             this.signal.throwIfAborted();
             return action();
@@ -59,7 +63,9 @@ export class FixtureScope {
             for (const dispose of this.#disposers.reverse()) {
                 try { await dispose(); } catch (error) { errors.push(error); }
             }
-            if (errors.length) throw new AggregateError(errors, 'Fixture cleanup failed');
+            if (errors.length) {
+                throw new AggregateError(errors, 'Fixture cleanup failed');
+            }
         });
     }
 }

@@ -7,23 +7,31 @@ const [command, ...args] = process.argv.slice(2);
 const usage = 'Usage: npm run dev:instances -- create|stop|remove|list|remove-all [name] [--examples] [--purge] [--yes]';
 
 try {
-    if (!['create', 'stop', 'remove', 'list', 'remove-all'].includes(command)) throw new Error(usage);
+    if (!['create', 'stop', 'remove', 'list', 'remove-all'].includes(command)) {
+        throw new Error(usage);
+    }
     const purge = args.includes('--purge');
     const yes = args.includes('--yes');
     const examples = args.includes('--examples');
     const names = args.filter(arg => !arg.startsWith('--'));
     if (args.some(arg => arg.startsWith('--') && !['--purge', '--yes', '--examples'].includes(arg)) ||
         names.length !== (['create', 'stop', 'remove'].includes(command) ? 1 : 0) ||
-        (purge && !['remove', 'remove-all'].includes(command)) || (examples && command !== 'create')) throw new Error(usage);
+        (purge && !['remove', 'remove-all'].includes(command)) || (examples && command !== 'create')) {
+        throw new Error(usage);
+    }
     const destructive = command === 'remove-all' || purge;
     let confirmed = yes;
     if (destructive && !confirmed) {
-        if (!stdin.isTTY) throw new Error('This operation requires explicit confirmation. Review the scope and pass --yes.');
+        if (!stdin.isTTY) {
+            throw new Error('This operation requires explicit confirmation. Review the scope and pass --yes.');
+        }
         const rl = createInterface({ input: stdin, output: stdout });
         try {
             confirmed = (await rl.question(`Remove ${command === 'remove-all' ? 'all instances in this checkout' : names[0]}${purge ? ' AND their persistent data' : ' (retain data)'}? Type yes: `)) === 'yes';
         } finally { rl.close(); }
-        if (!confirmed) throw new Error('Cancelled.');
+        if (!confirmed) {
+            throw new Error('Cancelled.');
+        }
     }
     await checkDocker();
     await withLock(STATE, async () => {
@@ -36,12 +44,18 @@ try {
             for (const name of await harness.names()) {
                 const detail = await harness.inspect('container', harness.resource(name));
                 console.log(JSON.stringify({ name, running: detail.State.Running, containerName: harness.resource(name) }));
-                if (detail.State.Running) console.log(JSON.stringify(await harness.describe(name)));
+                if (detail.State.Running) {
+                    console.log(JSON.stringify(await harness.describe(name)));
+                }
             }
             console.log('Retained data volumes:', (await harness.names('volume')).join(', ') || '(none)');
-        } else if (command === 'stop') await harness.stop(names[0]);
-        else if (command === 'remove') await harness.remove(names[0], purge);
-        else await harness.removeAll({ confirmed, purge });
+        } else if (command === 'stop') {
+            await harness.stop(names[0]);
+        } else if (command === 'remove') {
+            await harness.remove(names[0], purge);
+        } else {
+            await harness.removeAll({ confirmed, purge });
+        }
     });
 } catch (error) {
     console.error(error.message);

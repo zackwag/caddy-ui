@@ -88,11 +88,15 @@ describe('collectRouteTargets', () => {
 
 describe('isRouteUp', () => {
     it('treats success, redirects, and auth challenges as up', () => {
-        for (const code of [200, 204, 301, 302, 308, 401, 403, 404]) expect(isRouteUp(code)).toBe(true);
+        for (const code of [200, 204, 301, 302, 308, 401, 403, 404]) {
+            expect(isRouteUp(code)).toBe(true);
+        }
     });
 
     it('treats server errors and no response as down', () => {
-        for (const code of [500, 502, 503, 504, 0, null, undefined]) expect(isRouteUp(code)).toBe(false);
+        for (const code of [500, 502, 503, 504, 0, null, undefined]) {
+            expect(isRouteUp(code)).toBe(false);
+        }
     });
 });
 

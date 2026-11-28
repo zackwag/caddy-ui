@@ -35,8 +35,12 @@ export async function initUptimeHistory() {
 function pruneOldEntries(entry, now) {
     const cutoff = now - RETENTION_MS;
     let i = 0;
-    while (i < entry.entries.length && entry.entries[i].at < cutoff) i++;
-    if (i > 0) entry.entries.splice(0, i);
+    while (i < entry.entries.length && entry.entries[i].at < cutoff) {
+        i++;
+    }
+    if (i > 0) {
+        entry.entries.splice(0, i);
+    }
 }
 
 export function forgetInstanceHistory(instanceId) {
@@ -64,7 +68,9 @@ export function recordCheck(instanceId, target, online, kind = 'upstream') {
 
 function getUptimeStats(instanceId, target, kind = 'upstream') {
     const entry = history.get(historyKey(instanceId, target, kind));
-    if (!entry || entry.entries.length === 0) return null;
+    if (!entry || entry.entries.length === 0) {
+        return null;
+    }
 
     const total = entry.entries.length;
     const online = entry.entries.filter(e => e.online).length;
@@ -85,7 +91,9 @@ export function getStatsForInstance(instanceId, kind = 'upstream') {
     const prefix = historyKey(instanceId, '', kind);
     const stats = {};
     for (const key of history.keys()) {
-        if (!key.startsWith(prefix)) continue;
+        if (!key.startsWith(prefix)) {
+            continue;
+        }
         const target = key.slice(prefix.length);
         stats[target] = getUptimeStats(instanceId, target, kind);
     }
@@ -96,20 +104,26 @@ export function getStatsForInstance(instanceId, kind = 'upstream') {
 // trimmed to entries at or after sinceMs.
 export function getHistory(instanceId, target, { sinceMs, kind = 'upstream' } = {}) {
     const entry = history.get(historyKey(instanceId, target, kind));
-    if (!entry) return { entries: [], firstSeen: null };
+    if (!entry) {
+        return { entries: [], firstSeen: null };
+    }
     const entries = sinceMs ? entry.entries.filter(e => e.at >= sinceMs) : entry.entries;
     return { entries, firstSeen: entry.firstSeen };
 }
 
 async function flushIfDirty() {
-    if (!dirty) return;
+    if (!dirty) {
+        return;
+    }
     dirty = false;
     await flush();
 }
 
 async function flush() {
     const obj = {};
-    for (const [key, entry] of history) obj[key] = entry;
+    for (const [key, entry] of history) {
+        obj[key] = entry;
+    }
     return serialize(async () => {
         try {
             await writeJsonFile(HISTORY_PATH, obj, { space: 0 });

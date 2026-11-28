@@ -24,7 +24,7 @@ async function enrolled() {
     return { ...f, client, credentials, recoveryKey: setup.data.recoveryKey };
 }
 const change = (client, body, options = {}) => client.request('/auth/credentials', { method: 'PATCH', body, ...options });
-afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); });
+afterEach(async () => { for (const f of fixtures.splice(0)) { await f.close(); } });
 
 describe('administrator credential changes', () => {
     it('requires a management session and CSRF, without revealing the username publicly', async () => {

@@ -81,7 +81,9 @@ test('maintainer grouping requires successful builds and a recorded reason, and 
     for (const aliases of [
         { 'v2.20.2': alias('v9.0.0') }, { 'v2.20.2': alias('v2.20.0', '') },
         { 'v2.21.0': alias('v2.20.0') }, { 'v2.20.0': alias('v2.20.2'), 'v2.20.2': alias('v2.20.0') },
-    ]) assert.throws(() => groupBooks(releases, results, config(aliases)));
+    ]) {
+        assert.throws(() => groupBooks(releases, results, config(aliases)));
+    }
     const report = historyReport({ from: 'v2.20.0', throughCommit: 'source', publicationsCommit: 'evidence', releases }, results, groups);
     assert.match(report, /2 byte-distinct books; 1 selected snapshot/);
     assert.match(report, /Reviewed wording-only diff/);

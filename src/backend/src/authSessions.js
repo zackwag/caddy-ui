@@ -16,16 +16,24 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
     function remove(id, except) {
         const session = sessions.get(id);
         sessions.delete(id);
-        for (const connection of session?.connections || []) if (connection !== except) connection.end();
+        for (const connection of session?.connections || []) {
+            if (connection !== except) {
+                connection.end();
+            }
+        }
     }
 
     function readSession(req) {
         const cookies = (req.headers.cookie || '').split(';').map(value => value.trim());
         const values = cookies.filter(value => value.startsWith(COOKIE + '=')).map(value => value.slice(COOKIE.length + 1));
-        if (values.length !== 1 || !/^[A-Za-z0-9_-]{43}$/.test(values[0])) return null;
+        if (values.length !== 1 || !/^[A-Za-z0-9_-]{43}$/.test(values[0])) {
+            return null;
+        }
         const id = digest(values[0]);
         const session = sessions.get(id);
-        if (!session) return null;
+        if (!session) {
+            return null;
+        }
         if (session.expires <= now()) { remove(id); return null; }
         return session;
     }
@@ -36,16 +44,24 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
 
     function revokeSession(req, res) {
         const session = readSession(req);
-        if (session) remove(session.id);
+        if (session) {
+            remove(session.id);
+        }
         cookie(res, '', 0);
     }
 
     function createSession(req, res, permission = 'anonymous') {
-        for (const [id, value] of sessions) if (value.expires <= now()) remove(id);
+        for (const [id, value] of sessions) {
+            if (value.expires <= now()) {
+                remove(id);
+            }
+        }
         if (permission === 'anonymous') {
             // Map order is creation order, so the first anonymous entry is the oldest
             const anonymous = [...sessions.values()].filter(value => value.permission === 'anonymous');
-            if (anonymous.length >= anonymousLimit) remove(anonymous[0].id);
+            if (anonymous.length >= anonymousLimit) {
+                remove(anonymous[0].id);
+            }
         } else {
             // Replacing a signed-in session doesn't add one, so only that may exceed the limit
             const authenticated = [...sessions.values()].filter(value => value.permission !== 'anonymous').length;
@@ -66,7 +82,9 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
 
     // `except` is a response to leave open: the one reporting the revocation.
     function revokeAllSessions(except) {
-        for (const id of [...sessions.keys()]) remove(id, except);
+        for (const id of [...sessions.keys()]) {
+            remove(id, except);
+        }
     }
 
     return {
@@ -93,7 +111,9 @@ export function createAuthSessions({ secure = false, now = Date.now, limit = 204
         verifyCsrfToken(req) {
             const session = readSession(req);
             const token = req.headers['x-csrf-token'];
-            if (!session || typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) return false;
+            if (!session || typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+                return false;
+            }
             return timingSafeEqual(Buffer.from(token), Buffer.from(session.csrf));
         },
     };

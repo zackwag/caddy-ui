@@ -8,9 +8,13 @@
 const MAX_EDITS = 2000;
 
 function splitLines(text) {
-    if (text === '') return [];
+    if (text === '') {
+        return [];
+    }
     const lines = text.split('\n');
-    if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+    if (lines.length > 1 && lines[lines.length - 1] === '') {
+        lines.pop();
+    }
     return lines;
 }
 
@@ -46,9 +50,10 @@ function myers(a, b) {
         const prevX = vd[base + prevK];
         const prevY = prevX - prevK;
         while (x > prevX && y > prevY) { ops.push({ type: 'equal', text: a[x - 1] }); x--; y--; }
-        if (d === 0) break;
-        if (x === prevX) { ops.push({ type: 'add', text: b[y - 1] }); y--; }
-        else { ops.push({ type: 'del', text: a[x - 1] }); x--; }
+        if (d === 0) {
+            break;
+        }
+        if (x === prevX) { ops.push({ type: 'add', text: b[y - 1] }); y--; } else { ops.push({ type: 'del', text: a[x - 1] }); x--; }
     }
     return ops.reverse();
 }
@@ -60,7 +65,9 @@ export function diffLines(oldText, newText) {
 
     // Trim the shared prefix/suffix first so the O(ND) part only sees the edits.
     let start = 0;
-    while (start < a.length && start < b.length && a[start] === b[start]) start++;
+    while (start < a.length && start < b.length && a[start] === b[start]) {
+        start++;
+    }
     let endA = a.length, endB = b.length;
     while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB--; }
 
@@ -72,8 +79,12 @@ export function diffLines(oldText, newText) {
 
     let oldNo = 0, newNo = 0;
     return ops.map(op => {
-        if (op.type === 'equal') return { ...op, oldNo: ++oldNo, newNo: ++newNo };
-        if (op.type === 'del') return { ...op, oldNo: ++oldNo, newNo: null };
+        if (op.type === 'equal') {
+            return { ...op, oldNo: ++oldNo, newNo: ++newNo };
+        }
+        if (op.type === 'del') {
+            return { ...op, oldNo: ++oldNo, newNo: null };
+        }
         return { ...op, oldNo: null, newNo: ++newNo };
     });
 }
@@ -83,8 +94,12 @@ export function diffLines(oldText, newText) {
 export function collapseUnchanged(lines, context = 3) {
     const keep = new Uint8Array(lines.length);
     lines.forEach((line, i) => {
-        if (line.type === 'equal') return;
-        for (let j = Math.max(0, i - context); j <= Math.min(lines.length - 1, i + context); j++) keep[j] = 1;
+        if (line.type === 'equal') {
+            return;
+        }
+        for (let j = Math.max(0, i - context); j <= Math.min(lines.length - 1, i + context); j++) {
+            keep[j] = 1;
+        }
     });
 
     const out = [];
@@ -97,6 +112,8 @@ export function collapseUnchanged(lines, context = 3) {
             skipped++;
         }
     });
-    if (skipped) out.push({ type: 'skip', count: skipped });
+    if (skipped) {
+        out.push({ type: 'skip', count: skipped });
+    }
     return out;
 }

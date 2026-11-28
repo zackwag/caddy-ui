@@ -11,12 +11,16 @@ function dashboardKeys(profile) {
         'dashboard.tls', 'dashboard.certificateManagement', 'dashboard.upstreams', 'dashboard.process'];
     keys.push(status.online ? 'dashboard.online' : 'dashboard.offline');
     keys.push(status.online ? 'dashboard.enabled' : 'dashboard.connectionError');
-    if (status.upstreamsTotal != null) keys.push(status.upstreamsOnline < status.upstreamsTotal ? 'dashboard.offlineCount' : 'dashboard.allOnline');
+    if (status.upstreamsTotal != null) {
+        keys.push(status.upstreamsOnline < status.upstreamsTotal ? 'dashboard.offlineCount' : 'dashboard.allOnline');
+    }
     keys.push(...(process.ok
         ? ['dashboard.version', 'dashboard.uptime', 'dashboard.heap', 'dashboard.systemMemory', 'dashboard.lastReload']
         : ['dashboard.metricsNotEnabled', 'dashboard.enableInMetrics']));
-    if (status.servers?.length) keys.push('dashboard.httpServers', 'dashboard.label', 'dashboard.serverId',
-        'dashboard.serverIdHint', 'dashboard.listensOn', 'dashboard.routes', 'dashboard.active', 'dashboard.showRoutesOn', 'dashboard.editLabel');
+    if (status.servers?.length) {
+        keys.push('dashboard.httpServers', 'dashboard.label', 'dashboard.serverId',
+            'dashboard.serverIdHint', 'dashboard.listensOn', 'dashboard.routes', 'dashboard.active', 'dashboard.showRoutesOn', 'dashboard.editLabel');
+    }
     return keys;
 }
 

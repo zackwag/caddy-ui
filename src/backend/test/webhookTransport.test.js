@@ -149,8 +149,9 @@ describe('sendWebhook', () => {
 
     it.each(['response', 'reset'])('does not retry a POST after delivery followed by a %s failure', async failure => {
         handler = (req, res) => {
-            if (failure === 'reset') req.socket.destroy();
-            else {
+            if (failure === 'reset') {
+                req.socket.destroy();
+            } else {
                 res.writeHead(500);
                 res.end('failed');
             }
@@ -280,8 +281,11 @@ describe('sendWebhook', () => {
             : pinned();
         try {
             const pending = sendWebhook(`http://ntfy.test:${port}/topic`, { name: 'ntfy', body: 'x' }, { resolveDestination });
-            if (outcome === 'success') await pending;
-            else await expect(pending).rejects.toThrow(outcome === 'response error' ? 'ntfy responded 500' : 'resolution failed');
+            if (outcome === 'success') {
+                await pending;
+            } else {
+                await expect(pending).rejects.toThrow(outcome === 'response error' ? 'ntfy responded 500' : 'resolution failed');
+            }
             expect(vi.getTimerCount()).toBe(0);
         } finally {
             vi.useRealTimers();

@@ -13,13 +13,19 @@ export function getRouteHost(route) {
 
 // Display only: never feed this fallback into the saved title or Caddyfile.
 export function getRouteTitle(route, title) {
-    if (title) return title;
+    if (title) {
+        return title;
+    }
     const [host] = getRouteHosts(route);
-    if (!host) return '';
+    if (!host) {
+        return '';
+    }
     const hostname = host.replace(/\.$/, '');
     const labels = hostname.split('.');
     if (hostname.length > 253 || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
-        || !labels.every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))) return '';
+        || !labels.every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))) {
+        return '';
+    }
     return labels[0];
 }
 
@@ -40,10 +46,16 @@ export function getRouteUpstreams(route) {
     function walk(handles) {
         for (const h of handles || []) {
             if (h.handler === 'reverse_proxy' && h.upstreams) {
-                for (const u of h.upstreams) if (u.dial) dials.push(u.dial);
+                for (const u of h.upstreams) {
+                    if (u.dial) {
+                        dials.push(u.dial);
+                    }
+                }
             }
             if (h.routes) {
-                for (const r of h.routes) walk(r.handle);
+                for (const r of h.routes) {
+                    walk(r.handle);
+                }
             }
         }
     }
@@ -65,9 +77,13 @@ export const STATUS_LABEL_KEYS = {
 // none: nothing to check; unknown: not checked yet. Each upstream's state is
 // the monitor's latest record of it.
 function upstreamsStatus(upstreams, uptime) {
-    if (!upstreams.length) return 'none';
+    if (!upstreams.length) {
+        return 'none';
+    }
     const known = upstreams.map(upstream => uptime[upstream]?.currentlyOnline).filter(online => online !== undefined);
-    if (!known.length) return 'unknown';
+    if (!known.length) {
+        return 'unknown';
+    }
     const online = known.filter(Boolean).length;
     return online === upstreams.length ? 'online' : online > 0 ? 'partial' : 'offline';
 }

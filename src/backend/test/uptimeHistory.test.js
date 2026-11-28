@@ -17,7 +17,9 @@ const stats = (target, kind, instance = INSTANCE) => getStatsForInstance(instanc
 
 beforeEach(() => vi.useFakeTimers({ now: START }));
 afterEach(() => {
-    for (const id of [INSTANCE, 'other']) forgetInstanceHistory(id);
+    for (const id of [INSTANCE, 'other']) {
+        forgetInstanceHistory(id);
+    }
     vi.useRealTimers();
 });
 

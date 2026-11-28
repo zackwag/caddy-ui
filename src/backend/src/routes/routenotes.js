@@ -15,7 +15,9 @@ router.get('/', async (req, res) => {
         try {
             const { caddyfile, env } = await readSites(req.instance);
             for (const [domain, title] of Object.entries(parseCaddyfileTitles(caddyfile, env))) {
-                if (title) notes[domain] = title;
+                if (title) {
+                    notes[domain] = title;
+                }
             }
         } catch { /* caddyfile unreadable — return notes only */ }
     }

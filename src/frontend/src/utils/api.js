@@ -28,11 +28,15 @@ async function csrfToken() {
         csrfRequest = fetch(`${API}/auth/csrf`, { credentials: 'same-origin', cache: 'no-store' })
             .then(async response => {
                 const body = await response.json();
-                if (!response.ok || typeof body.csrfToken !== 'string') throw new ApiError('Cannot establish request context', { code: 'CSRF_INVALID' });
+                if (!response.ok || typeof body.csrfToken !== 'string') {
+                    throw new ApiError('Cannot establish request context', { code: 'CSRF_INVALID' });
+                }
                 return body.csrfToken;
             }).catch(error => {
                 csrfRequest = undefined;
-                if (error instanceof ApiError) throw error;
+                if (error instanceof ApiError) {
+                    throw error;
+                }
                 throw new ApiError('Network connection failed', { code: 'NETWORK_ERROR' });
             });
     }
@@ -73,7 +77,9 @@ export function onInstanceSelectionReset(listener) {
 }
 export function clearInstanceId() {
     localStorage.removeItem('caddy_ui_instance');
-    for (const listener of instanceResetListeners) listener();
+    for (const listener of instanceResetListeners) {
+        listener();
+    }
 }
 
 // A URL for requests the browser makes itself, which can't send the instance
@@ -122,14 +128,20 @@ export async function apiRequest(path, { json, ...opts } = {}) {
     opts.signal?.throwIfAborted();
     if (res.status === 401) {
         resetAuthContext();
-        for (const listener of unauthorizedListeners) listener();
+        for (const listener of unauthorizedListeners) {
+            listener();
+        }
     }
     if (!res.ok) {
-        if (body?.code === 'CSRF_INVALID') csrfRequest = undefined;
+        if (body?.code === 'CSRF_INVALID') {
+            csrfRequest = undefined;
+        }
         const payload = body && typeof body === 'object' ? body : {};
         // Never retried: the request may be a write meant for the missing instance.
         // Skip the reset if the user already switched while this was in flight.
-        if (payload.code === 'INSTANCE_SELECTION_INVALID' && getInstanceId() === instanceId) clearInstanceId();
+        if (payload.code === 'INSTANCE_SELECTION_INVALID' && getInstanceId() === instanceId) {
+            clearInstanceId();
+        }
         throw new ApiError(
             payload.errors?.join('\n') || payload.error || res.statusText,
             { code: payload.code || (res.status === 401 ? 'UNAUTHORIZED' : 'REQUEST_FAILED'),

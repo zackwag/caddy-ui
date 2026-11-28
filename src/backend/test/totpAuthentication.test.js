@@ -29,7 +29,7 @@ async function fixture(env = {}) {
     }
     return { ...f, client, account, now: () => time, recoveryKey: setup.data.recoveryKey, start, code, enable, advance: ms => { time += ms; } };
 }
-afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); vi.clearAllMocks(); });
+afterEach(async () => { for (const f of fixtures.splice(0)) { await f.close(); } vi.clearAllMocks(); });
 
 describe('TOTP enrollment and password sign-in', () => {
     it.each([{}, { CADDY_UI_EXTERNAL_URL: 'https://ui.example.com' }])('confirms enrollment over HTTP/HTTPS configuration, never exposes the seed in status, and persists it', async env => {
@@ -59,7 +59,9 @@ describe('TOTP enrollment and password sign-in', () => {
         expect(login.data).toEqual({ ok: true, totpRequired: true });
         expect(recordAuthentication).not.toHaveBeenCalled();
         expect((await client.request('/auth/status')).data).toMatchObject({ authenticated: false, totpPending: true });
-        for (const path of ['/protected', '/auth/credentials', '/auth/passkeys', '/auth/tokens']) expect((await client.request(path)).status).toBe(401);
+        for (const path of ['/protected', '/auth/credentials', '/auth/passkeys', '/auth/tokens']) {
+            expect((await client.request(path)).status).toBe(401);
+        }
         expect((await request(client, '/tokens', {})).status).toBe(401);
         expect((await request(client, '/totp/setup', { currentPassword: f.account.password })).status).toBe(401);
         const cookie = client.cookie;
@@ -77,8 +79,10 @@ describe('TOTP enrollment and password sign-in', () => {
         const seed = await f.enable();
         const client = authClient(f.url);
         await request(client, '/sessions', f.account);
-        for (let i = 0; i < 5; i++) expect((await request(client, '/sessions/totp', { code: 'bad' })).data.code)
-            .toBe(i === 4 ? 'TOTP_CHALLENGE_EXPIRED' : 'TOTP_INVALID');
+        for (let i = 0; i < 5; i++) {
+            expect((await request(client, '/sessions/totp', { code: 'bad' })).data.code)
+                .toBe(i === 4 ? 'TOTP_CHALLENGE_EXPIRED' : 'TOTP_INVALID');
+        }
         expect((await request(client, '/sessions/totp', { code: f.code(seed) })).status).toBe(401);
         const blocked = await request(client, '/sessions', f.account);
         expect(blocked.status).toBe(429);
@@ -139,7 +143,9 @@ describe('TOTP enrollment and password sign-in', () => {
         expect((await request(f.client, '/totp', proof, 'DELETE')).data.code).toBe('TOTP_INVALID');
         const client = authClient(f.url);
         await request(client, '/sessions', f.account);
-        for (let i = 0; i < 3; i++) expect((await request(client, '/sessions/totp', { code: 'bad' })).data.code).toBe('TOTP_INVALID');
+        for (let i = 0; i < 3; i++) {
+            expect((await request(client, '/sessions/totp', { code: 'bad' })).data.code).toBe('TOTP_INVALID');
+        }
         const change = { currentPassword: f.account.password, password: credentials().password, totpCode: f.code(seed) };
         expect((await request(f.client, '/credentials', change, 'PATCH')).data.code).toBe('TOTP_RATE_LIMITED');
         expect((await request(f.client, '/credentials', { currentPassword: f.account.password, username: 'renamed' }, 'PATCH')).status).toBe(200);
@@ -151,7 +157,9 @@ describe('TOTP enrollment and password sign-in', () => {
         const seed = await f.enable();
         const client = authClient(f.url);
         await request(client, '/sessions', f.account);
-        for (let i = 0; i < 5; i++) await request(client, '/sessions/totp', { code: 'bad' });
+        for (let i = 0; i < 5; i++) {
+            await request(client, '/sessions/totp', { code: 'bad' });
+        }
         const restarted = await authFixture({ store: createAuthStore(f.path, { now: f.now }), now: f.now });
         fixtures.push(restarted);
         const other = authClient(restarted.url);

@@ -88,7 +88,9 @@ test('a failed historical build is recorded, cleans up its worktree, and can be 
     process.env.BACKFILL_TEST_MARKER = join(root, 'building');
     const controller = new AbortController();
     const stopped = assert.rejects(backfill({ ...settings, signal: controller.signal }), /abort/i);
-    for (let i = 0; i < 200 && !existsSync(process.env.BACKFILL_TEST_MARKER); i++) await new Promise(resolve => setTimeout(resolve, 10));
+    for (let i = 0; i < 200 && !existsSync(process.env.BACKFILL_TEST_MARKER); i++) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+    }
     assert(existsSync(process.env.BACKFILL_TEST_MARKER), 'the historical build started inside its worktree');
     controller.abort();
     await stopped;

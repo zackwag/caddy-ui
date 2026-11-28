@@ -20,7 +20,9 @@ for (const channel of ['release', 'edge', 'beta']) {
         const components = [];
         for (const [name, job] of Object.entries(workflow(channel).jobs)) {
             for (const step of job.steps || []) {
-                if (!step.uses?.startsWith('docker/build-push-action@')) continue;
+                if (!step.uses?.startsWith('docker/build-push-action@')) {
+                    continue;
+                }
                 components.push(name);
                 assert.equal(step.with.pull, true, `${name}: resolves current base images, including intermediate and COPY stages`);
                 assert.notEqual(String(step.with['no-cache']).toLowerCase(), 'true', `${name}: ordinary cached layers remain usable`);

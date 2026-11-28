@@ -8,7 +8,9 @@ export function useInstanceStatus() {
     const fetchStatus = useCallback(() =>
         apiFetch("/instances/status").then(results => {
             const map = {};
-            for (const r of results) map[r.id] = r.online;
+            for (const r of results) {
+                map[r.id] = r.online;
+            }
             setInstanceStatus(map);
         }).catch(() => { }), []);
 

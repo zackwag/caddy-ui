@@ -60,7 +60,7 @@ test('reviewed Arabic and German work without opt-in, with a bundled font only f
     // The page loaded before these saves, and its settings request can land
     // between them and briefly apply Arabic. Reload so it reads only German.
     const fonts = [];
-    page.on('request', request => { if (isArabicFont(request.url())) fonts.push(request.url()); });
+    page.on('request', request => { if (isArabicFont(request.url())) { fonts.push(request.url()); } });
     await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForView('.language-picker-select');
     assert.deepEqual(fonts, []);

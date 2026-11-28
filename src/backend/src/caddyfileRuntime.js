@@ -21,8 +21,12 @@ export async function fmtCaddyfile(content, { containerName }) {
 // The caddy binary couldn't be run at all, as opposed to running and rejecting
 // the Caddyfile.
 function isBinaryUnavailable(err) {
-    if (!err) return false;
-    if (err.code === null || err.code === undefined || err.code === 'ENOENT') return true;
+    if (!err) {
+        return false;
+    }
+    if (err.code === null || err.code === undefined || err.code === 'ENOENT') {
+        return true;
+    }
     return isContainerUnreachable(err)
         || /docker:? (?:command )?not found|executable file not found|not found in \$path/i.test(`${err.stderr || ''} ${err.message || ''}`);
 }
@@ -55,7 +59,9 @@ export async function validateCaddyfile(content, { adminUrl, configPath, contain
             logger.info('Caddyfile validated via caddy binary (admin API adapt failed)');
             return;
         } catch (caddyErr) {
-            if (isBinaryUnavailable(caddyErr)) throw adminErr;
+            if (isBinaryUnavailable(caddyErr)) {
+                throw adminErr;
+            }
             throw caddyErr;
         }
     }
@@ -92,13 +98,17 @@ export async function reloadCaddy(content, { adminUrl, configPath, containerName
         // the same admin API that just failed, so there's nothing to fall back to.
         // After a timeout the load may still complete, so reloading again would
         // apply the change twice.
-        if (!containerName || loadErr instanceof CaddyTimeoutError) throw loadErr;
+        if (!containerName || loadErr instanceof CaddyTimeoutError) {
+            throw loadErr;
+        }
         try {
             await reloadViaCaddyBinary(configPath, containerName, adminUrl);
             logger.info('Caddy reloaded via caddy binary (admin /load failed)');
             return 'binary';
         } catch (caddyErr) {
-            if (isBinaryUnavailable(caddyErr)) throw loadErr;
+            if (isBinaryUnavailable(caddyErr)) {
+                throw loadErr;
+            }
             throw caddyErr;
         }
     }

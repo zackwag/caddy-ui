@@ -36,7 +36,9 @@ describe('snippet templates', () => {
     it('directive snippets start with the same keyword as their menu text', () => {
         for (const { key, context, snippets } of SNIPPET_CATEGORIES) {
             // Site blocks start with a tab-stop domain, not a directive keyword
-            if (context === 'none') continue;
+            if (context === 'none') {
+                continue;
+            }
             for (const snippet of snippets) {
                 const [keyword] = snippetText(snippet).split(/[\s\n{]/);
                 expect(snippet.template.startsWith(keyword), `${key}.${snippet.key}`).toBe(true);

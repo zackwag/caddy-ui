@@ -7,8 +7,10 @@ export function canVerifyWithPasskey(authState) {
 
 // Throws what a form shows when a new password and its confirmation differ.
 export function requireMatchingPasswords({ password, confirmation }) {
-    // eslint-disable-next-line i18next/no-literal-string -- Diagnostic and registered error code, localized where it's shown.
-    if (password !== confirmation) throw new ApiError('Passwords do not match', { code: 'PASSWORD_MISMATCH' });
+    if (password !== confirmation) {
+        // eslint-disable-next-line i18next/no-literal-string -- Diagnostic and registered error code, localized where it's shown.
+        throw new ApiError('Passwords do not match', { code: 'PASSWORD_MISMATCH' });
+    }
 }
 
 export const isTotpCode = code => /^\d{6}$/.test(code || '');

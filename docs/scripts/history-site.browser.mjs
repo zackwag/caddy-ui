@@ -19,7 +19,9 @@ try {
     const context = await browser.newContext({ colorScheme: 'dark' });
     await context.route('**/*', route => {
         const url = route.request().url();
-        if (url.startsWith(origin)) return route.continue();
+        if (url.startsWith(origin)) {
+            return route.continue();
+        }
         if (url.startsWith(`https://github.com/${catalog.repository}/releases/tag/`)) {
             notes.push(url); return route.fulfill({ contentType: 'text/html', body: '<h1>Release notes fixture</h1>' });
         }

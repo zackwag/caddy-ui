@@ -49,7 +49,9 @@ describe('central notification policies', () => {
     it('bounds visible toasts and cancels discarded timers', () => {
         const cancel = vi.fn(clearTimeout);
         const center = createNotificationCenter({ cancel });
-        for (let i = 0; i < MAX_VISIBLE_TOASTS + 3; i++) center.notify(String(i));
+        for (let i = 0; i < MAX_VISIBLE_TOASTS + 3; i++) {
+            center.notify(String(i));
+        }
         expect(center.getSnapshot()).toHaveLength(MAX_VISIBLE_TOASTS);
         expect(cancel).toHaveBeenCalledTimes(3);
         vi.runAllTimers();

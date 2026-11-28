@@ -31,13 +31,23 @@ async function fixture(t, frontend) {
             return route.fulfill({ contentType: 'text/html', body: '<!doctype html><div id="docs-resolution"></div>'
                 + '<script type="module" src="/caddy-ui/_versions/resolve.js" data-docs-version=""></script>' });
         }
-        if (url.pathname === '/caddy-ui/documentation.json') return route.fulfill({ json: catalog });
+        if (url.pathname === '/caddy-ui/documentation.json') {
+            return route.fulfill({ json: catalog });
+        }
         const module = url.pathname.match(/^\/caddy-ui\/_versions\/(resolve\.js|versions-model\.js)$/)?.[1];
-        if (module) return route.fulfill({ contentType: 'text/javascript', body: modules[module] });
-        if (url.pathname === '/caddy-ui/dev/index.html') return route.fulfill({ contentType: 'text/html', body: '<h1>Development documentation</h1>' });
+        if (module) {
+            return route.fulfill({ contentType: 'text/javascript', body: modules[module] });
+        }
+        if (url.pathname === '/caddy-ui/dev/index.html') {
+            return route.fulfill({ contentType: 'text/html', body: '<h1>Development documentation</h1>' });
+        }
         const version = url.pathname.match(/^\/caddy-ui\/books\/(3\.7\.[34])\/index.html$/)?.[1];
-        if (version) return route.fulfill({ contentType: 'text/html', body: `<h1>Release v${version}</h1>` });
-        if (url.pathname === '/favicon.ico') return route.fulfill({ status: 204 });
+        if (version) {
+            return route.fulfill({ contentType: 'text/html', body: `<h1>Release v${version}</h1>` });
+        }
+        if (url.pathname === '/favicon.ico') {
+            return route.fulfill({ status: 204 });
+        }
         unexpected.push(url.href);
         return route.abort();
     });
@@ -54,7 +64,9 @@ async function fixture(t, frontend) {
         await page.locator('.shell').waitFor();
         await page.waitForFunction(({ frontend, backend }) => {
             const href = document.querySelector('.sidebar-documentation')?.href;
-            if (!href) return false;
+            if (!href) {
+                return false;
+            }
             const query = new URL(href).searchParams;
             return query.get('frontend') === frontend && query.get('backend') === (backend || null);
         }, { frontend, backend });
@@ -72,7 +84,11 @@ async function fixture(t, frontend) {
     }
     async function open({ keyboard = false } = {}) {
         const opened = context.waitForEvent('page');
-        if (keyboard) await link.press('Enter'); else await link.click();
+        if (keyboard) {
+            await link.press('Enter');
+        } else {
+            await link.click();
+        }
         const popup = await opened;
         popup.on('pageerror', error => unexpected.push(error.message));
         await popup.waitForLoadState('domcontentloaded');

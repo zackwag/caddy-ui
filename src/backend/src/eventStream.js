@@ -8,7 +8,7 @@ export function openEventStream(res, onClose) {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
-    const write = text => { if (!res.writableEnded && !res.destroyed) res.write(text); };
+    const write = text => { if (!res.writableEnded && !res.destroyed) { res.write(text); } };
     const heartbeat = setInterval(() => write(': ping\n\n'), HEARTBEAT_MS);
     res.on('close', () => {
         clearInterval(heartbeat);

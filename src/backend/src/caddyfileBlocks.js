@@ -12,7 +12,9 @@ export function scanCaddyfile(source) {
         }
         if (/\s/.test(source[i])) { i++; continue; }
         if (source[i] === '#') {
-            while (i < source.length && source[i] !== '\n') i++;
+            while (i < source.length && source[i] !== '\n') {
+                i++;
+            }
             continue;
         }
         let value = '';
@@ -21,20 +23,25 @@ export function scanCaddyfile(source) {
             quoted = true;
             const quote = source[i++];
             while (i < source.length && source[i] !== quote) {
-                if (quote === '"' && source[i] === '\\' && source[i + 1] === '"') i++;
-                else if (quote === '"' && source[i] === '\\' && i + 1 < source.length) {
+                if (quote === '"' && source[i] === '\\' && source[i + 1] === '"') {
+                    i++;
+                } else if (quote === '"' && source[i] === '\\' && i + 1 < source.length) {
                     value += source[i++];
                 }
                 value += source[i++];
             }
-            if (i === source.length) throw new SyntaxError('Unclosed Caddyfile string');
+            if (i === source.length) {
+                throw new SyntaxError('Unclosed Caddyfile string');
+            }
             i++;
         } else {
             let escapedHeredoc = false;
             while (i < source.length) {
                 // A CRLF ends the token; folding its \r in would shift edit offsets.
                 if (source[i] === '\r' && source[i + 1] !== '\n') { i++; continue; }
-                if (/\s/.test(source[i])) break;
+                if (/\s/.test(source[i])) {
+                    break;
+                }
                 if (source[i] === '\\' && /^(?:\r?\n)/.test(source.slice(i + 1, i + 3))) {
                     i += source[i + 1] === '\r' ? 3 : 2;
                     break;
@@ -48,10 +55,14 @@ export function scanCaddyfile(source) {
             const newlineLength = source[i] === '\n' ? 1 : source.slice(i, i + 2) === '\r\n' ? 2 : 0;
             if (!escapedHeredoc && value.startsWith('<<') && newlineLength) {
                 const marker = value.slice(2);
-                if (!/^[A-Za-z0-9_-]+$/.test(marker)) throw new SyntaxError('Invalid Caddyfile heredoc marker');
+                if (!/^[A-Za-z0-9_-]+$/.test(marker)) {
+                    throw new SyntaxError('Invalid Caddyfile heredoc marker');
+                }
                 const body = i + newlineLength;
                 const closing = source.indexOf(marker, body);
-                if (closing === -1) throw new SyntaxError('Unclosed Caddyfile heredoc');
+                if (closing === -1) {
+                    throw new SyntaxError('Unclosed Caddyfile heredoc');
+                }
                 const line = source.lastIndexOf('\n', closing - 1) + 1;
                 const padding = source.slice(line, closing);
                 value = source.slice(body, line).split('\n').map(text => text.slice(padding.length)).join('\n').replace(/\r/g, '').replace(/\n$/, '');
@@ -59,8 +70,12 @@ export function scanCaddyfile(source) {
                 quoted = true;
             }
         }
-        if (i === start) throw new SyntaxError('Cannot scan Caddyfile token');
-        if (!value && !quoted) continue; // An escaped newline between arguments.
+        if (i === start) {
+            throw new SyntaxError('Cannot scan Caddyfile token');
+        }
+        if (!value && !quoted) {
+            continue; // An escaped newline between arguments.
+        }
         const kind = !quoted && (value === '{' || value === '}') ? value : 'word';
         tokens.push({ value, kind, start, end: i });
     }
@@ -70,9 +85,15 @@ export function scanCaddyfile(source) {
 function closingBrace(tokens, opening) {
     let depth = 0;
     for (let i = opening; i < tokens.length; i++) {
-        if (tokens[i].kind === '{') depth++;
-        if (tokens[i].kind === '}') depth--;
-        if (depth === 0) return i;
+        if (tokens[i].kind === '{') {
+            depth++;
+        }
+        if (tokens[i].kind === '}') {
+            depth--;
+        }
+        if (depth === 0) {
+            return i;
+        }
     }
     throw new SyntaxError('Unclosed Caddyfile block');
 }
@@ -87,7 +108,9 @@ export function caddyfileChildren(source) {
         if (tokens[i].kind === 'newline') { i++; continue; }
         const header = [];
         const start = tokens[i].start;
-        while (i < tokens.length && tokens[i].kind === 'word') header.push(tokens[i++]);
+        while (i < tokens.length && tokens[i].kind === 'word') {
+            header.push(tokens[i++]);
+        }
         let end = header.at(-1)?.end ?? start;
         let block = null;
         if (tokens[i]?.kind === '{') {
@@ -136,7 +159,9 @@ function resolveEnvVars(str, env) {
 // The domain a site block serves, or null for any other entry. The address may
 // be written with an http:// or https:// scheme and {$VAR} placeholders.
 export function siteDomain(entry, env) {
-    if (!entry.block || !entry.name || entry.args.length) return null;
+    if (!entry.block || !entry.name || entry.args.length) {
+        return null;
+    }
     const address = env ? resolveEnvVars(entry.name, env) : entry.name;
     return address.replace(/^https?:\/\//, '');
 }
@@ -145,16 +170,22 @@ export function extractGlobalBlock(source) {
     // Snippet definitions may precede a global block. Their braces belong to
     // their own child; a heredoc containing "{" never becomes a block token.
     const globals = caddyfileChildren(source).filter(child => !child.name && child.block);
-    if (globals.length > 1) throw new SyntaxError('Multiple Caddyfile global blocks');
+    if (globals.length > 1) {
+        throw new SyntaxError('Multiple Caddyfile global blocks');
+    }
     const global = globals[0]?.block;
     return global ? { ...global, text: source.slice(global.start, global.end) } : null;
 }
 
 export function extractDirective(source, directive, predicate = child => child.args.length === 0) {
     const matches = caddyfileChildren(source).filter(child => child.name === directive && predicate(child));
-    if (matches.length > 1) throw new SyntaxError(`Multiple ${directive} directives`);
+    if (matches.length > 1) {
+        throw new SyntaxError(`Multiple ${directive} directives`);
+    }
     const child = matches[0];
-    if (!child) return null;
+    if (!child) {
+        return null;
+    }
     const line = source.lastIndexOf('\n', child.start - 1) + 1;
     const start = /^\s*$/.test(source.slice(line, child.start)) ? line : child.start;
     return { start, headerStart: child.start, end: child.end, block: child.block, inner: child.block?.inner || '', fullMatch: source.slice(start, child.end) };

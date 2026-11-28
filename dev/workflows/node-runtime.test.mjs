@@ -41,7 +41,9 @@ test('workflow Node setup consistently reads the production runtime file', () =>
         const document = parse(readFileSync(new URL(file, directory), 'utf8'));
         for (const [name, job] of Object.entries(document.jobs)) {
             for (const step of job.steps || []) {
-                if (!step.uses?.startsWith('actions/setup-node@')) continue;
+                if (!step.uses?.startsWith('actions/setup-node@')) {
+                    continue;
+                }
                 setups++;
                 const location = `${file}/${name}`;
                 assert.equal(step.with?.['node-version-file'], '.node-version', `${location}: uses the shared runtime`);

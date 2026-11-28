@@ -46,7 +46,9 @@ export function instanceUptime(instanceId, kind) {
     const stats = getStatsForInstance(instanceId, kind);
     const failed = failures.get(kind).get(instanceId) || {};
     for (const [target, s] of Object.entries(stats)) {
-        if (s && failed[target]) s.lastFailure = failed[target];
+        if (s && failed[target]) {
+            s.lastFailure = failed[target];
+        }
     }
     return stats;
 }
@@ -73,7 +75,9 @@ async function checkInstance(kind, inst) {
     const failed = {};
     for (const result of results) {
         recordCheck(inst.id, result.target, result.online, kind);
-        if (result.failure) failed[result.target] = result.failure;
+        if (result.failure) {
+            failed[result.target] = result.failure;
+        }
     }
     failures.get(kind).set(inst.id, failed);
     for (const listener of listeners) {
@@ -86,7 +90,9 @@ async function checkInstance(kind, inst) {
 // Runs a round of checks unless one is already in flight. Also called when
 // route checks are switched on so results show up without waiting a round.
 export function runChecks(kind) {
-    if (!PROBES[kind].enabled() || running.has(kind)) return running.get(kind);
+    if (!PROBES[kind].enabled() || running.has(kind)) {
+        return running.get(kind);
+    }
     const round = Promise.all(getInstances().map(inst => checkInstance(kind, inst)))
         .finally(() => running.delete(kind));
     running.set(kind, round);
@@ -95,13 +101,17 @@ export function runChecks(kind) {
 
 export function startMonitoring() {
     for (const [kind, probe] of Object.entries(PROBES)) {
-        if (timers.has(kind)) continue;
+        if (timers.has(kind)) {
+            continue;
+        }
         runChecks(kind);
         timers.set(kind, setInterval(() => runChecks(kind), probe.intervalMs).unref());
     }
 }
 
 export function forgetInstanceChecks(instanceId) {
-    for (const byInstance of failures.values()) byInstance.delete(instanceId);
+    for (const byInstance of failures.values()) {
+        byInstance.delete(instanceId);
+    }
     forgetInstanceHistory(instanceId);
 }

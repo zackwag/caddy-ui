@@ -22,7 +22,7 @@ try {
     const errors = [];
     const requests = [];
     page.on('pageerror', error => errors.push(error.message));
-    page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) requests.push(request.url()); });
+    page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) { requests.push(request.url()); } });
     const frame = () => page.frameLocator('iframe');
     async function go(key, state, locale = 'en') {
         await page.goto(`${origin}/?${new URLSearchParams({ key, state, locale })}`);
@@ -39,7 +39,9 @@ try {
         const walked = new Set();
         for (const scenario of registered.filter(scenario => kinds.includes(scenario.kind))) {
             const keys = scenario.keys.filter(key => !walked.has(key));
-            if (!keys.length) continue;
+            if (!keys.length) {
+                continue;
+            }
             await go(keys[0], scenario.id);
             for (const key of keys) {
                 await keyList.getByRole('button', { name: key, exact: true }).click();

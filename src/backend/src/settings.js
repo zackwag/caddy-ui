@@ -21,7 +21,9 @@ const MAX_EXCLUDES = 500;
 const MAX_HOST_LENGTH = 253;
 
 export function sanitizeHostList(value) {
-    if (!Array.isArray(value)) return [];
+    if (!Array.isArray(value)) {
+        return [];
+    }
     const hosts = value
         .filter(h => typeof h === 'string')
         .map(h => h.trim().toLowerCase())
@@ -66,7 +68,9 @@ export function getSettings() {
 export function settingsUpdate(body) {
     const updates = {};
     for (const [key, normalize] of Object.entries(NORMALIZERS)) {
-        if (!isObject(body) || !(key in body)) continue;
+        if (!isObject(body) || !(key in body)) {
+            continue;
+        }
         const value = normalize(body[key]);
         if (value === undefined) {
             throw new AppError('VALIDATION_FAILED', { context: { field: key } });

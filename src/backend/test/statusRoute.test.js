@@ -18,7 +18,9 @@ beforeAll(async () => {
     server = await serve(app => {
         app.use('/api/status', (req, res, next) => {
             req.instance = { id: 'test', name: 'Test', adminUrl };
-            if (req.query.token) req.apiToken = {};
+            if (req.query.token) {
+                req.apiToken = {};
+            }
             next();
         }, statusRouter);
     });
@@ -56,7 +58,9 @@ describe('GET /api/status', () => {
     });
 
     it.each(['connection failure', 'unavailable endpoint'])('stays online with metrics %s', async failure => {
-        if (failure === 'connection failure') fetch.mockRejectedValue(new Error('Metrics connection refused'));
+        if (failure === 'connection failure') {
+            fetch.mockRejectedValue(new Error('Metrics connection refused'));
+        }
 
         expect(await status()).toMatchObject({ online: true, serverCount: 1, routeCount: 1, uptime: null });
     });

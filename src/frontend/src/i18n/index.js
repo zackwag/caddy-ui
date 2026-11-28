@@ -32,7 +32,9 @@ export function sortedLanguages(languages) {
 // Keep the browser's writing direction in sync even on the login screen,
 // during initial locale detection, and when falling back to English.
 i18n.on('languageChanged', language => {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined') {
+        return;
+    }
     document.documentElement.lang = language;
     document.documentElement.dir = i18n.dir(language);
 });
@@ -64,7 +66,9 @@ export async function fetchEnabledLanguages() {
             : ['en']
     ).filter(lang => available.has(lang));
 
-    if (!enabled.includes('en')) enabled.unshift('en');
+    if (!enabled.includes('en')) {
+        enabled.unshift('en');
+    }
     additionalFonts.configure(Array.isArray(languageConfig.fonts)
         ? languageConfig.fonts.filter(locale => enabled.includes(locale)) : []);
     return enabled;

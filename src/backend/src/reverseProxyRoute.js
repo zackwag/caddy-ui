@@ -3,7 +3,9 @@
 
 export function buildReverseProxyRoute({ id, domain, upstream, stripPrefix }) {
     const matchers = [{ host: [domain] }];
-    if (stripPrefix) matchers.push({ path: [`${stripPrefix}/*`] });
+    if (stripPrefix) {
+        matchers.push({ path: [`${stripPrefix}/*`] });
+    }
 
     return {
         '@id': id,

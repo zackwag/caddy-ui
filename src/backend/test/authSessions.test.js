@@ -35,7 +35,9 @@ describe('browser session boundary', () => {
     it("doesn't let anonymous CSRF contexts lock the administrator out", async () => {
         const { url, sessions } = await fixture({ limit: 4, anonymousLimit: 3 });
         const first = await context(url);
-        for (let i = 0; i < 10; i++) await fetch(url + '/csrf');
+        for (let i = 0; i < 10; i++) {
+            await fetch(url + '/csrf');
+        }
         expect(sessions.readSession({ headers: { cookie: first.cookie } })).toBeNull();
         const headers = await context(url);
         expect((await fetch(url + '/login', { method: 'POST', headers })).status).toBe(200);
@@ -53,7 +55,9 @@ describe('browser session boundary', () => {
         const login = await fetch(url + '/login', { method: 'POST', headers: await context(url) });
         expect(login.status).toBe(200);
         const cookie = login.headers.getSetCookie().at(-1).split(';')[0];
-        for (let i = 0; i < 5; i++) expect((await fetch(url + '/csrf')).status).toBe(200);
+        for (let i = 0; i < 5; i++) {
+            expect((await fetch(url + '/csrf')).status).toBe(200);
+        }
         expect((await fetch(url + '/protected', { headers: { cookie } })).status).toBe(200);
         const response = await fetch(url + '/csrf', { headers: { cookie } });
         const { csrfToken } = await response.json();

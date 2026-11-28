@@ -56,22 +56,31 @@ function configWrite(adminUrl, label, url, options) {
     unsettledWrites.set(adminUrl, (unsettledWrites.get(adminUrl) || 0) + 1);
     const settled = () => {
         const remaining = unsettledWrites.get(adminUrl) - 1;
-        if (remaining) unsettledWrites.set(adminUrl, remaining);
-        else unsettledWrites.delete(adminUrl);
+        if (remaining) {
+            unsettledWrites.set(adminUrl, remaining);
+        } else {
+            unsettledWrites.delete(adminUrl);
+        }
     };
     request.finally(settled).catch(() => {});
     request.then(
         response => {
             markConfigChanged(adminUrl);
-            if (tracked.timedOut) logger.warn('Caddy write completed after its timeout', { label, adminUrl, status: response.status });
+            if (tracked.timedOut) {
+                logger.warn('Caddy write completed after its timeout', { label, adminUrl, status: response.status });
+            }
         },
         error => {
             markConfigChanged(adminUrl);
-            if (tracked.timedOut) logger.warn('Caddy write failed after its timeout', { label, adminUrl, error: error.name });
+            if (tracked.timedOut) {
+                logger.warn('Caddy write failed after its timeout', { label, adminUrl, error: error.name });
+            }
         },
     );
     return withTimeout(request, timeoutMs, label).catch(error => {
-        if (error instanceof CaddyTimeoutError) tracked.timedOut = true;
+        if (error instanceof CaddyTimeoutError) {
+            tracked.timedOut = true;
+        }
         throw error;
     });
 }

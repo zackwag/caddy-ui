@@ -21,6 +21,7 @@ export const componentConfig = {
     },
     rules: {
         ...js.configs.recommended.rules,
+        curly: ['error', 'all'],
         'no-unused-vars': ['error', { args: 'none' }],
         'react-hooks/rules-of-hooks': 'error',
         'react-hooks/exhaustive-deps': 'warn',
@@ -38,16 +39,13 @@ export const nodeToolConfig = {
         sourceType: 'module',
         globals: globals.node,
     },
-    rules: js.configs.recommended.rules,
+    rules: { ...js.configs.recommended.rules, curly: ['error', 'all'] },
 };
 
 export default [
-    {
-        ignores: ['dist', 'dist-playground', 'src/lib/caddyfileMode.js'],
-        linterOptions: {
-            reportUnusedDisableDirectives: 'off',
-        },
-    },
+    // Alone in its object, so these are skipped rather than linted without rules
+    { ignores: ['dist', 'dist-playground', 'src/lib/caddyfileMode.js'] },
+    { linterOptions: { reportUnusedDisableDirectives: 'off' } },
     { ...componentConfig, files: ['src/**/*.{js,jsx}'] },
     {
         files: [
@@ -70,7 +68,7 @@ export default [
                 ecmaFeatures: { jsx: true },
             },
         },
-        rules: js.configs.recommended.rules,
+        rules: { ...js.configs.recommended.rules, curly: ['error', 'all'] },
     },
     { ...nodeToolConfig, files: ['scripts/**/*.mjs', 'eslint/**/*.mjs'] },
 ];

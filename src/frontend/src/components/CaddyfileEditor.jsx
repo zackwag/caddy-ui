@@ -24,13 +24,17 @@ export default function CaddyfileEditor({ value, onChange, onSave, onQuit, isMod
     }, [vimMode]);
 
     useEffect(() => {
-        if (!containerRef.current) return;
+        if (!containerRef.current) {
+            return;
+        }
         let view;
         let cancelled = false;
 
         async function init() {
             const { createCaddyfileEditor } = await import("../utils/caddyfileEditor.js");
-            if (cancelled) return;
+            if (cancelled) {
+                return;
+            }
             view = createCaddyfileEditor({
                 parent: containerRef.current, doc: value, dark: theme === 'dark', padding, vimMode: vimModeRef.current,
                 onChange: doc => onChangeRef.current(doc), onSave: () => onSaveRef.current?.(), t,
@@ -48,9 +52,13 @@ export default function CaddyfileEditor({ value, onChange, onSave, onQuit, isMod
 
     useEffect(() => {
         const view = viewRef.current;
-        if (!view) return;
+        if (!view) {
+            return;
+        }
         const current = view.state.doc.toString();
-        if (current !== value) view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+        if (current !== value) {
+            view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+        }
     }, [value]);
 
     return <div ref={containerRef} className={className} />;

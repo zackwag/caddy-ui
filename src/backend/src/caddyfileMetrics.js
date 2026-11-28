@@ -8,10 +8,14 @@ import { setGlobalOption } from './caddyfileGlobals.js';
 // Offsets of every metrics option in the whole file.
 function metricsOptions(content) {
     const global = extractGlobalBlock(content);
-    if (!global) return [];
+    if (!global) {
+        return [];
+    }
     const within = (block, base) => caddyfileChildren(block.inner).flatMap(child => {
         const start = base + block.start + 1;
-        if (child.name === 'metrics') return [{ start: start + child.start, end: start + child.end }];
+        if (child.name === 'metrics') {
+            return [{ start: start + child.start, end: start + child.end }];
+        }
         return child.name === 'servers' && child.block ? within(child.block, start) : [];
     });
     return within(global, 0);
@@ -31,7 +35,11 @@ function removeLine(content, { start, end }) {
 }
 
 export function setMetricsEnabled(content, enabled) {
-    if (!enabled) return metricsOptions(content).reverse().reduce(removeLine, content);
-    if (metricsEnabled(content)) return content;
+    if (!enabled) {
+        return metricsOptions(content).reverse().reduce(removeLine, content);
+    }
+    if (metricsEnabled(content)) {
+        return content;
+    }
     return setGlobalOption(content, () => null, ({ indent }) => `${indent}metrics`);
 }

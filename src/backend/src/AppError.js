@@ -3,7 +3,9 @@ import { ERROR_REGISTRY, errorDefinition } from './errorRegistry.js';
 // Capture the cause once; report it at the API/worker boundary to avoid duplicate logs.
 export class AppError extends Error {
     constructor(code, { cause, context = {}, message } = {}) {
-        if (!Object.hasOwn(ERROR_REGISTRY, code)) throw new TypeError(`Unknown application error code: ${code}`);
+        if (!Object.hasOwn(ERROR_REGISTRY, code)) {
+            throw new TypeError(`Unknown application error code: ${code}`);
+        }
         super(message || code, { cause });
         this.name = 'AppError';
         this.code = code;

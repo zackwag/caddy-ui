@@ -13,9 +13,13 @@ const USER_AGENT = 'caddy-ui-route-check';
 // "0.0.0.0:8443" or "tcp/:443"; "udp/..." entries are HTTP/3 and skipped.
 export function getListenPort(server) {
     for (const addr of server.listen || []) {
-        if (/^udp\d?\//.test(addr)) continue;
+        if (/^udp\d?\//.test(addr)) {
+            continue;
+        }
         const port = Number(addr.split(':').pop().split('-')[0]);
-        if (port) return port;
+        if (port) {
+            return port;
+        }
     }
     return null;
 }
@@ -23,8 +27,12 @@ export function getListenPort(server) {
 // Caddy serves HTTPS on every listener except the HTTP port, unless automatic
 // HTTPS is disabled for the server and it has no explicit TLS policies.
 export function getServerScheme(server, port) {
-    if (port === 80) return 'http';
-    if (server.automatic_https?.disable && !server.tls_connection_policies) return 'http';
+    if (port === 80) {
+        return 'http';
+    }
+    if (server.automatic_https?.disable && !server.tls_connection_policies) {
+        return 'http';
+    }
     return 'https';
 }
 
@@ -36,11 +44,15 @@ export function collectRouteTargets(servers, exclude = []) {
     const targets = new Map();
     for (const [serverName, server] of Object.entries(servers || {})) {
         const port = getListenPort(server);
-        if (!port) continue;
+        if (!port) {
+            continue;
+        }
         const scheme = getServerScheme(server, port);
         for (const route of server.routes || []) {
             const host = getHost(route);
-            if (!host || host.includes('*') || host.includes('{') || targets.has(host) || excluded.has(host.toLowerCase())) continue;
+            if (!host || host.includes('*') || host.includes('{') || targets.has(host) || excluded.has(host.toLowerCase())) {
+                continue;
+            }
             targets.set(host, { host, scheme, port, server: serverName });
         }
     }
@@ -56,7 +68,9 @@ export function isRouteUp(statusCode) {
 // Short explanation shown next to an offline route: the HTTP status it
 // answered with, or why no response came back (TLS error, timeout, refused).
 export function failureReason({ online, statusCode, error }) {
-    if (online) return null;
+    if (online) {
+        return null;
+    }
     return statusCode ? `HTTP ${statusCode}` : error || 'No response';
 }
 

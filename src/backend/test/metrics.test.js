@@ -11,11 +11,15 @@ describe('GET /api/metrics/raw', () => {
         server = await serve(app => app.get('/raw', (req, res, next) => {
             // Nothing listens there, so only the uptime series are served
             req.instance = { id: 'allowed', adminUrl: 'http://127.0.0.1:1' };
-            if (req.query.token) req.apiToken = { instanceIds: ['allowed'] };
+            if (req.query.token) {
+                req.apiToken = { instanceIds: ['allowed'] };
+            }
             next();
         }, rawMetrics));
         vi.spyOn(instances, 'getInstances').mockReturnValue([{ id: 'allowed', name: 'Allowed' }, { id: 'private', name: 'Private' }]);
-        for (const id of ['allowed', 'private']) recordCheck(id, 'app:80', true);
+        for (const id of ['allowed', 'private']) {
+            recordCheck(id, 'app:80', true);
+        }
     });
     afterAll(() => server.close());
     afterEach(() => vi.clearAllMocks());

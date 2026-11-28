@@ -29,14 +29,22 @@ function isDebounced(instanceId, alert) {
 }
 
 function debounce(instanceId, alert) {
-    if (!debounced.has(instanceId)) debounced.set(instanceId, new Map());
+    if (!debounced.has(instanceId)) {
+        debounced.set(instanceId, new Map());
+    }
     debounced.get(instanceId).set(alert, Date.now());
 }
 
 function forgetExpiredDebounces() {
     for (const [instanceId, alerts] of debounced) {
-        for (const alert of alerts.keys()) if (!isDebounced(instanceId, alert)) alerts.delete(alert);
-        if (!alerts.size) debounced.delete(instanceId);
+        for (const alert of alerts.keys()) {
+            if (!isDebounced(instanceId, alert)) {
+                alerts.delete(alert);
+            }
+        }
+        if (!alerts.size) {
+            debounced.delete(instanceId);
+        }
     }
 }
 
@@ -55,7 +63,9 @@ let authenticationBusyReported = false;
 const AUTHENTICATION_NAMES = { recovery: 'Account recovery', totp: 'Authenticator sign-in', 'password-totp': 'Password and authenticator sign-in', password: 'Password sign-in', passkey: 'Passkey sign-in' };
 
 function authenticationTitle(event) {
-    if (isPasswordFallback(event)) return 'Password sign-in while passkeys are configured';
+    if (isPasswordFallback(event)) {
+        return 'Password sign-in while passkeys are configured';
+    }
     return `${AUTHENTICATION_NAMES[event.method]} ${event.outcome === 'success' ? 'succeeded' : 'failed'}`;
 }
 
@@ -64,7 +74,9 @@ function authenticationPriority(event) {
 }
 
 async function deliverAuthentication(event, additional = 0) {
-    if (!enabled('authentication')) return;
+    if (!enabled('authentication')) {
+        return;
+    }
     if (authenticationDeliveries >= MAX_AUTHENTICATION_DELIVERIES) {
         if (!authenticationBusyReported) {
             authenticationBusyReported = true;
@@ -80,7 +92,9 @@ async function deliverAuthentication(event, additional = 0) {
         await sendNotification(getNotificationConfig(), { title: authenticationTitle(event), message, priority: authenticationPriority(event) });
     } finally {
         authenticationDeliveries--;
-        if (!authenticationDeliveries) authenticationBusyReported = false;
+        if (!authenticationDeliveries) {
+            authenticationBusyReported = false;
+        }
     }
 }
 
@@ -91,7 +105,9 @@ const authenticationFailures = createDigest({
 });
 
 function notifyAuthenticationEvent(event) {
-    if (!enabled('authentication')) return;
+    if (!enabled('authentication')) {
+        return;
+    }
     return event.outcome === 'failure' ? authenticationFailures.add(event.method, event) : deliverAuthentication(event);
 }
 
@@ -100,7 +116,9 @@ function notifyAuthenticationEvent(event) {
 const REPRESENTATIONS = { file: 'Caddyfile', live: 'live configuration' };
 
 async function deliverConfigurationChange(change, additional = 0) {
-    if (!enabled('configurationChange')) return;
+    if (!enabled('configurationChange')) {
+        return;
+    }
     const changed = change.representations.map(key => REPRESENTATIONS[key]).join(' and ');
     const lines = [
         `Instance: ${change.instanceName}`,
@@ -122,7 +140,9 @@ const configurationChanges = createDigest({
 });
 
 export function notifyConfigurationChange(change) {
-    if (enabled('configurationChange')) return configurationChanges.add(change.instanceId, change);
+    if (enabled('configurationChange')) {
+        return configurationChanges.add(change.instanceId, change);
+    }
 }
 
 // --- Online/offline transitions -------------------------------------------
@@ -149,26 +169,36 @@ const targetKey = (kind, instanceId, target) => JSON.stringify([kind, instanceId
 const transitionAlert = (type, { kind, target }) => `${type} ${kind} ${target}`;
 
 function cancelPending(record) {
-    if (record.pending) clearTimeout(record.pending.timer);
+    if (record.pending) {
+        clearTimeout(record.pending.timer);
+    }
     record.pending = null;
 }
 
 function cancelPendingWhere(predicate) {
     for (const record of targets.values()) {
-        if (record.pending && predicate(record)) cancelPending(record);
+        if (record.pending && predicate(record)) {
+            cancelPending(record);
+        }
     }
 }
 
 function forgetTarget(key) {
     const record = targets.get(key);
-    if (!record) return;
+    if (!record) {
+        return;
+    }
     cancelPending(record);
     targets.delete(key);
-    for (const type of ['offline', 'online']) debounced.get(record.instanceId)?.delete(transitionAlert(type, record));
+    for (const type of ['offline', 'online']) {
+        debounced.get(record.instanceId)?.delete(transitionAlert(type, record));
+    }
 }
 
 async function attempt(record, pending) {
-    if (record.pending !== pending) return;
+    if (record.pending !== pending) {
+        return;
+    }
     const { type, alert, attemptNumber } = pending;
     if (!enabled(TRANSITIONS[record.kind][type].trigger) || record.online !== (type === 'online')
         || !getInstances().some(inst => inst.id === record.instanceId)) {
@@ -178,12 +208,16 @@ async function attempt(record, pending) {
     pending.timer = null;
     try {
         await sendNotification(getNotificationConfig(), alert);
-        if (record.pending !== pending) return;
+        if (record.pending !== pending) {
+            return;
+        }
         record.pending = null;
         record.deliveredOffline = type === 'offline';
         debounce(record.instanceId, transitionAlert(type, record));
     } catch (err) {
-        if (record.pending !== pending) return;
+        if (record.pending !== pending) {
+            return;
+        }
         const delay = RETRY_DELAYS_MS[attemptNumber - 1];
         if (delay === undefined) {
             record.pending = null;
@@ -217,14 +251,20 @@ export async function notifyCheckResults(kind, inst, results) {
         record.online = result.online;
     }
     for (const [key, record] of targets) {
-        if (record.kind === kind && record.instanceId === inst.id && !seen.has(key)) forgetTarget(key);
+        if (record.kind === kind && record.instanceId === inst.id && !seen.has(key)) {
+            forgetTarget(key);
+        }
     }
 
     for (const { record, result } of changed) {
         const type = result.online ? 'online' : 'offline';
         const transition = TRANSITIONS[kind][type];
-        if (!enabled(transition.trigger) || isDebounced(inst.id, transitionAlert(type, record))) continue;
-        if (type === 'online' && !record.deliveredOffline) continue;
+        if (!enabled(transition.trigger) || isDebounced(inst.id, transitionAlert(type, record))) {
+            continue;
+        }
+        if (type === 'online' && !record.deliveredOffline) {
+            continue;
+        }
         const pending = { type, attemptNumber: 1, timer: null, alert: transition.alert(instanceLabel(inst) + result.label, result.failure) };
         record.pending = pending;
         await attempt(record, pending);
@@ -241,7 +281,9 @@ async function remindExpiringCertificates(inst) {
     let certificates;
     try {
         certificates = await listCertificates(inst, { quiet: true });
-        if (certReadFailures.delete(inst.id)) logger.info('Certificate expiry checks resumed', { instance: inst.name });
+        if (certReadFailures.delete(inst.id)) {
+            logger.info('Certificate expiry checks resumed', { instance: inst.name });
+        }
     } catch (err) {
         if (!certReadFailures.has(inst.id)) {
             certReadFailures.add(inst.id);
@@ -250,9 +292,13 @@ async function remindExpiringCertificates(inst) {
         return;
     }
     for (const cert of certificates) {
-        if (cert.status !== 'expiring') continue;
+        if (cert.status !== 'expiring') {
+            continue;
+        }
         const alert = `expiring ${cert.domain}`;
-        if (isDebounced(inst.id, alert)) continue;
+        if (isDebounced(inst.id, alert)) {
+            continue;
+        }
         const days = cert.daysRemaining;
         try {
             await sendNotification(getNotificationConfig(), {
@@ -275,7 +321,9 @@ const notifiedTokens = new Set();
 
 async function remindUpdate() {
     const notification = getUpdateNotification();
-    if (!notification || notifiedUpdates.has(notification.key)) return;
+    if (!notification || notifiedUpdates.has(notification.key)) {
+        return;
+    }
     notifiedUpdates.add(notification.key);
     await sendNotification(getNotificationConfig(), { title: notification.title, message: notification.message, priority: 'default' });
 }
@@ -290,9 +338,15 @@ async function remindExpiringApiTokens() {
     for (const token of listApiTokens()) {
         const expiresAt = Date.parse(token.expiresAt);
         const remaining = expiresAt - now;
-        if (remaining <= 0 || remaining > TOKEN_EXPIRY_WINDOW_MS) continue;
-        if (expiresAt - Date.parse(token.createdAt) <= TOKEN_EXPIRY_WINDOW_MS) continue;
-        if (notifiedTokens.has(token.id)) continue;
+        if (remaining <= 0 || remaining > TOKEN_EXPIRY_WINDOW_MS) {
+            continue;
+        }
+        if (expiresAt - Date.parse(token.createdAt) <= TOKEN_EXPIRY_WINDOW_MS) {
+            continue;
+        }
+        if (notifiedTokens.has(token.id)) {
+            continue;
+        }
         // Reserved before delivery and released if it fails, so a failed alert is retried next round.
         notifiedTokens.add(token.id);
         try {
@@ -355,7 +409,9 @@ function applyConfig(config) {
 // Removal must clean up even if this was the last instance being monitored.
 export function forgetInstanceNotifications(instanceId) {
     for (const [key, record] of targets) {
-        if (record.instanceId === instanceId) forgetTarget(key);
+        if (record.instanceId === instanceId) {
+            forgetTarget(key);
+        }
     }
     certReadFailures.delete(instanceId);
     configurationChanges.forget(instanceId);
@@ -364,7 +420,9 @@ export function forgetInstanceNotifications(instanceId) {
 
 // apiTokens lists token metadata (no secrets) for expiry reminders.
 export async function initNotifications({ apiTokens } = {}) {
-    if (apiTokens) listApiTokens = apiTokens;
+    if (apiTokens) {
+        listApiTokens = apiTokens;
+    }
     onAuthenticationEvent(notifyAuthenticationEvent);
     onNotificationConfigChange(applyConfig);
     applyConfig(await loadNotificationConfig());

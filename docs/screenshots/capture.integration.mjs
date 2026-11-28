@@ -41,7 +41,9 @@ test('real authenticated documentation capture renders all views and rejects mis
     assert(!serialized.includes('csrfToken'));
     const views = await renderScreenshots({ capturePath, outputDirectory });
     assert.equal(views.length, 8);
-    for (const view of views) assert((await stat(join(outputDirectory, view + '.png'))).size > 1000);
+    for (const view of views) {
+        assert((await stat(join(outputDirectory, view + '.png'))).size > 1000);
+    }
 
     capture.scenarios[0].requests = records.filter(record => record.request.path !== '/settings');
     await writeFile(capturePath, JSON.stringify(capture));

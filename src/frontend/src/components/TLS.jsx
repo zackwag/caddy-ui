@@ -29,7 +29,9 @@ export default function TLS({ toast, confirm }) {
     useLoad(load);
 
     const deleteCert = async (cert) => {
-        if (!await confirm(t("tls.deleteConfirm", { status: cert.status, domain: cert.domain }), { confirmLabel: t("tls.delete"), danger: true })) return;
+        if (!await confirm(t("tls.deleteConfirm", { status: cert.status, domain: cert.domain }), { confirmLabel: t("tls.delete"), danger: true })) {
+            return;
+        }
         try {
             await apiFetch(`/tls/${encodeURIComponent(cert.domain)}?issuer=${encodeURIComponent(cert.issuerDir)}`, { method: "DELETE" });
             toast.success(t("tls.deleted", { domain: cert.domain })); load();
@@ -61,15 +63,25 @@ export default function TLS({ toast, confirm }) {
     const sorted = [...filtered].sort((a, b) => sort.ascending ? compare(a, b) : compare(b, a));
 
     const statusBadge = (cert) => {
-        if (cert.status === 'expired') return <span className="badge badge-red">{t("tls.expiredUpper")}</span>;
-        if (cert.status === 'expiring') return <span className="badge badge-yellow">{t("tls.expiringUpper")}</span>;
-        if (cert.status === 'orphaned') return <span className="badge badge-muted">{t("tls.orphanedUpper")}</span>;
-        if (cert.status === 'superseded') return <span className="badge badge-yellow">{t("tls.supersededUpper")}</span>;
+        if (cert.status === 'expired') {
+            return <span className="badge badge-red">{t("tls.expiredUpper")}</span>;
+        }
+        if (cert.status === 'expiring') {
+            return <span className="badge badge-yellow">{t("tls.expiringUpper")}</span>;
+        }
+        if (cert.status === 'orphaned') {
+            return <span className="badge badge-muted">{t("tls.orphanedUpper")}</span>;
+        }
+        if (cert.status === 'superseded') {
+            return <span className="badge badge-yellow">{t("tls.supersededUpper")}</span>;
+        }
         return <span className="badge badge-green">{t("tls.validUpper")}</span>;
     };
 
     const expiryBar = (cert) => {
-        if (cert.isInternal) return null;
+        if (cert.isInternal) {
+            return null;
+        }
         // The share of its lifetime left, whatever its validity period
         const validTo = new Date(cert.validTo);
         const remaining = (validTo - Date.now()) / (validTo - new Date(cert.validFrom));
@@ -85,7 +97,9 @@ export default function TLS({ toast, confirm }) {
         { key: "expired", label: t("tls.expired"), val: summary.expired, sub: t("tls.needsRenewal"), color: summary.expired > 0 ? "var(--danger)" : null },
     ];
 
-    if (loading) return <div className="loading">{t("tls.loadingCertificates")}</div>;
+    if (loading) {
+        return <div className="loading">{t("tls.loadingCertificates")}</div>;
+    }
 
     return (
         <div className="gap-16">

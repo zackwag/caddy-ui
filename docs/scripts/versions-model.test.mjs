@@ -15,7 +15,9 @@ test('resolver distinguishes released books, component publications, old/missing
     assert.equal(documentationTarget(catalog, '99.0.0').kind, 'notes');
     assert.equal(documentationTarget(catalog, '99.0.0').href, 'https://github.com/zackwag/caddy-ui/releases');
     assert.match(documentationTarget(catalog, 'edge-abcd').href, /^dev\/index.html/);
-    for (const input of ['https://evil.example', 'javascript:alert(1)', '../../', '']) assert.equal(documentationTarget(catalog, input), null);
+    for (const input of ['https://evil.example', 'javascript:alert(1)', '../../', '']) {
+        assert.equal(documentationTarget(catalog, input), null);
+    }
     assert.equal(resolveDocumentation(catalog, params('frontend=2.20.0&backend=2.20.0')).kind, 'redirect');
     assert.equal(resolveDocumentation(catalog, params('frontend=2.20.0&backend=2.20.1')).kind, 'choose');
     assert.equal(resolveDocumentation(catalog, params('version=2.20.0&backend=2.20.1')).kind, 'invalid');

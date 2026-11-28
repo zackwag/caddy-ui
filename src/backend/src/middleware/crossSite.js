@@ -11,22 +11,32 @@ const MISNAMED_EXTERNAL_URL_VARS = ['CADDY_EXTERNAL_URL', 'CADDY_UI_EXTERNAL_URL
 // expected origin from Host or forwarded headers: proxies can change both.
 // expectedOrigins: null (unconfigured) or a Set of allowed origin strings.
 export function isCrossSiteWrite(method, headers, expectedOrigins) {
-    if (isSafeMethod(method)) return false;
+    if (isSafeMethod(method)) {
+        return false;
+    }
     const site = headers['sec-fetch-site'];
-    if (site === 'cross-site' || site === 'same-site') return true;
+    if (site === 'cross-site' || site === 'same-site') {
+        return true;
+    }
 
     const origin = headers.origin;
     const referer = headers.referer;
-    if (origin === 'null') return true;
+    if (origin === 'null') {
+        return true;
+    }
     const hasBrowserOrigin = origin !== undefined || referer !== undefined;
     if (!expectedOrigins) {
         // Preserve trustworthy same-origin browser requests and headerless
         // scripts. Other browser-origin writes require explicit configuration.
         return hasBrowserOrigin && site !== 'same-origin';
     }
-    if (origin !== undefined) return !expectedOrigins.has(origin);
+    if (origin !== undefined) {
+        return !expectedOrigins.has(origin);
+    }
     if (referer !== undefined) {
-        if (typeof referer !== 'string') return true;
+        if (typeof referer !== 'string') {
+            return true;
+        }
         try {
             return !expectedOrigins.has(new URL(referer).origin);
         } catch {
@@ -60,7 +70,9 @@ export function createCrossSiteMiddleware(publicUrl) {
     const hasExpected = expectedOrigins.size > 0;
 
     return (req, res, next) => {
-        if (!isCrossSiteWrite(req.method, req.headers, hasExpected ? expectedOrigins : null)) return next();
+        if (!isCrossSiteWrite(req.method, req.headers, hasExpected ? expectedOrigins : null)) {
+            return next();
+        }
         return sendAppError(res, new AppError(crossSiteRejectionCode(req.headers, hasExpected), {
             message: hasExpected ? 'Rejected cross-site request'
                 : 'Browser-origin writes without same-origin Fetch Metadata require CADDY_UI_EXTERNAL_URL',

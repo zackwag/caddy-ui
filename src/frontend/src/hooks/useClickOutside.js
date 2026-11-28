@@ -5,9 +5,13 @@ export function useClickOutside(ref, onOutsideClick, enabled) {
     callbackRef.current = onOutsideClick;
 
     useEffect(() => {
-        if (!enabled) return;
+        if (!enabled) {
+            return;
+        }
         const handleClick = (e) => {
-            if (ref.current && !ref.current.contains(e.target)) callbackRef.current();
+            if (ref.current && !ref.current.contains(e.target)) {
+                callbackRef.current();
+            }
         };
         document.addEventListener("mousedown", handleClick);
         return () => document.removeEventListener("mousedown", handleClick);

@@ -21,7 +21,9 @@ export function createNotificationCenter({
     const listeners = new Set();
 
     const publish = () => {
-        for (const listener of listeners) listener();
+        for (const listener of listeners) {
+            listener();
+        }
     };
     const cancelToastTimer = id => {
         if (timers.has(id)) {
@@ -30,7 +32,9 @@ export function createNotificationCenter({
         }
     };
     const dismiss = id => {
-        if (!toasts.some(t => t.id === id)) return;
+        if (!toasts.some(t => t.id === id)) {
+            return;
+        }
         toasts = toasts.filter(t => t.id !== id);
         cancelToastTimer(id);
         publish();
@@ -46,7 +50,9 @@ export function createNotificationCenter({
             throw new TypeError('State notifications require a stable incident key');
         }
         if (mode === 'state') {
-            if (incidents.has(key)) return false;
+            if (incidents.has(key)) {
+                return false;
+            }
             incidents.add(key);
         }
         const toast = {
@@ -59,7 +65,9 @@ export function createNotificationCenter({
         if (toasts.length > maxVisible) {
             const removed = toasts.slice(0, toasts.length - maxVisible);
             toasts = toasts.slice(-maxVisible);
-            for (const old of removed) cancelToastTimer(old.id);
+            for (const old of removed) {
+                cancelToastTimer(old.id);
+            }
         }
         timers.set(toast.id, schedule(() => dismiss(toast.id), durationMs));
         publish();
@@ -69,11 +77,15 @@ export function createNotificationCenter({
     // Recovery rearms a state incident for future failures. No success toast
     // is emitted by default; the page's own status indicator remains authoritative.
     function recover(key) {
-        if (!incidents.delete(key)) return false;
+        if (!incidents.delete(key)) {
+            return false;
+        }
         const removed = toasts.filter(t => t.incidentKey === key);
         if (removed.length) {
             toasts = toasts.filter(t => t.incidentKey !== key);
-            for (const toast of removed) cancelToastTimer(toast.id);
+            for (const toast of removed) {
+                cancelToastTimer(toast.id);
+            }
             publish();
         }
         return true;
@@ -83,15 +95,21 @@ export function createNotificationCenter({
     function clearStates() {
         incidents.clear();
         const removed = toasts.filter(t => t.incidentKey);
-        if (!removed.length) return;
+        if (!removed.length) {
+            return;
+        }
         toasts = toasts.filter(t => !t.incidentKey);
-        for (const toast of removed) cancelToastTimer(toast.id);
+        for (const toast of removed) {
+            cancelToastTimer(toast.id);
+        }
         publish();
     }
 
     function reset() {
         incidents.clear();
-        for (const id of timers.keys()) cancelToastTimer(id);
+        for (const id of timers.keys()) {
+            cancelToastTimer(id);
+        }
         toasts = [];
         publish();
     }

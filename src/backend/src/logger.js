@@ -10,10 +10,14 @@ function timestamp() {
 }
 
 function log(level, message, meta = {}) {
-    if (LEVELS[level] < minLevel) return;
+    if (LEVELS[level] < minLevel) {
+        return;
+    }
     const entry = { ts: timestamp(), level, message, ...meta };
     recentEntries.push(entry);
-    if (recentEntries.length > MAX_RECENT_ENTRIES) recentEntries.shift();
+    if (recentEntries.length > MAX_RECENT_ENTRIES) {
+        recentEntries.shift();
+    }
     for (const subscriber of subscribers) {
         try {
             subscriber(entry);
