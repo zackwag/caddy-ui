@@ -9,6 +9,7 @@ import { REQUIRED_VARS } from '../src/backend/src/customThemes.js';
 import { DEFAULT_INSTANCE_ID, INSTANCE_DEFAULTS } from '../src/backend/src/instances.js';
 import { getNotificationConfig } from '../src/backend/src/notificationConfig.js';
 import { PROVIDERS } from '../src/backend/src/notificationDelivery.js';
+import { NOTIFICATION_EVENTS, VARIABLES } from '../src/backend/src/notificationEvents.js';
 import { DEFAULT_SETTINGS as BACKEND_SETTINGS } from '../src/backend/src/settings.js';
 import en from '../src/frontend/src/i18n/locales/en.js';
 import { API_TOKEN_SCOPE_KEYS, DEFAULT_SETTINGS as FRONTEND_SETTINGS, INSTANCE_DEFAULTS as FRONTEND_INSTANCE_DEFAULTS, NOTIFICATION_PROVIDERS } from '../src/frontend/src/settings.js';
@@ -64,4 +65,20 @@ test("the documentation's mdBook themes use the UI's default palettes", () => {
     for (const [name, mode] of Object.entries(modes)) {
         assert.deepEqual(themes[name], THEME_LIST.find(theme => theme.id === DEFAULT_PALETTES[mode]).vars, name);
     }
+});
+
+test('the documentation lists every notification event and variable as the backend defines them', () => {
+    const markdown = readFileSync(new URL('../docs/src/integrations.md', import.meta.url), 'utf8');
+    const section = markdown.slice(markdown.indexOf('## Notification events'), markdown.indexOf('## Authentication notifications'));
+    const rows = [...section.matchAll(/^\| `([\w.]+)` \| (.*) \|$/gm)].map(([, name, rest]) => [name, rest.split(' | ')]);
+    const priority = { low: 'Low', default: 'Normal', high: 'High' };
+    const events = Object.fromEntries(rows.filter(([, cells]) => cells.length === 3));
+    assert.deepEqual(Object.keys(events), Object.keys(NOTIFICATION_EVENTS));
+    for (const [id, event] of Object.entries(NOTIFICATION_EVENTS)) {
+        const [, documentedPriority, variables] = events[id];
+        assert.equal(documentedPriority, priority[event.priority], id);
+        assert.deepEqual([...variables.matchAll(/`(\w+)`/g)].map(([, name]) => name), event.variables, id);
+    }
+    const variables = Object.fromEntries(rows.filter(([, cells]) => cells.length === 1).map(([name, [contents]]) => [name, contents]));
+    assert.deepEqual(variables, VARIABLES);
 });

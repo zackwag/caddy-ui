@@ -5,6 +5,7 @@ import logger from './logger.js';
 import { debounceMs, getNotificationConfig, loadNotificationConfig, onNotificationConfigChange } from './notificationConfig.js';
 import { sendNotification } from './notificationDelivery.js';
 import { createDigest } from './notificationDigest.js';
+import { NOTIFICATION_EVENTS, renderNotification } from './notificationEvents.js';
 import { getUpdateNotification } from './updateCheck.js';
 
 // Certificates, releases and tokens change over days, not seconds.
@@ -48,9 +49,16 @@ function forgetExpiredDebounces() {
     }
 }
 
-function instanceLabel(inst) {
-    return getInstances().length > 1 ? `[${inst.name}] ` : '';
+// Producers describe what happened; notificationEvents.js words it.
+function deliver(event, data) {
+    return sendNotification(getNotificationConfig(), renderNotification(event, data));
 }
+
+function instanceVariables(inst) {
+    return { instance: inst.name, instancePrefix: getInstances().length > 1 ? `[${inst.name}] ` : '' };
+}
+
+const daysText = days => `${days} day${days !== 1 ? 's' : ''}`;
 
 // --- Authentication ---------------------------------------------------------
 
@@ -62,15 +70,16 @@ let authenticationBusyReported = false;
 
 const AUTHENTICATION_NAMES = { recovery: 'Account recovery', totp: 'Authenticator sign-in', 'password-totp': 'Password and authenticator sign-in', password: 'Password sign-in', passkey: 'Passkey sign-in' };
 
-function authenticationTitle(event) {
+// Only failures are summarized, so `additional` implies one.
+function authenticationEvent(event, additional) {
     if (isPasswordFallback(event)) {
-        return 'Password sign-in while passkeys are configured';
+        return 'authentication.passwordFallback';
     }
-    return `${AUTHENTICATION_NAMES[event.method]} ${event.outcome === 'success' ? 'succeeded' : 'failed'}`;
-}
-
-function authenticationPriority(event) {
-    return event.method === 'recovery' || isPasswordFallback(event) ? 'high' : 'default';
+    const group = event.method === 'recovery' ? 'recovery' : 'authentication';
+    if (event.outcome === 'success') {
+        return `${group}.succeeded`;
+    }
+    return additional ? `${group}.failedRepeatedly` : `${group}.failed`;
 }
 
 async function deliverAuthentication(event, additional = 0) {
@@ -86,10 +95,10 @@ async function deliverAuthentication(event, additional = 0) {
     }
     authenticationDeliveries++;
     try {
-        const message = additional
-            ? `${additional} additional failed ${event.method} attempts during the cooldown. Latest attempt: ${event.timestamp}. Latest source IP: ${event.sourceIp}.`
-            : `Time: ${event.timestamp}\nMethod: ${event.method}\nOutcome: ${event.outcome}\nSource IP: ${event.sourceIp}`;
-        await sendNotification(getNotificationConfig(), { title: authenticationTitle(event), message, priority: authenticationPriority(event) });
+        await deliver(authenticationEvent(event, additional), {
+            method: event.method, methodName: AUTHENTICATION_NAMES[event.method], outcome: event.outcome,
+            timestamp: event.timestamp, sourceIp: event.sourceIp, count: additional,
+        });
     } finally {
         authenticationDeliveries--;
         if (!authenticationDeliveries) {
@@ -119,18 +128,11 @@ async function deliverConfigurationChange(change, additional = 0) {
     if (!enabled('configurationChange')) {
         return;
     }
-    const changed = change.representations.map(key => REPRESENTATIONS[key]).join(' and ');
-    const lines = [
-        `Instance: ${change.instanceName}`,
-        `Changed: ${changed}`,
-        `Detected: ${change.detectedAt}`,
-        'Source: unknown, outside a tracked caddy/ui operation',
-        ...(change.historyEntry ? [`History entry: ${change.historyEntry}`] : []),
-    ];
-    const message = additional
-        ? `${additional} additional unexplained configuration changes on ${change.instanceName} during the cooldown.\n${lines.slice(1).join('\n')}`
-        : lines.join('\n');
-    await sendNotification(getNotificationConfig(), { title: 'Configuration changed outside caddy/ui', message, priority: 'high' });
+    await deliver(additional ? 'configuration.changedRepeatedly' : 'configuration.changed', {
+        instance: change.instanceName,
+        changed: change.representations.map(key => REPRESENTATIONS[key]).join(' and '),
+        detectedAt: change.detectedAt, historyEntry: change.historyEntry, count: additional,
+    });
 }
 
 const configurationChanges = createDigest({
@@ -147,17 +149,12 @@ export function notifyConfigurationChange(change) {
 
 // --- Online/offline transitions -------------------------------------------
 
-// How each monitored kind is announced. `failure` is why a route check failed.
-const TRANSITIONS = {
-    upstream: {
-        offline: { trigger: 'upstreamOffline', alert: label => ({ title: 'Upstream offline', message: `${label} is unreachable`, priority: 'high' }) },
-        online: { trigger: 'upstreamOnline', alert: label => ({ title: 'Upstream recovered', message: `${label} is back online`, priority: 'default' }) },
-    },
-    route: {
-        offline: { trigger: 'routeOffline', alert: (label, failure) => ({ title: 'Route down', message: `${label} is down: ${failure}`, priority: 'high' }) },
-        online: { trigger: 'routeOnline', alert: label => ({ title: 'Route recovered', message: `${label} is back up`, priority: 'default' }) },
-    },
+// Each monitored kind's variables, from a check result. `failure` is why a route check failed.
+const TRANSITION_VARIABLES = {
+    upstream: result => ({ upstream: result.target, label: result.label }),
+    route: result => ({ route: result.label, failure: result.failure }),
 };
+const transitionTrigger = (kind, type) => NOTIFICATION_EVENTS[`${kind}.${type}`].trigger;
 
 const RETRY_DELAYS_MS = [30_000, 60_000];
 
@@ -200,7 +197,7 @@ async function attempt(record, pending) {
         return;
     }
     const { type, alert, attemptNumber } = pending;
-    if (!enabled(TRANSITIONS[record.kind][type].trigger) || record.online !== (type === 'online')
+    if (!enabled(transitionTrigger(record.kind, type)) || record.online !== (type === 'online')
         || !getInstances().some(inst => inst.id === record.instanceId)) {
         cancelPending(record);
         return;
@@ -258,14 +255,14 @@ export async function notifyCheckResults(kind, inst, results) {
 
     for (const { record, result } of changed) {
         const type = result.online ? 'online' : 'offline';
-        const transition = TRANSITIONS[kind][type];
-        if (!enabled(transition.trigger) || isDebounced(inst.id, transitionAlert(type, record))) {
+        if (!enabled(transitionTrigger(kind, type)) || isDebounced(inst.id, transitionAlert(type, record))) {
             continue;
         }
         if (type === 'online' && !record.deliveredOffline) {
             continue;
         }
-        const pending = { type, attemptNumber: 1, timer: null, alert: transition.alert(instanceLabel(inst) + result.label, result.failure) };
+        const alert = renderNotification(`${kind}.${type}`, { ...instanceVariables(inst), ...TRANSITION_VARIABLES[kind](result) });
+        const pending = { type, attemptNumber: 1, timer: null, alert };
         record.pending = pending;
         await attempt(record, pending);
     }
@@ -301,11 +298,7 @@ async function remindExpiringCertificates(inst) {
         }
         const days = cert.daysRemaining;
         try {
-            await sendNotification(getNotificationConfig(), {
-                title: 'Certificate expiring',
-                message: `${instanceLabel(inst)}${certificateName(cert.domain)} expires in ${days} day${days !== 1 ? 's' : ''}`,
-                priority: 'high',
-            });
+            await deliver('certificate.expiring', { ...instanceVariables(inst), certificate: certificateName(cert.domain), days, expiresIn: daysText(days) });
             debounce(inst.id, alert);
         } catch (err) {
             logger.warn('Certificate expiry notification failed', { instance: inst.name, domain: cert.domain, error: err.message });
@@ -325,7 +318,7 @@ async function remindUpdate() {
         return;
     }
     notifiedUpdates.add(notification.key);
-    await sendNotification(getNotificationConfig(), { title: notification.title, message: notification.message, priority: 'default' });
+    await deliver('update.available', { versions: notification.versions, releaseNotes: notification.releaseNotes });
 }
 
 // API tokens alert once each when this much of their lifetime is left. Tokens
@@ -351,10 +344,8 @@ async function remindExpiringApiTokens() {
         notifiedTokens.add(token.id);
         try {
             const days = Math.ceil(remaining / DAY_MS);
-            await sendNotification(getNotificationConfig(), {
-                title: 'API token expiring',
-                message: `API token "${token.name}" expires in ${days} day${days !== 1 ? 's' : ''} (${new Date(expiresAt).toISOString().slice(0, 10)})`,
-                priority: 'high',
+            await deliver('apiToken.expiring', {
+                token: token.name, days, expiresIn: daysText(days), expiresOn: new Date(expiresAt).toISOString().slice(0, 10),
             });
         } catch (err) {
             notifiedTokens.delete(token.id);
@@ -393,7 +384,7 @@ function applyConfig(config) {
     // Configuration changes must not deliver summaries accumulated for an old destination.
     authenticationFailures.clear();
     configurationChanges.clear();
-    cancelPendingWhere(record => !config.enabled || !config.triggers[TRANSITIONS[record.kind][record.pending.type].trigger]);
+    cancelPendingWhere(record => !config.enabled || !config.triggers[transitionTrigger(record.kind, record.pending.type)]);
     if (config.enabled && !reminderTimer) {
         logger.info('Notification reminders started');
         reminderTimer = setInterval(runReminders, REMINDER_INTERVAL_MS);

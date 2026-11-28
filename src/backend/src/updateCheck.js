@@ -90,7 +90,7 @@ export function noteFrontendVersion(version) {
 
 const RELEASES_URL = 'https://github.com/zackwag/caddy-ui/releases';
 
-// Notification for stable updates only -- edge/beta builds land several
+// Variables of the update notification, for stable updates only -- edge/beta builds land several
 // times a day, so alerting on each would be noise. `key` names the versions
 // on offer, so each new release notifies once.
 export function updateNotification(info, running) {
@@ -102,8 +102,8 @@ export function updateNotification(info, running) {
     }
     return {
         key: parts.map(p => `${p.component}@${p.to}`).join(','),
-        title: 'caddy/ui update available',
-        message: `${parts.map(p => `${p.component} ${p.from} → ${p.to}`).join(', ')}. Release notes: ${RELEASES_URL}`,
+        versions: parts.map(p => `${p.component} ${p.from} → ${p.to}`).join(', '),
+        releaseNotes: RELEASES_URL,
     };
 }
 
