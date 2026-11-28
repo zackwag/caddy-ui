@@ -27,16 +27,24 @@ function indentUnit(content, global, option) {
     // comments and heredoc contents cannot select the indentation style.
     if (option?.block) {
         const unit = indentUnitInBlock(content, option.block, option.headerStart, global.start + 1);
-        if (unit !== undefined) return unit;
+        if (unit !== undefined) {
+            return unit;
+        }
     }
     if (global) {
         const unit = indentUnitInBlock(content, global, global.start);
-        if (unit !== undefined) return unit;
+        if (unit !== undefined) {
+            return unit;
+        }
     }
     for (const entry of caddyfileChildren(content)) {
-        if (!entry.block) continue;
+        if (!entry.block) {
+            continue;
+        }
         const unit = indentUnitInBlock(content, entry.block, entry.start);
-        if (unit !== undefined) return unit;
+        if (unit !== undefined) {
+            return unit;
+        }
     }
     // An empty string is a valid unindented style. Use tabs only when no block
     // supplied evidence, rather than treating empty indentation as missing.
@@ -45,8 +53,11 @@ function indentUnit(content, global, option) {
 
 function lineEnding(content, global, option) {
     let start = 0;
-    if (option?.block) start = global.start + 1 + option.block.start;
-    else if (global) start = global.start;
+    if (option?.block) {
+        start = global.start + 1 + option.block.start;
+    } else if (global) {
+        start = global.start;
+    }
     const newline = content.indexOf('\n', start);
     return newline > 0 && content[newline - 1] === '\r' ? '\r\n' : '\n';
 }
@@ -92,7 +103,9 @@ export function setGlobalOption(content, find, render) {
     const text = render ? render(style) : null;
 
     if (!global) {
-        if (!text) return content;
+        if (!text) {
+            return content;
+        }
         const bom = content.startsWith('\ufeff') ? 1 : 0;
         return content.slice(0, bom) + `{${style.eol}${text}${style.eol}}${style.eol}${style.eol}` + content.slice(bom);
     }
@@ -108,7 +121,9 @@ export function setGlobalOption(content, find, render) {
         }
         return content.slice(0, start) + (text || '') + content.slice(end);
     }
-    if (!text) return content;
+    if (!text) {
+        return content;
+    }
 
     const line = content.lastIndexOf('\n', global.close - 1) + 1;
     const start = /^\s*$/.test(content.slice(line, global.close)) ? line : global.close;

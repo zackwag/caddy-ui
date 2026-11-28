@@ -14,7 +14,9 @@ export function removeSiteBlock(caddyfile, domain, env) {
     for (const entry of siteEntries(caddyfile, domain, env).reverse()) {
         const before = result.slice(0, entry.lineStart);
         let after = result.slice(entry.lineEnd).replace(/^\r?\n/, '');
-        if (!before.trim() || /\n[ \t]*\r?\n$/.test(before)) after = after.replace(/^(?:[ \t]*\r?\n)+/, '');
+        if (!before.trim() || /\n[ \t]*\r?\n$/.test(before)) {
+            after = after.replace(/^(?:[ \t]*\r?\n)+/, '');
+        }
         result = before + after;
     }
     return result.trimEnd() + '\n';

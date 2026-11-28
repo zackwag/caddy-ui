@@ -18,9 +18,9 @@ export function formatUptime(seconds) {
     const d = Math.floor(seconds / 86400);
     const h = Math.floor((seconds % 86400) / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    if (d > 0) return `${d}d ${h}h ${m}m`;
-    if (h > 0) return `${h}h ${m}m`;
-    if (m > 0) return `${m}m`;
+    if (d > 0) {return `${d}d ${h}h ${m}m`;}
+    if (h > 0) {return `${h}h ${m}m`;}
+    if (m > 0) {return `${m}m`;}
     return `${seconds}s`;
 }
 
@@ -30,12 +30,16 @@ const REQUEST_DURATION = 'caddy_http_request_duration_seconds';
 // ascending. Interpolated within the bucket the percentile falls in.
 function percentileMs(buckets, pct) {
     const total = buckets.at(-1)?.[1];
-    if (!total) return 0;
+    if (!total) {
+        return 0;
+    }
     const target = pct * total;
     const index = buckets.findIndex(([, count]) => count >= target);
     const [bound, count] = buckets[index];
     const [lowerBound, lowerCount] = buckets[index - 1] ?? [bound, count];
-    if (index === 0 || bound === Infinity) return Math.round(lowerBound * 1000);
+    if (index === 0 || bound === Infinity) {
+        return Math.round(lowerBound * 1000);
+    }
     return Math.round((lowerBound + (target - lowerCount) / (count - lowerCount) * (bound - lowerBound)) * 1000);
 }
 
@@ -48,7 +52,9 @@ export function summarizeRequests(samples, now = Date.now()) {
     let totalRequests = 0;
     for (const { labels, value } of ofMetric('count')) {
         const group = `${labels.code?.[0]}xx`;
-        if (statusGroups[group] !== undefined) statusGroups[group] += value;
+        if (statusGroups[group] !== undefined) {
+            statusGroups[group] += value;
+        }
         totalRequests += value;
     }
     const totalSeconds = ofMetric('sum').reduce((sum, { value }) => sum + value, 0);

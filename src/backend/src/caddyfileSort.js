@@ -31,12 +31,18 @@ export function sortCaddyfile(content) {
 
     for (const block of blocks) {
         const h = block.header.toLowerCase();
-        if (h === '{') globalBlocks.push(block);
-        // Snippets must be defined before a site imports them.
-        else if (h.startsWith('(')) snippetBlocks.push(block);
-        else if (h.startsWith('http://')) httpBlocks.push(block);
-        else if (h.includes('.internal')) internalBlocks.push(block);
-        else publicBlocks.push(block);
+        if (h === '{') {
+            globalBlocks.push(block);
+        } else if (h.startsWith('(')) {
+            // Snippets must be defined before a site imports them.
+            snippetBlocks.push(block);
+        } else if (h.startsWith('http://')) {
+            httpBlocks.push(block);
+        } else if (h.includes('.internal')) {
+            internalBlocks.push(block);
+        } else {
+            publicBlocks.push(block);
+        }
     }
 
     const sortByHeader = (a, b) => a.header.localeCompare(b.header);
@@ -46,9 +52,15 @@ export function sortCaddyfile(content) {
 
     const sorted = [...snippetBlocks, ...publicBlocks, ...internalBlocks, ...httpBlocks];
     const parts = globalBlocks.map(block => block.lines.join('\n'));
-    if (loose.length) parts.push(loose.join('\n'));
-    for (const block of sorted) parts.push(block.lines.join('\n'));
-    if (trailing.length) parts.push(trailing.join('\n'));
+    if (loose.length) {
+        parts.push(loose.join('\n'));
+    }
+    for (const block of sorted) {
+        parts.push(block.lines.join('\n'));
+    }
+    if (trailing.length) {
+        parts.push(trailing.join('\n'));
+    }
 
     return bom + parts.join('\n\n').trimEnd() + '\n';
 }
