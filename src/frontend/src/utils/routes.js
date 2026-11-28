@@ -26,6 +26,10 @@ export function getRouteTitle(route, title) {
 // The host route checks request the route by (backend routeChecks.js
 // collectRouteTargets): its first host, unless that's a wildcard or placeholder.
 function getRouteCheckHost(route) {
+    // Route checks skip a server without a TCP listen port (unix sockets, HTTP/3 only)
+    if (route._listenPort === null) {
+        return null;
+    }
     const [host] = getRouteHosts(route);
     return host && !host.includes("*") && !host.includes("{") ? host : null;
 }

@@ -68,7 +68,12 @@ describe('GET /api/routes', () => {
         caddyGet.mockResolvedValue(servers);
         const { status, body } = await get('/routes');
         expect(status).toBe(200);
-        expect(body).toMatchObject([{ _server: 'srv0', match: [{ host: ['app.example.com'] }] }]);
+        expect(body).toMatchObject([{ _server: 'srv0', _listenPort: 443, match: [{ host: ['app.example.com'] }] }]);
+    });
+
+    it('marks routes on a server route checks skip', async () => {
+        caddyGet.mockResolvedValue({ sock: { listen: ['unix//run/caddy.sock'], routes: [{ handle: [] }] } });
+        expect((await get('/routes')).body).toMatchObject([{ _server: 'sock', _listenPort: null }]);
     });
 
     it('reports an unreachable Caddy instead of an empty list', async () => {

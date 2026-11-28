@@ -92,6 +92,9 @@ describe('route status', () => {
         for (const host of ['*.example', '{env.HOST}', null]) {
             expect(status(proxy(host, 'a'), { routeChecks: true, online: { a: true } })).toMatchObject({ status: 'online', probeHost: null });
         }
+        // On a server route checks skip
+        expect(status({ ...proxy('app.example', 'a'), _listenPort: null }, { routeChecks: true, online: { a: true } }))
+            .toMatchObject({ status: 'online', probeHost: null });
     });
 
     it('sorts the worst uptime first and routes without uptime last', () => {

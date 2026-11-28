@@ -7,7 +7,7 @@ import { REFRESH_INTERVAL_MS, usePoll } from "./usePoll.js";
 // checks are turned on, its first round is picked up this soon.
 const PENDING_INTERVAL_MS = 5000;
 // One route-check round (monitoring.js): a host still without results after
-// that, such as one on a server the checks skip, waits for the normal interval.
+// that waits for the normal interval.
 const PENDING_LIMIT_MS = 5 * 60_000;
 
 // The live routes, their notes and their status, kept current. Status comes

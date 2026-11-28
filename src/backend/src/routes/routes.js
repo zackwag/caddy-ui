@@ -6,6 +6,7 @@ import { caddyfileTitlesEnabled, extractTitleComment, injectTitleComment } from 
 import logger from '../logger.js';
 import { addManagedRoute, changeSite, deleteManagedRoute, updateManagedRoute } from '../managedRoutes.js';
 import { getServers } from '../observations.js';
+import { getListenPort } from '../routeChecks.js';
 import maintenanceRouter from './maintenance.js';
 
 const router = Router();
@@ -14,6 +15,7 @@ router.use(maintenanceRouter);
 
 // GET /api/routes -- an empty list means Caddy has no HTTP routes. When the
 // config can't be read the request fails, so an outage never looks empty.
+// `_listenPort` is the port route checks use, null when they skip the server.
 router.get('/', async (req, res) => {
     let servers;
     try {
@@ -22,7 +24,7 @@ router.get('/', async (req, res) => {
         throw asAppError(err, 'CADDY_CONFIG_UNAVAILABLE', { instanceId: req.instance.id });
     }
     res.json(Object.entries(servers).flatMap(([serverName, server]) =>
-        (server.routes || []).map(route => ({ ...route, _server: serverName }))));
+        (server.routes || []).map(route => ({ ...route, _server: serverName, _listenPort: getListenPort(server) }))));
 });
 
 function requireTarget(req, res, next) {
