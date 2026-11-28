@@ -40,7 +40,7 @@ export default {
             // Incident scopes are internal identifiers, not UI text.
             '^toast\\.(track|incident)$',
             // Settings are patched by their name, security sections by their ID.
-            '^(updateConfig|updateSection|section|field)$',
+            '^(updateConfig|updateSection|securitySection|routeField)$',
             // Sortable columns are named, not labeled.
             '^sort\\.(header|icon)$',
             '^document\\.createElement$',

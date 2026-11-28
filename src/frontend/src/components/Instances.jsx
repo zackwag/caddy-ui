@@ -21,6 +21,8 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
+    // What the form opened with, so Escape keeps changes made since
+    const [openedForm, setOpenedForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [discovered, setDiscovered] = useState(null);
     const [discovering, setDiscovering] = useState(false);
@@ -111,23 +113,22 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
         return () => { cancelled = true; clearTimeout(t); };
     }, [editing, form.adminUrl]);
 
+    const openForm = (id, values) => {
+        setEditing(id);
+        setForm(values);
+        setOpenedForm(values);
+    };
+
     const addDiscovered = (container) => {
-        setEditing("new");
         const { containerName, adminUrl, configPath, logPath, dataPath, serverName } = container;
-        setForm({ name: containerName.charAt(0).toUpperCase() + containerName.slice(1), adminUrl, configPath, logPath, dataPath, containerName, serverName });
+        openForm("new", { name: containerName.charAt(0).toUpperCase() + containerName.slice(1), adminUrl, configPath, logPath, dataPath, containerName, serverName });
     };
 
-    const openAdd = () => {
-        setEditing("new");
-        setForm(EMPTY_FORM);
-    };
+    const openAdd = () => openForm("new", EMPTY_FORM);
 
-    const openEdit = (inst) => {
-        setEditing(inst.id);
-        // A blank field shows its default, except the container name, where
-        // blank means local mode
-        setForm(Object.fromEntries(Object.entries(EMPTY_FORM).map(([key, fallback]) => [key, inst[key] || fallback])));
-    };
+    // A blank field shows its default, except the container name, where
+    // blank means local mode
+    const openEdit = (inst) => openForm(inst.id, Object.fromEntries(Object.entries(EMPTY_FORM).map(([key, fallback]) => [key, inst[key] || fallback])));
 
     const save = async () => {
         if (!form.name.trim() || !form.adminUrl.trim()) {
@@ -271,7 +272,8 @@ export default function Instances({ toast, confirm, onInstancesChange }) {
             </div>
 
             {editing && (
-                <Modal title={editing === "new" ? t("instances.addInstance") : t("instances.editInstance")} style={{ width: 520 }} onClose={() => setEditing(null)}>
+                <Modal title={editing === "new" ? t("instances.addInstance") : t("instances.editInstance")} style={{ width: 520 }} onClose={() => setEditing(null)}
+                    dirty={Object.keys(form).some(key => form[key] !== openedForm[key])}>
 
                     <div className="field">
                         <label>{t("instances.name")}</label>

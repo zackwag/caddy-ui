@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
 import { REFRESH_INTERVAL_MS, usePoll } from "../hooks/usePoll.js";
+import ErrorNote from "./ErrorNote.jsx";
 import Modal from "./Modal.jsx";
 import { apiFetch } from "../utils/api.js";
 import { formatDuration, formatNumber, formatRecentTs } from "../utils/format.js";
@@ -89,7 +90,7 @@ export default function Dashboard({ status, toast }) {
                 <div className="card">
                     <div className="card-title">{t("dashboard.process")}</div>
                     {!process ? (
-                        <div className="loading">{processError ? localizeError(processError, t) : t("common.loading")}</div>
+                        processError ? <ErrorNote error={processError} /> : <div className="loading">{t("common.loading")}</div>
                     ) : !process.ok ? (
                         <div className="flex-between">
                             <span className="loading">{t("dashboard.metricsNotEnabled")}</span>
@@ -174,7 +175,7 @@ export default function Dashboard({ status, toast }) {
             </div>
 
             {editingServer && (
-                <Modal title={t("dashboard.editLabel")} onClose={() => setEditingServer(null)}>
+                <Modal title={t("dashboard.editLabel")} onClose={() => setEditingServer(null)} dirty={editName !== (names[editingServer.name] || "")}>
                     <div className="server-facts">
                         <div>
                             <span className="field-label">{t("dashboard.serverId")}</span>

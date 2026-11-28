@@ -48,20 +48,28 @@ export function useCaddyfileHistory(toast) {
         setHistoryLoading(true);
         try {
             const entries = await apiFetch("/caddyfile/history");
-            if (request !== historyRequest.current) return;
+            if (request !== historyRequest.current) {
+                return;
+            }
             setHistoryError(null);
             setHistory(entries);
             const selected = (!selectLatest && entries.find(entry => entry.filename === selectedFilename.current)) || entries[0];
-            if (!selected) clearPreview();
+            if (!selected) {
+                clearPreview();
+            }
             else if (selected.filename !== selectedFilename.current) previewSnapshot(selected, entries);
             else {
                 setPreviewEntry(selected);
-                if (comparisonFilename.current !== "current" && !entries.some(entry => entry.filename === comparisonFilename.current)) changeCompareTo("current");
+                if (comparisonFilename.current !== "current" && !entries.some(entry => entry.filename === comparisonFilename.current)) {
+                    changeCompareTo("current");
+                }
             }
         } catch (e) {
             if (request === historyRequest.current) { setHistoryError(e); toast.error(e); }
         } finally {
-            if (request === historyRequest.current) setHistoryLoading(false);
+            if (request === historyRequest.current) {
+                setHistoryLoading(false);
+            }
         }
     };
 
@@ -74,20 +82,30 @@ export function useCaddyfileHistory(toast) {
     };
 
     const previewSnapshot = async (entry, entries = history) => {
-        if (!entry) return;
-        if (selectedFilename.current === entry.filename) return;
+        if (!entry) {
+            return;
+        }
+        if (selectedFilename.current === entry.filename) {
+            return;
+        }
         showPreview(entry);
         const request = previewRequest.current;
         const comparison = entry.kind === 'external' ? 'current' : historyComparison(entry, entries);
-        if (comparison !== 'current') changeCompareTo(comparison);
+        if (comparison !== 'current') {
+            changeCompareTo(comparison);
+        }
         previewRef.current?.scrollTo({ top: 0 });
         try {
             if (entry.kind === 'external') {
                 const observation = await apiFetch(`/caddyfile/history/${entry.filename}/changes`);
-                if (request === previewRequest.current) setPreviewObservation(observation);
+                if (request === previewRequest.current) {
+                    setPreviewObservation(observation);
+                }
             } else {
                 const text = await fetchSnapshot(entry.filename);
-                if (request === previewRequest.current) setPreviewContent(text);
+                if (request === previewRequest.current) {
+                    setPreviewContent(text);
+                }
             }
         } catch (e) {
             if (request === previewRequest.current) {
@@ -96,7 +114,9 @@ export function useCaddyfileHistory(toast) {
                 toast.error(e);
             }
         } finally {
-            if (request === previewRequest.current) setPreviewLoading(false);
+            if (request === previewRequest.current) {
+                setPreviewLoading(false);
+            }
         }
     };
 
@@ -105,10 +125,14 @@ export function useCaddyfileHistory(toast) {
         comparisonFilename.current = target;
         setCompareTo(target); setCompareContent(null);
         setCompareLoading(target !== "current");
-        if (target === "current") return;
+        if (target === "current") {
+            return;
+        }
         try {
             const text = await fetchSnapshot(target);
-            if (request === compareRequest.current) setCompareContent(text);
+            if (request === compareRequest.current) {
+                setCompareContent(text);
+            }
         } catch (e) {
             if (request === compareRequest.current) {
                 comparisonFilename.current = "current";
@@ -116,14 +140,18 @@ export function useCaddyfileHistory(toast) {
                 toast.error(e);
             }
         } finally {
-            if (request === compareRequest.current) setCompareLoading(false);
+            if (request === compareRequest.current) {
+                setCompareLoading(false);
+            }
         }
     };
 
     const remove = async (entry) => {
         await apiFetch(`/caddyfile/history/${entry.filename}`, { method: "DELETE" });
         snapshotCache.current.delete(entry.filename);
-        if (selectedFilename.current === entry.filename) clearPreview();
+        if (selectedFilename.current === entry.filename) {
+            clearPreview();
+        }
         else if (comparisonFilename.current === entry.filename) changeCompareTo("current");
         loadHistory();
     };

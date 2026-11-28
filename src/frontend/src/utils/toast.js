@@ -11,7 +11,9 @@ export function createToast(center, t) {
         const key = `${scope}:${getInstanceId()}`;
         return {
             fail(error) {
-                if (error.code !== 'NO_INSTANCES') center.notify(localizeError(error, t), 'error', error, { mode: 'state', key });
+                if (error.code !== 'NO_INSTANCES') {
+                    center.notify(localizeError(error, t), 'error', error, { mode: 'state', key });
+                }
             },
             recover: () => center.recover(key),
         };
@@ -24,8 +26,11 @@ export function createToast(center, t) {
         error: error => center.notify(localizeError(error, t), 'error', error),
         // The outcome of a saved configuration change: its warning, if any
         saved(result, message) {
-            if (result?.warning) center.notify(localizeWarning(result, t), 'info', result);
-            else center.notify(message, 'success');
+            if (result?.warning) {
+                center.notify(localizeWarning(result, t), 'info', result);
+            } else {
+                center.notify(message, 'success');
+            }
         },
         incident,
         // An incident that lasts as long as a request keeps failing. Settles

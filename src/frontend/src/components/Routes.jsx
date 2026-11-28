@@ -23,26 +23,26 @@ const DOMAIN_PLACEHOLDER = "app.example.com";
 // What a UI-managed route's forms ask for.
 function RouteFields({ form, setForm, autoFocus = false }) {
     const { t } = useTranslation();
-    const field = key => ({ value: form[key], onChange: e => setForm(f => ({ ...f, [key]: e.target.value })) });
+    const routeField = key => ({ value: form[key], onChange: e => setForm(f => ({ ...f, [key]: e.target.value })) });
     return (
         <>
             <div className="field">
                 <label>{t("routes.domain")}</label>
-                <input dir="ltr" {...field("domain")} placeholder={DOMAIN_PLACEHOLDER} autoFocus={autoFocus} />
+                <input dir="ltr" {...routeField("domain")} placeholder={DOMAIN_PLACEHOLDER} autoFocus={autoFocus} />
             </div>
             <div className="field">
                 <label>{t("routes.upstream")}</label>
-                <input dir="ltr" {...field("upstream")} placeholder="192.168.4.88:8080" />
+                <input dir="ltr" {...routeField("upstream")} placeholder="192.168.4.88:8080" />
             </div>
             <div className="field">
                 <label>{t("routes.stripPrefixOptional")}</label>
-                <input dir="ltr" {...field("stripPrefix")} placeholder="/api" />
+                <input dir="ltr" {...routeField("stripPrefix")} placeholder="/api" />
             </div>
         </>
     );
 }
 
-function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme, editorVim }) {
+function EditModal({ route, initialNote, canTitle, isCaddyfileManaged, siteBlockFailed, initialContent, titleNeedsMigration, inMaintenance, onSave, onDelete, onClose, theme, editorVim }) {
     const { t } = useTranslation();
     const [form, setForm] = useState({
         domain: route.domain,
@@ -54,6 +54,8 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
     const [saving, setSaving] = useState(false);
 
     const canSave = isCaddyfileManaged ? content.trim().length > 0 : !!form.upstream;
+    const isModified = () => title !== (initialNote || "") || content !== (initialContent || "")
+        || form.upstream !== route.upstream || form.stripPrefix !== route.stripPrefix;
 
     const handleSave = async () => {
         setSaving(true);
@@ -65,13 +67,16 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
     };
 
     return (
-        <Modal title={t("routes.editRoute")} style={isCaddyfileManaged ? { width: 560 } : undefined} onClose={onClose}>
+        <Modal title={t("routes.editRoute")} style={isCaddyfileManaged ? { width: 560 } : undefined} onClose={onClose} dirty={isModified()}>
 
-            <div className="modal-section-label">{t("routes.title")}</div>
-            <div className="field">
-                <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("routes.titlePlaceholder")} onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }} />
-            </div>
-            <div className="modal-hint">{titleNeedsMigration ? t("routes.titleMigrationHint") : t("routes.titleClearHint")}</div>
+            {/* A route without a host has nowhere to keep a title */}
+            {canTitle && <>
+                <div className="modal-section-label">{t("routes.title")}</div>
+                <div className="field">
+                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("routes.titlePlaceholder")} onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }} />
+                </div>
+                <div className="modal-hint">{titleNeedsMigration ? t("routes.titleMigrationHint") : t("routes.titleClearHint")}</div>
+            </>}
 
             {inMaintenance && (
                 <div className="modal-hint" style={{ marginTop: 12, padding: "12px 14px", background: "color-mix(in srgb, var(--accent3) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--accent3) 30%, transparent)", borderRadius: 4, color: "var(--accent3)" }}>
@@ -90,7 +95,7 @@ function EditModal({ route, initialNote, isCaddyfileManaged, siteBlockFailed, in
                 <>
                     <div className="modal-section-label">{t("routes.caddyfile")}</div>
                     <div className="editor-wrap" style={{ marginBottom: 16 }}>
-                        <CaddyfileEditor className="modal-editor-wrap" padding="12px" value={content} onChange={setContent} onSave={() => { if (canSave && !saving) handleSave(); }} onQuit={onClose} isModified={() => title !== (initialNote || "") || content !== (initialContent || "")} theme={theme} vimMode={editorVim} />
+                        <CaddyfileEditor className="modal-editor-wrap" padding="12px" value={content} onChange={setContent} onSave={() => { if (canSave && !saving) handleSave(); }} onQuit={onClose} isModified={isModified} theme={theme} vimMode={editorVim} />
                     </div>
                 </>
             ) : !isCaddyfileManaged && (
@@ -118,7 +123,7 @@ function NewRouteModal({ onSave, onClose }) {
     const [form, setForm] = useState({ domain: "", upstream: "", stripPrefix: "" });
 
     return (
-        <Modal title={t("routes.newRoute")} onClose={onClose}>
+        <Modal title={t("routes.newRoute")} onClose={onClose} dirty={Object.values(form).some(Boolean)}>
             <RouteFields form={form} setForm={setForm} autoFocus />
             <div className="btn-row flex-end" style={{ marginTop: 20 }}>
                 <button className="btn btn-ghost" onClick={onClose}>{t("common.cancel")}</button>
@@ -160,7 +165,8 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
     const columnsHidden = TOGGLEABLE_COLUMNS.some(key => !routeColumns[key]);
 
     const loadExtras = useCallback(signal => {
-        toast.track('tls.load', apiFetch("/tls", { signal }), { signal }).then(setCerts).catch(() => { });
+        // Only picks http or https for domain links, so a failure isn't reported here
+        apiFetch("/tls", { signal }).then(setCerts).catch(() => { });
         apiFetch("/server-names", { signal }).then(setServerLabels).catch(() => { });
         toast.track('routeMaintenance.load', apiFetch("/routes/maintenance", { signal }), { signal })
             .then(setMaintenance, () => setMaintenance(null));
@@ -220,7 +226,9 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
             const titleInSiteBlock = editsSiteBlock && editModal.caddyfileTitle !== null;
             if (domain && !titleInSiteBlock && !(notesError && !title.trim())) {
                 await saveNote(domain, title);
-                if (siteBlockFailed) toast.success(t("routes.titleSaved"));
+                if (siteBlockFailed) {
+                    toast.success(t("routes.titleSaved"));
+                }
             }
             setEditModal(null); load();
         } catch (e) { failRouteEdit(e); }
@@ -469,6 +477,7 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
                 <EditModal
                     route={editModal.route}
                     initialNote={editModal.caddyfileTitle || notes[editModal.domain] || ""}
+                    canTitle={!!editModal.domain}
                     isCaddyfileManaged={editModal.isCaddyfileManaged}
                     siteBlockFailed={editModal.siteBlockFailed}
                     initialContent={editModal.content || ""}

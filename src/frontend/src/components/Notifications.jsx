@@ -1,9 +1,9 @@
-import { localizeError } from "../utils/errorMessages.js";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFetch } from "../hooks/useFetch.js";
 import { NOTIFICATION_PROVIDERS } from "../settings.js";
 import { apiFetch } from "../utils/api.js";
+import ErrorNote from "./ErrorNote.jsx";
 import Select from "./Select.jsx";
 
 // eslint-disable-next-line i18next/no-literal-string -- Example webhook payload, intentionally literal
@@ -32,7 +32,9 @@ export default function Notifications({ toast }) {
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
 
-    if (!config) return <div className="loading">{error ? localizeError(error, t) : t("common.loading")}</div>;
+    if (!config) {
+        return error ? <ErrorNote error={error} /> : <div className="loading">{t("common.loading")}</div>;
+    }
 
     const update = (patch) => setConfig(c => ({ ...c, ...patch }));
     const updateSection = (section, patch) => setConfig(c => ({ ...c, [section]: { ...c[section], ...patch } }));

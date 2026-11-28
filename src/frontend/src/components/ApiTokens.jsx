@@ -19,7 +19,8 @@ export default function ApiTokens({ instances, instancesError, busy, setBusy, is
     const [error, setError] = useState(null);
     const tokens = data?.tokens || [];
     const loading = loadingTokens || (!instances && !instancesError);
-    const setTokens = change => setData(previous => ({ ...previous, tokens: change(previous.tokens) }));
+    // After a failed load there is no list yet, but a token can still be issued
+    const setTokens = change => setData(previous => ({ ...previous, tokens: change(previous?.tokens ?? []) }));
     // The instance being managed, until a selection is made
     const instanceIds = selectedIds ?? (instances || []).map(instance => instance.id).filter(id => id === getInstanceId());
 
@@ -88,7 +89,7 @@ export default function ApiTokens({ instances, instancesError, busy, setBusy, is
                 <button className="btn btn-primary" disabled={busy || !name.trim() || !scopes.length || !instanceIds.length}>{t('apiTokens.create')}</button>
             </form>
             <h3 className="modal-section-label">{t('apiTokens.existing')}</h3>
-            {!tokens.length && <p className="modal-hint">{t('apiTokens.empty')}</p>}
+            {!tokens.length && !loadError && <p className="modal-hint">{t('apiTokens.empty')}</p>}
             <ul className="api-token-list">{tokens.map(token => <li key={token.id}>
                 <strong>{token.name}</strong>
                 <p className="modal-hint">{token.scopes.map(scope => t(SCOPE_KEYS[scope])).join(', ')}</p>

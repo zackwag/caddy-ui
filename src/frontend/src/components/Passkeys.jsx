@@ -49,7 +49,9 @@ export default function Passkeys({ busy, setBusy, disabled, onOpenTls, authState
         finally { setVerification({}); setBusy(false); }
     }
 
-    const problem = data && passkeyProblem({ origin: data.origin, reason: data.unavailableReason, enabled: data.enabled });
+    // Before the server answers (or when it can't), only the browser's own
+    // checks apply, such as HTTPS, which is often why the load failed
+    const problem = passkeyProblem(data ? { origin: data.origin, reason: data.unavailableReason, enabled: data.enabled } : { origin: window.location.origin });
 
     return <fieldset className="security-fields" disabled={disabled || busy || !authState}>
         <p className="modal-hint">{t('passkeys.hint')}</p>

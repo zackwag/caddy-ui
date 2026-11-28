@@ -41,7 +41,7 @@ export default function SecuritySettings({ instances, instancesError, onClose })
         return () => element.close();
     }, []);
 
-    const section = (id, title, subsections = []) => ({
+    const securitySection = (id, title, subsections = []) => ({
         id, title, disabled: locked, open: !!open[id],
         onToggle: () => setOpen(previous => ({ ...previous, [id]: !previous[id], ...Object.fromEntries(subsections.map(name => [name, false])) })),
     });
@@ -51,24 +51,24 @@ export default function SecuritySettings({ instances, instancesError, onClose })
         <h2 className="modal-title" id="security-title">{t('security.title')}</h2>
         {error && <div role="alert"><p>{localizeError(error, t)}</p>
             <button type="button" className="btn" disabled={locked} onClick={refreshAuth}>{t('login.retry')}</button></div>}
-        <Section {...section('user', t('security.user'))}>
+        <Section {...securitySection('user', t('security.user'))}>
             <UserSettings authState={authState} busy={userBusy} setBusy={setUserBusy} disabled={tokenBusy || authBusy || !!issued} />
         </Section>
-        <Section {...section('auth', t('security.auth'), ['totp', 'passkeys'])} className="security-auth-sections">
-            <Section nested {...section('totp', t('totp.title'))}>
+        <Section {...securitySection('auth', t('security.auth'), ['totp', 'passkeys'])} className="security-auth-sections">
+            <Section nested {...securitySection('totp', t('totp.title'))}>
                 {open.totp && <TotpSettings authState={authState} onChange={refreshAuth}
                     busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued} />}
             </Section>
-            <Section nested {...section('passkeys', t('passkeys.title'))}>
+            <Section nested {...securitySection('passkeys', t('passkeys.title'))}>
                 {open.passkeys && <Passkeys authState={authState} onChange={refreshAuth}
                     busy={authBusy} setBusy={setAuthBusy} disabled={userBusy || tokenBusy || !!issued}
                     onOpenTls={() => { onClose(); navigate('/tls'); }} />}
             </Section>
         </Section>
-        <Section {...section('tokens', t('apiTokens.title'))}>
+        <Section {...securitySection('tokens', t('apiTokens.title'))}>
             <ApiTokens instances={instances} instancesError={instancesError} busy={tokenBusy} setBusy={setTokenBusy} issued={issued} setIssued={setIssued} disabled={userBusy || authBusy} />
         </Section>
-        <Section {...section('activity', t('activity.title'))}>
+        <Section {...securitySection('activity', t('activity.title'))}>
             {open.activity && <ActivityLog />}
         </Section>
         <div className="btn-row flex-end"><button type="button" className="btn btn-ghost" disabled={locked} onClick={onClose}>{t('common.close')}</button></div>
