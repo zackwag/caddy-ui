@@ -25,7 +25,9 @@ export function useConfirm() {
 export function ConfirmDialog({ dialog, resolve }) {
     const { t } = useTranslation();
 
-    if (!dialog) return null;
+    if (!dialog) {
+        return null;
+    }
 
     return (
         <Modal className="modal--confirm" title={dialog.message} onClose={() => resolve(false)}>

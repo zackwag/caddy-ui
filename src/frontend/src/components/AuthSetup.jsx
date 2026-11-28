@@ -27,7 +27,9 @@ export default function AuthSetup({ enrollment, onComplete }) {
         finally { setLoading(false); }
     };
 
-    if (recoveryKey) return <RecoveryKey value={recoveryKey} onComplete={onComplete} />;
+    if (recoveryKey) {
+        return <RecoveryKey value={recoveryKey} onComplete={onComplete} />;
+    }
     return <LoginCard onSubmit={submitSetup}>
         <LoginLogo />
         <h1 className="login-sub">{t('login.setupTitle')}</h1>

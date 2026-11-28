@@ -131,7 +131,9 @@ describe('committed Caddyfile history', () => {
     it('keeps ordered immutable versions for rapid saves and prunes to the configured limit', async () => {
         const { root, history } = await fixture({ now: () => 100000, limit: 3 });
         const names = [];
-        for (let i = 0; i < 5; i++) names.push(await history.record('default', String(i)));
+        for (let i = 0; i < 5; i++) {
+            names.push(await history.record('default', String(i)));
+        }
         expect(new Set(names).size).toBe(5);
         const entries = await history.list('default');
         expect(entries.map(entry => entry.filename)).toEqual(names.slice(2).reverse());

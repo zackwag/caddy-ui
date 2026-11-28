@@ -9,10 +9,16 @@ export function bookFiles(directory) {
         for (const name of readdirSync(path).sort()) {
             const entry = join(path, name);
             const stat = lstatSync(entry);
-            if (stat.isSymbolicLink()) throw new Error(`Book contains a symbolic link: ${entry}`);
-            if (stat.isDirectory()) walk(entry);
-            else if (stat.isFile()) files.push(relative(directory, entry).replaceAll('\\', '/'));
-            else throw new Error(`Unsupported book entry: ${entry}`);
+            if (stat.isSymbolicLink()) {
+                throw new Error(`Book contains a symbolic link: ${entry}`);
+            }
+            if (stat.isDirectory()) {
+                walk(entry);
+            } else if (stat.isFile()) {
+                files.push(relative(directory, entry).replaceAll('\\', '/'));
+            } else {
+                throw new Error(`Unsupported book entry: ${entry}`);
+            }
         }
     }
     walk(directory);
@@ -36,15 +42,21 @@ export function validateBookAssets(directory) {
         throw new Error('Book lacks its index or search index');
     }
     for (const name of files) {
-        if (!name.endsWith('.html')) continue;
+        if (!name.endsWith('.html')) {
+            continue;
+        }
         const parser = new SAXParser();
         parser.on('startTag', token => {
             const attributes = Object.fromEntries(token.attrs.map(attr => [attr.name, attr.value]));
             const reference = ['img', 'script'].includes(token.tagName) ? attributes.src
                 : token.tagName === 'link' && attributes.rel === 'stylesheet' ? attributes.href : null;
-            if (!reference || /^(data:|https?:\/\/|\/\/)/.test(reference)) return;
+            if (!reference || /^(data:|https?:\/\/|\/\/)/.test(reference)) {
+                return;
+            }
             const path = decodeURIComponent(new URL(reference, `https://book.invalid/${name}`).pathname).slice(1);
-            if (!files.has(path)) throw new Error(`${name} references missing local asset ${reference}`);
+            if (!files.has(path)) {
+                throw new Error(`${name} references missing local asset ${reference}`);
+            }
         });
         parser.end(readFileSync(join(directory, name), 'utf8'));
     }
@@ -59,22 +71,30 @@ export function groupBooks(releases, results, config = { schema: 1, aliases: {} 
     const first = new Map();
     for (const release of releases) {
         const book = built.get(release.tag);
-        if (book && !first.has(book.fingerprint)) first.set(book.fingerprint, release.tag);
+        if (book && !first.has(book.fingerprint)) {
+            first.set(book.fingerprint, release.tag);
+        }
     }
     for (const [tag, alias] of Object.entries(config.aliases)) {
         if (!known.has(tag) || !known.has(alias?.target) || tag === alias.target || typeof alias.reason !== 'string' || !alias.reason.trim()) {
             throw new Error(`Invalid maintainer alias for ${tag}: known distinct target and review reason required`);
         }
-        if (!built.has(tag) || !built.has(alias.target)) throw new Error(`Alias ${tag} requires both historical books to build successfully`);
+        if (!built.has(tag) || !built.has(alias.target)) {
+            throw new Error(`Alias ${tag} requires both historical books to build successfully`);
+        }
     }
     function target(tag, seen = new Set()) {
-        if (seen.has(tag)) throw new Error(`Cyclic maintainer aliases at ${tag}`);
+        if (seen.has(tag)) {
+            throw new Error(`Cyclic maintainer aliases at ${tag}`);
+        }
         seen.add(tag);
         return config.aliases[tag] ? target(config.aliases[tag].target, seen) : tag;
     }
     return releases.map(release => {
         const original = built.get(release.tag);
-        if (!original) return { tag: release.tag, snapshot: null, source: null, grouping: null };
+        if (!original) {
+            return { tag: release.tag, snapshot: null, source: null, grouping: null };
+        }
         const destination = target(release.tag);
         const fingerprint = built.get(destination).fingerprint;
         return { tag: release.tag, snapshot: fingerprint, source: first.get(fingerprint),
@@ -109,15 +129,21 @@ export function historyReport(inventory, results, groups) {
         lines.push(`- **${result.tag}**: ${result.status === 'built' ? `SHA-256 \`${result.fingerprint}\`; screenshots: ${result.screenshots}; coverage: ${result.coverage}; ${result.tools}.` : result.error} Log: \`logs/${result.tag}.log\`.`);
     }
     const manual = groups.filter(group => group.grouping === 'maintainer');
-    if (manual.length) lines.push('', '## Maintainer decisions', '', ...manual.map(group => `- ${group.tag} → ${group.source}: ${group.reason}`));
+    if (manual.length) {
+        lines.push('', '## Maintainer decisions', '', ...manual.map(group => `- ${group.tag} → ${group.source}: ${group.reason}`));
+    }
     return lines.join('\n') + '\n';
 }
 
 export function validateBookResults(directory, inventory, results) {
-    if (!Array.isArray(results) || new Set(results.map(result => result.tag)).size !== results.length) throw new Error('Invalid backfill results');
+    if (!Array.isArray(results) || new Set(results.map(result => result.tag)).size !== results.length) {
+        throw new Error('Invalid backfill results');
+    }
     for (const result of results) {
         if (!inventory.releases.some(release => release.tag === result.tag && release.commit === result.commit)
-            || !['built', 'failed'].includes(result.status)) throw new Error(`Invalid backfill result for ${result.tag}`);
+            || !['built', 'failed'].includes(result.status)) {
+            throw new Error(`Invalid backfill result for ${result.tag}`);
+        }
         if (result.status === 'built' && (!/^[a-f0-9]{64}$/.test(result.fingerprint)
             || fingerprintBook(join(directory, 'books', result.fingerprint)) !== result.fingerprint)) {
             throw new Error(`Snapshot integrity check failed for ${result.tag}`);

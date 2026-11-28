@@ -21,7 +21,9 @@ export function createDigest({ cooldownMs, deliver, onSummaryFailed }) {
             const batch = { count: 0, latest: event };
             batch.timer = setTimeout(() => {
                 batches.delete(key);
-                if (batch.count) void deliver(batch.latest, batch.count).catch(error => onSummaryFailed(batch.latest, error));
+                if (batch.count) {
+                    void deliver(batch.latest, batch.count).catch(error => onSummaryFailed(batch.latest, error));
+                }
             }, cooldownMs());
             batch.timer.unref?.();
             batches.set(key, batch);
@@ -29,7 +31,9 @@ export function createDigest({ cooldownMs, deliver, onSummaryFailed }) {
         },
         forget,
         clear() {
-            for (const key of [...batches.keys()]) forget(key);
+            for (const key of [...batches.keys()]) {
+                forget(key);
+            }
         },
     };
 }

@@ -12,8 +12,12 @@ const commitOf = (version) => String(version || "").match(/^(?:edge|beta)-([0-9a
 // images have an update -- or to main's history when either commit is unknown.
 export function updateLink(update, running) {
     const offered = COMPONENTS.filter(component => update?.[component]);
-    if (!offered.length) return null;
-    if (offered.some(component => /^\d/.test(update[component]))) return `${REPO_URL}/releases`;
+    if (!offered.length) {
+        return null;
+    }
+    if (offered.some(component => /^\d/.test(update[component]))) {
+        return `${REPO_URL}/releases`;
+    }
     const [component] = offered;
     const from = commitOf(running?.[component]);
     const to = commitOf(update[component]);

@@ -43,17 +43,23 @@ function servesHttps(server) {
 export function collectManagedDomains(tlsApp, servers) {
     const domains = new Set();
     for (const policy of tlsApp?.automation?.policies || []) {
-        for (const subject of policy.subjects || []) domains.add(subject.toLowerCase());
+        for (const subject of policy.subjects || []) {
+            domains.add(subject.toLowerCase());
+        }
     }
     for (const server of Object.values(servers || {})) {
         const auto = server.automatic_https || {};
-        if (auto.disable || auto.disable_certificates || !servesHttps(server)) continue;
+        if (auto.disable || auto.disable_certificates || !servesHttps(server)) {
+            continue;
+        }
         const skip = new Set([...(auto.skip || []), ...(auto.skip_certificates || [])].map(h => h.toLowerCase()));
         for (const route of server.routes || []) {
             for (const matcher of route.match || []) {
                 for (const host of matcher.host || []) {
                     const name = host.toLowerCase();
-                    if (name.includes('{') || skip.has(name)) continue;
+                    if (name.includes('{') || skip.has(name)) {
+                        continue;
+                    }
                     domains.add(name);
                 }
             }
@@ -105,24 +111,32 @@ export async function listCertificates({ containerName, dataPath, adminUrl }, { 
         const hint = containerName ? undefined : LOCAL_MODE_HINTS[reason];
         if (reason === 'not found') {
             // In local mode a missing data path can also be a volume that was never mounted
-            if (hint && !quiet && !await containerPathExists(containerName, dataPath)) logger.warn(`Certs path not found`, { path: certsPath, hint });
+            if (hint && !quiet && !await containerPathExists(containerName, dataPath)) {
+                logger.warn(`Certs path not found`, { path: certsPath, hint });
+            }
             return [];
         }
-        if (!quiet) logger.warn(`Could not read certs path`, { path: certsPath, reason, ...(hint && { hint }) });
+        if (!quiet) {
+            logger.warn(`Could not read certs path`, { path: certsPath, reason, ...(hint && { hint }) });
+        }
         throw new AppError('CERTIFICATE_READ_FAILED', { cause: err, context: { path: certsPath, reason } });
     }
 
     for (const issuer of issuers) {
         const issuerPath = join(certsPath, issuer);
         const domains = await listContainerDir(containerName, issuerPath);
-        if (!domains.length) continue;
+        if (!domains.length) {
+            continue;
+        }
 
         const isInternal = issuer === 'local';
 
         for (const domain of domains) {
             const certFile = join(issuerPath, domain, `${domain}.crt`);
             const info = await parseCert(containerName, certFile);
-            if (!info) continue;
+            if (!info) {
+                continue;
+            }
 
             const validTo = new Date(info.validTo);
             const now = new Date();
@@ -131,10 +145,15 @@ export async function listCertificates({ containerName, dataPath, adminUrl }, { 
             const isManaged = managedDomains ? isManagedDomain(domain, managedDomains) : null;
 
             let status;
-            if (isManaged === false) status = 'orphaned';
-            else if (daysRemaining < 0) status = isInternal ? 'valid' : 'expired';
-            else if (daysRemaining < EXPIRING_DAYS && !isInternal) status = 'expiring';
-            else status = 'valid';
+            if (isManaged === false) {
+                status = 'orphaned';
+            } else if (daysRemaining < 0) {
+                status = isInternal ? 'valid' : 'expired';
+            } else if (daysRemaining < EXPIRING_DAYS && !isInternal) {
+                status = 'expiring';
+            } else {
+                status = 'valid';
+            }
 
             results.push({ domain, issuer: isInternal ? 'internal' : 'acme', issuerDir: issuer, validFrom: info.validFrom, validTo: info.validTo, daysRemaining, isManaged, isInternal, status });
         }
@@ -153,7 +172,9 @@ export async function listCertificates({ containerName, dataPath, adminUrl }, { 
 
     return results.sort((a, b) => {
         const order = { orphaned: 0, superseded: 1, expired: 2, expiring: 3, valid: 4 };
-        if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+        if (order[a.status] !== order[b.status]) {
+            return order[a.status] - order[b.status];
+        }
         return a.daysRemaining - b.daysRemaining;
     });
 }

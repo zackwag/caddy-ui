@@ -165,8 +165,12 @@ describe('external origin configuration', () => {
 
     it.each(['username', 'password', 'both'])('rejects %s userinfo in the configured URL', fields => {
         const configured = new URL('https://ui.example');
-        if (fields !== 'password') configured.username = randomUUID();
-        if (fields !== 'username') configured.password = randomUUID();
+        if (fields !== 'password') {
+            configured.username = randomUUID();
+        }
+        if (fields !== 'username') {
+            configured.password = randomUUID();
+        }
         expect(() => createCrossSiteMiddleware(configured.href)).toThrow('CADDY_UI_EXTERNAL_URL');
     });
 

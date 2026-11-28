@@ -18,7 +18,9 @@ async function freshCode(path) {
     const { totp } = JSON.parse(await readFile(path, 'utf8'));
     const next = totp.lastAcceptedStep + 1;
     // The verifier accepts one future step; wait only if it was already used.
-    if (next > Math.floor(Date.now() / 30000) + 1) await delay((next - 1) * 30000 - Date.now() + 100);
+    if (next > Math.floor(Date.now() / 30000) + 1) {
+        await delay((next - 1) * 30000 - Date.now() + 100);
+    }
     return code(totp.secret, Math.max(next, Math.floor(Date.now() / 30000)));
 }
 async function setup(page) {
@@ -42,7 +44,9 @@ async function authPanel(page) {
 }
 async function enroll(dialog, password) {
     await dialog.getByRole('button', { name: 'Set up authenticator', exact: true }).click();
-    if (password) await dialog.locator('#totp-current-password').fill(password);
+    if (password) {
+        await dialog.locator('#totp-current-password').fill(password);
+    }
     await dialog.getByRole('button', { name: 'Set up authenticator', exact: true }).click();
     const key = dialog.getByLabel('Authenticator setup key');
     await key.waitFor();

@@ -9,7 +9,9 @@ const failure = vi.hoisted(() => ({ code: null }));
 vi.mock('node:fs/promises', async original => {
     const fs = await original();
     return { ...fs, open: async (path, ...args) => {
-        if (failure.code && String(path).endsWith('.tmp')) throw Object.assign(new Error('migration storage failure'), { code: failure.code });
+        if (failure.code && String(path).endsWith('.tmp')) {
+            throw Object.assign(new Error('migration storage failure'), { code: failure.code });
+        }
         return fs.open(path, ...args);
     } };
 });

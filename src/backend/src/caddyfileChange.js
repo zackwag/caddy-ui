@@ -41,7 +41,9 @@ async function readPreviousCaddyfile(configPath, containerName) {
     try {
         return await readContainerFile(containerName, configPath);
     } catch (err) {
-        if (describeReadError(err) === 'not found') return null;
+        if (describeReadError(err) === 'not found') {
+            return null;
+        }
         throw new AppError('CADDYFILE_READ_FAILED', { cause: err, context: { configPath } });
     }
 }
@@ -62,8 +64,11 @@ function matchesCaddyfile(tags, previous) {
 }
 
 async function restoreCaddyfile(previous, { configPath, containerName }) {
-    if (previous === null) await removeContainerPath(containerName, configPath);
-    else await writeContainerFile(containerName, configPath, previous);
+    if (previous === null) {
+        await removeContainerPath(containerName, configPath);
+    } else {
+        await writeContainerFile(containerName, configPath, previous);
+    }
 }
 
 // Applies a change. Rejects when Caddy rejected it; a timeout resolves as
@@ -73,7 +78,9 @@ async function attempt(apply) {
         await apply();
         return { applied: true };
     } catch (error) {
-        if (!(error instanceof CaddyTimeoutError)) throw error;
+        if (!(error instanceof CaddyTimeoutError)) {
+            throw error;
+        }
         return { applied: false, uncertain: true, error };
     }
 }
@@ -180,9 +187,13 @@ async function saveChange(instance, change, { live, onApplied, rollback = true, 
     if (ifMatch && !matchesCaddyfile(ifMatch, previous)) {
         throw new AppError('CADDYFILE_CHANGED', { context });
     }
-    if (typeof change === 'function' && previous === null) throw new AppError('CADDYFILE_READ_FAILED', { context });
+    if (typeof change === 'function' && previous === null) {
+        throw new AppError('CADDYFILE_READ_FAILED', { context });
+    }
     const content = typeof change === 'function' ? await change(previous) : change;
-    if (typeof content !== 'string') throw new TypeError('A Caddyfile change must produce text');
+    if (typeof content !== 'string') {
+        throw new TypeError('A Caddyfile change must produce text');
+    }
     try { await configurationHistory.preserve(id, previous); }
     catch (cause) { throw new AppError('CADDYFILE_HISTORY_WRITE_FAILED', { cause, context }); }
 
@@ -220,7 +231,9 @@ async function saveChange(instance, change, { live, onApplied, rollback = true, 
     }
     // State kept beside the file (maintenance) follows the file, which an
     // uncertain apply keeps.
-    if ((result.applied || result.uncertain) && onApplied) await onApplied();
+    if ((result.applied || result.uncertain) && onApplied) {
+        await onApplied();
+    }
     result.verification = await readBack(instance, result, live, { content, file: await verifyFile(instance, content) });
     const warnings = [];
     const outcome = result.applied ? 'applied' : result.uncertain ? 'unknown' : 'saved-unapplied';

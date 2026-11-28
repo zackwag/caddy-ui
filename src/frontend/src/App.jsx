@@ -94,19 +94,25 @@ export default function App() {
 
                 await loadLocale(resolved);
 
-                if (cancelled) return;
+                if (cancelled) {
+                    return;
+                }
 
                 setEnabledLanguages(enabled);
                 setLanguage(resolved);
             } catch {
                 await loadLocale('en');
 
-                if (cancelled) return;
+                if (cancelled) {
+                    return;
+                }
 
                 setEnabledLanguages(['en']);
                 setLanguage('en');
             } finally {
-                if (!cancelled) setLanguageReady(true);
+                if (!cancelled) {
+                    setLanguageReady(true);
+                }
             }
         }
 
@@ -118,7 +124,9 @@ export default function App() {
     }, []);
 
     useEffect(() => {
-        if (!authed || !languageReady || settingsLoaded) return;
+        if (!authed || !languageReady || settingsLoaded) {
+            return;
+        }
         Promise.all([
             apiFetch('/settings'),
             apiFetch('/custom-themes').catch(() => []),
@@ -128,7 +136,9 @@ export default function App() {
             const palette = (id, fallback) => validIds.has(id) ? id : fallback;
             setSettings({ ...DEFAULT_SETTINGS, ...s, darkPalette: palette(s.darkPalette, DEFAULT_PALETTES.dark), lightPalette: palette(s.lightPalette, DEFAULT_PALETTES.light) });
             setSettingsLoaded(true);
-            if (s.firstTimeRun) setShowThemeWelcome(true);
+            if (s.firstTimeRun) {
+                setShowThemeWelcome(true);
+            }
 
             // Applied last so a locale chunk that fails to load (e.g. a stale
             // hash after a redeploy) leaves the UI in its current language
@@ -155,8 +165,11 @@ export default function App() {
         // a stale custom color doesn't linger.
         const active = customThemes.find(t => t.id === activeId);
         for (const key of THEME_VAR_KEYS) {
-            if (active) document.documentElement.style.setProperty(key, active.vars[key]);
-            else document.documentElement.style.removeProperty(key);
+            if (active) {
+                document.documentElement.style.setProperty(key, active.vars[key]);
+            } else {
+                document.documentElement.style.removeProperty(key);
+            }
         }
     }, [theme, darkPalette, lightPalette, customThemes]);
 
@@ -167,7 +180,9 @@ export default function App() {
     };
 
     const changeLanguage = async (lang) => {
-        if (!enabledLanguages.includes(lang)) return;
+        if (!enabledLanguages.includes(lang)) {
+            return;
+        }
 
         try {
             await loadLocale(lang);
@@ -206,7 +221,9 @@ export default function App() {
     const view = viewAt(location.pathname);
 
     useEffect(() => {
-        if (noInstances && view.needsInstance) navigate('/instances', { replace: true });
+        if (noInstances && view.needsInstance) {
+            navigate('/instances', { replace: true });
+        }
     }, [noInstances, view, navigate]);
 
     usePoll(authed ? fetchStatus : null, STATUS_INTERVAL_MS);

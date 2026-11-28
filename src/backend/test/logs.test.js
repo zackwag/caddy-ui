@@ -292,7 +292,9 @@ describe('logging edits preserve unrelated Caddyfile content', () => {
         expect(updated.startsWith(prefix + unit + 'log {' + eol + unit.repeat(2) + 'output file')).toBe(true);
         expect(updated.endsWith(suffix)).toBe(true);
         expect(parseLogConfig(updated)).toEqual(settings);
-        if (eol === '\r\n') expect(updated.replaceAll('\r\n', '')).not.toContain('\n');
+        if (eol === '\r\n') {
+            expect(updated.replaceAll('\r\n', '')).not.toContain('\n');
+        }
         expect(updateLogConfig(updated, { enabled: false })).toBe(original);
     });
 

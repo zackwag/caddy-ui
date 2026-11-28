@@ -24,7 +24,9 @@ test('every error the backend reports has a message in the UI', () => {
 
 test('custom themes must define exactly the variables built-in themes do', () => {
     assert.deepEqual([...REQUIRED_VARS].sort(), [...THEME_VAR_KEYS].sort());
-    for (const theme of THEME_LIST) assert.deepEqual(Object.keys(theme.vars).sort(), [...REQUIRED_VARS].sort(), theme.id);
+    for (const theme of THEME_LIST) {
+        assert.deepEqual(Object.keys(theme.vars).sort(), [...REQUIRED_VARS].sort(), theme.id);
+    }
 });
 
 test('the UI starts from the settings the backend stores', () => {

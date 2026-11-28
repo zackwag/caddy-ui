@@ -25,7 +25,7 @@ async function fixture() {
     }
     return { ...f, client, account, device, recoveryKey: setup.data.recoveryKey, key: key.data, grant, now: () => time, advance: ms => { time += ms; } };
 }
-afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); });
+afterEach(async () => { for (const f of fixtures.splice(0)) { await f.close(); } });
 
 describe('fresh passkey authorization for credential changes', () => {
     it('requires a management session and a verified assertion, rather than trusting a passkey-authenticated session', async () => {
@@ -80,7 +80,9 @@ describe('fresh passkey authorization for credential changes', () => {
         const seed = await request(f.client, '/totp/setup', (await f.grant()).data);
         const code = new TOTP({ secret: Secret.fromBase32(seed.data.secret) }).generate({ timestamp: f.now() });
         expect((await request(f.client, '/totp/confirm', { code })).status).toBe(200);
-        for (let i = 0; i < 5; i++) expect((await request(f.client, '/totp', { currentPassword: f.account.password, totpCode: 'bad' }, 'DELETE')).data.code).toBe('TOTP_INVALID');
+        for (let i = 0; i < 5; i++) {
+            expect((await request(f.client, '/totp', { currentPassword: f.account.password, totpCode: 'bad' }, 'DELETE')).data.code).toBe('TOTP_INVALID');
+        }
         const other = authClient(f.url);
         expect((await request(other, '/sessions', f.account)).data.code).toBe('TOTP_RATE_LIMITED');
         const options = await request(other, '/passkeys/authentication/options');

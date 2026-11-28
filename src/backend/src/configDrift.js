@@ -81,7 +81,9 @@ async function projectObservation(state, expectLive) {
 
 async function acceptLiveExpectation(state, expectLive) {
     const config = await expectLive?.(structuredClone(state.liveConfig));
-    if (config === undefined) return false;
+    if (config === undefined) {
+        return false;
+    }
     state.liveConfig = structuredClone(config);
     // Caddy's ETag isn't computable from an intended JSON result. Keep a hash
     // until a read matches that result, then use the matching read's ETag.
@@ -102,8 +104,12 @@ function changedRepresentations(previous, current) {
 // Stable formatting makes JSON diffs about configuration values, rather than
 // object-key order. Array order is significant and remains unchanged.
 function ordered(value) {
-    if (Array.isArray(value)) return value.map(ordered);
-    if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
+    if (Array.isArray(value)) {
+        return value.map(ordered);
+    }
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
+    }
     return value;
 }
 const jsonText = config => JSON.stringify(ordered(config), null, 2) + '\n';
@@ -159,7 +165,9 @@ export async function recordLocalChange(instance, { content, verification, verif
     const state = stateFor(instance.id);
     // Until the first successful observation there is no baseline to compare.
     // The monitor will establish it using the documented startup behavior.
-    if (!state.expected) return;
+    if (!state.expected) {
+        return;
+    }
     const file = content === null ? null : fingerprintText(content);
     const fileVerified = [VERIFIED, UNCHANGED].includes(verification.file);
     if (file !== null && fileVerified) {
@@ -184,7 +192,9 @@ export async function recordLocalChange(instance, { content, verification, verif
 
 async function confirmPendingChange(state, observed) {
     const { pending } = state;
-    if (!pending) return false;
+    if (!pending) {
+        return false;
+    }
     let confirmed = false;
     if (pending.file !== null && pending.file === observed.file) {
         state.expected.file = pending.file;
@@ -239,7 +249,9 @@ export async function checkInstance(instance, { report = true } = {}) {
     await preserveObservation(instance, state, observed);
     // An initially unreadable representation has no expected baseline. Its
     // first available value is preserved with an explicitly missing "before".
-    if (!state.expected.file && observed.file) state.expected.file = observed.file;
+    if (!state.expected.file && observed.file) {
+        state.expected.file = observed.file;
+    }
     if (!state.expected.live && observed.live) {
         state.expected.live = observed.live;
         state.liveConfig = structuredClone(observed.config);
@@ -247,7 +259,9 @@ export async function checkInstance(instance, { report = true } = {}) {
     matchLiveFingerprint(state, observed);
     // Pre-write discovery preserves evidence without adding a second drift
     // report before the same unexplained state is checked by the monitor.
-    if (!report) return;
+    if (!report) {
+        return;
+    }
     if (!changedRepresentations(state.expected, observed).length) {
         state.reported = null;
         state.historyEntry = null;

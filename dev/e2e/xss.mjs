@@ -16,7 +16,9 @@ async function watchForXss(page) {
     await page.evaluate(() => { window.xssHits = 0; });
     const requests = [];
     page.on('request', request => {
-        if (new URL(request.url()).pathname === '/__xss_probe') requests.push(request.url());
+        if (new URL(request.url()).pathname === '/__xss_probe') {
+            requests.push(request.url());
+        }
     });
     // Prove handlers can execute, so CSP or browser settings cannot mask a
     // rendering regression in the checks below.
@@ -115,7 +117,9 @@ test('Caddy log snapshots and live streams render hostile content as text', opti
         'printf "%s\\n" "$1" >> "$2"', 'xss-test', text, instance.logPath]);
     await append(payloads.join('\n'));
     await page.goto(origin + '/logs?dist=caddy', { waitUntil: 'domcontentloaded' });
-    for (const payload of payloads) await expectText(page.locator('.log-line'), payload);
+    for (const payload of payloads) {
+        await expectText(page.locator('.log-line'), payload);
+    }
     await safe();
 
     await page.getByRole('button', { name: 'Live', exact: true }).click();
@@ -142,7 +146,9 @@ test('Caddy log snapshots and live streams render hostile content as text', opti
         entries: payloads.map(message => ({ level: 'warn', message, context: { detail: message } })),
     } }));
     await page.getByRole('button', { name: 'caddy/ui', exact: true }).click();
-    for (const payload of payloads) await expectText(page.locator('.log-line'), JSON.stringify(payload).slice(1, -1));
+    for (const payload of payloads) {
+        await expectText(page.locator('.log-line'), JSON.stringify(payload).slice(1, -1));
+    }
     await safe();
 });
 
@@ -187,13 +193,19 @@ test('Caddyfile editor, history diffs, raw previews and actor names never interp
     assert.equal((await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', plain: true, body: content })).status, 200);
     await page.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });
     await page.locator('.cm-editor').waitFor();
-    for (const payload of payloads) await expectText(page.locator('.cm-content'), payload);
+    for (const payload of payloads) {
+        await expectText(page.locator('.cm-content'), payload);
+    }
     await safe();
     await page.getByRole('button', { name: /^History/ }).click();
-    for (const payload of payloads) await expectText(page.locator('.diff-text'), payload);
+    for (const payload of payloads) {
+        await expectText(page.locator('.diff-text'), payload);
+    }
     await safe();
     await page.getByRole('button', { name: 'Raw', exact: true }).click();
-    for (const payload of payloads) await expectText(page.locator('.history-preview'), payload);
+    for (const payload of payloads) {
+        await expectText(page.locator('.history-preview'), payload);
+    }
     await safe();
 
     // Usernames are deliberately constrained at enrollment. History can also

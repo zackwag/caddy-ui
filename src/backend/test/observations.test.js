@@ -29,16 +29,20 @@ async function fakeCaddy(upstream) {
                 handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: upstream }] }],
             }] : [] } });
             const respond = () => {
-                if (fail) res.writeHead(500).end('unavailable');
-                else {
+                if (fail) {
+                    res.writeHead(500).end('unavailable');
+                } else {
                     res.setHeader('Content-Type', 'application/json');
                     res.end(snapshot);
                 }
             };
             const hold = caddy.nextConfigRead;
             caddy.nextConfigRead = null;
-            if (hold) hold(respond);
-            else respond();
+            if (hold) {
+                hold(respond);
+            } else {
+                respond();
+            }
             return;
         }
         req.resume();
@@ -214,8 +218,11 @@ describe('shared configuration and upstream observations', () => {
 
             held.release();
             const result = await earlierResult;
-            if (fail) expect(result.error.message).toContain('Caddy API error: 500');
-            else expect(result.value.srv0.routes).toHaveLength(1);
+            if (fail) {
+                expect(result.error.message).toContain('Caddy API error: 500');
+            } else {
+                expect(result.value.srv0.routes).toHaveLength(1);
+            }
 
             // Neither an old success nor an old rejection may displace the new entry.
             expect(await getServers(caddy.adminUrl)).toBe(fresh);

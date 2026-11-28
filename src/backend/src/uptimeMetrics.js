@@ -23,7 +23,9 @@ export function formatUptimeMetrics(instances, staleMsByKind, now = Date.now()) 
         const series = [];
         for (const { id, name, stats: byKind } of instances) {
             for (const [target, stats] of Object.entries(byKind[kind] || {})) {
-                if (!stats || now - stats.lastCheckAt.getTime() > staleMs) continue;
+                if (!stats || now - stats.lastCheckAt.getTime() > staleMs) {
+                    continue;
+                }
                 series.push({ labels: formatLabels({ instance_id: id, instance_name: name ?? '', [kind]: target }), stats });
             }
         }
@@ -40,8 +42,11 @@ export function formatUptimeMetrics(instances, staleMsByKind, now = Date.now()) 
 // caddy_ui_caddy_metrics_up standing in for the 503 this endpoint used to return.
 export function buildRawMetrics({ instanceId, caddyText, caddyError, uptimeInstances, staleMs, now = Date.now() }) {
     let out = '';
-    if (caddyError) out += `# Caddy metrics unavailable: ${caddyError.replace(/\s+/g, ' ')}\n`;
-    else if (caddyText) out += caddyText.endsWith('\n') ? caddyText : `${caddyText}\n`;
+    if (caddyError) {
+        out += `# Caddy metrics unavailable: ${caddyError.replace(/\s+/g, ' ')}\n`;
+    } else if (caddyText) {
+        out += caddyText.endsWith('\n') ? caddyText : `${caddyText}\n`;
+    }
     out += formatGauge('caddy_ui_caddy_metrics_up', 'Whether Caddy\'s /metrics endpoint could be scraped for this instance',
         [{ labels: formatLabels({ instance_id: instanceId }), value: caddyError ? 0 : 1 }]);
     return out + formatUptimeMetrics(uptimeInstances, staleMs, now);

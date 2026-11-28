@@ -19,7 +19,9 @@ const outPath = fileURLToPath(new URL("../src/lib/caddyfileMode.js", import.meta
 
 try {
     const res = await fetch(SOURCE_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+    }
     let text = await res.text();
     // The upstream file declares DIRECTIVES, GLOBAL_OPTIONS, SUBDIRECTIVES
     // and MATCHERS as module-scoped consts. Re-export them so the

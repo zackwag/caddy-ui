@@ -20,7 +20,9 @@ export function createAuthRouter(getService = getAuthentication) {
         return async (req, res) => {
             try { await handler(req, res, getService()); }
             catch (error) {
-                if (error?.code === 'TOTP_RATE_LIMITED') res.set('Retry-After', String(error.context.retryAfter));
+                if (error?.code === 'TOTP_RATE_LIMITED') {
+                    res.set('Retry-After', String(error.context.retryAfter));
+                }
                 sendAppError(res, error instanceof AppError ? error : new AppError('REQUEST_FAILED', { cause: error }));
             }
         };

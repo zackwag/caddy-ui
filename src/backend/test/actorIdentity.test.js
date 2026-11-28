@@ -3,7 +3,7 @@ import { afterEach, expect, it } from 'vitest';
 import { authClient, authFixture } from './fixtures/auth.mjs';
 
 const fixtures = [];
-afterEach(async () => { for (const fixture of fixtures.splice(0)) await fixture.close(); });
+afterEach(async () => { for (const fixture of fixtures.splice(0)) { await fixture.close(); } });
 
 it('derives the account identity from a management session and resolves its current name', async () => {
     const fixture = await authFixture();

@@ -49,13 +49,17 @@ function editDistance(left, right) {
 
 function looksLikeMarker(line) {
     // Limit typo detection to comment-like lines.
-    if (!line.trimStart().startsWith('<')) return false;
+    if (!line.trimStart().startsWith('<')) {
+        return false;
+    }
 
     const namespace = line.match(
         /\b([a-z][a-z0-9_-]*)\s*:/i,
     )?.[1];
 
-    if (!namespace) return false;
+    if (!namespace) {
+        return false;
+    }
 
     const normalized = namespace.toLowerCase().replace(/[-_]/g, '');
     return editDistance(normalized, 'dockerhub') <= 2;
@@ -85,7 +89,9 @@ function findInlineClose(line, from, length) {
 function hasInlineClose(lines, lineIndex, from, length) {
     for (let index = lineIndex; index < lines.length; index++) {
         // Inline spans may cross lines, but not paragraph boundaries.
-        if (index > lineIndex && lines[index].trim() === '') return false;
+        if (index > lineIndex && lines[index].trim() === '') {
+            return false;
+        }
         if (findInlineClose(lines[index], index === lineIndex ? from : 0, length)) {
             return true;
         }
@@ -95,7 +101,9 @@ function hasInlineClose(lines, lineIndex, from, length) {
 
 function escapedAt(line, index) {
     let count = 0;
-    while (index > 0 && line[--index] === '\\') count++;
+    while (index > 0 && line[--index] === '\\') {
+        count++;
+    }
     return count % 2 === 1;
 }
 
@@ -121,7 +129,9 @@ function scanLine(line, lineIndex, lines, state, transform = text => text) {
             const end = closing ? closing.end : line.length;
             result += line.slice(position, end);
             position = end;
-            if (closing) state.inlineTicks = null;
+            if (closing) {
+                state.inlineTicks = null;
+            }
             continue;
         }
 
@@ -137,7 +147,9 @@ function scanLine(line, lineIndex, lines, state, transform = text => text) {
         result += token[0];
         position = tokens.lastIndex;
 
-        if (escapedAt(line, token.index)) continue;
+        if (escapedAt(line, token.index)) {
+            continue;
+        }
         if (token[0][0] === '`') {
             if (hasInlineClose(lines, lineIndex, position, token[0].length)) {
                 state.inlineTicks = token[0].length;
@@ -156,8 +168,12 @@ function scanLine(line, lineIndex, lines, state, transform = text => text) {
 function trimBlankLines(lines) {
     let first = 0;
     let last = lines.length;
-    while (first < last && lines[first].trim() === '') first++;
-    while (last > first && lines[last - 1].trim() === '') last--;
+    while (first < last && lines[first].trim() === '') {
+        first++;
+    }
+    while (last > first && lines[last - 1].trim() === '') {
+        last--;
+    }
     return lines.slice(first, last).join('\n');
 }
 
@@ -184,7 +200,9 @@ export function parseBlocks(markdown) {
 
         // A marker-looking line inside a comment or code span is literal text.
         if (state.htmlRegion || state.inlineTicks !== null) {
-            if (active) active.lines.push(line);
+            if (active) {
+                active.lines.push(line);
+            }
             scanLine(line, index, lines, state);
             continue;
         }
@@ -193,7 +211,9 @@ export function parseBlocks(markdown) {
         const fenced = fence;
         fence = fenceAfter(fence, line, lineNumber);
         if (fenced || fence) {
-            if (active) active.lines.push(line);
+            if (active) {
+                active.lines.push(line);
+            }
             continue;
         }
 
@@ -203,7 +223,9 @@ export function parseBlocks(markdown) {
             /^\s*>/.test(line) ||
             /^\s*(?:[-+*]|\d+[.)])\s+/.test(line)
         ) {
-            if (active) active.lines.push(line);
+            if (active) {
+                active.lines.push(line);
+            }
             continue;
         }
 
@@ -267,7 +289,9 @@ export function parseBlocks(markdown) {
 
         scanLine(line, index, lines, state);
 
-        if (active) active.lines.push(line);
+        if (active) {
+            active.lines.push(line);
+        }
     }
 
     if (active) {
@@ -304,7 +328,9 @@ function fenceAfter(fence, line, lineNumber) {
         return closing && closing[1][0] === fence.character && closing[1].length >= fence.length ? null : fence;
     }
     const opening = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-    if (!opening || (opening[1][0] === '`' && opening[2].includes('`'))) return null;
+    if (!opening || (opening[1][0] === '`' && opening[2].includes('`'))) {
+        return null;
+    }
     return { character: opening[1][0], length: opening[1].length, line: lineNumber };
 }
 
@@ -320,8 +346,12 @@ export function absoluteLinks(markdown) {
         }
         const fenced = fence;
         fence = fenceAfter(fence, line, index + 1);
-        if (fenced || fence) return line;
-        if (/^(?: {4}|\t)/.test(line)) return line;
+        if (fenced || fence) {
+            return line;
+        }
+        if (/^(?: {4}|\t)/.test(line)) {
+            return line;
+        }
         return scanLine(line, index, lines, state, rewriteAnchors);
     }).join('\n');
 }

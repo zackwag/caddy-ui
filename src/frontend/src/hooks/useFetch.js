@@ -12,7 +12,9 @@ export function useFetch(path) {
         latest.current += 1;
         const request = latest.current;
         const settle = result => {
-            if (request === latest.current) setState({ ...result, loading: false });
+            if (request === latest.current) {
+                setState({ ...result, loading: false });
+            }
         };
         setState(previous => ({ ...previous, error: null, loading: true }));
         try {

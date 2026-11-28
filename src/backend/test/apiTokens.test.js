@@ -28,7 +28,9 @@ afterAll(async () => {
     delete process.env.INSTANCES_PATH;
 });
 afterEach(async () => {
-    for (const fixture of fixtures.splice(0)) await fixture.close();
+    for (const fixture of fixtures.splice(0)) {
+        await fixture.close();
+    }
     vi.restoreAllMocks();
 });
 

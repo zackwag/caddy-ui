@@ -1,6 +1,8 @@
 (() => {
     const scrollbox = document.querySelector('.sidebar-scrollbox');
-    if (!scrollbox || scrollbox.querySelector('.sidebar-brand')) return;
+    if (!scrollbox || scrollbox.querySelector('.sidebar-brand')) {
+        return;
+    }
 
     const brand = document.createElement('a');
     brand.className = 'sidebar-brand';

@@ -17,7 +17,9 @@ export async function initializeAuthentication(options) {
 }
 
 export function getAuthentication() {
-    if (!authentication) throw new Error('Authentication has not been initialized');
+    if (!authentication) {
+        throw new Error('Authentication has not been initialized');
+    }
     return authentication;
 }
 
@@ -25,7 +27,9 @@ export function getAuthentication() {
 // accepted, and attaches who is acting for history and audit records.
 export function authMiddleware(req, res, next) {
     const authentication = getAuthentication();
-    if (!req.apiToken) authentication.requireManagement(req, res);
+    if (!req.apiToken) {
+        authentication.requireManagement(req, res);
+    }
     req.actor = authentication.getActor(req);
     next();
 }

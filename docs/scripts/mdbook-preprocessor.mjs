@@ -10,7 +10,9 @@ export function replaceMarker(book, marker, render) {
     function walk(sections) {
         for (const section of sections) {
             const chapter = section.Chapter;
-            if (!chapter) continue;
+            if (!chapter) {
+                continue;
+            }
             if (chapter.content.includes(tag)) {
                 rendered ??= render();
                 chapter.content = chapter.content.replaceAll(tag, () => rendered);
@@ -25,7 +27,9 @@ export function replaceMarker(book, marker, render) {
 
 // The mdBook preprocessor protocol, when `moduleUrl` is the script mdBook ran.
 export function runPreprocessor(moduleUrl, name, preprocess) {
-    if (!process.argv[1] || resolve(process.argv[1]) !== fileURLToPath(moduleUrl)) return;
+    if (!process.argv[1] || resolve(process.argv[1]) !== fileURLToPath(moduleUrl)) {
+        return;
+    }
     if (process.argv[2] === 'supports') {
         process.exit(process.argv[3] === 'html' ? 0 : 1);
     }

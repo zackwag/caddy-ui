@@ -73,7 +73,7 @@ function EditModal({ route, initialNote, canTitle, isCaddyfileManaged, siteBlock
             {canTitle && <>
                 <div className="modal-section-label">{t("routes.title")}</div>
                 <div className="field">
-                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("routes.titlePlaceholder")} onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }} />
+                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("routes.titlePlaceholder")} onKeyDown={e => { if (e.key === 'Enter' && canSave) { handleSave(); } }} />
                 </div>
                 <div className="modal-hint">{titleNeedsMigration ? t("routes.titleMigrationHint") : t("routes.titleClearHint")}</div>
             </>}
@@ -95,7 +95,7 @@ function EditModal({ route, initialNote, canTitle, isCaddyfileManaged, siteBlock
                 <>
                     <div className="modal-section-label">{t("routes.caddyfile")}</div>
                     <div className="editor-wrap" style={{ marginBottom: 16 }}>
-                        <CaddyfileEditor className="modal-editor-wrap" padding="12px" value={content} onChange={setContent} onSave={() => { if (canSave && !saving) handleSave(); }} onQuit={onClose} isModified={isModified} theme={theme} vimMode={editorVim} />
+                        <CaddyfileEditor className="modal-editor-wrap" padding="12px" value={content} onChange={setContent} onSave={() => { if (canSave && !saving) { handleSave(); } }} onQuit={onClose} isModified={isModified} theme={theme} vimMode={editorVim} />
                     </div>
                 </>
             ) : !isCaddyfileManaged && (
@@ -201,10 +201,14 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
     };
 
     const deleteCaddyfileBlock = async (domain) => {
-        if (!await confirm(t("routes.deleteCaddyfileConfirm"), { confirmLabel: t("common.delete"), danger: true })) return;
+        if (!await confirm(t("routes.deleteCaddyfileConfirm"), { confirmLabel: t("common.delete"), danger: true })) {
+            return;
+        }
         try {
             const result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`, { method: "DELETE" });
-            if (notes[domain]) await saveNote(domain, "").catch(() => { });
+            if (notes[domain]) {
+                await saveNote(domain, "").catch(() => { });
+            }
             toast.saved(result, t("routes.removed"));
             setEditModal(null); load();
         } catch (e) { toast.error(e); }
@@ -235,17 +239,23 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
     };
 
     const deleteRoute = async (id, domain) => {
-        if (!await confirm(t("routes.deleteConfirm"), { confirmLabel: t("common.delete"), danger: true })) return;
+        if (!await confirm(t("routes.deleteConfirm"), { confirmLabel: t("common.delete"), danger: true })) {
+            return;
+        }
         try {
             const result = await apiFetch(`/routes/${id}`, { method: "DELETE" });
-            if (notes[domain]) await saveNote(domain, "").catch(() => { });
+            if (notes[domain]) {
+                await saveNote(domain, "").catch(() => { });
+            }
             toast.saved(result, t("routes.removed")); load();
         } catch (e) { failRouteEdit(e); }
     };
 
     const toggleMaintenance = async (domain) => {
         const inMaint = !!maintenance?.[domain];
-        if (!inMaint && !await confirm(t("routes.enableMaintenanceConfirm", { domain }), { confirmLabel: t("common.enable") })) return;
+        if (!inMaint && !await confirm(t("routes.enableMaintenanceConfirm", { domain }), { confirmLabel: t("common.enable") })) {
+            return;
+        }
         try {
             const result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}/maintenance`, { method: inMaint ? "DELETE" : "POST" });
             toast.saved(result, inMaint
@@ -273,7 +283,9 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
             try {
                 const result = await apiFetch(`/routes/caddyfile/${encodeURIComponent(domain)}`);
                 content = result.content || "";
-                if (result.title !== undefined) caddyfileTitle = result.title;
+                if (result.title !== undefined) {
+                    caddyfileTitle = result.title;
+                }
             } catch {
                 siteBlockFailed = true;
             }
@@ -291,7 +303,9 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
     };
 
     const getDomainScheme = (domain) => {
-        if (domain.startsWith("http://")) return "http";
+        if (domain.startsWith("http://")) {
+            return "http";
+        }
         return certs.some(c => c.domain === domain && c.status !== "orphaned") ? "https" : "http";
     };
 
@@ -307,17 +321,27 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
         : checkedStatusOf(route);
 
     const getHealthTitle = ({ status, pct, failure, history }) => {
-        if (status === "maintenance") return t("routes.maintenanceMode");
-        if (status === "none") return t("routes.noUpstream");
-        if (status === "unknown") return history?.route ? t("routes.waitingForRouteCheck") : t("common.checking");
+        if (status === "maintenance") {
+            return t("routes.maintenanceMode");
+        }
+        if (status === "none") {
+            return t("routes.noUpstream");
+        }
+        if (status === "unknown") {
+            return history?.route ? t("routes.waitingForRouteCheck") : t("common.checking");
+        }
         const label = [t(STATUS_LABEL_KEYS[status]), failure].filter(Boolean).join(" — ");
         return pct !== null ? t("routes.uptimeTitle", { label, pct: formatPercent(pct) }) : label;
     };
 
     const getHealthLabel = ({ status, pct }) => {
         const pctText = pct !== null ? formatPercent(pct) : t("common.notAvailable");
-        if (status === "none") return t("routes.noUpstreamStatus", { pct: pctText });
-        if (status === "unknown") return t("routes.checkingStatus", { pct: pctText });
+        if (status === "none") {
+            return t("routes.noUpstreamStatus", { pct: pctText });
+        }
+        if (status === "unknown") {
+            return t("routes.checkingStatus", { pct: pctText });
+        }
         return t("routes.statusWithPct", { status: t(STATUS_LABEL_KEYS[status]), pct: pctText });
     };
 
@@ -328,7 +352,9 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
     const serverText = (r) => serverLabels[r._server] || r._server || "";
 
     const filtered = routes.filter(r => {
-        if (!search) return true;
+        if (!search) {
+            return true;
+        }
         const q = search.toLowerCase();
         return getRouteHost(r).toLowerCase().includes(q) || getUpstream(r).toLowerCase().includes(q) || getTitle(r).toLowerCase().includes(q) || (r._server || "").toLowerCase().includes(q) || serverText(r).toLowerCase().includes(q);
     });
@@ -343,7 +369,9 @@ export default function Routes({ toast, confirm, theme, routeColumns, onRouteCol
     }[sort.column];
     const sorted = [...filtered].sort((a, b) => (sort.ascending ? compare(a, b) : compare(b, a)) || byText(getRouteHost)(a, b));
 
-    if (loading) return <div className="loading">{t("routes.loading")}</div>;
+    if (loading) {
+        return <div className="loading">{t("routes.loading")}</div>;
+    }
 
     return (
         <>

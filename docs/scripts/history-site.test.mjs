@@ -24,7 +24,9 @@ function fixture(t) {
     const fingerprint = fingerprintBook(developmentBook);
     const archive = join(root, 'archive');
     mkdirSync(join(archive, 'books', fingerprint), { recursive: true });
-    for (const file of ['index.html', 'searchindex.js']) writeFileSync(join(archive, 'books', fingerprint, file), readFileSync(join(developmentBook, file)));
+    for (const file of ['index.html', 'searchindex.js']) {
+        writeFileSync(join(archive, 'books', fingerprint, file), readFileSync(join(developmentBook, file)));
+    }
     const releases = ['v2.20.0', 'v2.20.1', 'v2.20.2'].map(tag => ({ tag, commit: sha, hasBook: true,
         images: { frontend: { version: tag.slice(1), recordedAt: sha }, backend: { version: tag.slice(1), recordedAt: sha } } }));
     const inventory = { schema: 1, repository: 'zackwag/caddy-ui', from: 'v2.20.0', throughCommit: sha, publicationsCommit: sha, releases };
@@ -71,7 +73,9 @@ test('publication validates all payloads before replacing a previously working s
     writeFileSync(join(f.archive, 'books', f.fingerprint, 'index.html'), 'Tampered');
     assert.throws(() => publishSite(f), /integrity check/);
     assert.equal(readFileSync(join(f.output, 'documentation.json'), 'utf8'), previous);
-    for (const bad of ['//example.com/', '../', '/caddy-ui', '/a/../']) assert.throws(() => siteBase(bad));
+    for (const bad of ['//example.com/', '../', '/caddy-ui', '/a/../']) {
+        assert.throws(() => siteBase(bad));
+    }
 });
 
 test('publication discovers releases independently while preserving archived bytes and checking source identities', t => {

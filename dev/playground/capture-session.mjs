@@ -19,7 +19,9 @@ async function dockerSocket() {
     const context = process.env.DOCKER_CONTEXT;
     const endpoint = !context && process.env.DOCKER_HOST ? process.env.DOCKER_HOST
         : (await exec('docker', ['context', 'inspect', ...(context ? [context] : []), '--format', '{{.Endpoints.docker.Host}}'])).stdout.trim();
-    if (!endpoint.startsWith('unix://')) throw new Error('Capture needs a Unix Docker socket accessible to both the CLI and backend. Use Docker-outside-of-Docker in a Dev Container, WSL, or Linux CI.');
+    if (!endpoint.startsWith('unix://')) {
+        throw new Error('Capture needs a Unix Docker socket accessible to both the CLI and backend. Use Docker-outside-of-Docker in a Dev Container, WSL, or Linux CI.');
+    }
     return fileURLToPath(endpoint.replace(/^unix:/, 'file:'));
 }
 
@@ -28,7 +30,9 @@ async function dockerSocket() {
 function apiClient(socketPath, signal) {
     let context = {};
     async function api(path, method = 'GET', body = null) {
-        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !context['X-CSRF-Token']) await api('/auth/csrf');
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !context['X-CSRF-Token']) {
+            await api('/auth/csrf');
+        }
         return new Promise((resolve, reject) => {
             const call = request({ socketPath, path: '/api' + path, method, timeout: 5000, signal,
                 headers: { ...context, 'Content-Type': typeof body === 'string' ? 'text/plain' : 'application/json', 'X-Instance-Id': 'default' } }, response => {
@@ -40,8 +44,12 @@ function apiClient(socketPath, signal) {
                         const text = Buffer.concat(chunks).toString();
                         const headers = Object.fromEntries(['content-type', 'x-request-id'].filter(key => response.headers[key]).map(key => [key, response.headers[key]]));
                         const cookie = response.headers['set-cookie']?.at(-1);
-                        if (cookie) context = { Cookie: cookie.split(';')[0] };
-                        if (path === '/auth/csrf') context['X-CSRF-Token'] = JSON.parse(text).csrfToken;
+                        if (cookie) {
+                            context = { Cookie: cookie.split(';')[0] };
+                        }
+                        if (path === '/auth/csrf') {
+                            context['X-CSRF-Token'] = JSON.parse(text).csrfToken;
+                        }
                         resolve({ request: { method, path, body }, response: {
                             status: response.statusCode, headers,
                             body: headers['content-type']?.includes('application/json') ? JSON.parse(text) : text,
@@ -51,7 +59,9 @@ function apiClient(socketPath, signal) {
             });
             call.on('timeout', () => call.destroy(new Error(`Capture request timed out: ${method} ${path}`)));
             call.on('error', reject);
-            if (body !== null) call.write(typeof body === 'string' ? body : JSON.stringify(body));
+            if (body !== null) {
+                call.write(typeof body === 'string' ? body : JSON.stringify(body));
+            }
             call.end();
         });
     }
@@ -68,7 +78,9 @@ function apiClient(socketPath, signal) {
 // the session below and resolves to { scenarios, replacements }, plus anything
 // else the capture file keeps.
 export async function runCapture({ name, output, backendEntry = resolve(root, 'src/backend/src/index.js'), onNamespace = () => {}, onBackend = () => {} }, record) {
-    if (process.platform === 'win32') throw new Error('Capture requires a Unix socket. Run it in Linux CI, WSL, or a Dev Container; replay works without Docker.');
+    if (process.platform === 'win32') {
+        throw new Error('Capture requires a Unix socket. Run it in Linux CI, WSL, or a Dev Container; replay works without Docker.');
+    }
     const DOCKER_SOCKET = await dockerSocket();
     const directory = await mkdtemp(resolve(tmpdir(), `caddy-ui-${name}-`));
     const harness = new Harness(randomBytes(8).toString('hex'));
@@ -129,7 +141,9 @@ export async function runCapture({ name, output, backendEntry = resolve(root, 's
     }
     process.removeListener('SIGINT', interrupt);
     process.removeListener('SIGTERM', interrupt);
-    if (failure || cleanupErrors.length) throw new AggregateError([failure, ...cleanupErrors].filter(Boolean), 'Capture failed; no artifact was written.', { cause: failure });
+    if (failure || cleanupErrors.length) {
+        throw new AggregateError([failure, ...cleanupErrors].filter(Boolean), 'Capture failed; no artifact was written.', { cause: failure });
+    }
     await mkdir(resolve(output, '..'), { recursive: true });
     const temporaryOutput = `${output}.${randomBytes(4).toString('hex')}.tmp`;
     try {
@@ -152,9 +166,13 @@ export function hideInstance({ instance, httpUrl }, host) {
 
 // Runs a capture from the command line when `moduleUrl` is the script node started.
 export async function captureFromCommandLine(moduleUrl, capture, describe) {
-    if (!process.argv[1] || moduleUrl !== pathToFileURL(resolve(process.argv[1])).href) return;
+    if (!process.argv[1] || moduleUrl !== pathToFileURL(resolve(process.argv[1])).href) {
+        return;
+    }
     const [output, ...extra] = process.argv.slice(2);
-    if (extra.length) throw new Error(`Usage: node ${process.argv[1]} [output.json]`);
+    if (extra.length) {
+        throw new Error(`Usage: node ${process.argv[1]} [output.json]`);
+    }
     try {
         const result = await capture({ ...(output ? { output: resolve(output) } : {}),
             onNamespace: project => console.log(`Capture owns Docker namespace ${project}.`) });

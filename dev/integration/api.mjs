@@ -214,7 +214,9 @@ test('logging edits preserve LF/CRLF styles and replace bare default loggers wit
         assert.ok(edited.startsWith(snippet + global.slice(0, global.indexOf(unit + 'log default'))));
         assert.ok(edited.endsWith(eol + '}' + eol + eol + site));
         assert.ok(edited.includes(unit + 'log {' + eol + unit.repeat(2) + 'output file'));
-        if (eol === '\r\n') assert.ok(!edited.replaceAll('\r\n', '').includes('\n'), 'No LF-only lines are introduced');
+        if (eol === '\r\n') {
+            assert.ok(!edited.replaceAll('\r\n', '').includes('\n'), 'No LF-only lines are introduced');
+        }
         const after = await live();
         assert.deepEqual(after.apps, before.apps);
         assert.deepEqual(after.logging.logs.audit, before.logging.logs.audit);

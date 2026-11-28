@@ -24,7 +24,9 @@ export const loadAuditLog = () => store.load();
 // failure.
 async function recordAudit(actor, { action, instanceId = null, instanceName, resource = null, details = {}, outcome }) {
     try {
-        if (!AUDIT_ACTIONS.includes(action)) throw new Error(`Unknown audit action: ${action}`);
+        if (!AUDIT_ACTIONS.includes(action)) {
+            throw new Error(`Unknown audit action: ${action}`);
+        }
         const instance = instanceId != null ? { id: instanceId, name: instanceName ?? getInstances().find(entry => entry.id === instanceId)?.name ?? null } : null;
         const event = { id: randomUUID(), timestamp: new Date().toISOString(), action, outcome, actor, instance, resource, details };
         await store.update(state => {

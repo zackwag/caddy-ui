@@ -42,7 +42,9 @@ export default function AuthRecovery({ onComplete, onCancel }) {
         finally { setLoading(false); }
     };
 
-    if (replacement) return <RecoveryKey value={replacement} onComplete={onComplete} />;
+    if (replacement) {
+        return <RecoveryKey value={replacement} onComplete={onComplete} />;
+    }
     return <LoginCard onSubmit={submitRecovery}>
         <LoginLogo />
         <h1 className="login-sub">{t('login.recoveryTitle')}</h1>

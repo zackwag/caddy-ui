@@ -50,7 +50,9 @@ export default function RouteHistoryModal({ title, upstream, route, onClose }) {
             const param = route ? `route=${encodeURIComponent(route)}` : `upstream=${encodeURIComponent(upstream)}`;
             apiFetch(`/health/history?${param}&since=${since}`)
                 .then(data => {
-                    if (cancelled) return;
+                    if (cancelled) {
+                        return;
+                    }
                     // Keep the window and its data together. Unrelated renders
                     // should not move the window or invalidate its summary.
                     const now = Date.now();
@@ -58,10 +60,12 @@ export default function RouteHistoryModal({ title, upstream, route, onClose }) {
                     setFocus(current => current && current.incidentEnd > now - range.ms && current.start < now ? current : null);
                     setError(null);
                 })
-                .catch(e => { if (!cancelled) setError(e); });
+                .catch(e => { if (!cancelled) { setError(e); } });
         };
         load();
-        if (!autoRefresh) return () => { cancelled = true; };
+        if (!autoRefresh) {
+            return () => { cancelled = true; };
+        }
         const timer = setInterval(load, REFRESH_INTERVAL_MS);
         return () => { cancelled = true; clearInterval(timer); };
     }, [upstream, route, range, autoRefresh]);

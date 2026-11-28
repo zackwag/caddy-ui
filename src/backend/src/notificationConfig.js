@@ -60,7 +60,9 @@ export function getNotificationConfig() {
 export async function saveNotificationConfig(input) {
     const config = await store.set(normalize(input));
     logger.info('Notifications config updated', { provider: config.provider, enabled: config.enabled });
-    for (const listener of listeners) listener(config);
+    for (const listener of listeners) {
+        listener(config);
+    }
     return config;
 }
 

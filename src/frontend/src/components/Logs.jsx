@@ -69,7 +69,9 @@ export default function Logs({ toast, noInstances }) {
 
     const needsConfig = source === "caddy" && !logConfig;
     useEffect(() => {
-        if (!needsConfig) return;
+        if (!needsConfig) {
+            return;
+        }
         const controller = new AbortController();
         const { signal } = controller;
         setConfigError(null);
@@ -80,7 +82,9 @@ export default function Logs({ toast, noInstances }) {
 
     useEffect(() => {
         if (!logSearch && levelFilter === "all") {
-            if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: "smooth" });
+            if (bottomRef.current) {
+                bottomRef.current.scrollIntoView({ behavior: "smooth" });
+            }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps -- only auto-scroll when new lines arrive, not on every search/filter keystroke
     }, [lines]);
@@ -98,7 +102,9 @@ export default function Logs({ toast, noInstances }) {
             setLive(false);
         };
         es.onmessage = e => {
-            if (esRef.current !== es) return;
+            if (esRef.current !== es) {
+                return;
+            }
             let data;
             try { data = JSON.parse(e.data); }
             catch {
@@ -122,7 +128,9 @@ export default function Logs({ toast, noInstances }) {
         // The browser retries dropped connections itself; a closed source means
         // the stream was refused (e.g. an expired session) and will not recover.
         es.onerror = () => {
-            if (esRef.current !== es || es.readyState !== EventSource.CLOSED) return;
+            if (esRef.current !== es || es.readyState !== EventSource.CLOSED) {
+                return;
+            }
             // eslint-disable-next-line i18next/no-literal-string -- Protocol code; displayed through localizeError.
             failStream({ code: 'LOG_STREAM_ERROR' });
         };

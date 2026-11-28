@@ -11,7 +11,7 @@ async function fixture(options) {
     fixtures.push(f);
     return f;
 }
-afterEach(async () => { for (const f of fixtures.splice(0)) await f.close(); });
+afterEach(async () => { for (const f of fixtures.splice(0)) { await f.close(); } });
 
 async function setup(client, username = 'administrator', password = secret()) {
     const result = await client.request('/auth/setup', { method: 'POST', body: { username, password } });

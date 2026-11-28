@@ -32,13 +32,19 @@ export function decorateBookHtml(source, { assets, base, book, path, commit, lab
     const edits = [];
     let head, body;
     parser.on('endTag', token => {
-        if (token.tagName === 'head') head = token.sourceCodeLocation.startOffset;
-        if (token.tagName === 'body') body = token.sourceCodeLocation.startOffset;
+        if (token.tagName === 'head') {
+            head = token.sourceCodeLocation.startOffset;
+        }
+        if (token.tagName === 'body') {
+            body = token.sourceCodeLocation.startOffset;
+        }
     });
     parser.on('startTag', token => {
         const attrs = Object.fromEntries(token.attrs.map(attr => [attr.name, attr.value]));
         let href;
-        if (token.tagName === 'base' && attrs.href) href = base + path;
+        if (token.tagName === 'base' && attrs.href) {
+            href = base + path;
+        }
         const editPrefix = `https://github.com/${repository}/edit/main/docs/`;
         if (commit && token.tagName === 'a' && attrs.href?.startsWith(editPrefix)) {
             href = `https://github.com/${repository}/blob/${commit}/docs/` + attrs.href.slice(editPrefix.length);
@@ -49,11 +55,15 @@ export function decorateBookHtml(source, { assets, base, book, path, commit, lab
         }
     });
     parser.end(source);
-    if (head === undefined || body === undefined) throw new Error('Book page has no HTML head/body');
+    if (head === undefined || body === undefined) {
+        throw new Error('Book page has no HTML head/body');
+    }
     edits.push({ start: head, end: head, text: `<link rel="stylesheet" href="${assets}versions.css">\n` });
     edits.push({ start: body, end: body, text: `<noscript><p class="docs-version-noscript">${escape(label)}</p></noscript>\n`
         + `<script type="module" src="${assets}versions.js" data-docs-book="${escape(book)}" data-docs-base="${escape(path)}"></script>\n` });
-    for (const edit of edits.sort((a, b) => b.start - a.start)) source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
+    for (const edit of edits.sort((a, b) => b.start - a.start)) {
+        source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
+    }
     return source;
 }
 
@@ -67,12 +77,16 @@ function resolverPage(assets, tag = '') {
 
 export function publishSite({ root, archive, developmentBook, output, base = '/caddy-ui/', developmentCommit, grouping, older = [], inventory, requireCollected = false }) {
     siteBase(base);
-    if (!/^[a-f0-9]{40}$/.test(developmentCommit)) throw new Error('Development source must be a commit ID');
+    if (!/^[a-f0-9]{40}$/.test(developmentCommit)) {
+        throw new Error('Development source must be a commit ID');
+    }
     const manifest = readArchiveManifest(archive);
     validateInventory(manifest.inventory);
     validateBookResults(archive, manifest.inventory, manifest.results);
     validateBookAssets(developmentBook);
-    if (manifest.results.length !== manifest.inventory.releases.length) throw new Error('Crawl is incomplete; refusing to publish a partial catalogue');
+    if (manifest.results.length !== manifest.inventory.releases.length) {
+        throw new Error('Crawl is incomplete; refusing to publish a partial catalogue');
+    }
     // The collector and publisher run independently. Discover new releases and
     // refreshed component publications without rerendering historical books.
     // Until their snapshots arrive, new releases explicitly use release notes.
@@ -88,10 +102,14 @@ export function publishSite({ root, archive, developmentBook, output, base = '/c
     }
     if (requireCollected) {
         const missing = inventory.releases.filter(release => !manifest.results.some(result => result.tag === release.tag && result.commit === release.commit));
-        if (missing.length) throw new Error(`Archive collection has not covered: ${missing.map(release => release.tag).join(', ')}`);
+        if (missing.length) {
+            throw new Error(`Archive collection has not covered: ${missing.map(release => release.tag).join(', ')}`);
+        }
     }
     for (const release of older) {
-        if (!legacyTag.test(release.tag) || !/^[a-f0-9]{40}$/.test(release.commit)) throw new Error('Invalid legacy release');
+        if (!legacyTag.test(release.tag) || !/^[a-f0-9]{40}$/.test(release.commit)) {
+            throw new Error('Invalid legacy release');
+        }
     }
     const groups = groupBooks(inventory.releases, manifest.results, grouping);
     const pages = directory => bookFiles(directory).filter(name => name.endsWith('.html'));
@@ -113,7 +131,9 @@ export function publishSite({ root, archive, developmentBook, output, base = '/c
     }),
     ...older.map(release => ({ ...release, snapshot: null, grouping: null }))]
         .sort((a, b) => compareVersions(sortableVersion(b.tag), sortableVersion(a.tag)));
-    if (new Set(catalog.releases.map(release => release.tag)).size !== catalog.releases.length) throw new Error('Duplicate release in catalogue');
+    if (new Set(catalog.releases.map(release => release.tag)).size !== catalog.releases.length) {
+        throw new Error('Duplicate release in catalogue');
+    }
     for (const input of [archive, developmentBook]) {
         if (resolve(output) === resolve(input) || resolve(output).startsWith(resolve(input) + '/') || resolve(input).startsWith(resolve(output) + '/')) {
             throw new Error('Site output must not overlap its inputs');
@@ -152,8 +172,10 @@ export function publishSite({ root, archive, developmentBook, output, base = '/c
         writeFileSync(join(temporary, '.nojekyll'), '');
         if (existsSync(output)) { renameSync(output, backup); moved = true; }
         try { renameSync(temporary, output); }
-        catch (error) { if (moved) renameSync(backup, output); throw error; }
-        if (moved) rmSync(backup, { recursive: true });
+        catch (error) { if (moved) { renameSync(backup, output); } throw error; }
+        if (moved) {
+            rmSync(backup, { recursive: true });
+        }
         return catalog;
     } finally { rmSync(temporary, { recursive: true, force: true }); }
 }

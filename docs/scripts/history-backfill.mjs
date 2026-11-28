@@ -82,7 +82,9 @@ export async function backfill({ root, inventory, output, mdbook = 'mdbook', sel
         for (const release of inventory.releases.filter(release => tags.includes(release.tag))) {
             signal?.throwIfAborted();
             const previous = results.find(result => result.tag === release.tag);
-            if (!requiresBuild(previous, { reuse, retryFailed })) continue;
+            if (!requiresBuild(previous, { reuse, retryFailed })) {
+                continue;
+            }
             notify(`Backfilling ${release.tag} (${release.commit.slice(0, 7)})`);
             const temporary = mkdtempSync(join(tmpdir(), 'caddy-book-backfill-'));
             const checkout = join(temporary, 'source');
@@ -104,8 +106,12 @@ export async function backfill({ root, inventory, output, mdbook = 'mdbook', sel
                 }
             }
             try {
-                if (!release.hasBook) throw new Error('Release has no docs/book.toml');
-                if (git(root, ['rev-parse', '--verify', `${release.tag}^{commit}`]) !== release.commit) throw new Error('Release tag no longer matches inventory');
+                if (!release.hasBook) {
+                    throw new Error('Release has no docs/book.toml');
+                }
+                if (git(root, ['rev-parse', '--verify', `${release.tag}^{commit}`]) !== release.commit) {
+                    throw new Error('Release tag no longer matches inventory');
+                }
                 git(root, ['worktree', 'add', '--quiet', '--detach', checkout, release.commit]);
                 registered = true;
                 stage = 'documentation dependencies';
@@ -137,7 +143,9 @@ export async function backfill({ root, inventory, output, mdbook = 'mdbook', sel
                 const fingerprint = fingerprintBook(book);
                 const destination = join(output, 'books', fingerprint);
                 if (existsSync(destination)) {
-                    if (fingerprintBook(destination) !== fingerprint) throw new Error('Existing snapshot bytes do not match their fingerprint');
+                    if (fingerprintBook(destination) !== fingerprint) {
+                        throw new Error('Existing snapshot bytes do not match their fingerprint');
+                    }
                 } else {
                     cpSync(book, destination + '.tmp', { recursive: true });
                     renameSync(destination + '.tmp', destination);
@@ -148,11 +156,13 @@ export async function backfill({ root, inventory, output, mdbook = 'mdbook', sel
                     coverage: coverage ? 'regenerated from release catalogs' : 'not present in release',
                     ...(existsSync(mode) ? { fetchedSyntaxAsset: { path: frontend + '/src/lib/caddyfileMode.js', sha256: digest(readFileSync(mode)) } } : {}) };
             } catch (error) {
-                if (signal?.aborted) throw error;
+                if (signal?.aborted) {
+                    throw error;
+                }
                 result = { tag: release.tag, commit: release.commit, status: 'failed', error: `${stage}: ${error.code || error.message.split('\n')[0]}` };
                 notify(`  Failed: ${result.error}; see logs/${release.tag}.log`);
             } finally {
-                try { if (registered) git(root, ['worktree', 'remove', '--force', checkout]); }
+                try { if (registered) { git(root, ['worktree', 'remove', '--force', checkout]); } }
                 finally { rmSync(temporary, { recursive: true, force: true }); }
             }
             results = inventory.releases.map(entry => entry.tag === release.tag ? result : results.find(previous => previous.tag === entry.tag)).filter(Boolean);
@@ -177,7 +187,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         const grouping = JSON.parse(readFileSync(resolve(args.grouping || join(root, 'docs/history/groups.json')), 'utf8'));
         const { results } = await backfill({ root, inventory, grouping, output: resolve(args.output || join(root, '.docs-history')),
             mdbook: args.mdbook || 'mdbook', selected: args.releases, signal: controller.signal });
-        if (results.some(result => result.status === 'failed')) process.exitCode = 1;
+        if (results.some(result => result.status === 'failed')) {
+            process.exitCode = 1;
+        }
     } catch (error) {
         console.error(error.message);
         process.exitCode = 1;

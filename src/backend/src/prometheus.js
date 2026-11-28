@@ -11,7 +11,9 @@ export function parseMetrics(text) {
     for (const line of text.split('\n')) {
         const match = SAMPLE.exec(line.trim());
         const value = match ? Number(match[3].replace(/^([+-]?)Inf$/, '$1Infinity')) : NaN;
-        if (Number.isNaN(value)) continue;
+        if (Number.isNaN(value)) {
+            continue;
+        }
         const labels = Object.fromEntries([...(match[2] || '').matchAll(LABEL)]
             .map(([, name, raw]) => [name, raw.replace(/\\[\\"n]/g, escaped => UNESCAPED[escaped])]));
         samples.push({ name: match[1], labels, value });

@@ -27,9 +27,13 @@ function parseVersion(version) {
 export function compareVersions(a, b) {
     const av = parseVersion(a);
     const bv = parseVersion(b);
-    if (!av || !bv) return 0;
+    if (!av || !bv) {
+        return 0;
+    }
     for (let i = 0; i < 3; i++) {
-        if (av[i] !== bv[i]) return av[i] - bv[i];
+        if (av[i] !== bv[i]) {
+            return av[i] - bv[i];
+        }
     }
     return 0;
 }
@@ -37,7 +41,9 @@ export function compareVersions(a, b) {
 // APP_VERSION is X.Y.Z for releases, beta-<sha> / edge-<sha> otherwise, and
 // dev for local builds, which never get an update notice.
 export function channelOf(version) {
-    if (parseVersion(version)) return 'stable';
+    if (parseVersion(version)) {
+        return 'stable';
+    }
     const match = String(version).match(/^(beta|edge)-[0-9a-f]+$/);
     return match ? match[1] : null;
 }
@@ -49,9 +55,13 @@ export function channelOf(version) {
 export function availableUpdate(data, component, version) {
     const channel = channelOf(version);
     const history = data?.channels?.[channel]?.[component];
-    if (!channel || !Array.isArray(history) || !history.length) return null;
+    if (!channel || !Array.isArray(history) || !history.length) {
+        return null;
+    }
     const [latest] = history;
-    if (channel === 'stable') return compareVersions(latest, version) > 0 ? latest : null;
+    if (channel === 'stable') {
+        return compareVersions(latest, version) > 0 ? latest : null;
+    }
     return latest !== version && history.includes(version) ? latest : null;
 }
 
@@ -63,7 +73,9 @@ export function isValidManifest(data) {
 // Update info for GET /api/version: null when the check is disabled or no
 // manifest has loaded, so the sidebar simply shows nothing.
 export function getUpdateInfo({ backend, frontend }) {
-    if (!manifest) return null;
+    if (!manifest) {
+        return null;
+    }
     return {
         backend: availableUpdate(manifest, 'backend', backend),
         frontend: availableUpdate(manifest, 'frontend', frontend),
@@ -71,7 +83,9 @@ export function getUpdateInfo({ backend, frontend }) {
 }
 
 export function noteFrontendVersion(version) {
-    if (channelOf(version)) lastFrontendVersion = version;
+    if (channelOf(version)) {
+        lastFrontendVersion = version;
+    }
 }
 
 const RELEASES_URL = 'https://github.com/zackwag/caddy-ui/releases';
@@ -83,7 +97,9 @@ export function updateNotification(info, running) {
     const parts = ['backend', 'frontend']
         .filter(component => info?.[component] && channelOf(info[component]) === 'stable')
         .map(component => ({ component, from: running[component], to: info[component] }));
-    if (!parts.length) return null;
+    if (!parts.length) {
+        return null;
+    }
     return {
         key: parts.map(p => `${p.component}@${p.to}`).join(','),
         title: 'caddy/ui update available',
@@ -99,9 +115,13 @@ export function getUpdateNotification() {
 async function refresh() {
     try {
         const res = await fetch(MANIFEST_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
         const data = await res.json();
-        if (!isValidManifest(data)) throw new Error('unrecognized versions.json format');
+        if (!isValidManifest(data)) {
+            throw new Error('unrecognized versions.json format');
+        }
         manifest = data;
     } catch (err) {
         // Keep the last good manifest; offline installs just never see a badge
@@ -110,7 +130,9 @@ async function refresh() {
 }
 
 export function startUpdateCheck() {
-    if (!ENABLED || timer) return;
+    if (!ENABLED || timer) {
+        return;
+    }
     refresh();
     timer = setInterval(refresh, REFRESH_INTERVAL_MS).unref();
 }

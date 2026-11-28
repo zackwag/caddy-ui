@@ -46,7 +46,11 @@ await import(${JSON.stringify(new URL('../../src/backend/src/index.js', import.m
 
 test('concurrent real backends own distinct OS-assigned ports', { timeout: 60000 }, async t => {
     const results = await Promise.allSettled([useTestStack(t), useTestStack(t)]);
-    for (const result of results) if (result.status === 'rejected') throw result.reason;
+    for (const result of results) {
+        if (result.status === 'rejected') {
+            throw result.reason;
+        }
+    }
     const [first, second] = results.map(result => result.value);
     assert.notEqual(new URL(first.url).port, new URL(second.url).port);
     const versions = await Promise.all([first.api('/version'), second.api('/version')]);

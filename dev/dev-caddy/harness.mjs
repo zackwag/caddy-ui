@@ -12,7 +12,9 @@ export const STATE = resolve(import.meta.dirname, '../../.dev-caddy');
 const exec = promisify(execFile);
 
 export function devFrontendHost(value = '127.0.0.1') {
-    if (!['127.0.0.1', '0.0.0.0'].includes(value)) throw new Error('CADDY_UI_DEV_HOST must be 127.0.0.1 or 0.0.0.0');
+    if (!['127.0.0.1', '0.0.0.0'].includes(value)) {
+        throw new Error('CADDY_UI_DEV_HOST must be 127.0.0.1 or 0.0.0.0');
+    }
     return value;
 }
 
@@ -60,7 +62,9 @@ export async function checkDocker(run = docker) {
 }
 
 export function validateName(name) {
-    if (!/^[a-z][a-z0-9-]{0,31}$/.test(name || '')) throw new Error('Use an instance name of 1–32 lowercase letters, digits or hyphens, starting with a letter.');
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(name || '')) {
+        throw new Error('Use an instance name of 1–32 lowercase letters, digits or hyphens, starting with a letter.');
+    }
     return name;
 }
 
@@ -98,17 +102,23 @@ export async function namespace(directory = STATE) {
     let value;
     try { value = (await readFile(file, 'utf8')).trim(); }
     catch (error) {
-        if (error.code !== 'ENOENT') throw error;
+        if (error.code !== 'ENOENT') {
+            throw error;
+        }
         value = randomBytes(8).toString('hex');
         await writeFile(file, value, { flag: 'wx' });
     }
-    if (!/^[a-f0-9]{16}$/.test(value)) throw new Error('Invalid development namespace; refusing Docker operations.');
+    if (!/^[a-f0-9]{16}$/.test(value)) {
+        throw new Error('Invalid development namespace; refusing Docker operations.');
+    }
     return value;
 }
 
 export class Harness {
     constructor(project, run = docker) {
-        if (!/^[a-f0-9]{16}$/.test(project)) throw new Error('Invalid project namespace');
+        if (!/^[a-f0-9]{16}$/.test(project)) {
+            throw new Error('Invalid project namespace');
+        }
         this.project = project;
         this.run = run;
     }
@@ -122,7 +132,9 @@ export class Harness {
         const ids = (await this.run(kind === 'container'
             ? ['ps', '-aq', '--no-trunc', '--filter', `name=^/${id}$`]
             : ['volume', 'ls', '-q', '--filter', `name=^${id}$`])).split('\n').filter(Boolean);
-        if (!ids.length) return null;
+        if (!ids.length) {
+            return null;
+        }
         const [detail] = JSON.parse(await this.run([kind, 'inspect', id]));
         this.assertOwned(kind, detail);
         return detail;
@@ -141,12 +153,18 @@ export class Harness {
     async network() {
         // Docker-outside-of-Docker: reuse the current Dev Container's network,
         // without connecting/disconnecting or changing that container.
-        if (!process.env.REMOTE_CONTAINERS && !process.env.CODESPACES && !process.env.DEV_CADDY_NETWORK) return null;
-        if (process.env.DEV_CADDY_NETWORK) return process.env.DEV_CADDY_NETWORK;
+        if (!process.env.REMOTE_CONTAINERS && !process.env.CODESPACES && !process.env.DEV_CADDY_NETWORK) {
+            return null;
+        }
+        if (process.env.DEV_CADDY_NETWORK) {
+            return process.env.DEV_CADDY_NETWORK;
+        }
         try {
             const [self] = JSON.parse(await this.run(['container', 'inspect', hostname()]));
             const networks = Object.keys(self.NetworkSettings?.Networks || {}).filter(n => !['host', 'none'].includes(n));
-            if (networks.length === 1) return networks[0];
+            if (networks.length === 1) {
+                return networks[0];
+            }
         } catch { /* Diagnostic below includes the manual override. */ }
         throw new Error('Cannot determine the Dev Container network. Set DEV_CADDY_NETWORK to its Docker network name (docker inspect <dev-container>). Docker Desktop container IPs are not reachable from the host.');
     }
@@ -155,7 +173,9 @@ export class Harness {
         const resource = this.resource(name);
         const existing = await this.inspect('container', resource);
         if (existing) {
-            if (!existing.State.Running) await this.run(['start', existing.Id]);
+            if (!existing.State.Running) {
+                await this.run(['start', existing.Id]);
+            }
             return this.describe(name);
         }
         if (!await this.inspect('volume', resource)) {
@@ -179,11 +199,15 @@ export class Harness {
 
     async describe(name) {
         const detail = await this.inspect('container', this.resource(name));
-        if (!detail) throw new Error(`No container for ${name}`);
+        if (!detail) {
+            throw new Error(`No container for ${name}`);
+        }
         const network = await this.network();
         const port = key => detail.NetworkSettings.Ports?.[key]?.[0]?.HostPort;
         const address = network ? detail.NetworkSettings.Networks?.[network]?.IPAddress : '127.0.0.1';
-        if (!address) throw new Error('Container has no reachable address; check its network and running state.');
+        if (!address) {
+            throw new Error('Container has no reachable address; check its network and running state.');
+        }
         return {
             name, running: detail.State.Running,
             httpUrl: `http://${address}:${network ? 80 : port('80/tcp')}`,
@@ -217,21 +241,31 @@ export class Harness {
 
     async stop(name) {
         const detail = await this.inspect('container', this.resource(name));
-        if (detail?.State.Running) await this.run(['stop', detail.Id]);
+        if (detail?.State.Running) {
+            await this.run(['stop', detail.Id]);
+        }
     }
 
     async remove(name, purge = false) {
         const detail = await this.inspect('container', this.resource(name));
         const volume = purge ? await this.inspect('volume', this.resource(name)) : null;
-        if (detail) await this.run(['rm', '-f', detail.Id]);
-        if (volume) await this.run(['volume', 'rm', volume.Name]);
+        if (detail) {
+            await this.run(['rm', '-f', detail.Id]);
+        }
+        if (volume) {
+            await this.run(['volume', 'rm', volume.Name]);
+        }
     }
 
     async removeAll({ confirmed = false, purge = false } = {}) {
-        if (!confirmed) throw new Error('Bulk removal requires explicit confirmation (--yes).');
+        if (!confirmed) {
+            throw new Error('Bulk removal requires explicit confirmation (--yes).');
+        }
         // Validate the entire set before the first removal, including orphan volumes.
         const names = new Set([...(await this.names()), ...(purge ? await this.names('volume') : [])]);
-        for (const name of names) await this.remove(name, purge);
+        for (const name of names) {
+            await this.remove(name, purge);
+        }
     }
 }
 

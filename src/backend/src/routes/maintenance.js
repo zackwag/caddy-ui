@@ -20,13 +20,21 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
     const { domain } = req.params;
     let block;
     const result = await saveCaddyfileChange(req.instance, async previous => {
-        if (isInMaintenance(req.instance.id, domain)) throw new AppError('CONFLICT');
+        if (isInMaintenance(req.instance.id, domain)) {
+            throw new AppError('CONFLICT');
+        }
         const env = await readSiteEnv(req.instance);
         block = extractSiteBlock(previous, domain, env);
-        if (!block) throw new AppError('NOT_FOUND');
-        if (isMaintenanceBlock(block)) throw new AppError('CONFLICT');
+        if (!block) {
+            throw new AppError('NOT_FOUND');
+        }
+        if (isMaintenanceBlock(block)) {
+            throw new AppError('CONFLICT');
+        }
         const backendUrl = await getBackendUrl();
-        if (!backendUrl) throw new AppError('BACKEND_URL_UNKNOWN');
+        if (!backendUrl) {
+            throw new AppError('BACKEND_URL_UNKNOWN');
+        }
         return replaceSiteBlock(previous, domain, buildMaintenanceBlock(block, backendUrl), env);
     }, { actor: req.actor, action: 'maintenance.enable', onApplied: () => setMaintenance(req.instance.id, domain, block) });
 
@@ -38,7 +46,9 @@ router.post('/caddyfile/:domain/maintenance', async (req, res) => {
 router.delete('/caddyfile/:domain/maintenance', async (req, res) => {
     const { domain } = req.params;
     const result = await saveCaddyfileChange(req.instance, async previous => {
-        if (!isInMaintenance(req.instance.id, domain)) throw new AppError('NOT_FOUND');
+        if (!isInMaintenance(req.instance.id, domain)) {
+            throw new AppError('NOT_FOUND');
+        }
         const env = await readSiteEnv(req.instance);
         const { originalContent } = getMaintenanceState(req.instance.id)[domain];
         return replaceSiteBlock(previous, domain, originalContent, env);

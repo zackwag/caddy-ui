@@ -13,7 +13,9 @@ function isObject(value) {
 }
 
 function leafCount(node) {
-    if (!isObject(node)) return 1;
+    if (!isObject(node)) {
+        return 1;
+    }
     return Object.values(node).reduce((sum, value) => sum + leafCount(value), 0);
 }
 
@@ -36,7 +38,9 @@ function isPluralVariant(reference, key) {
 // translated when the candidate supplies any of its forms, since languages
 // don't share the same set of plural categories.
 export function translatedCount(reference, candidate) {
-    if (!isObject(candidate)) return 0;
+    if (!isObject(candidate)) {
+        return 0;
+    }
 
     const candidatePluralBases = new Set(
         Object.keys(candidate)
@@ -45,8 +49,12 @@ export function translatedCount(reference, candidate) {
     );
 
     return Object.entries(reference).reduce((sum, [key, value]) => {
-        if (isObject(value)) return sum + translatedCount(value, candidate[key]);
-        if (typeof candidate[key] === 'string') return sum + 1;
+        if (isObject(value)) {
+            return sum + translatedCount(value, candidate[key]);
+        }
+        if (typeof candidate[key] === 'string') {
+            return sum + 1;
+        }
         const base = pluralBase(key);
         return sum + (base !== null && candidatePluralBases.has(base) ? 1 : 0);
     }, 0);
@@ -80,7 +88,9 @@ export function validateSubset(reference, candidate, locale, currentPath = '') {
         const keyPath = currentPath ? `${currentPath}.${key}` : key;
 
         if (!Object.hasOwn(reference, key)) {
-            if (isPluralVariant(reference, key) && typeof value === 'string') continue;
+            if (isPluralVariant(reference, key) && typeof value === 'string') {
+                continue;
+            }
             throw new Error(`${locale}.js contains unknown key "${keyPath}"`);
         }
 
@@ -128,7 +138,9 @@ async function loadCatalogs() {
 
     for (const [locale, catalog] of catalogs) {
         requireProbe(locale, catalog);
-        if (locale !== 'en') validateSubset(english, catalog, locale);
+        if (locale !== 'en') {
+            validateSubset(english, catalog, locale);
+        }
     }
 
     return { catalogs, english };

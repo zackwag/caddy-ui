@@ -89,7 +89,9 @@ test('invalid or failed API responses cannot become zero-count observations', as
 
 test('malformed existing history and observations going backwards fail without resetting history', async () => {
     const bad = [null, { version: 2, repositories: {} }, { version: 1, repositories: [] }, history(sample('invalid')), history(sample(day('25').toISOString()), sample(day('25').toISOString()))];
-    for (const value of bad) assert.throws(() => validateHistory(value));
+    for (const value of bad) {
+        assert.throws(() => validateHistory(value));
+    }
     await assert.rejects(collect(history(sample(day('25').toISOString())), { now: day('24'), fetchImpl: async () => response(86000) }), /predates/);
 });
 

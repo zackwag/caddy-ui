@@ -45,18 +45,25 @@ function engine() {
         } else if (command === 'rm') {
             const c = [...containers.values()].find(c => c.Id === args.at(-1));
             containers.delete(c.Name.slice(1));
-        } else if (command === 'volume' && subcommand === 'rm') volumes.delete(args.at(-1));
-        else throw new Error(`Unexpected Docker call: ${args.join(' ')}`);
+        } else if (command === 'volume' && subcommand === 'rm') {
+            volumes.delete(args.at(-1));
+        } else {
+            throw new Error(`Unexpected Docker call: ${args.join(' ')}`);
+        }
         return '';
     };
     return { run, calls, containers, volumes };
 }
 
 // Keep networking deterministic and independent of the test runner's container.
-for (const key of ['REMOTE_CONTAINERS', 'CODESPACES', 'DEV_CADDY_NETWORK']) delete process.env[key];
+for (const key of ['REMOTE_CONTAINERS', 'CODESPACES', 'DEV_CADDY_NETWORK']) {
+    delete process.env[key];
+}
 
 test('rejects unsafe names and namespaces before Docker calls', () => {
-    for (const name of ['../prod', '--all', 'Name', '', 'a;rm', 'a'.repeat(33)]) assert.throws(() => validateName(name));
+    for (const name of ['../prod', '--all', 'Name', '', 'a;rm', 'a'.repeat(33)]) {
+        assert.throws(() => validateName(name));
+    }
     assert.throws(() => new Harness('production'));
     assert.match(defaultCaddyfile('alpha'), /respond \/health "ok" 200/);
     assert.match(defaultCaddyfile('alpha'), /503/);
@@ -144,7 +151,9 @@ test('backends write only to their own state and never inherit the shell\'s app 
     const files = (await readdir(source, { recursive: true })).filter(file => file.endsWith('.js'));
     const text = (await Promise.all(files.map(file => readFile(resolve(source, file), 'utf8')))).join('\n');
     const paths = new Set([...text.matchAll(/process\.env\.(\w+_PATH)\b/g)].map(match => match[1]));
-    for (const caddyPath of ['CADDY_CONFIG_PATH', 'CADDY_LOG_PATH', 'CADDY_DATA_PATH']) paths.delete(caddyPath);
+    for (const caddyPath of ['CADDY_CONFIG_PATH', 'CADDY_LOG_PATH', 'CADDY_DATA_PATH']) {
+        paths.delete(caddyPath);
+    }
     assert.ok(paths.size > 10);
     const settings = { ...Object.fromEntries([...paths].map(key => [key, '/etc/caddy-ui/production'])),
         CADDY_UI_EXTERNAL_URL: 'https://production.example', CADDY_UI_PUBLIC_METRICS: 'true', CADDYFILE_TITLES: 'false',
@@ -154,13 +163,17 @@ test('backends write only to their own state and never inherit the shell\'s app 
     Object.assign(process.env, settings);
     const instance = { adminUrl: 'http://127.0.0.1:9001', containerName: 'test' };
     for (const env of [backendEnvironment('/tmp/dev-sandbox', instance), isolatedBackendEnvironment('/tmp/dev-sandbox', instance)]) {
-        for (const key of paths) assert.ok(env[key].startsWith('/tmp/dev-sandbox/backend/'), key);
+        for (const key of paths) {
+            assert.ok(env[key].startsWith('/tmp/dev-sandbox/backend/'), key);
+        }
         assert.equal(env.CADDY_UI_UPDATE_CHECK, 'false');
         assert.equal(env.CADDY_UI_TRUSTED_PROXIES, '');
     }
     const isolated = isolatedBackendEnvironment('/tmp/dev-sandbox', instance, { CADDY_UI_EXTERNAL_URL: 'https://test.example' });
     assert.equal(isolated.CADDY_UI_EXTERNAL_URL, 'https://test.example');
-    for (const key of ['CADDY_UI_PUBLIC_METRICS', 'CADDYFILE_TITLES', 'JWT_SECRET', 'UPTIME_HISTORY_RETENTION_DAYS']) assert.equal(isolated[key], undefined, key);
+    for (const key of ['CADDY_UI_PUBLIC_METRICS', 'CADDYFILE_TITLES', 'JWT_SECRET', 'UPTIME_HISTORY_RETENTION_DAYS']) {
+        assert.equal(isolated[key], undefined, key);
+    }
     assert.equal(isolated.PATH, process.env.PATH);
 });
 

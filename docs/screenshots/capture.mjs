@@ -49,7 +49,9 @@ export function captureScreenshots({ output = resolve(import.meta.dirname, 'capt
         // Exercise the real session/CSRF-protected configuration-write path.
         await successful('/server-names/srv0', 'PUT', { name: 'Production HTTPS' });
         await successful('/caddyfile?fmt=false&sort=false', 'PUT', exampleCaddyfile(address));
-        for (const site of SITES) await successful('/route-notes/' + encodeURIComponent(site.domain), 'PUT', { note: site.title });
+        for (const site of SITES) {
+            await successful('/route-notes/' + encodeURIComponent(site.domain), 'PUT', { note: site.title });
+        }
 
         // Local certificates are issued asynchronously; wait for actual storage.
         await until(() => successful('/tls'), record => record.response.body.length >= SITES.length, 'Caddy did not issue the example site certificates');
@@ -96,7 +98,9 @@ export function captureScreenshots({ output = resolve(import.meta.dirname, 'capt
         requests.push(await successful('/caddyfile'));
         const history = await successful('/caddyfile/history');
         requests.push(history);
-        for (const entry of history.response.body) requests.push(await successful('/caddyfile/history/' + encodeURIComponent(entry.filename)));
+        for (const entry of history.response.body) {
+            requests.push(await successful('/caddyfile/history/' + encodeURIComponent(entry.filename)));
+        }
 
         // Routes.
         requests.push(await successful('/routes'));

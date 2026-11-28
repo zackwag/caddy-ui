@@ -4,15 +4,22 @@ export function summarizeHistory(entries, start, end, gapThresholdMs) {
     const points = entries.filter(entry => entry.at < end).sort((a, b) => a.at - b.at);
     const segments = [];
     function emit(status, from, to) {
-        if (to <= from) return;
+        if (to <= from) {
+            return;
+        }
         const last = segments.at(-1);
-        if (last?.status === status && last.end === from) last.end = to;
-        else segments.push({ status, start: from, end: to });
+        if (last?.status === status && last.end === from) {
+            last.end = to;
+        } else {
+            segments.push({ status, start: from, end: to });
+        }
     }
     let cursor = start;
     for (let i = 0; i < points.length; i++) {
         const next = Math.min(points[i + 1]?.at ?? end, end);
-        if (next <= start) continue;
+        if (next <= start) {
+            continue;
+        }
         const from = Math.max(start, points[i].at);
         const to = Math.min(next, points[i].at + gapThresholdMs);
         emit('unknown', cursor, from);
@@ -24,7 +31,9 @@ export function summarizeHistory(entries, start, end, gapThresholdMs) {
     emit('unknown', cursor, end);
 
     const incidents = segments.flatMap((segment, index) => {
-        if (segment.status !== 'offline') return [];
+        if (segment.status !== 'offline') {
+            return [];
+        }
         const next = segments[index + 1];
         return [{ ...segment, recoveredAt: next?.status === 'online' ? segment.end : null,
             monitoringGap: next?.status === 'unknown' }];

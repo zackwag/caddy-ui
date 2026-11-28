@@ -28,8 +28,11 @@ export function formatPercentParts(value) {
     for (const part of percentFormat().formatToParts(value / 100)) {
         const isSign = part.type === 'percentSign' || part.type === 'literal';
         const last = runs[runs.length - 1];
-        if (last && last.isSign === isSign) last.text += part.value;
-        else runs.push({ text: part.value, isSign });
+        if (last && last.isSign === isSign) {
+            last.text += part.value;
+        } else {
+            runs.push({ text: part.value, isSign });
+        }
     }
     return runs;
 }
@@ -80,11 +83,19 @@ export function formatAxisTime(timestamp, rangeMs) {
 
 export function formatRelativeTime(timestamp, t) {
     const diffSec = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-    if (diffSec < 5) return t('routeHistory.justNow');
-    if (diffSec < 60) return t('routeHistory.secondsAgo', { count: diffSec });
+    if (diffSec < 5) {
+        return t('routeHistory.justNow');
+    }
+    if (diffSec < 60) {
+        return t('routeHistory.secondsAgo', { count: diffSec });
+    }
     const diffMin = Math.round(diffSec / 60);
-    if (diffMin < 60) return t('routeHistory.minutesAgo', { count: diffMin });
+    if (diffMin < 60) {
+        return t('routeHistory.minutesAgo', { count: diffMin });
+    }
     const diffHr = Math.round(diffMin / 60);
-    if (diffHr < 24) return t('routeHistory.hoursAgo', { count: diffHr });
+    if (diffHr < 24) {
+        return t('routeHistory.hoursAgo', { count: diffHr });
+    }
     return t('routeHistory.daysAgo', { count: Math.round(diffHr / 24) });
 }

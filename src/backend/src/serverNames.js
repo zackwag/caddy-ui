@@ -19,11 +19,17 @@ function isLabelMap(value) {
 // and for a legacy file when there are no instances yet to copy it to, so
 // it's left on disk untouched.
 export function migrateServerNames(raw, instanceIds) {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
     const entries = Object.entries(raw);
-    if (!entries.length) return {};
+    if (!entries.length) {
+        return {};
+    }
     if (entries.every(([, v]) => typeof v === 'string')) {
-        if (!instanceIds.length) return null;
+        if (!instanceIds.length) {
+            return null;
+        }
         return Object.fromEntries(instanceIds.map(id => [id, { ...raw }]));
     }
     return Object.fromEntries(entries.filter(([, v]) => isLabelMap(v)));
@@ -56,15 +62,21 @@ export async function setServerName(instanceId, serverId, name) {
 
 export async function removeServerName(instanceId, serverId) {
     await store.update(names => {
-        if (!names[instanceId]) return false;
+        if (!names[instanceId]) {
+            return false;
+        }
         delete names[instanceId][serverId];
-        if (!Object.keys(names[instanceId]).length) delete names[instanceId];
+        if (!Object.keys(names[instanceId]).length) {
+            delete names[instanceId];
+        }
     });
 }
 
 export async function removeInstanceServerNames(instanceId) {
     await store.update(names => {
-        if (!names[instanceId]) return false;
+        if (!names[instanceId]) {
+            return false;
+        }
         delete names[instanceId];
     });
 }

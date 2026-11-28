@@ -4,8 +4,11 @@ import { getAvailableFonts, getAdditionalLanguages, getEnabledLanguages, normali
 const ORIGINAL_LANGUAGES = process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
 
 afterEach(() => {
-    if (ORIGINAL_LANGUAGES === undefined) delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
-    else process.env.CADDY_UI_ADDITIONAL_LANGUAGES = ORIGINAL_LANGUAGES;
+    if (ORIGINAL_LANGUAGES === undefined) {
+        delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
+    } else {
+        process.env.CADDY_UI_ADDITIONAL_LANGUAGES = ORIGINAL_LANGUAGES;
+    }
 });
 
 describe('language configuration', () => {
@@ -34,8 +37,11 @@ describe('language configuration', () => {
     });
 
     it.each([undefined, 'fr'])('exposes bundled fonts only for enabled languages (additional: %s)', additional => {
-        if (additional === undefined) delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
-        else process.env.CADDY_UI_ADDITIONAL_LANGUAGES = additional;
+        if (additional === undefined) {
+            delete process.env.CADDY_UI_ADDITIONAL_LANGUAGES;
+        } else {
+            process.env.CADDY_UI_ADDITIONAL_LANGUAGES = additional;
+        }
         expect(getEnabledLanguages()).toEqual(expect.arrayContaining(getAvailableFonts()));
     });
 

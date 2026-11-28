@@ -18,7 +18,9 @@ async function servedHosts(inst) {
     const hosts = new Set();
     for (const server of Object.values(servers || {})) {
         for (const route of server.routes || []) {
-            for (const host of route.match?.find(m => m.host)?.host || []) hosts.add(host);
+            for (const host of route.match?.find(m => m.host)?.host || []) {
+                hosts.add(host);
+            }
         }
     }
     return hosts;

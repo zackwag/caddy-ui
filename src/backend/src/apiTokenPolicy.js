@@ -23,8 +23,14 @@ export function validApiTokenRecord(value) {
 
 // Exact routes only: new endpoints never inherit integration access implicitly.
 export function apiTokenScope(method, path) {
-    if (!['GET', 'HEAD'].includes(method)) return null;
-    if (/^\/status\/?$/.test(path)) return 'status:read';
-    if (/^\/metrics(?:\/raw)?\/?$/.test(path)) return 'metrics:read';
+    if (!['GET', 'HEAD'].includes(method)) {
+        return null;
+    }
+    if (/^\/status\/?$/.test(path)) {
+        return 'status:read';
+    }
+    if (/^\/metrics(?:\/raw)?\/?$/.test(path)) {
+        return 'metrics:read';
+    }
     return null;
 }

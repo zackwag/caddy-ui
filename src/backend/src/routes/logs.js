@@ -82,7 +82,9 @@ router.get('/stream', async (req, res) => {
     let stderr = '';
     let reported = false;
     const reportFailure = cause => {
-        if (reported || res.destroyed || res.writableEnded) return;
+        if (reported || res.destroyed || res.writableEnded) {
+            return;
+        }
         reported = true;
         const error = logReadError(cause, req.instance, 'LOG_STREAM_ERROR');
         logger[errorDefinition(error.code).level]('Caddy log stream failed', {
@@ -98,7 +100,9 @@ router.get('/stream', async (req, res) => {
         buffer += chunk.toString();
         const parts = buffer.split('\n');
         buffer = parts.pop();
-        for (const line of parts.filter(Boolean)) send({ line });
+        for (const line of parts.filter(Boolean)) {
+            send({ line });
+        }
     });
 
     proc.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-8192); });
@@ -106,8 +110,12 @@ router.get('/stream', async (req, res) => {
     proc.on('close', (code, signal) => {
         // A truncation warning on stderr is not a failed live stream. Wait for
         // close so a genuine failure includes all stderr, and report it once.
-        if (code !== 0) reportFailure(Object.assign(new Error(stderr.trim() || `tail exited (${code ?? signal})`), { stderr, code }));
-        if (!res.writableEnded) res.end();
+        if (code !== 0) {
+            reportFailure(Object.assign(new Error(stderr.trim() || `tail exited (${code ?? signal})`), { stderr, code }));
+        }
+        if (!res.writableEnded) {
+            res.end();
+        }
     });
 });
 

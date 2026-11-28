@@ -23,32 +23,56 @@ export function containerNetworkProbe(container, { platform = process.platform, 
     let index;
     return async signal => {
         signal?.throwIfAborted();
-        if (platform !== 'linux') return { status: 'not-applicable', reason: 'Browser is outside the Linux Docker host' };
+        if (platform !== 'linux') {
+            return { status: 'not-applicable', reason: 'Browser is outside the Linux Docker host' };
+        }
         index ??= await peer(signal);
-        if (!Number.isInteger(index) || index < 1) throw new Error('Owned container reported an invalid interface index');
+        if (!Number.isInteger(index) || index < 1) {
+            throw new Error('Owned container reported an invalid interface index');
+        }
         let name;
         for (const candidate of await list('/sys/class/net')) {
-            if (!candidate.startsWith('veth')) continue;
+            if (!candidate.startsWith('veth')) {
+                continue;
+            }
             try {
-                if (Number(await read(`/sys/class/net/${candidate}/ifindex`, 'utf8')) === index) name = candidate;
+                if (Number(await read(`/sys/class/net/${candidate}/ifindex`, 'utf8')) === index) {
+                    name = candidate;
+                }
             } catch (error) {
                 // Another container may disappear between listing and reading.
-                if (error.code !== 'ENOENT') throw error;
+                if (error.code !== 'ENOENT') {
+                    throw error;
+                }
             }
         }
-        if (!name) return { status: 'not-applicable', reason: 'Owned Docker interface is outside the browser network namespace' };
+        if (!name) {
+            return { status: 'not-applicable', reason: 'Owned Docker interface is outside the browser network namespace' };
+        }
         const result = { interface: { index, name } };
         const setting = key => read(`/proc/sys/net/ipv6/conf/${name}/${key}`, 'utf8');
-        if ((await setting('disable_ipv6')).trim() === '1') return { ...result, status: 'ready', reason: 'IPv6 disabled on owned interface' };
-        if ((await setting('addr_gen_mode')).trim() === '1') return { ...result, status: 'ready', reason: 'Link-local address generation disabled' };
+        if ((await setting('disable_ipv6')).trim() === '1') {
+            return { ...result, status: 'ready', reason: 'IPv6 disabled on owned interface' };
+        }
+        if ((await setting('addr_gen_mode')).trim() === '1') {
+            return { ...result, status: 'ready', reason: 'Link-local address generation disabled' };
+        }
         const addresses = await read('/proc/net/if_inet6', 'utf8');
         for (const line of addresses.trim().split('\n')) {
             const [address, ifindex, , scope, flags, device] = line.trim().split(/\s+/);
-            if (Number.parseInt(ifindex, 16) !== index || device !== name || scope !== '20') continue;
-            if (!/^[a-f\d]{32}$/i.test(address) || !/^[a-f\d]+$/i.test(flags)) throw new Error('Invalid IPv6 interface state');
+            if (Number.parseInt(ifindex, 16) !== index || device !== name || scope !== '20') {
+                continue;
+            }
+            if (!/^[a-f\d]{32}$/i.test(address) || !/^[a-f\d]+$/i.test(flags)) {
+                throw new Error('Invalid IPv6 interface state');
+            }
             const state = Number.parseInt(flags, 16);
-            if (state & 0x08) throw new Error(`IPv6 duplicate-address detection failed on ${name}`);
-            if (!(state & 0x40)) return { ...result, status: 'ready', reason: 'Owned IPv6 link-local address is ready' };
+            if (state & 0x08) {
+                throw new Error(`IPv6 duplicate-address detection failed on ${name}`);
+            }
+            if (!(state & 0x40)) {
+                return { ...result, status: 'ready', reason: 'Owned IPv6 link-local address is ready' };
+            }
         }
         return { ...result, status: 'pending' };
     };
@@ -62,7 +86,9 @@ export async function waitForContainerNetwork(container, { signal, timeoutMs = 5
             bounded.throwIfAborted();
             const result = await probe(bounded);
             bounded.throwIfAborted();
-            if (result.status !== 'pending') return result;
+            if (result.status !== 'pending') {
+                return result;
+            }
             await delay(50, undefined, { signal: bounded });
         }
     } catch (cause) {
@@ -127,7 +153,9 @@ export function waitForBackendPort(backend, { signal, timeoutMs = 15000 } = {}) 
         const onClose = (code, signal) => finish(reject, new Error(`Backend exited (${code ?? signal}) before readiness`));
         const onError = error => finish(reject, error);
         const onMessage = message => {
-            if (message?.type !== 'caddy-ui:listening') return;
+            if (message?.type !== 'caddy-ui:listening') {
+                return;
+            }
             if (!Number.isInteger(message.port) || message.port < 1 || message.port > 65535) {
                 finish(reject, new Error('Backend reported an invalid listening port'));
                 return;
@@ -146,7 +174,9 @@ export function waitForBackendPort(backend, { signal, timeoutMs = 15000 } = {}) 
         backend.once('close', onClose);
         backend.once('error', onError);
         signal?.addEventListener('abort', onAbort, { once: true });
-        if (signal?.aborted) onAbort();
+        if (signal?.aborted) {
+            onAbort();
+        }
     });
 }
 
@@ -154,7 +184,9 @@ export function waitForBackendPort(backend, { signal, timeoutMs = 15000 } = {}) 
 export function spawnBackend({ env, backendEntry = 'src/backend/src/index.js' }) {
     let output = '';
     const backend = spawn(process.execPath, [resolve(root, backendEntry)], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
-    for (const stream of [backend.stdout, backend.stderr]) stream.on('data', chunk => { output = (output + chunk).slice(-64000); });
+    for (const stream of [backend.stdout, backend.stderr]) {
+        stream.on('data', chunk => { output = (output + chunk).slice(-64000); });
+    }
     return { backend, output: () => output };
 }
 
@@ -220,21 +252,28 @@ export function checkDrift(backend, { reset, failRead, liveJson } = {}, timeoutM
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => finish(new Error('Drift IPC check timed out')), timeoutMs);
         const onMessage = message => {
-            if (message?.type === 'test:drift-result' && message.id === id) finish(message.error && new Error(message.error), message);
+            if (message?.type === 'test:drift-result' && message.id === id) {
+                finish(message.error && new Error(message.error), message);
+            }
         };
         function finish(error, result) {
             clearTimeout(timeout);
             backend.removeListener('message', onMessage);
-            if (error) reject(error);
-            else resolve(result);
+            if (error) {
+                reject(error);
+            } else {
+                resolve(result);
+            }
         }
         backend.on('message', onMessage);
-        backend.send({ type: 'test:drift', id, reset, failRead, liveJson }, error => { if (error) finish(error); });
+        backend.send({ type: 'test:drift', id, reset, failRead, liveJson }, error => { if (error) { finish(error); } });
     });
 }
 
 export async function stopProcess(child) {
-    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+    if (!child || child.exitCode !== null || child.signalCode !== null) {
+        return;
+    }
     const exited = once(child, 'exit');
     child.kill('SIGTERM');
     const force = setTimeout(() => child.kill('SIGKILL'), 3000);
@@ -249,7 +288,9 @@ export async function acquireHarness(scope, project = randomBytes(8).toString('h
     // Retain this stopped, unmounted container until every cleanup completes.
     await scope.acquire(() => claimNamespace(harness), id => harness.run(['rm', id]));
     const [containers, volumes] = await scope.run(() => Promise.all([harness.names(), harness.names('volume')]));
-    if (containers.length || volumes.length) throw new Error('Integration tests require a fresh, empty Docker namespace');
+    if (containers.length || volumes.length) {
+        throw new Error('Integration tests require a fresh, empty Docker namespace');
+    }
     scope.defer(() => harness.removeAll({ confirmed: true, purge: true }));
     return harness;
 }
@@ -292,7 +333,9 @@ export async function createTestStack(scope, { project, backendEntry, additional
             if (!requestContext) {
                 requestContext = fetch(url + '/api/auth/csrf', { headers: { Cookie: cookie }, signal: scope.signal }).then(async response => {
                     const replacement = response.headers.getSetCookie().at(-1);
-                    if (replacement) cookie = replacement.split(';')[0];
+                    if (replacement) {
+                        cookie = replacement.split(';')[0];
+                    }
                     return { Cookie: cookie, 'X-CSRF-Token': (await response.json()).csrfToken };
                 });
             }
@@ -315,7 +358,9 @@ export async function createTestStack(scope, { project, backendEntry, additional
         }
         const credentials = { username: 'integration-administrator', password: randomBytes(24).toString('base64url') };
         const enrollment = await api('/auth/setup', { method: 'POST', body: credentials });
-        if (enrollment.status !== 200) throw new Error('Integration administrator setup failed');
+        if (enrollment.status !== 200) {
+            throw new Error('Integration administrator setup failed');
+        }
         return {
             harness, directory, url, instances, close, api, credentials, backend,
             async create(name) {

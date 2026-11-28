@@ -8,7 +8,9 @@ const { files, instances } = vi.hoisted(() => ({ files: new Map(), instances: []
 
 vi.mock('../src/containerFs.js', () => ({
     readContainerFile: vi.fn(async (container, path) => {
-        if (!files.has(path)) throw new Error('ENOENT');
+        if (!files.has(path)) {
+            throw new Error('ENOENT');
+        }
         return files.get(path);
     }),
 }));
@@ -43,8 +45,11 @@ const site = (upstream) => `app.example.com {\n    reverse_proxy ${upstream}\n}\
 const savedFile = () => JSON.parse(readFileSync(process.env.MAINTENANCE_PATH, 'utf8'));
 
 async function resetState(contents) {
-    if (contents === undefined) writeFileSync(process.env.MAINTENANCE_PATH, '{}');
-    else writeFileSync(process.env.MAINTENANCE_PATH, JSON.stringify(contents));
+    if (contents === undefined) {
+        writeFileSync(process.env.MAINTENANCE_PATH, '{}');
+    } else {
+        writeFileSync(process.env.MAINTENANCE_PATH, JSON.stringify(contents));
+    }
     await maintenance.loadMaintenance();
 }
 

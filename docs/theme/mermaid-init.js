@@ -16,12 +16,16 @@
     // Prefer breaks between URL components without adding characters to copied values.
     document.querySelectorAll('.docs-environment-variables td:nth-child(2) code').forEach(code => {
         const value = code.textContent;
-        if (!/^https?:\/\//.test(value)) return;
+        if (!/^https?:\/\//.test(value)) {
+            return;
+        }
         const start = value.indexOf('://') + 3;
         const parts = [value.slice(0, start), ...value.slice(start).split(/(?=\/)/)];
         code.replaceChildren();
         parts.forEach((part, index) => {
-            if (index) code.append(document.createElement('wbr'));
+            if (index) {
+                code.append(document.createElement('wbr'));
+            }
             code.append(part);
         });
     });
@@ -36,7 +40,9 @@
         code.parentElement.replaceWith(element);
         return { element, source };
     });
-    if (!diagrams.length) return;
+    if (!diagrams.length) {
+        return;
+    }
 
     let rendering = false;
     let pending = false;
@@ -47,7 +53,9 @@
 
     async function render() {
         pending = true;
-        if (rendering) return;
+        if (rendering) {
+            return;
+        }
         rendering = true;
         try {
             while (pending) {

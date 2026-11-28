@@ -25,7 +25,9 @@ test('real Caddy route mutations explain only their own changes in the drift mon
             baseline = false;
             failRead = false;
             assert.ok(result.state, 'The monitor must establish a baseline');
-            if (result.state.failing) unavailableSamples++;
+            if (result.state.failing) {
+                unavailableSamples++;
+            }
             if (!result.deferred && !result.state.failing && (!expectedLive || result.state.expected.live === expectedLive)) {
                 return result.state;
             }
@@ -53,10 +55,14 @@ test('real Caddy route mutations explain only their own changes in the drift mon
                     await append({ ...local, match: [{ host: ['local.test'] }] });
                     await stack.harness.writeConfig('alpha',
                         original + '\nlocal.test {\n    reverse_proxy 127.0.0.1:9\n}\n');
-                } else if (!diskBacked) await append(local);
+                } else if (!diskBacked) {
+                    await append(local);
+                }
                 await append(other);
                 await check(true);
-                if (external) await caddyPatch('/id/drift-other', { ...other, handle: [{ handler: 'static_response', body: 'external' }] }, adminUrl);
+                if (external) {
+                    await caddyPatch('/id/drift-other', { ...other, handle: [{ handler: 'static_response', body: 'external' }] }, adminUrl);
+                }
                 await mutate(operation, local['@id']);
                 await check();
                 const state = await check();

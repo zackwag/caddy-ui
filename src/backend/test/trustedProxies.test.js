@@ -15,7 +15,9 @@ describe('trusted proxy configuration', () => {
         for (const address of ['192.0.2.5', '::ffff:192.0.2.5', '198.51.100.7', '::1', '2001:db8::1']) {
             expect(trusts(address)).toBe(true);
         }
-        for (const address of ['192.0.2.6', '203.0.113.7', '2001:db9::1']) expect(trusts(address)).toBe(false);
+        for (const address of ['192.0.2.6', '203.0.113.7', '2001:db9::1']) {
+            expect(trusts(address)).toBe(false);
+        }
     });
 
     it.each(['true', 'false', '1', '-1', 'loopback', 'localhost', 'http://proxy:80', ',',

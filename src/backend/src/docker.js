@@ -37,14 +37,20 @@ function assertSafePathArg(pathArg) {
 // addresses never silently resolve to nothing.
 export async function getCaddyEnv(containerName) {
     // Local mode: caddy-ui's own environment, the closest available to Caddy's.
-    if (!containerName) return { ...process.env };
+    if (!containerName) {
+        return { ...process.env };
+    }
     const cached = _envCaches.get(containerName);
-    if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) return cached.env;
+    if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) {
+        return cached.env;
+    }
     const { stdout } = await dockerExec(containerName, ['env']);
     const env = {};
     for (const line of stdout.split('\n')) {
         const eq = line.indexOf('=');
-        if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
+        if (eq > 0) {
+            env[line.slice(0, eq)] = line.slice(eq + 1);
+        }
     }
     _envCaches.set(containerName, { env, ts: Date.now() });
     logger.debug('Cached Caddy container env vars', { container: containerName, count: Object.keys(env).length });
@@ -76,7 +82,9 @@ export function dockerExec(containerName, args, input) {
 // Picks Docker-exec vs local-spawn based on whether an instance has a container name,
 // mirroring the same dispatch containerFs.js already uses for file I/O.
 export function execInInstance(containerName, cmd, args, input) {
-    if (containerName) return dockerExec(containerName, [cmd, ...args], input);
+    if (containerName) {
+        return dockerExec(containerName, [cmd, ...args], input);
+    }
     return execAndCollect(cmd, args, input);
 }
 
@@ -85,7 +93,9 @@ export function execInInstance(containerName, cmd, args, input) {
 export function spawnInInstance(containerName, cmd, args) {
     assertSafeCommand(cmd);
     assertSafeArgs(args);
-    if (containerName) return spawn('docker', ['exec', containerName, cmd, ...args], { shell: false });
+    if (containerName) {
+        return spawn('docker', ['exec', containerName, cmd, ...args], { shell: false });
+    }
     return spawn(cmd, args, { shell: false });
 }
 
@@ -121,8 +131,11 @@ function execAndCollect(cmd, args, input) {
         proc.stdout.on('data', d => { stdout += d; });
         proc.stderr.on('data', d => { stderr += d; });
         proc.on('close', code => {
-            if (code === 0) resolve({ stdout, stderr });
-            else reject(Object.assign(new Error(stderr.trim() || stdout.trim()), { stdout, stderr, code }));
+            if (code === 0) {
+                resolve({ stdout, stderr });
+            } else {
+                reject(Object.assign(new Error(stderr.trim() || stdout.trim()), { stdout, stderr, code }));
+            }
         });
         proc.on('error', err => {
             reject(Object.assign(err, { stdout, stderr: err.message, code: null }));

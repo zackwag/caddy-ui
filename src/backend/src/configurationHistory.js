@@ -17,8 +17,12 @@ export const configurationHistory = createCaddyfileHistory(HISTORY_PATH);
 // it's testable: returns the filenames to move into `targetId`'s folder.
 export function planLegacyHistoryMigration(instances, rootFiles, targetFiles) {
     const legacy = rootFiles.filter(f => f.startsWith('Caddyfile-'));
-    if (!legacy.length || instances.some(i => i.id === DEFAULT_INSTANCE_ID)) return null;
-    if (instances.length !== 1) return { targetId: null, moves: [], orphaned: legacy.length };
+    if (!legacy.length || instances.some(i => i.id === DEFAULT_INSTANCE_ID)) {
+        return null;
+    }
+    if (instances.length !== 1) {
+        return { targetId: null, moves: [], orphaned: legacy.length };
+    }
     const existing = new Set(targetFiles);
     return { targetId: instances[0].id, moves: legacy.filter(f => !existing.has(f)), orphaned: 0 };
 }
@@ -36,14 +40,18 @@ export async function migrateLegacyHistory() {
         const targetId = instances.length === 1 ? instances[0].id : null;
         const targetFiles = targetId ? await readdir(configurationHistory.directory(targetId)).catch(() => []) : [];
         const plan = planLegacyHistoryMigration(instances, rootFiles, targetFiles);
-        if (!plan) return;
+        if (!plan) {
+            return;
+        }
         if (plan.orphaned) {
             logger.warn('Caddyfile snapshots from the old default instance were left in place: more than one instance exists, so it is unclear which one they belong to', { dir: HISTORY_PATH, count: plan.orphaned });
             return;
         }
         const dir = configurationHistory.directory(plan.targetId);
         await mkdir(dir, { recursive: true });
-        for (const file of plan.moves) await rename(join(HISTORY_PATH, file), join(dir, file));
+        for (const file of plan.moves) {
+            await rename(join(HISTORY_PATH, file), join(dir, file));
+        }
         logger.info('Moved Caddyfile snapshots from the old default instance', { instanceId: plan.targetId, count: plan.moves.length });
     } catch (err) {
         logger.warn('Failed to migrate Caddyfile history', { error: err.message });

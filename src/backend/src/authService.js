@@ -14,7 +14,9 @@ import { createTotpService } from './totp.js';
 import { TotpCooldownError } from './totpPolicy.js';
 
 function sameSecret(actual, expected) {
-    if (typeof actual !== 'string') return false;
+    if (typeof actual !== 'string') {
+        return false;
+    }
     const hash = value => createHash('sha256').update(value).digest();
     return timingSafeEqual(hash(actual), hash(expected));
 }
@@ -32,7 +34,9 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         if (provided.length && invalid.length) {
             throw new Error(`Authentication configuration is incomplete or invalid. Refusing to start. Missing, empty or whitespace-only: ${invalid.join(', ')}. Supply all three legacy variables or remove all three for credential setup.`);
         }
-        if (provided.length) legacy = { username: env.CADDY_UI_USER, password: env.CADDY_UI_PASSWORD };
+        if (provided.length) {
+            legacy = { username: env.CADDY_UI_USER, password: env.CADDY_UI_PASSWORD };
+        }
     }
     sessions ??= createAuthSessions({ now, secure: servesOnlyHttps(externalUrls) });
     const serialize = createSerialQueue();
@@ -43,13 +47,17 @@ export async function createAuthService({ store = createAuthStore(), env = proce
     async function persist(operation) {
         try { return await operation(); }
         catch (cause) {
-            if (cause instanceof TotpCooldownError) throw new AppError('TOTP_RATE_LIMITED', { cause, context: { retryAfter: cause.retryAfter } });
+            if (cause instanceof TotpCooldownError) {
+                throw new AppError('TOTP_RATE_LIMITED', { cause, context: { retryAfter: cause.retryAfter } });
+            }
             throw new AppError(cause instanceof PasskeyValidationError ? 'PASSKEY_INVALID' : 'AUTH_PERSISTENCE_FAILED', { cause });
         }
     }
     function requireManagement(req, res) {
         const session = sessions.readSession(req);
-        if (session?.permission !== 'management') throw new AppError('UNAUTHORIZED');
+        if (session?.permission !== 'management') {
+            throw new AppError('UNAUTHORIZED');
+        }
         sessions.watchSession(session, res);
     }
     async function authorizeChange(req, input, action) {
@@ -57,8 +65,12 @@ export async function createAuthService({ store = createAuthStore(), env = proce
             passkeys.consumeAuthorization(req, input.reauthToken, action);
             return;
         }
-        if (!await store.verifyPassword(store.getUsername(), input?.currentPassword)) throw new AppError('CURRENT_PASSWORD_INVALID');
-        if (store.isTotpEnabled() && !await persist(() => store.consumeTotp(input?.totpCode))) throw new AppError('TOTP_INVALID');
+        if (!await store.verifyPassword(store.getUsername(), input?.currentPassword)) {
+            throw new AppError('CURRENT_PASSWORD_INVALID');
+        }
+        if (store.isTotpEnabled() && !await persist(() => store.consumeTotp(input?.totpCode))) {
+            throw new AppError('TOTP_INVALID');
+        }
     }
     const passkeys = createPasskeyService({ store, sessions, externalUrls, serialize, persist, requireManagement, authorizeChange, now });
     const totp = createTotpService({ store, sessions, serialize, persist, requireManagement, authorizeChange, now });
@@ -68,12 +80,18 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         passkeys,
         totp,
         getActor(req) {
-            if (req.apiToken) return { type: 'api-token', id: req.apiToken.id, name: req.apiToken.name };
-            if (sessions.readSession(req)?.permission !== 'management') return null;
+            if (req.apiToken) {
+                return { type: 'api-token', id: req.apiToken.id, name: req.apiToken.name };
+            }
+            if (sessions.readSession(req)?.permission !== 'management') {
+                return null;
+            }
             return { type: 'user', id: store.getAccountId(), name: store.getUsername() };
         },
         resolveActor(actor) {
-            if (actor?.type === 'user' && actor.id === store.getAccountId()) return { type: 'user', id: actor.id, name: store.getUsername() };
+            if (actor?.type === 'user' && actor.id === store.getAccountId()) {
+                return { type: 'user', id: actor.id, name: store.getUsername() };
+            }
             const token = actor?.type === 'api-token' && store.listApiTokens().find(token => token.id === actor.id);
             return token ? { type: 'api-token', id: token.id, name: token.name } : null;
         },
@@ -93,8 +111,11 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                     throw new AppError('VALIDATION_FAILED');
                 }
                 const currentUsername = store.getUsername();
-                if (input.password !== undefined) await authorizeChange(req, input, 'password.change');
-                else if (!await store.verifyPassword(currentUsername, input.currentPassword)) throw new AppError('CURRENT_PASSWORD_INVALID');
+                if (input.password !== undefined) {
+                    await authorizeChange(req, input, 'password.change');
+                } else if (!await store.verifyPassword(currentUsername, input.currentPassword)) {
+                    throw new AppError('CURRENT_PASSWORD_INVALID');
+                }
                 const username = input.username === undefined ? currentUsername : input.username;
                 validate(username, input.password === undefined ? input.currentPassword : input.password);
                 await persist(() => store.updateCredentials(username, input.password));
@@ -112,7 +133,9 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                 if (!validApiTokenInput(input) || input.instanceIds.some(id => !getInstances().some(instance => instance.id === id))) {
                     throw new AppError('VALIDATION_FAILED');
                 }
-                if (store.listApiTokens().length >= MAX_API_TOKENS) throw new AppError('CONFLICT');
+                if (store.listApiTokens().length >= MAX_API_TOKENS) {
+                    throw new AppError('CONFLICT');
+                }
                 const issued = await persist(() => store.issueApiToken(input));
                 logger.info('API token created', { tokenId: issued.id, scopes: issued.scopes, instanceIds: issued.instanceIds });
                 return issued;
@@ -121,7 +144,9 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         revokeApiToken(req, res, id) {
             return serialize(async () => {
                 requireManagement(req, res);
-                if (!await persist(() => store.revokeApiToken(id))) throw new AppError('NOT_FOUND');
+                if (!await persist(() => store.revokeApiToken(id))) {
+                    throw new AppError('NOT_FOUND');
+                }
                 logger.info('API token revoked', { tokenId: id });
             });
         },
@@ -148,7 +173,9 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                         recordAuthentication(req, 'password', 'failure');
                         throw new AppError('UNAUTHORIZED');
                     }
-                    if (store.isTotpEnabled()) return totp.beginLogin(req, res);
+                    if (store.isTotpEnabled()) {
+                        return totp.beginLogin(req, res);
+                    }
                     permission = 'management';
                 } else {
                     if (!legacy || !sameSecret(username, legacy.username) || !sameSecret(password, legacy.password)) {
@@ -157,13 +184,19 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                     permission = 'enrollment';
                 }
                 sessions.createSession(req, res, permission);
-                if (permission === 'management') recordAuthentication(req, 'password', 'success', store.listPasskeys().length > 0);
+                if (permission === 'management') {
+                    recordAuthentication(req, 'password', 'success', store.listPasskeys().length > 0);
+                }
             });
         },
         completeSetup(req, res, { username, password } = {}) {
             return serialize(async () => {
-                if (store.isInitialized()) throw new AppError('CONFLICT');
-                if (legacy && sessions.readSession(req)?.permission !== 'enrollment') throw new AppError('UNAUTHORIZED');
+                if (store.isInitialized()) {
+                    throw new AppError('CONFLICT');
+                }
+                if (legacy && sessions.readSession(req)?.permission !== 'enrollment') {
+                    throw new AppError('UNAUTHORIZED');
+                }
                 validate(username, password);
                 const recoveryKey = await persist(() => store.initializeAuth(username, password));
                 legacy = null;

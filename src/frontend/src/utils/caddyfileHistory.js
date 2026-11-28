@@ -6,6 +6,8 @@ export function historyComparison(entry, entries) {
 
 export function historyActor(entry, t) {
     const actor = entry?.actor;
-    if (!actor || typeof actor.name !== 'string' || !actor.name) return t('caddyfile.unknownActor');
+    if (!actor || typeof actor.name !== 'string' || !actor.name) {
+        return t('caddyfile.unknownActor');
+    }
     return t(actor.type === 'api-token' ? 'caddyfile.tokenActor' : 'caddyfile.userActor', { name: actor.name });
 }

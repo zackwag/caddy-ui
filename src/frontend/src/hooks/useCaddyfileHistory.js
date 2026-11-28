@@ -56,9 +56,9 @@ export function useCaddyfileHistory(toast) {
             const selected = (!selectLatest && entries.find(entry => entry.filename === selectedFilename.current)) || entries[0];
             if (!selected) {
                 clearPreview();
-            }
-            else if (selected.filename !== selectedFilename.current) previewSnapshot(selected, entries);
-            else {
+            } else if (selected.filename !== selectedFilename.current) {
+                previewSnapshot(selected, entries);
+            } else {
                 setPreviewEntry(selected);
                 if (comparisonFilename.current !== "current" && !entries.some(entry => entry.filename === comparisonFilename.current)) {
                     changeCompareTo("current");
@@ -151,8 +151,9 @@ export function useCaddyfileHistory(toast) {
         snapshotCache.current.delete(entry.filename);
         if (selectedFilename.current === entry.filename) {
             clearPreview();
+        } else if (comparisonFilename.current === entry.filename) {
+            changeCompareTo("current");
         }
-        else if (comparisonFilename.current === entry.filename) changeCompareTo("current");
         loadHistory();
     };
 

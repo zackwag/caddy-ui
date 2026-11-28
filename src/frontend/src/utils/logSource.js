@@ -12,7 +12,9 @@ export const LEVEL_CLASSES = { error: 'err', warn: 'warn', info: 'info' };
 // otherwise what its text suggests.
 export function lineLevel(line) {
     const recorded = /"level":"(\w+)"/.exec(line) || /\t([A-Z]+)\t/.exec(line);
-    if (recorded) return recorded[1].toLowerCase();
+    if (recorded) {
+        return recorded[1].toLowerCase();
+    }
     return /error/i.test(line) ? 'error' : /warn/i.test(line) ? 'warn' : null;
 }
 

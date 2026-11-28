@@ -90,7 +90,9 @@ test('transient read failures retry the same run and a successful read resets th
         assert.equal(args[1], 'repos/juscghwe/caddy-ui/actions/runs/42');
         polls++;
         const response = responses.shift();
-        if (!response) throw new Error('Temporary API failure');
+        if (!response) {
+            throw new Error('Temporary API failure');
+        }
         return { stdout: JSON.stringify(response) };
     }, sleep: async () => { pauses++; } }), 42);
     assert.equal(dispatches, 1);
@@ -118,7 +120,9 @@ test('cancellation interrupts a read retry without redispatching', async () => {
 test('a pending run has a bounded wait without redispatching', async () => {
     let dispatches = 0;
     await assert.rejects(collectHistory({ ...silent, timeoutMs: 20, pollMs: 5, execute: async (command, args) => {
-        if (args.includes('POST')) dispatches++;
+        if (args.includes('POST')) {
+            dispatches++;
+        }
         return { stdout: args.includes('POST') ? dispatch : JSON.stringify(run({ status: 'pending' })) };
     } }), /Timed out waiting/);
     assert.equal(dispatches, 1);
@@ -129,7 +133,9 @@ test('cancellation stops polling without redispatching', async () => {
     const controller = new AbortController();
     await assert.rejects(collectHistory({ ...silent, signal: controller.signal,
         execute: async (command, args) => {
-            if (args.includes('POST')) dispatches++;
+            if (args.includes('POST')) {
+                dispatches++;
+            }
             return { stdout: args.includes('POST') ? dispatch : JSON.stringify(run({ status: 'queued' })) };
         }, sleep: async () => { controller.abort(new Error('Stopped')); },
     }), /Stopped/);

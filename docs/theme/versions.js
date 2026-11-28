@@ -3,15 +3,21 @@ import { defaultDocumentation, documentationOptions, documentationTarget, fetchC
 const site = new URL('../', import.meta.url);
 const element = (tag, text, className) => {
     const node = document.createElement(tag);
-    if (text) node.textContent = text;
-    if (className) node.className = className;
+    if (text) {
+        node.textContent = text;
+    }
+    if (className) {
+        node.className = className;
+    }
     return node;
 };
 
 async function showVersions() {
     const script = document.querySelector('script[data-docs-book]');
     const sidebar = document.querySelector('.sidebar-scrollbox');
-    if (!script || !sidebar) return;
+    if (!script || !sidebar) {
+        return;
+    }
     const box = element('div', '', 'docs-version-box');
     const label = element('label', 'Documentation version');
     label.className = 'docs-version-label';
@@ -53,7 +59,9 @@ async function showVersions() {
             if (target) {
                 const destination = new URL(target.href, site);
                 for (const [key, value] of parameters) {
-                    if (!destination.searchParams.has(key)) destination.searchParams.append(key, value);
+                    if (!destination.searchParams.has(key)) {
+                        destination.searchParams.append(key, value);
+                    }
                 }
                 location.replace(destination);
                 return;
@@ -62,7 +70,9 @@ async function showVersions() {
         const matching = catalog.releases.filter(release => release.snapshot === book);
         const current = book === 'development' ? 'dev'
             : matching.find(release => release.tag === parameters.get('version'))?.tag || matching[0]?.tag;
-        if (!current) throw new Error('Book is absent from catalogue');
+        if (!current) {
+            throw new Error('Book is absent from catalogue');
+        }
         for (const [value, title] of documentationOptions(catalog)) {
             const option = element('option', title);
             option.value = value;
@@ -78,12 +88,18 @@ async function showVersions() {
         select.title = note.textContent;
         const title = document.querySelector('.menu-title');
         const badge = element('span', current === 'dev' ? 'Development' : current, 'docs-version-badge');
-        if (current === 'dev') badge.classList.add('docs-version-development');
-        if (title) title.after(badge);
+        if (current === 'dev') {
+            badge.classList.add('docs-version-development');
+        }
+        if (title) {
+            title.after(badge);
+        }
         document.title = `${current === 'dev' ? 'Development' : current} · ${document.title}`;
         select.addEventListener('change', () => {
             const target = documentationTarget(catalog, select.value, { page, hash: location.hash });
-            if (target) location.assign(new URL(target.href, site));
+            if (target) {
+                location.assign(new URL(target.href, site));
+            }
         });
         // Keep the selected release when several versions share one book,
         // including mdBook's keyboard navigation and generated search links.
@@ -92,8 +108,12 @@ async function showVersions() {
             const here = new URL(location.href);
             for (const link of container.querySelectorAll('a[href]')) {
                 const url = new URL(link.href, location.href);
-                if (url.origin !== bookRoot.origin || !url.pathname.startsWith(bookRoot.pathname)) continue;
-                if (!pages.includes(decodeURIComponent(url.pathname.slice(bookRoot.pathname.length)))) continue;
+                if (url.origin !== bookRoot.origin || !url.pathname.startsWith(bookRoot.pathname)) {
+                    continue;
+                }
+                if (!pages.includes(decodeURIComponent(url.pathname.slice(bookRoot.pathname.length)))) {
+                    continue;
+                }
                 if (url.pathname === here.pathname && url.search === here.search) {
                     continue;
                 }
@@ -103,7 +123,9 @@ async function showVersions() {
         };
         preserve(document);
         const search = document.getElementById('mdbook-searchresults');
-        if (search) new MutationObserver(() => preserve(search)).observe(search, { childList: true, subtree: true });
+        if (search) {
+            new MutationObserver(() => preserve(search)).observe(search, { childList: true, subtree: true });
+        }
     } catch {
         control.remove();
         note.hidden = false;

@@ -23,11 +23,17 @@ function publicationHistory(root, ref) {
     const commits = git(root, ['log', '--reverse', '--format=%H', commit, '--', 'versions.json']).split('\n');
     for (const recordedAt of commits.filter(Boolean)) {
         const record = JSON.parse(git(root, ['show', `${recordedAt}:versions.json`]));
-        if (record.schema !== 1 || !record.channels) throw new Error(`Unsupported publication record at ${recordedAt}`);
+        if (record.schema !== 1 || !record.channels) {
+            throw new Error(`Unsupported publication record at ${recordedAt}`);
+        }
         for (const component of Object.keys(images)) {
             for (const version of record.channels.stable?.[component] || []) {
-                if (!stable.test(version) || version.startsWith('v')) throw new Error(`Invalid stable image version at ${recordedAt}`);
-                if (!images[component].has(version)) images[component].set(version, recordedAt);
+                if (!stable.test(version) || version.startsWith('v')) {
+                    throw new Error(`Invalid stable image version at ${recordedAt}`);
+                }
+                if (!images[component].has(version)) {
+                    images[component].set(version, recordedAt);
+                }
             }
         }
     }
@@ -35,7 +41,9 @@ function publicationHistory(root, ref) {
 }
 
 export function collectInventory(root, { from = 'v2.20.0', to = 'HEAD', versionsRef = 'refs/remotes/upstream/versions' } = {}) {
-    if (!stable.test(from) || !from.startsWith('v')) throw new Error('--from must be a stable vX.Y.Z tag');
+    if (!stable.test(from) || !from.startsWith('v')) {
+        throw new Error('--from must be a stable vX.Y.Z tag');
+    }
     const fromCommit = git(root, ['rev-parse', '--verify', `${from}^{commit}`]);
     const throughCommit = git(root, ['rev-parse', '--verify', `${to}^{commit}`]);
     git(root, ['merge-base', '--is-ancestor', fromCommit, throughCommit]);
@@ -77,7 +85,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     try {
         const args = options(process.argv.slice(2), ['repo', 'from', 'to', 'versions-ref', 'output']);
         const root = resolve(args.repo || fileURLToPath(new URL('../..', import.meta.url)));
-        if (!existsSync(resolve(root, '.git'))) throw new Error('--repo must be a Git checkout');
+        if (!existsSync(resolve(root, '.git'))) {
+            throw new Error('--repo must be a Git checkout');
+        }
         const inventory = collectInventory(root, { from: args.from, to: args.to, versionsRef: args['versions-ref'] });
         const output = resolve(args.output || resolve(root, 'docs/history/releases.json'));
         writeInventory(output, inventory);

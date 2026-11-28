@@ -123,7 +123,9 @@ test('capture real Dashboard, notification, observability, TLS, sidebar, route a
     assert.deepEqual(JSON.parse(await readFile(output, 'utf8')), capture);
     await assertClean(scope);
     assert.equal(backendPids.length, 2);
-    for (const pid of backendPids) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    for (const pid of backendPids) {
+        assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    }
     const retained = await unrelated.inspect('container', unrelated.resource('sentinel'));
     assert.equal(retained.Id, container.Id);
     assert.equal(retained.State.Running, true);
@@ -151,7 +153,9 @@ test('interrupting capture cleans up its own resources without publishing an art
     const output = resolve(directory, 'dashboard.json');
     const child = spawn(process.execPath, [resolve(import.meta.dirname, 'capture.mjs'), output], { stdio: 'pipe' });
     let log = '';
-    for (const stream of [child.stdout, child.stderr]) stream.on('data', data => { log += data; });
+    for (const stream of [child.stdout, child.stderr]) {
+        stream.on('data', data => { log += data; });
+    }
     const closed = new Promise((resolve, reject) => { child.once('close', resolve); child.once('error', reject); });
     t.after(async () => {
         if (child.exitCode === null && child.signalCode === null) { child.kill('SIGTERM'); await closed; }
@@ -177,14 +181,18 @@ test('failure after starting the local-mode backend removes both backends and re
     await assert.rejects(captureDashboard({ output, onNamespace: project => { scope = new Harness(project); },
         onBackend: pid => {
             backendPids.push(pid);
-            if (backendPids.length === 2) throw new Error('Deliberate failure after local backend start');
+            if (backendPids.length === 2) {
+                throw new Error('Deliberate failure after local backend start');
+            }
         },
     }), error => {
         assert.match(error.cause.message, /Deliberate failure after local backend start/);
         return true;
     });
     assert.equal(backendPids.length, 2);
-    for (const pid of backendPids) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    for (const pid of backendPids) {
+        assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    }
     assert.equal(await readFile(output, 'utf8'), 'previous artifact');
     await assertClean(scope);
 });

@@ -13,7 +13,9 @@ const poolReadFailures = new Set();
 // that the count stays 0 forever, so the pool can't vouch for an upstream.
 function passivePolicy(handler) {
     const passive = handler.health_checks?.passive;
-    if (!passive?.fail_duration || /^0[a-zµ]*$/i.test(String(passive.fail_duration))) return null;
+    if (!passive?.fail_duration || /^0[a-zµ]*$/i.test(String(passive.fail_duration))) {
+        return null;
+    }
     return { maxFails: passive.max_fails || 1 };
 }
 
@@ -23,9 +25,17 @@ export function extractUpstreamTargets(route) {
         for (const h of handles || []) {
             if (h.handler === 'reverse_proxy' && h.upstreams) {
                 const passive = passivePolicy(h);
-                for (const u of h.upstreams) if (u.dial) results.push({ dial: u.dial, passive });
+                for (const u of h.upstreams) {
+                    if (u.dial) {
+                        results.push({ dial: u.dial, passive });
+                    }
+                }
             }
-            if (h.routes) for (const r of h.routes) walk(r.handle);
+            if (h.routes) {
+                for (const r of h.routes) {
+                    walk(r.handle);
+                }
+            }
         }
     }
     walk(route.handle);
@@ -35,7 +45,9 @@ export function extractUpstreamTargets(route) {
 // An upstream is online when caddy-ui can dial it and, if passive health
 // checks are on, Caddy hasn't marked it down after failed requests.
 export function isUpstreamOnline(dialed, passive, poolEntry) {
-    if (!dialed) return false;
+    if (!dialed) {
+        return false;
+    }
     return !(passive && poolEntry && poolEntry.fails >= passive.maxFails);
 }
 
@@ -52,7 +64,9 @@ export function resultsByUpstream(checks) {
     for (const { upstream, online, domain } of checks) {
         const result = results.get(upstream) || { target: upstream, online: true, domains: new Set() };
         result.online &&= online;
-        if (domain) result.domains.add(domain);
+        if (domain) {
+            result.domains.add(domain);
+        }
         results.set(upstream, result);
     }
     return [...results.values()].map(({ target, online, domains }) => ({
@@ -82,7 +96,9 @@ export async function checkInstanceUpstreams(adminUrl, servers) {
             const domain = getHost(route);
             for (const { dial: upstream, passive } of extractUpstreamTargets(route)) {
                 const [host, port] = upstream.split(':');
-                if (host && port) checks.push({ domain, upstream, host, port, server: serverName, passive });
+                if (host && port) {
+                    checks.push({ domain, upstream, host, port, server: serverName, passive });
+                }
             }
         }
     }
@@ -92,7 +108,9 @@ export async function checkInstanceUpstreams(adminUrl, servers) {
         // Without the pool, upstreams are judged by the dial alone
         try {
             for (const entry of await caddyUpstreamPool(adminUrl)) {
-                if (entry.address) caddyPool[entry.address] = entry;
+                if (entry.address) {
+                    caddyPool[entry.address] = entry;
+                }
             }
             if (poolReadFailures.delete(adminUrl)) {
                 logger.info('Caddy upstream pool readable again', { adminUrl });
@@ -108,7 +126,9 @@ export async function checkInstanceUpstreams(adminUrl, servers) {
     // Upstreams shared by several routes are dialed once per call
     const dials = new Map();
     const dial = (upstream, host, port) => {
-        if (!dials.has(upstream)) dials.set(upstream, checkTCP(host, port));
+        if (!dials.has(upstream)) {
+            dials.set(upstream, checkTCP(host, port));
+        }
         return dials.get(upstream);
     };
 

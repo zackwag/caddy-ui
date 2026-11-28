@@ -24,7 +24,9 @@ async function hashSecret(secret) {
 }
 
 async function matches(secret, hash) {
-    if (typeof secret !== 'string' || Buffer.byteLength(secret) > 1024) return false;
+    if (typeof secret !== 'string' || Buffer.byteLength(secret) > 1024) {
+        return false;
+    }
     const digest = await derive(secret, hash.salt, 64, KDF);
     return timingSafeEqual(digest, Buffer.from(hash.digest, 'hex'));
 }
@@ -67,10 +69,15 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 throw new Error('Invalid credential record');
             }
             await chmod(path, 0o600);
-            if (parsed.accountId === undefined) await persist({ ...parsed, accountId: randomUUID() });
-            else state = parsed;
+            if (parsed.accountId === undefined) {
+                await persist({ ...parsed, accountId: randomUUID() });
+            } else {
+                state = parsed;
+            }
         } catch (error) {
-            if (existing || error.code !== 'ENOENT') throw new Error('Cannot read authentication storage. Refusing to start.', { cause: error });
+            if (existing || error.code !== 'ENOENT') {
+                throw new Error('Cannot read authentication storage. Refusing to start.', { cause: error });
+            }
             state = null;
         }
         return state !== null;
@@ -84,13 +91,17 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
     }
 
     function requireLoaded() {
-        if (state === undefined) throw new Error('Authentication storage has not been loaded');
+        if (state === undefined) {
+            throw new Error('Authentication storage has not been loaded');
+        }
     }
 
     function assertTotpAvailable(timestamp = now()) {
         requireLoaded();
         const until = state?.totp?.failures?.blockedUntil ?? 0;
-        if (until > timestamp) throw new TotpCooldownError(until - timestamp);
+        if (until > timestamp) {
+            throw new TotpCooldownError(until - timestamp);
+        }
     }
 
     async function recordFor(username, password) {
@@ -108,11 +119,16 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         setTotp(record) {
             return serialize(async () => {
                 requireLoaded();
-                if (!state || (record !== null && !validTotpRecord(record))) throw new Error('Invalid TOTP record');
+                if (!state || (record !== null && !validTotpRecord(record))) {
+                    throw new Error('Invalid TOTP record');
+                }
                 // Older backends reject version 2 instead of ignoring the second factor.
                 const next = { ...state, version: record === null ? 1 : 2 };
-                if (record === null) delete next.totp;
-                else next.totp = structuredClone(record);
+                if (record === null) {
+                    delete next.totp;
+                } else {
+                    next.totp = structuredClone(record);
+                }
                 await persist(next);
             });
         },
@@ -120,7 +136,9 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         consumeTotp(code) {
             return serialize(async () => {
                 requireLoaded();
-                if (!state?.totp) return false;
+                if (!state?.totp) {
+                    return false;
+                }
                 const timestamp = now();
                 assertTotpAvailable(timestamp);
                 const previous = state.totp;
@@ -145,8 +163,12 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         ensurePasskeyUserId() {
             return serialize(async () => {
                 requireLoaded();
-                if (!state) throw new Error('Authentication is not initialized');
-                if (!state.passkeys) await persist({ ...state, passkeys: { userId: randomBytes(32).toString('base64url'), credentials: [] } });
+                if (!state) {
+                    throw new Error('Authentication is not initialized');
+                }
+                if (!state.passkeys) {
+                    await persist({ ...state, passkeys: { userId: randomBytes(32).toString('base64url'), credentials: [] } });
+                }
                 return state.passkeys.userId;
             });
         },
@@ -155,7 +177,9 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 requireLoaded();
                 const previous = state?.passkeys;
                 if (!previous || !validPasskeyRecord(record) || previous.credentials.length >= MAX_PASSKEYS
-                    || previous.credentials.some(key => key.id === record.id)) throw new PasskeyValidationError('Invalid or duplicate passkey');
+                    || previous.credentials.some(key => key.id === record.id)) {
+                    throw new PasskeyValidationError('Invalid or duplicate passkey');
+                }
                 await persist({ ...state, passkeys: { ...previous, credentials: [...previous.credentials, structuredClone(record)] } });
             });
         },
@@ -164,10 +188,14 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
                 requireLoaded();
                 const previous = state?.passkeys;
                 const key = previous?.credentials.find(key => key.id === id);
-                if (!key) throw new PasskeyValidationError('Passkey no longer exists');
+                if (!key) {
+                    throw new PasskeyValidationError('Passkey no longer exists');
+                }
                 const updated = { ...key, counter: newCounter, deviceType: credentialDeviceType,
                     backedUp: credentialBackedUp, lastUsedAt: new Date(now()).toISOString() };
-                if (!validPasskeyRecord(updated) || (key.counter > 0 && newCounter <= key.counter)) throw new PasskeyValidationError('Invalid passkey counter');
+                if (!validPasskeyRecord(updated) || (key.counter > 0 && newCounter <= key.counter)) {
+                    throw new PasskeyValidationError('Invalid passkey counter');
+                }
                 await persist({ ...state, passkeys: { ...previous, credentials: previous.credentials.map(key => key.id === id ? updated : key) } });
             });
         },
@@ -175,7 +203,9 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
             return serialize(async () => {
                 requireLoaded();
                 const previous = state?.passkeys;
-                if (!previous?.credentials.some(key => key.id === id)) return false;
+                if (!previous?.credentials.some(key => key.id === id)) {
+                    return false;
+                }
                 await persist({ ...state, passkeys: { ...previous, credentials: previous.credentials.filter(key => key.id !== id) } });
                 return true;
             });
@@ -192,18 +222,26 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         },
         verifyApiToken(token) {
             requireLoaded();
-            if (typeof token !== 'string' || !/^cui_[A-Za-z0-9_-]{43}$/.test(token)) return null;
+            if (typeof token !== 'string' || !/^cui_[A-Za-z0-9_-]{43}$/.test(token)) {
+                return null;
+            }
             const digest = createHash('sha256').update(token).digest();
             const record = (state?.apiTokens || []).find(record => timingSafeEqual(digest, Buffer.from(record.hash, 'hex')));
-            if (!record || Date.parse(record.expiresAt) <= now()) return null;
+            if (!record || Date.parse(record.expiresAt) <= now()) {
+                return null;
+            }
             return apiTokenMetadata(record);
         },
         issueApiToken(input) {
             return serialize(async () => {
                 requireLoaded();
-                if (!state || !validApiTokenInput(input)) throw new Error('Invalid API token configuration');
+                if (!state || !validApiTokenInput(input)) {
+                    throw new Error('Invalid API token configuration');
+                }
                 const previous = state.apiTokens || [];
-                if (previous.length >= MAX_API_TOKENS) throw new Error('API token limit reached');
+                if (previous.length >= MAX_API_TOKENS) {
+                    throw new Error('API token limit reached');
+                }
                 const token = 'cui_' + randomBytes(32).toString('base64url');
                 const time = now();
                 const metadata = { id: randomBytes(16).toString('hex'), name: input.name.trim(),
@@ -217,7 +255,9 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
             return serialize(async () => {
                 requireLoaded();
                 const previous = state?.apiTokens || [];
-                if (!previous.some(token => token.id === id)) return false;
+                if (!previous.some(token => token.id === id)) {
+                    return false;
+                }
                 await persist({ ...state, apiTokens: previous.filter(token => token.id !== id) });
                 return true;
             });
@@ -225,7 +265,9 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         initializeAuth(username, password) {
             return serialize(async () => {
                 requireLoaded();
-                if (state !== null) throw new Error('Authentication is already initialized');
+                if (state !== null) {
+                    throw new Error('Authentication is already initialized');
+                }
                 const { record, recoveryKey } = await recordFor(username, password);
                 await persist(record, { initialize: true });
                 return recoveryKey;
@@ -234,9 +276,13 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         updateCredentials(username, password) {
             return serialize(async () => {
                 requireLoaded();
-                if (!state) throw new Error('Authentication is not initialized');
+                if (!state) {
+                    throw new Error('Authentication is not initialized');
+                }
                 validateUsername(username);
-                if (password !== undefined) validateCredentials(username, password);
+                if (password !== undefined) {
+                    validateCredentials(username, password);
+                }
                 // Normal account changes preserve recovery and integration credentials.
                 const record = { ...state, username,
                     password: password === undefined ? state.password : await hashSecret(password) };
@@ -246,7 +292,9 @@ export function createAuthStore(path = process.env.AUTH_PATH || '/etc/caddy-ui/a
         replaceCredentials(recoveryKey, password) {
             return serialize(async () => {
                 requireLoaded();
-                if (!state || !await matches(recoveryKey, state.recovery)) return null;
+                if (!state || !await matches(recoveryKey, state.recovery)) {
+                    return null;
+                }
                 const next = await recordFor(state.username, password);
                 next.record.accountId = state.accountId;
                 // Replacing the whole record deliberately revokes API tokens, passkeys and TOTP.

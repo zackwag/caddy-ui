@@ -31,7 +31,9 @@ export default function Login({ authState, onLogin, sessionExpired }) {
 
     const login = async event => {
         event.preventDefault();
-        if (!username || !password) return;
+        if (!username || !password) {
+            return;
+        }
         setLoading(true);
         setError("");
         try {
@@ -40,8 +42,11 @@ export default function Login({ authState, onLogin, sessionExpired }) {
                 json: { username, password },
             });
             setPassword('');
-            if (result.totpRequired) setTotpPending(true);
-            else await onLogin();
+            if (result.totpRequired) {
+                setTotpPending(true);
+            } else {
+                await onLogin();
+            }
         } catch (error) {
             setError(error.code === 'UNAUTHORIZED' ? t('login.failed') : localizeError(error, t));
         } finally {
@@ -49,8 +54,12 @@ export default function Login({ authState, onLogin, sessionExpired }) {
         }
     };
 
-    if (totpPending) return <TotpLogin onLogin={onLogin} onCancel={() => setTotpPending(false)} />;
-    if (recovering) return <AuthRecovery onCancel={() => setRecovering(false)} onComplete={async () => { setRecovering(false); await onLogin(); }} />;
+    if (totpPending) {
+        return <TotpLogin onLogin={onLogin} onCancel={() => setTotpPending(false)} />;
+    }
+    if (recovering) {
+        return <AuthRecovery onCancel={() => setRecovering(false)} onComplete={async () => { setRecovering(false); await onLogin(); }} />;
+    }
     if (authState?.setupRequired && (!authState.enrollmentRequired || authState.enrollmentAuthenticated)) {
         return <AuthSetup enrollment={authState.enrollmentRequired} onComplete={onLogin} />;
     }

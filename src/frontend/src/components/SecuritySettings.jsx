@@ -47,7 +47,7 @@ export default function SecuritySettings({ instances, instancesError, onClose })
     });
 
     return <dialog ref={dialog} className="modal security-dialog" aria-labelledby="security-title"
-        onCancel={event => { event.preventDefault(); if (!locked) onClose(); }}>
+        onCancel={event => { event.preventDefault(); if (!locked) { onClose(); } }}>
         <h2 className="modal-title" id="security-title">{t('security.title')}</h2>
         {error && <div role="alert"><p>{localizeError(error, t)}</p>
             <button type="button" className="btn" disabled={locked} onClick={refreshAuth}>{t('login.retry')}</button></div>}

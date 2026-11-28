@@ -131,14 +131,21 @@ function defineVimCommands(Vim) {
     Vim.defineEx('wq', 'wq', cm => handlersOf(cm).onSave?.());
     Vim.defineEx('xit', 'x', cm => {
         const { onSave, onQuit, isModified } = handlersOf(cm);
-        if (!onQuit || isModified?.()) onSave?.();
-        else onQuit();
+        if (!onQuit || isModified?.()) {
+            onSave?.();
+        } else {
+            onQuit();
+        }
     });
     Vim.defineEx('quit', 'q', (cm, params) => {
         const { onQuit, isModified } = handlersOf(cm);
-        if (!onQuit) showVimMessage(cm, `Not an editor command ":${params.input}"`);
-        else if (params.argString?.trim() !== '!' && isModified?.()) showVimMessage(cm, 'E37: No write since last change (add ! to override)');
-        else onQuit();
+        if (!onQuit) {
+            showVimMessage(cm, `Not an editor command ":${params.input}"`);
+        } else if (params.argString?.trim() !== '!' && isModified?.()) {
+            showVimMessage(cm, 'E37: No write since last change (add ! to override)');
+        } else {
+            onQuit();
+        }
     });
 }
 /* eslint-enable i18next/no-literal-string */
@@ -171,7 +178,9 @@ function vimLeavesTab(view) {
 // Accept a completion and dismiss the tooltip so activateOnTyping doesn't
 // re-trigger and interfere with snippet tab-stop navigation.
 function acceptAndCloseCompletion(view) {
-    if (!acceptCompletion(view)) return false;
+    if (!acceptCompletion(view)) {
+        return false;
+    }
     closeCompletion(view);
     return true;
 }

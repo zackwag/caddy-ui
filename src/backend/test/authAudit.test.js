@@ -21,7 +21,9 @@ const events = () => listener.mock.calls.map(([event]) => event);
 beforeEach(() => listener.mockReset());
 afterEach(async () => {
     vi.restoreAllMocks();
-    for (const f of fixtures.splice(0).reverse()) await f.close();
+    for (const f of fixtures.splice(0).reverse()) {
+        await f.close();
+    }
 });
 
 describe('authentication audit integration', () => {
@@ -41,7 +43,9 @@ describe('authentication audit integration', () => {
             ['recovery', 'failure'], ['recovery', 'success'],
         ]);
         expect(events().every(event => event.sourceIp === '127.0.0.1')).toBe(true);
-        for (const value of [f.password, f.recoveryKey, '203.0.113.10']) expect(JSON.stringify(events())).not.toContain(value);
+        for (const value of [f.password, f.recoveryKey, '203.0.113.10']) {
+            expect(JSON.stringify(events())).not.toContain(value);
+        }
     });
 
     it('warns for password fallback and records real signed passkey success and rejection', async () => {

@@ -14,7 +14,7 @@ vi.mock('../src/middleware/auth.js', () => ({
 const { serverNamesWrite } = vi.hoisted(() => ({ serverNamesWrite: { fail: false } }));
 vi.mock('../src/serverNames.js', () => ({
     getServerNames: () => ({}), getAllServerNames: () => ({}),
-    setServerName: async () => { if (serverNamesWrite.fail) throw new Error('disk full'); },
+    setServerName: async () => { if (serverNamesWrite.fail) { throw new Error('disk full'); } },
     removeServerName: async () => {},
 }));
 

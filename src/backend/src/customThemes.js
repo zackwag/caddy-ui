@@ -138,7 +138,9 @@ async function scanMode(mode) {
 
     const themes = [];
     for (const file of files) {
-        if (extname(file) !== '.json') continue;
+        if (extname(file) !== '.json') {
+            continue;
+        }
         try {
             const raw = await readFile(join(dir, file), 'utf8');
             themes.push(parseThemeFile(mode, file, raw));

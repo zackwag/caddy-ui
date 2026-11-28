@@ -19,13 +19,19 @@ function notesOnly(entries) {
 // A missing file means no notes yet. A file that isn't an object is set aside
 // rather than overwritten.
 function parseNotes(parsed) {
-    if (parsed === undefined) return { instances: {}, unassigned: {} };
+    if (parsed === undefined) {
+        return { instances: {}, unassigned: {} };
+    }
     if (!isObject(parsed)) {
         throw new CorruptJsonError(ROUTE_NOTES_PATH, new TypeError('Route notes must be a JSON object'));
     }
-    if (parsed.version !== STATE_VERSION) return { instances: {}, unassigned: notesOnly(parsed) };
+    if (parsed.version !== STATE_VERSION) {
+        return { instances: {}, unassigned: notesOnly(parsed) };
+    }
     const instances = {};
-    for (const [id, entries] of Object.entries(isObject(parsed.instances) ? parsed.instances : {})) instances[id] = notesOnly(entries);
+    for (const [id, entries] of Object.entries(isObject(parsed.instances) ? parsed.instances : {})) {
+        instances[id] = notesOnly(entries);
+    }
     return { instances, unassigned: notesOnly(parsed.unassigned) };
 }
 
@@ -60,8 +66,11 @@ export function hasStoredNotes() {
 export function setInstanceNote(instanceId, domain, note) {
     return store.update(state => {
         const entries = { ...(state.instances[instanceId] || {}) };
-        if (note) entries[domain] = note;
-        else delete entries[domain];
+        if (note) {
+            entries[domain] = note;
+        } else {
+            delete entries[domain];
+        }
         state.instances[instanceId] = entries;
     });
 }
@@ -72,9 +81,13 @@ export function setInstanceNote(instanceId, domain, note) {
 export function releaseInstanceNotes(instanceId) {
     return store.update(state => {
         const entries = state.instances[instanceId];
-        if (!entries) return false;
+        if (!entries) {
+            return false;
+        }
         for (const [domain, note] of Object.entries(entries)) {
-            if (!(domain in state.unassigned)) state.unassigned[domain] = note;
+            if (!(domain in state.unassigned)) {
+                state.unassigned[domain] = note;
+            }
         }
         delete state.instances[instanceId];
     });
@@ -96,7 +109,9 @@ export function claimUnassignedNotes(instances, hosts) {
         let claimed = false;
         for (const [domain, note] of Object.entries(state.unassigned)) {
             const owners = instances.filter((inst, i) => current.has(inst.id) && servedBy(hosts[i], domain));
-            if (!owners.length) continue;
+            if (!owners.length) {
+                continue;
+            }
             for (const inst of owners) {
                 state.instances[inst.id] = { [domain]: note, ...(state.instances[inst.id] || {}) };
             }
@@ -117,7 +132,9 @@ export function pruneOrphanedNotes(instances, hosts, { complete }) {
         const served = new Map(instances.map((inst, i) => [inst.id, hosts[i]]));
         const removed = [];
         for (const [id, entries] of Object.entries(state.instances)) {
-            if (!served.get(id)) continue;
+            if (!served.get(id)) {
+                continue;
+            }
             for (const domain of Object.keys(entries)) {
                 if (!servedBy(served.get(id), domain)) {
                     delete entries[domain];
@@ -136,7 +153,9 @@ export function pruneOrphanedNotes(instances, hosts, { complete }) {
         } else {
             logger.warn('Route notes cleanup kept unassigned notes: not every instance could be read', { instances: unreadable, instancesComplete: complete });
         }
-        if (!removed.length) return false;
+        if (!removed.length) {
+            return false;
+        }
         logger.info('Cleaned up orphaned route notes', { removed: removed.length });
     });
 }

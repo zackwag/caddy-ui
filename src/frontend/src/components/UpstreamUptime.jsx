@@ -22,7 +22,9 @@ function buildRows(routes, statusOf, notes) {
     const rows = [];
     for (const route of routes) {
         const status = statusOf(route);
-        if (!status.upstreams.length && !status.probeHost) continue;
+        if (!status.upstreams.length && !status.probeHost) {
+            continue;
+        }
         const domain = getRouteHost(route);
         rows.push({ ...status, domain, note: notes[domain] || "", title: getRouteTitle(route, notes[domain]) });
     }

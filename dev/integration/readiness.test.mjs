@@ -78,9 +78,13 @@ test('port handshake aborts on startup failure before or after subscribing', asy
         const backend = new EventEmitter();
         const startup = new AbortController();
         const error = new Error('Backend exited (1) before readiness');
-        if (alreadyAborted) startup.abort(error);
+        if (alreadyAborted) {
+            startup.abort(error);
+        }
         const ready = waitForBackendPort(backend, { signal: startup.signal });
-        if (!alreadyAborted) startup.abort(error);
+        if (!alreadyAborted) {
+            startup.abort(error);
+        }
         await assert.rejects(ready, actual => actual === error);
         assert.equal(backend.listenerCount('message'), 0);
     }
@@ -111,7 +115,9 @@ test('port handshake waits for close so final stderr can drain after exit', asyn
     assert.equal(rejected, false);
     backend.emit('close', 1);
     await assert.rejects(ready, /Backend exited \(1\) before readiness/);
-    for (const event of ['message', 'close', 'error']) assert.equal(backend.listenerCount(event), 0);
+    for (const event of ['message', 'close', 'error']) {
+        assert.equal(backend.listenerCount(event), 0);
+    }
 });
 
 test('reported ephemeral port is already owned by the child process', { timeout: 5000 }, async t => {
@@ -124,7 +130,9 @@ server.listen(0, '127.0.0.1', () => process.send({ type: 'caddy-ui:listening', p
     backend.on('error', error => startup.abort(error));
     backend.once('exit', () => startup.abort(new Error('Test server exited')));
     t.after(async () => {
-        if (backend.exitCode !== null || backend.signalCode !== null) return;
+        if (backend.exitCode !== null || backend.signalCode !== null) {
+            return;
+        }
         const exited = once(backend, 'exit');
         backend.kill('SIGTERM');
         await exited;

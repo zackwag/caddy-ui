@@ -32,7 +32,9 @@ function extractEnvVar(container, name) {
     const env = container.Config?.Env || [];
     for (const entry of env) {
         const eq = entry.indexOf('=');
-        if (eq > 0 && entry.slice(0, eq) === name) return entry.slice(eq + 1);
+        if (eq > 0 && entry.slice(0, eq) === name) {
+            return entry.slice(eq + 1);
+        }
     }
     return null;
 }
@@ -40,10 +42,14 @@ function extractEnvVar(container, name) {
 function findContainerIP(container, targetNetworks) {
     const networks = container.NetworkSettings?.Networks || {};
     for (const name of targetNetworks) {
-        if (networks[name]?.IPAddress) return networks[name].IPAddress;
+        if (networks[name]?.IPAddress) {
+            return networks[name].IPAddress;
+        }
     }
     for (const net of Object.values(networks)) {
-        if (net.IPAddress) return net.IPAddress;
+        if (net.IPAddress) {
+            return net.IPAddress;
+        }
     }
     return null;
 }
@@ -84,7 +90,9 @@ async function detectBackendContainerName() {
 
 // Where Caddy reaches the backend, or null when it can't be known.
 export async function getBackendUrl() {
-    if (process.env.CADDY_UI_URL) return process.env.CADDY_UI_URL;
+    if (process.env.CADDY_UI_URL) {
+        return process.env.CADDY_UI_URL;
+    }
     const name = await detectBackendContainerName();
     return name ? `${name}:${BACKEND_PORT}` : null;
 }
@@ -111,7 +119,9 @@ export async function discoverCaddyContainers() {
             const names = (c.Names || []).map(n => n.replace(/^\//, ''));
             if (names.includes('caddy-ui-backend') || c.Id?.startsWith(hostname)) {
                 const nets = c.NetworkSettings?.Networks || {};
-                for (const name of Object.keys(nets)) backendNetworks.add(name);
+                for (const name of Object.keys(nets)) {
+                    backendNetworks.add(name);
+                }
             }
         }
     }

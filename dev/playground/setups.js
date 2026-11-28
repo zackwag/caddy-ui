@@ -4,7 +4,9 @@ import { EditorView } from '@codemirror/view';
 // its `setup`, each tried again whenever the UI changes until it returns true.
 
 function press(control) {
-    if (!control || control.disabled) return false;
+    if (!control || control.disabled) {
+        return false;
+    }
     control.click();
     return true;
 }
@@ -21,7 +23,9 @@ const openVersionList = click('[aria-controls="history-version-list"]');
 const versionAction = index => root => press(root.querySelectorAll('.history-version-actions button')[index]);
 
 function choose(select, value) {
-    if (!select) return false;
+    if (!select) {
+        return false;
+    }
     select.value = value;
     select.dispatchEvent(new Event('change', { bubbles: true }));
     return true;
@@ -30,8 +34,12 @@ function choose(select, value) {
 function chooseProvider(root, { provider, enabled }) {
     const toggle = root.querySelector('.notifications-enabled-btn');
     // The only recorded response is the untouched disabled default.
-    if (!toggle || !choose(root.querySelector('select.config-select'), provider)) return false;
-    if (enabled) toggle.click();
+    if (!toggle || !choose(root.querySelector('select.config-select'), provider)) {
+        return false;
+    }
+    if (enabled) {
+        toggle.click();
+    }
     return true;
 }
 
@@ -39,7 +47,9 @@ function chooseProvider(root, { provider, enabled }) {
 // translation input.
 function editCaddyfile(root) {
     const editor = root.querySelector('.cm-content');
-    if (!editor) return false;
+    if (!editor) {
+        return false;
+    }
     const view = EditorView.findFromDOM(editor);
     view.dispatch({ changes: { from: view.state.doc.length, insert: '\n# Local playground edit\n' } });
     return true;
@@ -47,7 +57,9 @@ function editCaddyfile(root) {
 
 function importCaddyfile(root) {
     const input = root.querySelector('input[type="file"]');
-    if (!input) return false;
+    if (!input) {
+        return false;
+    }
     const data = new DataTransfer();
     data.items.add(new File(['# Local playground import\n'], 'Caddyfile', { type: 'text/plain' }));
     input.files = data.files;

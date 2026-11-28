@@ -19,5 +19,7 @@ try {
     console.error(error.message);
     process.exitCode = 1;
 } finally {
-    if (lock) rmSync(lock, { recursive: true });
+    if (lock) {
+        rmSync(lock, { recursive: true });
+    }
 }

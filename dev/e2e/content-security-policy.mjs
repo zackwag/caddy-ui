@@ -43,8 +43,11 @@ test('production CSP blocks script injection and keeps HTTP and HTTPS UI feature
         await chmod(path, 0o755);
         for (const entry of await readdir(path, { withFileTypes: true })) {
             const child = join(path, entry.name);
-            if (entry.isDirectory()) await makeReadable(child);
-            else await chmod(child, 0o644);
+            if (entry.isDirectory()) {
+                await makeReadable(child);
+            } else {
+                await chmod(child, 0o644);
+            }
         }
     }
     await makeReadable(dist);

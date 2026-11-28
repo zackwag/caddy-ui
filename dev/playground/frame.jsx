@@ -32,7 +32,9 @@ let disposed = false;
 // workbench. Pointer/keyboard interactions inside the frame still focus normally.
 const focus = HTMLElement.prototype.focus;
 function previewFocus(...args) {
-    if (window.parent.document.activeElement?.matches('#translation, #key-search')) return;
+    if (window.parent.document.activeElement?.matches('#translation, #key-search')) {
+        return;
+    }
     focus.apply(this, args);
 }
 HTMLElement.prototype.focus = previewFocus;
@@ -78,13 +80,19 @@ style.textContent += '\nbody[data-preview-kind="login"] { padding: 0; }';
 document.head.append(style);
 
 function scheduleReport() {
-    if (queued) return;
+    if (queued) {
+        return;
+    }
     queued = true;
     requestAnimationFrame(() => {
         queued = false;
-        if (!config || disposed) return;
+        if (!config || disposed) {
+            return;
+        }
         const scenario = scenarios.find(scenario => scenario.id === config.scenario);
-        if (setups[scenario.setup]?.[setupStep]?.(element, scenario)) setupStep++;
+        if (setups[scenario.setup]?.[setupStep]?.(element, scenario)) {
+            setupStep++;
+        }
         const records = [...observations.values()];
         const references = markReferences(element, config.selected, records);
         // Login fills the viewport. Measuring its shell and then adding padding
@@ -109,10 +117,14 @@ sizes.observe(element);
 
 async function configurePreview(event) {
     if (event.source !== window.parent || event.origin !== location.origin ||
-        event.data?.channel !== 'caddy-ui-playground' || event.data.type !== 'configure-preview') return;
+        event.data?.channel !== 'caddy-ui-playground' || event.data.type !== 'configure-preview') {
+        return;
+    }
     const next = event.data.config;
     const scenario = scenarios.find(scenario => scenario.id === next?.scenario);
-    if (!scenario || !Object.hasOwn(catalogs, next.locale) || typeof readValue(catalogs.en, next.selected) !== 'string') return;
+    if (!scenario || !Object.hasOwn(catalogs, next.locale) || typeof readValue(catalogs.en, next.selected) !== 'string') {
+        return;
+    }
     const profile = capture.scenarios.find(profile => profile.id === scenario.profile);
     // History queries contain an exact since=<epoch>. Replay its observed clock
     // so production range controls keep using the captured request URLs.
@@ -132,16 +144,22 @@ async function configurePreview(event) {
         configuredState = stateKey;
     }
     const palette = THEME_LIST.find(theme => theme.id === (next.light ? DEFAULT_PALETTES.light : DEFAULT_PALETTES.dark));
-    for (const [key, value] of Object.entries(palette.vars)) document.documentElement.style.setProperty(key, value);
+    for (const [key, value] of Object.entries(palette.vars)) {
+        document.documentElement.style.setProperty(key, value);
+    }
     for (const [locale, catalog] of Object.entries(catalogs)) {
         i18n.removeResourceBundle(locale, 'translation');
         i18n.addResourceBundle(locale, 'translation', structuredClone(catalog));
     }
     for (const [key, value] of Object.entries(next.overrides)) {
-        if (typeof readValue(catalogs.en, key) === 'string' && typeof value === 'string') i18n.addResource(next.locale, 'translation', key, value);
+        if (typeof readValue(catalogs.en, key) === 'string' && typeof value === 'string') {
+            i18n.addResource(next.locale, 'translation', key, value);
+        }
     }
     await i18n.changeLanguage(next.locale);
-    if (disposed || currentRevision !== revision) return;
+    if (disposed || currentRevision !== revision) {
+        return;
+    }
     document.documentElement.lang = next.locale;
     document.body.dataset.previewKind = scenario.kind;
     flushSync(() => root.render(<MemoryRouter key={stateKey} initialEntries={[scenario.path || '/dashboard']}>
@@ -159,7 +177,9 @@ if (import.meta.hot) {
         window.removeEventListener('message', configurePreview);
         root.unmount(); style.remove();
         Date.now = realNow;
-        if (HTMLElement.prototype.focus === previewFocus) HTMLElement.prototype.focus = focus;
+        if (HTMLElement.prototype.focus === previewFocus) {
+            HTMLElement.prototype.focus = focus;
+        }
         // Keep virtual storage/replay in place until the next module initializes.
     });
 }

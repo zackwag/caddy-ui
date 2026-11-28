@@ -49,7 +49,9 @@ export default function Dashboard({ status, toast }) {
     const upstreamsKnown = status?.upstreamsTotal != null;
     const upstreamsOffline = upstreamsKnown ? status.upstreamsTotal - status.upstreamsOnline : 0;
 
-    if (!status) return <div className="loading">{t("common.loading")}</div>;
+    if (!status) {
+        return <div className="loading">{t("common.loading")}</div>;
+    }
 
     const instanceLabel = status.instance && (
         <span className="mono inline-muted" title={status.instance.id}>

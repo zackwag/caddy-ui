@@ -51,8 +51,12 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-    for (const inst of [alpha, beta]) markConfigChanged(inst.adminUrl);
-    for (const name of await readdir(root)) await rm(join(root, name), { force: true });
+    for (const inst of [alpha, beta]) {
+        markConfigChanged(inst.adminUrl);
+    }
+    for (const name of await readdir(root)) {
+        await rm(join(root, name), { force: true });
+    }
     await store.loadRouteNotes();
     instances.splice(0, instances.length, alpha, beta);
     listed.complete = true;
@@ -117,7 +121,9 @@ describe('route notes per instance', () => {
 
     it("waits to assign old notes until every instance's config can be read", async () => {
         caddyGet.mockImplementation(async (path, adminUrl) => {
-            if (adminUrl === beta.adminUrl) throw new Error('connect ECONNREFUSED');
+            if (adminUrl === beta.adminUrl) {
+                throw new Error('connect ECONNREFUSED');
+            }
             return serving('app.example.com');
         });
         await loadAndClaim({ 'app.example.com': 'Shared' });
@@ -137,7 +143,9 @@ describe('route notes per instance', () => {
         caddyGet.mockImplementation(async () => serving('other.example.com'));
         await loadAndClaim({ 'app.example.com': 'Shared' });
         caddyGet.mockImplementation(async () => serving('app.example.com'));
-        for (const inst of [alpha, beta]) markConfigChanged(inst.adminUrl);
+        for (const inst of [alpha, beta]) {
+            markConfigChanged(inst.adminUrl);
+        }
         for (const { id } of [alpha, beta]) {
             expect(retryNoteClaims(id)).toBeUndefined();
         }
@@ -173,7 +181,9 @@ describe('route notes per instance', () => {
             instances: { alpha: { 'app.example.com': 'Alpha app' }, beta: { 'app.example.com': 'Beta app' } },
             unassigned: { 'gone.example.com': 'Old' } });
         caddyGet.mockImplementation(async (path, adminUrl) => {
-            if (adminUrl === beta.adminUrl) throw new Error('connect ECONNREFUSED');
+            if (adminUrl === beta.adminUrl) {
+                throw new Error('connect ECONNREFUSED');
+            }
             return serving('other.example.com');
         });
         await cleanupOrphanedNotes();

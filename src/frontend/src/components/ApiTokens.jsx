@@ -63,7 +63,9 @@ export default function ApiTokens({ instances, instancesError, busy, setBusy, is
             <div className="btn-row">
                 <button className="btn btn-primary" disabled={busy} onClick={() => setIssued(null)}>{t('apiTokens.saved')}</button>
                 <button className="btn btn-danger" disabled={busy} onClick={async () => {
-                    if (await revoke(issued.id)) setIssued(null);
+                    if (await revoke(issued.id)) {
+                        setIssued(null);
+                    }
                 }}>{t('apiTokens.discard')}</button>
             </div>
         </section> : <>

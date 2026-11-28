@@ -129,7 +129,9 @@ router.post('/validations', async (req, res) => {
     const content = caddyfileText(req);
     const fmt = req.query.fmt === 'true';
     logger.info(`Validating Caddyfile`, { bytes: content.length, fmt });
-    if (!await validOrRespond(content, req, res)) return;
+    if (!await validOrRespond(content, req, res)) {
+        return;
+    }
     res.json({ valid: true, warnings: [], ...(fmt ? { formatted: await fmtCaddyfile(content, req.instance) } : {}) });
 });
 
@@ -162,7 +164,9 @@ router.put('/', async (req, res) => {
         try {
             final = sortCaddyfile(final);
         } catch (err) {
-            if (!(err instanceof SyntaxError)) throw err;
+            if (!(err instanceof SyntaxError)) {
+                throw err;
+            }
             logger.warn(`Caddyfile sort skipped`, { error: err.message });
         }
     }
@@ -174,7 +178,9 @@ router.put('/', async (req, res) => {
         result = await saveCaddyfileChange(req.instance, final, { rollback: !skipValidation, actor: req.actor, action,
             ifMatch: ifMatchTags(req.get('If-Match')) });
     } catch (err) {
-        if (!(err instanceof AppError)) throw err;
+        if (!(err instanceof AppError)) {
+            throw err;
+        }
         const detail = err.cause?.message || err.message;
         const errors = [err.code === 'CADDYFILE_CHANGE_REJECTED' || err.code === 'CADDYFILE_ROLLBACK_FAILED' ? `Caddy reload failed: ${detail}` : detail];
         return sendFailure(res, err, { valid: false, errors });

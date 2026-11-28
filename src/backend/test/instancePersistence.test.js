@@ -116,9 +116,15 @@ describe('failed instance changes', () => {
         // operation needs to reach the now-writable file and update both views.
         await instances.loadInstances();
         await changes[operation]();
-        if (operation === 'add') expect(instances.getInstance('gamma')).toEqual(instance('gamma'));
-        if (operation === 'update') expect(instances.getInstance('alpha').configPath).toBe('/etc/caddy/changed.Caddyfile');
-        if (operation === 'remove') expect(instances.getInstance('beta')).toBeNull();
+        if (operation === 'add') {
+            expect(instances.getInstance('gamma')).toEqual(instance('gamma'));
+        }
+        if (operation === 'update') {
+            expect(instances.getInstance('alpha').configPath).toBe('/etc/caddy/changed.Caddyfile');
+        }
+        if (operation === 'remove') {
+            expect(instances.getInstance('beta')).toBeNull();
+        }
         await expectPersisted();
     });
 

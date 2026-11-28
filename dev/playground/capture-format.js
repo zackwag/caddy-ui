@@ -5,19 +5,29 @@ export function normalizeCapture(value, replacements = []) {
     let firstTimestamp;
     function visit(value) {
         if (typeof value === 'string') {
-            for (const [from, to] of replacements) value = value.replaceAll(from, to);
+            for (const [from, to] of replacements) {
+                value = value.replaceAll(from, to);
+            }
             return value.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, id => {
                 id = id.toLowerCase();
-                if (!ids.has(id)) ids.set(id, `00000000-0000-4000-8000-${String(ids.size + 1).padStart(12, '0')}`);
+                if (!ids.has(id)) {
+                    ids.set(id, `00000000-0000-4000-8000-${String(ids.size + 1).padStart(12, '0')}`);
+                }
                 return ids.get(id);
             }).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/g, timestamp => {
                 const time = Date.parse(timestamp);
-                if (firstTimestamp === undefined) firstTimestamp = time;
+                if (firstTimestamp === undefined) {
+                    firstTimestamp = time;
+                }
                 return new Date(Date.parse('2025-01-01T12:00:00.000Z') + time - firstTimestamp).toISOString();
             });
         }
-        if (Array.isArray(value)) return value.map(visit);
-        if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [visit(key), visit(child)]));
+        if (Array.isArray(value)) {
+            return value.map(visit);
+        }
+        if (value && typeof value === 'object') {
+            return Object.fromEntries(Object.entries(value).map(([key, child]) => [visit(key), visit(child)]));
+        }
         return value;
     }
     return visit(value);
@@ -27,7 +37,9 @@ export function validateCapture(capture) {
     if (capture?.formatVersion !== CAPTURE_VERSION || !/^[a-f0-9]{40}$/.test(capture.source?.commit || '')) {
         throw new Error('Unsupported capture format or missing source commit. Refresh the capture.');
     }
-    if (!Array.isArray(capture.scenarios) || !capture.scenarios.length) throw new Error('Capture has no scenarios.');
+    if (!Array.isArray(capture.scenarios) || !capture.scenarios.length) {
+        throw new Error('Capture has no scenarios.');
+    }
     if (capture.csrfContext) {
         const { source, record } = capture.csrfContext;
         if (!/^[a-f0-9]{40}$/.test(source?.commit || '') || record?.request?.method !== 'GET'
@@ -38,7 +50,9 @@ export function validateCapture(capture) {
     }
     const ids = new Set();
     for (const scenario of capture.scenarios) {
-        if (!scenario.id || ids.has(scenario.id) || !Array.isArray(scenario.requests)) throw new Error('Invalid or duplicate capture scenario.');
+        if (!scenario.id || ids.has(scenario.id) || !Array.isArray(scenario.requests)) {
+            throw new Error('Invalid or duplicate capture scenario.');
+        }
         if (scenario.clock !== undefined && (!Number.isSafeInteger(scenario.clock) || scenario.clock < 0)) {
             throw new Error('Invalid capture clock. Refresh the capture.');
         }
@@ -80,7 +94,9 @@ export function createReplayFetch(records, onMiss = () => {}, origin = 'http://p
             onMiss(message);
             throw new Error(message);
         }
-        if (request.signal.aborted) throw request.signal.reason;
+        if (request.signal.aborted) {
+            throw request.signal.reason;
+        }
         const contentType = new Headers(response.headers).get('content-type') || '';
         const responseBody = [204, 205, 304].includes(response.status) ? null
             : contentType.includes('application/json') ? JSON.stringify(response.body) : String(response.body);

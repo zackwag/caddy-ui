@@ -37,7 +37,9 @@ async function adminProxy(t, target) {
     const server = createServer(async (req, res) => {
         try {
             const chunks = [];
-            for await (const chunk of req) chunks.push(chunk);
+            for await (const chunk of req) {
+                chunks.push(chunk);
+            }
             const request = { method: req.method, url: req.url, ifMatch: req.headers['if-match'] };
             requests.push(request);
             if (hook?.matches(request)) {

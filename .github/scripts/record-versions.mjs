@@ -24,20 +24,28 @@ function recordVersions(data, channel, entries) {
 }
 
 function main([file, channel, ...pairs]) {
-    if (!CHANNELS.includes(channel)) throw new Error(`channel must be one of ${CHANNELS.join(', ')}`);
+    if (!CHANNELS.includes(channel)) {
+        throw new Error(`channel must be one of ${CHANNELS.join(', ')}`);
+    }
     const entries = pairs.map(pair => {
         const [component, version] = pair.split('=');
-        if (!COMPONENTS.includes(component) || !version) throw new Error(`bad entry: ${pair}`);
+        if (!COMPONENTS.includes(component) || !version) {
+            throw new Error(`bad entry: ${pair}`);
+        }
         return [component, version];
     });
-    if (!entries.length) throw new Error('nothing to record');
+    if (!entries.length) {
+        throw new Error('nothing to record');
+    }
 
     let data = null;
     try {
         data = JSON.parse(readFileSync(file, 'utf8'));
     } catch (error) {
         // A first run has no file yet; a corrupt one must not be overwritten
-        if (error.code !== 'ENOENT') throw error;
+        if (error.code !== 'ENOENT') {
+            throw error;
+        }
     }
     writeFileSync(file, `${JSON.stringify(recordVersions(data, channel, entries), null, 2)}\n`);
 }

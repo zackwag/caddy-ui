@@ -21,10 +21,14 @@ export function parseLogConfig(content) {
     };
 
     const global = extractGlobalBlock(content);
-    if (!global) return defaultConfig;
+    if (!global) {
+        return defaultConfig;
+    }
 
     const log = defaultLogger(global.inner);
-    if (!log) return defaultConfig;
+    if (!log) {
+        return defaultConfig;
+    }
 
     const children = caddyfileChildren(log.inner);
     const config = { ...defaultConfig, enabled: true };
@@ -34,7 +38,9 @@ export function parseLogConfig(content) {
         const rolling = caddyfileChildren(output.block?.inner || '');
         config.rollSize = rolling.find(child => child.name === 'roll_size')?.args[0] ?? config.rollSize;
         const keep = rolling.find(child => child.name === 'roll_keep')?.args[0];
-        if (keep !== undefined) config.rollKeep = Number.parseInt(keep, 10);
+        if (keep !== undefined) {
+            config.rollKeep = Number.parseInt(keep, 10);
+        }
     }
     config.format = children.find(child => child.name === 'format')?.args[0] ?? config.format;
     config.level = (children.find(child => child.name === 'level')?.args[0] ?? config.level).toUpperCase();
@@ -43,9 +49,15 @@ export function parseLogConfig(content) {
 }
 
 function quoteLogPath(path) {
-    if (!/[\s"`]/.test(path) && !path.startsWith('#')) return path;
-    if (!path.includes('`')) return '`' + path + '`';
-    if (path.endsWith('\\')) throw new AppError('VALIDATION_FAILED', { context: { field: 'path' } });
+    if (!/[\s"`]/.test(path) && !path.startsWith('#')) {
+        return path;
+    }
+    if (!path.includes('`')) {
+        return '`' + path + '`';
+    }
+    if (path.endsWith('\\')) {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'path' } });
+    }
     return '"' + path.replaceAll('"', '\\"') + '"';
 }
 
@@ -54,7 +66,9 @@ export function validateLogConfig(config) {
         throw new AppError('VALIDATION_FAILED', { context: { field: 'enabled' } });
     }
     // Disabling emits no option values; only enabled settings need serialization.
-    if (!config.enabled) return;
+    if (!config.enabled) {
+        return;
+    }
     const valid = {
         // eslint-disable-next-line no-control-regex -- Paths must not contain control characters or Caddyfile line breaks.
         path: typeof config.path === 'string' && config.path.trim().length > 0 && !/[\x00-\x1f\x7f]/.test(config.path),
@@ -64,7 +78,9 @@ export function validateLogConfig(config) {
         level: ['DEBUG', 'INFO', 'WARN', 'ERROR'].includes(config.level),
     };
     const field = Object.keys(valid).find(field => !valid[field]);
-    if (field) throw new AppError('VALIDATION_FAILED', { context: { field } });
+    if (field) {
+        throw new AppError('VALIDATION_FAILED', { context: { field } });
+    }
 }
 
 function buildLogBlock(config, { indent, unit, eol, inline }) {

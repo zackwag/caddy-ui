@@ -66,7 +66,9 @@ export async function containerAddress(harness, containerName) {
     const networks = (await harness.inspect('container', containerName))?.NetworkSettings.Networks || {};
     // Docker names its default network "bridge"; other engines may not.
     const address = (networks[await harness.network() || 'bridge'] ?? Object.values(networks)[0])?.IPAddress;
-    if (!address) throw new Error(`${containerName} has no address on the Caddy network`);
+    if (!address) {
+        throw new Error(`${containerName} has no address on the Caddy network`);
+    }
     return address;
 }
 
@@ -83,7 +85,9 @@ function staleExampleAddresses(caddyfile, address) {
 // retained Caddyfile pointing at an old address gets a warning instead.
 export async function createExampleInstance(harness, name) {
     validateName(name);
-    if (name === EXAMPLE_UPSTREAM) throw new Error(`${EXAMPLE_UPSTREAM} is reserved for the example service`);
+    if (name === EXAMPLE_UPSTREAM) {
+        throw new Error(`${EXAMPLE_UPSTREAM} is reserved for the example service`);
+    }
     const upstream = await harness.create(EXAMPLE_UPSTREAM, { caddyfile: exampleUpstreamCaddyfile() });
     const address = await containerAddress(harness, upstream.instance.containerName);
     const info = await harness.create(name, { caddyfile: exampleCaddyfile(address, { development: true }), publishHttps: true });

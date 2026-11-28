@@ -62,7 +62,9 @@ function normalizeInstance(instance) {
 }
 
 function buildDefaultInstance() {
-    if (!process.env.CADDY_ADMIN_URL) return null;
+    if (!process.env.CADDY_ADMIN_URL) {
+        return null;
+    }
     try {
         return normalizeInstance({
             id: DEFAULT_INSTANCE_ID,
@@ -138,23 +140,31 @@ export function getInstance(id) {
     const instances = getInstances();
     const selected = id || DEFAULT_INSTANCE_ID;
     const match = instances.find(i => i.id === selected);
-    if (match) return match;
+    if (match) {
+        return match;
+    }
     return selected === DEFAULT_INSTANCE_ID ? instances[0] || null : null;
 }
 
 // An id for a new instance, from its name, that no instance has yet.
 export function generateId(name, existingIds = new Set(storedInstanceIds())) {
     const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'instance';
-    if (!existingIds.has(base)) return base;
+    if (!existingIds.has(base)) {
+        return base;
+    }
     let suffix = 2;
-    while (existingIds.has(`${base}-${suffix}`)) suffix++;
+    while (existingIds.has(`${base}-${suffix}`)) {
+        suffix++;
+    }
     return `${base}-${suffix}`;
 }
 
 // Server IDs from Caddy's /config/apps/http/servers response, which is null
 // when no http app is configured.
 export function serverIdsFromConfig(servers) {
-    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) return [];
+    if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
+        return [];
+    }
     return Object.keys(servers).sort();
 }
 
@@ -201,7 +211,9 @@ export async function addInstance(fields) {
 export async function updateInstance(id, updates) {
     const saved = await store.update(state => {
         const idx = state.instances.findIndex(i => i.id === id);
-        if (idx === -1) throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
+        if (idx === -1) {
+            throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
+        }
         state.instances[idx] = normalizeInstance({ ...state.instances[idx], ...updates, id });
     });
     logger.info('Instance updated', { id });
@@ -212,7 +224,9 @@ export async function updateInstance(id, updates) {
 export async function removeInstance(id) {
     await store.update(state => {
         const idx = state.instances.findIndex(i => i.id === id);
-        if (idx === -1) throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
+        if (idx === -1) {
+            throw new AppError('INSTANCE_NOT_FOUND', { message: `Instance "${id}" not found` });
+        }
         state.instances.splice(idx, 1);
     });
     logger.info('Instance removed', { id });

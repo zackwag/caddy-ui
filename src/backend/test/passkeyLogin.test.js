@@ -22,7 +22,7 @@ async function fixture() {
 }
 const optionsFor = client => client.request('/auth/passkeys/authentication/options', { method: 'POST' });
 const submit = (client, body) => client.request('/auth/passkeys/authentication', { method: 'POST', body });
-afterEach(async () => { for (const f of fixtures.splice(0).reverse()) await f.close(); });
+afterEach(async () => { for (const f of fixtures.splice(0).reverse()) { await f.close(); } });
 
 describe('passkey sign-in', () => {
     it('classifies a counter rejected inside the store as invalid and does not issue a session', async () => {

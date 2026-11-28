@@ -91,11 +91,15 @@ test('Security sections update credentials on HTTP and preserve the current brow
     const user = dialog.getByRole('button', { name: 'User', exact: true });
     const tokens = dialog.getByRole('button', { name: 'API tokens', exact: true });
     const auth = dialog.getByRole('button', { name: 'Auth', exact: true });
-    for (const section of [user, auth, tokens]) assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    for (const section of [user, auth, tokens]) {
+        assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    }
     await auth.click();
     const totp = dialog.getByRole('button', { name: 'Authenticator app (TOTP)', exact: true });
     const passkeys = dialog.getByRole('button', { name: 'Passkeys', exact: true });
-    for (const section of [totp, passkeys]) assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    for (const section of [totp, passkeys]) {
+        assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    }
     assert.equal(await dialog.getByRole('button', { name: 'Set up authenticator', exact: true }).count(), 0);
     await totp.press('Enter');
     await dialog.getByRole('button', { name: 'Set up authenticator', exact: true }).waitFor();
@@ -107,7 +111,9 @@ test('Security sections update credentials on HTTP and preserve the current brow
     assert(bottom.y - (top.y + top.height) >= 16, 'authentication sections have visible spacing');
     await auth.click();
     await auth.click();
-    for (const section of [totp, passkeys]) assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    for (const section of [totp, passkeys]) {
+        assert.equal(await section.getAttribute('aria-expanded'), 'false');
+    }
     await auth.click();
     await user.press('Enter');
     assert.equal(await dialog.getByLabel('Username', { exact: true }).inputValue(), 'administrator');
@@ -210,7 +216,9 @@ async function virtualAuthenticator(context, page) {
 async function choosePassword(dialog, passwordId) {
     // The password input is hidden when passkey verification is preferred.
     const radio = dialog.locator(`input[type="radio"][name="${passwordId}"]`).last();
-    if (await radio.count()) await radio.check();
+    if (await radio.count()) {
+        await radio.check();
+    }
 }
 
 async function addPasskey(dialog, password, name) {

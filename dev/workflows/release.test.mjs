@@ -86,8 +86,11 @@ test('version recording retains success gates and forwards only nonempty compone
     for (const components of [[], ['backend'], ['frontend'], ['backend', 'frontend']]) {
         rmSync(capture, { force: true });
         run(step.run, cwd, { CAPTURE: capture, BACKEND: components.includes('backend') ? '3.7.1' : '', FRONTEND: components.includes('frontend') ? '3.7.1' : '' });
-        if (!components.length) assert.throws(() => readFileSync(capture), { code: 'ENOENT' });
-        else assert.deepEqual(readFileSync(capture, 'utf8').split('\0').slice(0, -1), ['stable', ...components.map(component => component + '=3.7.1')]);
+        if (!components.length) {
+            assert.throws(() => readFileSync(capture), { code: 'ENOENT' });
+        } else {
+            assert.deepEqual(readFileSync(capture, 'utf8').split('\0').slice(0, -1), ['stable', ...components.map(component => component + '=3.7.1')]);
+        }
     }
 });
 
