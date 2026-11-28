@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../utils/api.js';
+import ErrorNote from './ErrorNote.jsx';
+import { useFetch } from '../hooks/useFetch.js';
 import { historyActor } from '../utils/caddyfileHistory.js';
-import { localizeError } from '../utils/errorMessages.js';
 import { formatTs } from '../utils/format.js';
 
 function describe(event, t) {
@@ -20,21 +19,14 @@ function describe(event, t) {
     }
 }
 
-export default function ActivityLog({ onUnauth }) {
+export default function ActivityLog() {
     const { t } = useTranslation();
-    const [events, setEvents] = useState(null);
-    const [error, setError] = useState(null);
-
-    useEffect(() => {
-        let active = true;
-        apiFetch('/audit', {}, onUnauth).then(body => { if (active) setEvents(body.events); })
-            .catch(error => { if (active) setError(error); });
-        return () => { active = false; };
-    }, [onUnauth]);
+    const { data, error } = useFetch('/audit');
+    const events = data?.events;
 
     return <div className="security-fields">
         <p className="modal-hint">{t('activity.hint')}</p>
-        {error && <p className="login-error" role="alert">{localizeError(error, t)}</p>}
+        <ErrorNote error={error} />
         {events && !events.length && <p className="modal-hint">{t('activity.empty')}</p>}
         {events?.length > 0 && <ul className="api-token-list">{events.map(event => <li key={event.id}>
             <strong>{describe(event, t)}</strong>

@@ -6,20 +6,17 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { validateInventory } from './history-backfill.mjs';
-import { groupBooks, validateBookAssets, validateBookResults } from './history-books.mjs';
+import { groupBooks, readArchiveManifest, validateBookAssets, validateBookResults } from './history-books.mjs';
 import { options } from './history-inventory.mjs';
 
-export const archiveTag = 'documentation-history-archive';
+const archiveTag = 'documentation-history-archive';
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const readJson = path => JSON.parse(readFileSync(path, 'utf8'));
 const checkpointName = /^history-([a-f0-9]{64})\.json$/;
 const entries = ['backfill.json', 'books', 'logs', 'groups.json', 'report.md', 'grouping-config.json'];
 
-export function validateArchive(directory) {
-    const manifest = readJson(join(directory, 'backfill.json'));
-    if (manifest.schema !== 1 || manifest.inventoryFingerprint !== digest(JSON.stringify(manifest.inventory))) {
-        throw new Error('Invalid archive inventory fingerprint');
-    }
+function validateArchive(directory) {
+    const manifest = readArchiveManifest(directory);
     validateInventory(manifest.inventory);
     validateBookResults(directory, manifest.inventory, manifest.results);
     const grouping = readJson(join(directory, 'grouping-config.json'));

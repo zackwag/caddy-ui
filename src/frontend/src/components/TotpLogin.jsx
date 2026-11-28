@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { authRequest } from '../utils/api.js';
-import { localizeError } from '../utils/errorMessages.js';
+import { isTotpCode } from '../utils/credentialVerification.js';
+import ErrorNote from './ErrorNote.jsx';
+import LoginCard from './LoginCard.jsx';
 import AuthenticatorCode from './AuthenticatorCode.jsx';
 
 export default function TotpLogin({ onLogin, onCancel }) {
@@ -14,7 +16,7 @@ export default function TotpLogin({ onLogin, onCancel }) {
         setBusy(true);
         setError(null);
         try {
-            await authRequest('/sessions/totp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+            await authRequest('/sessions/totp', { method: 'POST', json: { code } });
             await onLogin();
         } catch (error) { setError(error); }
         finally { setCode(''); setBusy(false); }
@@ -25,14 +27,14 @@ export default function TotpLogin({ onLogin, onCancel }) {
         catch (error) { setError(error); }
         finally { setBusy(false); }
     }
-    return <div className="login-shell"><form className="login-card" onSubmit={submit}>
+    return <LoginCard onSubmit={submit}>
         <h2>{t('totp.loginTitle')}</h2>
         <p className="auth-help">{t('totp.loginHint')}</p>
-        {error && <p className="login-error" role="alert">{localizeError(error, t)}</p>}
+        <ErrorNote error={error} />
         <fieldset className="security-fields" disabled={busy || error?.code === 'TOTP_CHALLENGE_EXPIRED' || error?.code === 'TOTP_RATE_LIMITED'}>
             <AuthenticatorCode id="login-totp" value={code} onChange={setCode} autoFocus />
-            <button className="btn btn-primary btn--full" disabled={!/^\d{6}$/.test(code)}>{t(busy ? 'login.signingIn' : 'totp.verify')}</button>
+            <button className="btn btn-primary btn--full" disabled={!isTotpCode(code)}>{t(busy ? 'login.signingIn' : 'totp.verify')}</button>
         </fieldset>
         <button type="button" className="btn btn--full" disabled={busy} onClick={cancel}>{t('totp.backToLogin')}</button>
-    </form></div>;
+    </LoginCard>;
 }

@@ -1,74 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseSiteBlocks, planLegacyHistoryMigration, sortCaddyfile } from '../src/routes/caddyfile.js';
-
-describe('parseSiteBlocks', () => {
-    it('parses a single site block', () => {
-        const content = `app.example.com {
-    reverse_proxy localhost:8080
-}`;
-        const { blocks } = parseSiteBlocks(content);
-        expect(blocks).toHaveLength(1);
-        expect(blocks[0].header).toBe('app.example.com {');
-    });
-
-    it('parses multiple site blocks', () => {
-        const content = `app.example.com {
-    reverse_proxy localhost:8080
-}
-
-other.example.com {
-    reverse_proxy localhost:9090
-}`;
-        const { blocks } = parseSiteBlocks(content);
-        expect(blocks).toHaveLength(2);
-        expect(blocks[0].header).toBe('app.example.com {');
-        expect(blocks[1].header).toBe('other.example.com {');
-    });
-
-    it('handles nested braces', () => {
-        const content = `app.example.com {
-    handle /api/* {
-        reverse_proxy localhost:8080
-    }
-}`;
-        const { blocks } = parseSiteBlocks(content);
-        expect(blocks).toHaveLength(1);
-        expect(blocks[0].lines).toHaveLength(5);
-    });
-
-    it('skips empty lines and comments', () => {
-        const content = `# This is a comment
-
-app.example.com {
-    reverse_proxy localhost:8080
-}`;
-        const { blocks } = parseSiteBlocks(content);
-        expect(blocks).toHaveLength(1);
-    });
-
-    it('returns empty blocks and loose for empty input', () => {
-        const { blocks, loose } = parseSiteBlocks('');
-        expect(blocks).toEqual([]);
-        expect(loose).toEqual([]);
-    });
-
-    it('returns empty blocks for only comments', () => {
-        const { blocks } = parseSiteBlocks('# just a comment\n# another');
-        expect(blocks).toEqual([]);
-    });
-
-    it('captures top-level import lines as loose', () => {
-        const content = `import conf.d/*.caddy
-
-app.example.com {
-    reverse_proxy localhost:8080
-}`;
-        const { blocks, loose } = parseSiteBlocks(content);
-        expect(blocks).toHaveLength(1);
-        expect(loose).toHaveLength(1);
-        expect(loose[0]).toContain('import conf.d/*.caddy');
-    });
-});
+import { sortCaddyfile } from '../src/caddyfileSort.js';
+import { planLegacyHistoryMigration } from '../src/configurationHistory.js';
 
 describe('sortCaddyfile', () => {
     it('sorts public blocks before internal blocks', () => {
@@ -79,10 +11,14 @@ describe('sortCaddyfile', () => {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = sortCaddyfile(content);
-        const appIdx = result.indexOf('app.example.com');
-        const grafanaIdx = result.indexOf('grafana.internal');
-        expect(appIdx).toBeLessThan(grafanaIdx);
+        expect(sortCaddyfile(content)).toBe(`app.example.com {
+    reverse_proxy localhost:8080
+}
+
+grafana.internal {
+    reverse_proxy localhost:3000
+}
+`);
     });
 
     it('sorts internal blocks before http:// blocks', () => {
@@ -93,10 +29,14 @@ app.example.com {
 grafana.internal {
     reverse_proxy localhost:3000
 }`;
-        const result = sortCaddyfile(content);
-        const internalIdx = result.indexOf('grafana.internal');
-        const httpIdx = result.indexOf('http://redirect.example.com');
-        expect(internalIdx).toBeLessThan(httpIdx);
+        expect(sortCaddyfile(content)).toBe(`grafana.internal {
+    reverse_proxy localhost:3000
+}
+
+http://redirect.example.com {
+    redir https://example.com
+}
+`);
     });
 
     it('preserves the global block at the top', () => {
@@ -111,12 +51,18 @@ beta.example.com {
 app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = sortCaddyfile(content);
-        expect(result.indexOf('{')).toBe(0);
-        expect(result.indexOf('email admin@example.com')).toBeGreaterThan(0);
-        const appIdx = result.indexOf('app.example.com');
-        const betaIdx = result.indexOf('beta.example.com');
-        expect(appIdx).toBeLessThan(betaIdx);
+        expect(sortCaddyfile(content)).toBe(`{
+    email admin@example.com
+}
+
+app.example.com {
+    reverse_proxy localhost:8080
+}
+
+beta.example.com {
+    reverse_proxy localhost:9090
+}
+`);
     });
 
     it('alphabetizes blocks within each category', () => {
@@ -131,12 +77,18 @@ alpha.example.com {
 bravo.example.com {
     reverse_proxy localhost:2000
 }`;
-        const result = sortCaddyfile(content);
-        const alphaIdx = result.indexOf('alpha.example.com');
-        const bravoIdx = result.indexOf('bravo.example.com');
-        const charlieIdx = result.indexOf('charlie.example.com');
-        expect(alphaIdx).toBeLessThan(bravoIdx);
-        expect(bravoIdx).toBeLessThan(charlieIdx);
+        expect(sortCaddyfile(content)).toBe(`alpha.example.com {
+    reverse_proxy localhost:1000
+}
+
+bravo.example.com {
+    reverse_proxy localhost:2000
+}
+
+charlie.example.com {
+    reverse_proxy localhost:3000
+}
+`);
     });
 
     it('preserves top-level import lines', () => {
@@ -149,31 +101,37 @@ beta.example.com {
 alpha.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = sortCaddyfile(content);
-        expect(result).toContain('import conf.d/*.caddy');
-        const alphaIdx = result.indexOf('alpha.example.com');
-        const betaIdx = result.indexOf('beta.example.com');
-        expect(alphaIdx).toBeLessThan(betaIdx);
+        expect(sortCaddyfile(content)).toBe(`import conf.d/*.caddy
+
+alpha.example.com {
+    reverse_proxy localhost:8080
+}
+
+beta.example.com {
+    reverse_proxy localhost:9090
+}
+`);
+    });
+
+    it('moves a site with nested blocks as a whole', () => {
+        const nested = 'b.example.com {\n    handle /api/* {\n        reverse_proxy localhost:8080\n    }\n}';
+        expect(sortCaddyfile(nested + '\n\na.example.com {\n    respond "a"\n}\n'))
+            .toBe('a.example.com {\n    respond "a"\n}\n\n' + nested + '\n');
+    });
+
+    it('keeps a file of only comments', () => {
+        expect(sortCaddyfile('# just a comment\n# another')).toBe('# just a comment\n# another\n');
     });
 
     it('ends with a trailing newline', () => {
         const content = `app.example.com {
     reverse_proxy localhost:8080
 }`;
-        const result = sortCaddyfile(content);
-        expect(result.endsWith('\n')).toBe(true);
-        expect(result.endsWith('\n\n')).toBe(false);
+        expect(sortCaddyfile(content)).toBe(content + '\n');
     });
 });
 
 describe('sortCaddyfile with literal braces and comments', () => {
-    const heredocSite = 'b.example.com {\n    respond <<BODY\n}\n{\nBODY\n}';
-
-    it('keeps a heredoc containing braces inside its site block', () => {
-        const result = sortCaddyfile(heredocSite + '\n\na.example.com {\n    respond "a"\n}\n');
-        expect(result).toBe('a.example.com {\n    respond "a"\n}\n\n' + heredocSite + '\n');
-    });
-
     it('does not count braces in quoted values or comments', () => {
         const quoted = 'b.example.com {\n    respond "}"\n    # stray {\n}';
         const result = sortCaddyfile(quoted + '\n\na.example.com {\n    respond "a"\n}\n');
@@ -190,10 +148,10 @@ describe('sortCaddyfile with literal braces and comments', () => {
         expect(sortCaddyfile(content)).toBe('﻿{ # options\n    admin off\n}\n\n(common) {\n    respond "ok"\n}\n\nz.example.com {\n    import common\n}\n');
     });
 
-    it('recognizes a site header followed by a comment', () => {
-        const { blocks, loose } = parseSiteBlocks('app.example.com { # main site\n    respond "ok"\n}\n');
-        expect(loose).toEqual([]);
-        expect(blocks[0].header).toBe('app.example.com {');
+    it('sorts a site header followed by a comment by its address alone', () => {
+        const commented = 'c.example.com { # mirrors grafana.internal\n    respond "c"\n}';
+        const content = commented + '\n\nb.internal {\n    respond "b"\n}\n\na.example.com {\n    respond "a"\n}\n';
+        expect(sortCaddyfile(content)).toBe('a.example.com {\n    respond "a"\n}\n\n' + commented + '\n\nb.internal {\n    respond "b"\n}\n');
     });
 
     it('rejects input it cannot structure instead of reordering it', () => {

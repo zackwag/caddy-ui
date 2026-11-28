@@ -11,7 +11,7 @@ on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
   push:
-    branches: [main, master]
+    branches: [main]
 
 permissions:
   pull-requests: read

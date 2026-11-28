@@ -2,6 +2,7 @@ import http from 'http';
 import https from 'https';
 import { isIP } from 'net';
 import tls from 'tls';
+import { caddyLocalRootCertificate } from './caddy.js';
 import { getServers } from './observations.js';
 import { getHost } from './upstreamChecks.js';
 
@@ -62,19 +63,13 @@ export function failureReason({ online, statusCode, error }) {
 // CAs a route's certificate may chain to: Node's defaults (bundled roots plus
 // NODE_EXTRA_CA_CERTS) and, when the instance has one, Caddy's local CA, which
 // signs the certificates for internal names like *.internal.
-export async function getTrustedCAs(adminUrl) {
+async function getTrustedCAs(adminUrl) {
     const defaults = tls.getCACertificates?.('default') ?? tls.rootCertificates;
     try {
-        const res = await fetch(`${adminUrl}/pki/ca/local`, {
-            headers: { 'Origin': 'http://0.0.0.0:2019' },
-            signal: AbortSignal.timeout(3000),
-        });
-        if (res.ok) {
-            const { root_certificate: root } = await res.json();
-            if (root) return [...defaults, root];
-        }
-    } catch { }
-    return [...defaults];
+        return [...defaults, await caddyLocalRootCertificate(adminUrl)];
+    } catch {
+        return [...defaults];
+    }
 }
 
 // Requests the site from the instance's Caddy listener directly, naming the

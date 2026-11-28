@@ -3,8 +3,8 @@ import { createServer as createHttpServer } from 'node:http';
 import { createServer as createTcpServer } from 'node:net';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CaddyTimeoutError, caddyLoad, configGeneration, setRequestTimeout } from '../src/caddy.js';
-import { clearObservations, getServers, OBSERVATION_MAX_AGE_MS } from '../src/observations.js';
+import { CaddyTimeoutError, caddyLoad, configGeneration, markConfigChanged, setRequestTimeout } from '../src/caddy.js';
+import { getServers, OBSERVATION_MAX_AGE_MS } from '../src/observations.js';
 import healthRouter from '../src/routes/health.js';
 import statusRouter from '../src/routes/status.js';
 
@@ -130,9 +130,9 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-    clearObservations();
     dials = 0;
     for (const c of caddies) {
+        markConfigChanged(c.adminUrl);
         c.configReads = 0;
         c.failNextRead = false;
         c.hasRoute = true;
@@ -260,18 +260,22 @@ describe('shared configuration and upstream observations', () => {
 });
 
 describe('configuration writes that outlast their timeout', () => {
-    beforeEach(() => setRequestTimeout(50));
-    afterEach(() => setRequestTimeout(10000));
+    // Only the write gets the short timeout: the held reads below must outlast it.
+    function startTimedOutWrite() {
+        const held = holdNextLoad(caddy);
+        setRequestTimeout(50);
+        const load = caddyLoad('example.com {\n}\n', caddy.adminUrl);
+        setRequestTimeout(10000);
+        const timedOut = expect(load).rejects.toBeInstanceOf(CaddyTimeoutError);
+        return { held, timedOut };
+    }
 
     // Releases a held write and resolves once its settlement has invalidated
     // observations, which happens in the background after the caller timed out.
     const settle = async (held, status) => {
         const before = configGeneration(caddy.adminUrl);
         held.release(status);
-        for (let attempt = 0; attempt < 100 && configGeneration(caddy.adminUrl) === before; attempt++) {
-            await new Promise(resolve => setTimeout(resolve, 5));
-        }
-        expect(configGeneration(caddy.adminUrl)).toBeGreaterThan(before);
+        await vi.waitFor(() => expect(configGeneration(caddy.adminUrl)).toBeGreaterThan(before));
     };
 
     it.each([
@@ -279,10 +283,9 @@ describe('configuration writes that outlast their timeout', () => {
         { outcome: 'fails', status: 500 },
     ])('reads fresh config once a timed-out write later $outcome', async ({ status }) => {
         await getServers(caddy.adminUrl);
-        const held = holdNextLoad(caddy);
-        const load = caddyLoad('example.com {\n}\n', caddy.adminUrl);
+        const { held, timedOut } = startTimedOutWrite();
         await held.started;
-        await expect(load).rejects.toBeInstanceOf(CaddyTimeoutError);
+        await timedOut;
 
         // A read between the timeout and settlement sees the old config, and
         // is reused until the write settles.
@@ -299,12 +302,9 @@ describe('configuration writes that outlast their timeout', () => {
     });
 
     it('never lets a read from before the late settlement replace a newer one', async () => {
-        const held = holdNextLoad(caddy);
-        const load = caddyLoad('example.com {\n}\n', caddy.adminUrl);
+        const { held, timedOut } = startTimedOutWrite();
         await held.started;
-        await expect(load).rejects.toBeInstanceOf(CaddyTimeoutError);
-        // Only the write should time out; this read stays held on purpose.
-        setRequestTimeout(10000);
+        await timedOut;
 
         const heldRead = holdNextConfigRead(caddy);
         const older = getServers(caddy.adminUrl);

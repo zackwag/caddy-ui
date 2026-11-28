@@ -1,6 +1,5 @@
-import { once } from 'node:events';
-import express from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 import healthRouter from '../src/routes/health.js';
 import { getStatsForInstance, recordCheck } from '../src/uptimeHistory.js';
 
@@ -16,17 +15,16 @@ let server;
 let healthUrl;
 
 beforeAll(async () => {
-    const app = express();
-    app.use('/api/health', (req, res, next) => {
-        req.instance = { id: instanceId, adminUrl: 'http://caddy:2019' };
-        next();
-    }, healthRouter);
-    server = app.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    healthUrl = `http://127.0.0.1:${server.address().port}/api/health`;
+    server = await serve(app => {
+        app.use('/api/health', (req, res, next) => {
+            req.instance = { id: instanceId, adminUrl: 'http://caddy:2019' };
+            next();
+        }, healthRouter);
+    });
+    healthUrl = server.url + '/api/health';
 });
 
-afterAll(() => new Promise(resolve => server.close(resolve)));
+afterAll(() => server.close());
 
 beforeEach(() => {
     getUpstreamChecks.mockReset().mockResolvedValue({

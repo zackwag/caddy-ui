@@ -6,7 +6,6 @@ export default {
     common: {
         save: 'Guardar',
         cancel: 'Cancelar',
-        confirm: 'Confirmar',
         loading: 'Cargando...',
         saving: 'Guardando...',
         refresh: 'Actualizar',
@@ -37,7 +36,6 @@ export default {
         instances: 'Instancias',
     },
     errors: {
-        backendUnreachable: 'No se ha podido conectar con el servidor',
         languageLoadFailed: 'No se ha podido cargar ese idioma. Intenta volver a cargar la página.',
         generic: 'La operación ha fallado. Consulta los registros de la aplicación para obtener más información.',
         network: 'No se puede conectar con el servidor. Comprueba tu conexión.',

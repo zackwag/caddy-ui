@@ -2,9 +2,8 @@
 // pick one palette to use in dark mode and one to use in light mode, and
 // the existing dark/light toggle switches between whichever two are
 // selected. Adding a new theme is just adding an entry here; every rule in
-// this stylesheet and every editor color in CaddyfileCodeMirror/
-// MiniCodeMirror reads from these variables rather than hardcoding colors,
-// so a new theme needs no other changes.
+// this stylesheet and every editor color reads from these variables rather
+// than hardcoding colors, so a new theme needs no other changes.
 export const THEME_LIST = [
     {
         id: 'vt2026', label: 'VT2026', mode: 'dark', vars: {
@@ -662,12 +661,15 @@ function themeVars(theme) {
     return Object.entries(theme.vars).map(([key, value]) => `${key}: ${value};`).join('\n    ');
 }
 
+// The palette each mode starts with.
+export const DEFAULT_PALETTES = { dark: 'vt2026', light: 'coarse-everywhere' };
+
 // Every variable a theme must define, for anything (custom theme apply
 // logic, validation) that needs the canonical set without duplicating it.
 export const THEME_VAR_KEYS = Object.keys(THEME_LIST[0].vars);
 
 // Every palette's variables are scoped behind [data-palette="id"] on <html>
-// (set by ThemePicker), so any number of themes can coexist. The plain
+// (set by App), so any number of themes can coexist. The plain
 // :root block underneath is just a pre-JS fallback matching the default
 // dark theme.
 const paletteBlocks = THEME_LIST.map(t => `
@@ -680,7 +682,7 @@ export const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    ${themeVars(THEME_LIST[0])}
+    ${themeVars(THEME_LIST.find(theme => theme.id === DEFAULT_PALETTES.dark))}
     --mono: 'IBM Plex Mono', monospace;
     --sans: 'IBM Plex Sans', sans-serif;
     color-scheme: dark;
@@ -1031,12 +1033,6 @@ export const css = `
     gap: 8px;
   }
   .server-row:last-child { border-bottom: none; }
-
-  .server-name {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    color: var(--text);
-  }
 
   .server-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
@@ -1504,7 +1500,6 @@ export const css = `
   .security-subsection-body { padding: 4px 0 12px; }
   .security-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
   .security-fields:disabled { opacity: .65; }
-  .security-planned { padding-bottom: 12px; }
   .totp-qr { display: block; max-width: 100%; height: auto; margin: 12px 0; }
   .credential-method label { display: flex; align-items: center; gap: 8px; }
   .credential-method input[type="radio"] { width: auto; margin: 0; }
@@ -1906,8 +1901,6 @@ export const css = `
   }
 
   .data-val--accent { color: var(--accent); }
-  .data-val--danger { color: var(--danger); }
-  .data-val--muted  { color: var(--muted); font-size: 11px; }
 
   /* ── Utility: Card variants ───────────────────────────────────────────────── */
 
@@ -1957,7 +1950,6 @@ export const css = `
     margin-bottom: 16px;
   }
 
-
   .modal-section-divider {
     border-top: 1px solid var(--border);
     margin: 4px 0 20px;
@@ -1990,7 +1982,6 @@ export const css = `
   .btn--icon { padding: 4px 10px; }
   .btn--sm   { padding: 3px 10px; font-size: 11px; }
   .btn--full { width: 100%; justify-content: center; margin-top: 8px; }
-  .btn--right { margin-left: auto; }
 
   /* ── Utility: Layout ──────────────────────────────────────────────────────── */
 
@@ -2032,7 +2023,7 @@ export const css = `
     margin-left: 4px;
   }
 
-  /* ── Utility: Caddyfile-managed route notice ──────────────────────────────── */
+  /* ── Utility: Caddyfile editor in a modal ──────────────────────────────── */
 
   .modal-editor-wrap {
     min-height: 180px;
@@ -2044,17 +2035,6 @@ export const css = `
   .modal-editor-wrap .cm-content, .modal-editor-wrap .cm-gutter { min-height: 180px; }
   .modal-editor-wrap .cm-editor.cm-focused { outline: none; }
   .modal-editor-wrap .cm-scroller { max-height: 340px; }
-
-  .caddyfile-notice {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    background: color-mix(in srgb, var(--text) 15%, transparent);
-    border: 1px solid var(--border2);
-    border-radius: 4px;
-    padding: 12px;
-    margin-bottom: 8px;
-  }
 
   /* ── Utility: Metrics ─────────────────────────────────────────────────────── */
 
@@ -2162,8 +2142,16 @@ export const css = `
     flex-shrink: 0;
   }
 
-  .health-dot--none    { background: var(--border2); }
-  .health-dot--pending { background: var(--muted); }
+  .health-dot--online      { background: var(--accent); box-shadow: 0 0 4px var(--accent); }
+  .health-dot--partial     { background: var(--warn); box-shadow: 0 0 4px var(--warn); }
+  .health-dot--offline     { background: var(--danger); box-shadow: 0 0 4px var(--danger); }
+  .health-dot--maintenance { background: var(--accent3); box-shadow: 0 0 4px var(--accent3); }
+  .health-dot--unknown     { background: var(--muted); }
+  .health-dot--none        { background: var(--border2); }
+  .health-text--online  { color: var(--accent); }
+  .health-text--partial { color: var(--warn); }
+  .health-text--offline { color: var(--danger); }
+  .health-text--unknown, .health-text--none { color: var(--muted); }
 
   .col-status { width: 1%; white-space: nowrap; }
   .col-status--clickable { cursor: pointer; }
@@ -2349,7 +2337,7 @@ export const css = `
   [dir="rtl"] .theme-picker-menu { right: auto; left: 0; }
   [dir="rtl"] .toast-wrap { right: auto; left: 19px; }
   [dir="rtl"] .toast { border-left: 0; border-right: 3px solid; }
-  [dir="rtl"] :is(.history-version-actions, .btn--right) { margin-left: 0; margin-right: auto; }
+  [dir="rtl"] .history-version-actions { margin-left: 0; margin-right: auto; }
   [dir="rtl"] :is(.sort-icon, .sort-icon--active, .inline-muted, .ms-unit) { margin-left: 0; margin-right: 4px; }
   [dir="rtl"] .history-latest { margin-left: 0; margin-right: 8px; }
   [dir="rtl"] .uptime-upstream-dot { margin-right: 0; margin-left: 6px; }
@@ -2366,7 +2354,7 @@ export const css = `
   }
   [dir="rtl"] body :is(.cm-editor, .cm-editor *, .log-wrap, .log-wrap *, code, pre, .route-link, [dir="ltr"]) { font-family: 'IBM Plex Mono', monospace; }
   /* Chronological charts retain their oldest-to-newest horizontal axis. */
-  [dir="rtl"] :is(.history-timeline, .history-timeline-axis, .uptime-bar) { direction: ltr; }
+  [dir="rtl"] :is(.history-timeline, .history-timeline-axis) { direction: ltr; }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }

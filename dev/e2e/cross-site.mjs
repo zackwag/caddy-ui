@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import test from 'node:test';
-import { chromium } from 'playwright';
+import { launchChromium } from '../browser.mjs';
 import { createCrossSiteFixture } from '../../src/backend/test/fixtures/crossSite.mjs';
 import { FixtureScope } from '../integration/lifecycle.mjs';
 
@@ -22,9 +22,7 @@ async function fixture(t, configured = true) {
         server.closeAllConnections();
         await new Promise(resolve => server.close(resolve));
     });
-    const browser = await scope.acquire(() => chromium.launch({
-        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
-    }), value => value.close());
+    const browser = await scope.acquire(() => launchChromium(), value => value.close());
     const context = await scope.acquire(() => browser.newContext(), value => value.close());
     const page = await scope.run(() => context.newPage());
     page.setDefaultTimeout(10000);

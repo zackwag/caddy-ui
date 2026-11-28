@@ -2,16 +2,14 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { before, test } from 'node:test';
+import { test } from 'node:test';
 import { THEME_LIST } from '../../src/frontend/src/styles.js';
-import { prepareBrowserTests, useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
+import { apiSignIn, useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
 
 const image = '<img data-xss-probe src=/__xss_probe onerror="window.xssHits++">';
 const svg = '<svg data-xss-probe onload="window.xssHits++"></svg>';
 const payloads = [image, svg, '</textarea>' + image, '">' + svg];
 const options = { timeout: 120000 };
-
-before(prepareBrowserTests, { timeout: 35000 });
 
 async function watchForXss(page) {
     await page.addInitScript(() => { window.xssHits = 0; });
@@ -59,12 +57,7 @@ test('custom theme labels stay literal while selecting, exporting and reloading 
     }
     // The production loader scans THEMES_PATH at startup, not per request.
     await restart();
-    const csrf = await context.request.get(origin + '/api/auth/csrf');
-    const enrollment = await context.request.post(origin + '/api/auth/setup', {
-        headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken },
-        data: { username: 'xss-theme-administrator', password: randomBytes(24).toString('base64url') },
-    });
-    assert.equal(enrollment.status(), 200, 'Enroll an isolated administrator');
+    await apiSignIn(context, origin, { username: 'xss-theme-administrator', password: randomBytes(24).toString('base64url') }, { enroll: true });
     const loaded = await context.request.get(origin + '/api/custom-themes');
     assert.equal(loaded.status(), 200);
     assert.deepEqual(await loaded.json(), themes.map(theme => ({ ...theme, custom: true })));

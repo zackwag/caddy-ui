@@ -3,7 +3,7 @@ import logger from './logger.js';
 import { getUpstreamChecks } from './observations.js';
 import { checkInstanceRoutes, failureReason } from './routeChecks.js';
 import { getSettings } from './settings.js';
-import { forgetInstanceHistory, recordCheck } from './uptimeHistory.js';
+import { forgetInstanceHistory, getStatsForInstance, recordCheck } from './uptimeHistory.js';
 import { resultsByUpstream } from './upstreamChecks.js';
 
 // The only recorder of uptime history: one sample per target every interval,
@@ -40,8 +40,26 @@ export function onCheckResults(listener) {
     listeners.add(listener);
 }
 
-export function latestFailures(kind, instanceId) {
-    return failures.get(kind).get(instanceId) || {};
+// Uptime stats for an instance's targets of one kind, each with why its
+// latest check failed, when it did.
+export function instanceUptime(instanceId, kind) {
+    const stats = getStatsForInstance(instanceId, kind);
+    const failed = failures.get(kind).get(instanceId) || {};
+    for (const [target, s] of Object.entries(stats)) {
+        if (s && failed[target]) s.lastFailure = failed[target];
+    }
+    return stats;
+}
+
+// Every kind's uptime stats for each instance, as formatUptimeMetrics takes
+// them, and how old each kind's last check may be before it's stale.
+export function uptimeSnapshot(instances) {
+    return {
+        staleMs: Object.fromEntries(Object.entries(PROBES).map(([kind, probe]) => [kind, probe.staleMs])),
+        instances: instances.map(({ id, name }) => ({
+            id, name, stats: Object.fromEntries(Object.keys(PROBES).map(kind => [kind, getStatsForInstance(id, kind)])),
+        })),
+    };
 }
 
 async function checkInstance(kind, inst) {

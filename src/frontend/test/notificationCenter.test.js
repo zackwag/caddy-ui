@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createNotificationCenter, stateNotificationKey, MAX_VISIBLE_TOASTS } from '../src/utils/notificationCenter.js';
+import { createNotificationCenter, MAX_VISIBLE_TOASTS } from '../src/utils/notificationCenter.js';
 
 describe('central notification policies', () => {
     beforeEach(() => vi.useFakeTimers());
@@ -7,7 +7,7 @@ describe('central notification policies', () => {
 
     it('deduplicates continuing state failures even after the toast expires', () => {
         const center = createNotificationCenter();
-        const key = stateNotificationKey('routes.load', 'prod');
+        const key = 'routes.load:prod';
         expect(center.notify('unavailable', 'error', { code: 'NETWORK_ERROR', requestId: 'first' }, { mode: 'state', key })).toBe(true);
         expect(center.notify('unavailable', 'error', { code: 'NETWORK_ERROR', requestId: 'second' }, { mode: 'state', key })).toBe(false);
         expect(center.getSnapshot()).toHaveLength(1);
@@ -19,7 +19,7 @@ describe('central notification policies', () => {
 
     it('rearms on recovery without creating a success toast automatically', () => {
         const center = createNotificationCenter();
-        const key = stateNotificationKey('tls.load', 'default');
+        const key = 'tls.load:default';
         center.notify('offline', 'error', null, { mode: 'state', key });
         expect(center.recover(key)).toBe(true);
         expect(center.getSnapshot()).toHaveLength(0);

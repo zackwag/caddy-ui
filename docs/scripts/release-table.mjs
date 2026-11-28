@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { replaceMarker, runPreprocessor } from './mdbook-preprocessor.mjs';
 
 export function renderReleaseTable(changelog) {
     const rows = [];
@@ -21,31 +21,7 @@ export function renderReleaseTable(changelog) {
 }
 
 export function preprocess(context, book) {
-    let table;
-    function walk(sections) {
-        for (const section of sections) {
-            const chapter = section.Chapter;
-            if (!chapter) continue;
-            if (chapter.content.includes('{{#release-table}}')) {
-                table ??= renderReleaseTable(readFileSync(resolve(context.root, '../CHANGELOG.md'), 'utf8'));
-                chapter.content = chapter.content.replaceAll('{{#release-table}}', () => table);
-            }
-            walk(chapter.sub_items || []);
-        }
-    }
-    walk(book.items || book.sections);
-    return book;
+    return replaceMarker(book, 'release-table', () => renderReleaseTable(readFileSync(resolve(context.root, '../CHANGELOG.md'), 'utf8')));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    if (process.argv[2] === 'supports') {
-        process.exit(process.argv[3] === 'html' ? 0 : 1);
-    }
-    try {
-        const [context, book] = JSON.parse(readFileSync(0, 'utf8'));
-        process.stdout.write(JSON.stringify(preprocess(context, book)));
-    } catch (error) {
-        process.stderr.write(`Release table: ${error.message}\n`);
-        process.exitCode = 1;
-    }
-}
+runPreprocessor(import.meta.url, 'Release table', preprocess);

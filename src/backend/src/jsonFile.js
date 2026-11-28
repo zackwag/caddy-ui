@@ -2,24 +2,16 @@ import { randomBytes } from 'node:crypto';
 import { constants, link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import logger from './logger.js';
+import { createSerialQueue } from './serialQueue.js';
 
+// Contents that can't be used. A store's `parse` throws it for a file it
+// can't make sense of, which is then set aside like one that isn't JSON.
 export class CorruptJsonError extends Error {
     constructor(path, cause) {
         super(`Could not parse ${path}`, { cause });
         this.name = 'CorruptJsonError';
         this.path = path;
     }
-}
-
-// Runs operations one at a time. A failed operation rejects its own caller
-// but never the operations queued after it.
-export function createSerialQueue() {
-    let tail = Promise.resolve();
-    return operation => {
-        const result = tail.then(operation);
-        tail = result.catch(() => {});
-        return result;
-    };
 }
 
 // undefined when the file doesn't exist; CorruptJsonError when it can't be
@@ -82,10 +74,11 @@ export async function writeJsonFile(path, value, { mode = 0o644, dirMode, exclus
 }
 
 // Like readJsonFile, but a file that can't be parsed is moved out of the way
-// and reads as missing, so starting from defaults can't overwrite it.
-export async function readJsonState(path) {
+// and reads as missing, so starting from defaults can't overwrite it. `parse`
+// turns the contents into state, and is told when the file was set aside.
+export async function readJsonState(path, parse = value => value) {
     try {
-        return await readJsonFile(path);
+        return parse(await readJsonFile(path));
     } catch (error) {
         if (!(error instanceof CorruptJsonError)) {
             throw error;
@@ -93,7 +86,7 @@ export async function readJsonState(path) {
         const target = `${path}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
         await rename(path, target);
         logger.error('A state file could not be parsed; it was set aside and defaults are used', { path, savedAs: target, error: error.cause?.message });
-        return undefined;
+        return parse(undefined, { setAside: true });
     }
 }
 
@@ -108,7 +101,7 @@ export function createJsonStore(path, { parse, serialize = state => state, mode 
 
     return {
         async load() {
-            state = parse(await readJsonState(path));
+            state = await readJsonState(path, parse);
             return state;
         },
         // Replaces the in-memory state without writing, for state derived at

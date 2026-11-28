@@ -50,8 +50,8 @@ The localization coverage SVG is generated into `docs/src/assets/` by the
 documentation workflow so mdBook copies it into the site; it is not checked in.
 Generate it locally with `npm run i18n:coverage --prefix src/frontend`.
 The book's favicon is copied from the frontend logo. `docs/theme/palettes.css`
-contains the frontend's default VT2026 and CoarseEverywhere color tokens copied
-at migration time. Keep those tokens in sync when changing the frontend defaults.
+contains the frontend's default VT2026 and CoarseEverywhere color tokens;
+`dev/contracts.test.mjs` fails when they differ from the frontend defaults.
 `docs/theme/caddy-ui.css` maps those tokens to mdBook controls and layout rules.
 Fonts use the frontend families with local system fallbacks.
 

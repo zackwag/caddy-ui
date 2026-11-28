@@ -3,11 +3,13 @@ import { AppError } from './AppError.js';
 import { createAuthStore, validateCredentials } from './authStore.js';
 import { createAuthSessions } from './authSessions.js';
 import { API_TOKEN_SCOPES, MAX_API_TOKENS, validApiTokenInput } from './apiTokenPolicy.js';
+import { servesOnlyHttps } from './externalUrls.js';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { createPasskeyService } from './passkeys.js';
 import { PasskeyValidationError } from './passkeyPolicy.js';
 import { recordAuthentication } from './authEvents.js';
+import { createSerialQueue } from './serialQueue.js';
 import { createTotpService } from './totp.js';
 import { TotpCooldownError } from './totpPolicy.js';
 
@@ -17,7 +19,10 @@ function sameSecret(actual, expected) {
     return timingSafeEqual(hash(actual), hash(expected));
 }
 
-export async function createAuthService({ store = createAuthStore(), env = process.env, sessions, now = Date.now } = {}) {
+// `env` supplies legacy credentials. `externalUrls` (CADDY_UI_EXTERNAL_URL,
+// parsed) and `publicMetrics` (CADDY_UI_PUBLIC_METRICS) come from the caller,
+// which reads them once for the whole app.
+export async function createAuthService({ store = createAuthStore(), env = process.env, sessions, now = Date.now, externalUrls = [], publicMetrics = false } = {}) {
     await store.loadAuth();
     let legacy = null;
     if (!store.isInitialized()) {
@@ -29,15 +34,8 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         }
         if (provided.length) legacy = { username: env.CADDY_UI_USER, password: env.CADDY_UI_PASSWORD };
     }
-    const configuredUrls = env.CADDY_UI_EXTERNAL_URL ? env.CADDY_UI_EXTERNAL_URL.split(',').map(u => u.trim()).filter(Boolean) : [];
-    const allHttps = configuredUrls.length > 0 && configuredUrls.every(u => { try { return new URL(u).protocol === 'https:'; } catch { return false; } });
-    sessions ??= createAuthSessions({ now, secure: allHttps });
-    let operations = Promise.resolve();
-    function serialize(operation) {
-        const result = operations.then(operation);
-        operations = result.catch(() => {});
-        return result;
-    }
+    sessions ??= createAuthSessions({ now, secure: servesOnlyHttps(externalUrls) });
+    const serialize = createSerialQueue();
     function validate(username, password) {
         try { validateCredentials(username, password); }
         catch { throw new AppError('VALIDATION_FAILED'); }
@@ -52,7 +50,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
     function requireManagement(req, res) {
         const session = sessions.readSession(req);
         if (session?.permission !== 'management') throw new AppError('UNAUTHORIZED');
-        return sessions.watchSession(session, res);
+        sessions.watchSession(session, res);
     }
     async function authorizeChange(req, input, action) {
         if (input?.reauthToken !== undefined) {
@@ -62,7 +60,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         if (!await store.verifyPassword(store.getUsername(), input?.currentPassword)) throw new AppError('CURRENT_PASSWORD_INVALID');
         if (store.isTotpEnabled() && !await persist(() => store.consumeTotp(input?.totpCode))) throw new AppError('TOTP_INVALID');
     }
-    const passkeys = createPasskeyService({ store, sessions, env, serialize, persist, requireManagement, authorizeChange, now });
+    const passkeys = createPasskeyService({ store, sessions, externalUrls, serialize, persist, requireManagement, authorizeChange, now });
     const totp = createTotpService({ store, sessions, serialize, persist, requireManagement, authorizeChange, now });
 
     return {
@@ -83,12 +81,12 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         // Token metadata for background monitors, which have no request to authorize.
         apiTokenMetadata() { return store.listApiTokens(); },
         getCredentials(req, res) {
-            this.requireManagement(req, res);
+            requireManagement(req, res);
             return { username: store.getUsername() };
         },
         updateCredentials(req, res, input) {
             return serialize(async () => {
-                const unwatch = this.requireManagement(req, res);
+                requireManagement(req, res);
                 if (!input || typeof input !== 'object' || Array.isArray(input)
                     || (typeof input.currentPassword !== 'string' && typeof input.reauthToken !== 'string')
                     || (input.username === undefined && input.password === undefined)) {
@@ -100,20 +98,17 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                 const username = input.username === undefined ? currentUsername : input.username;
                 validate(username, input.password === undefined ? input.currentPassword : input.password);
                 await persist(() => store.updateCredentials(username, input.password));
-                // Keep this response open while closing every old session/stream.
-                unwatch();
-                sessions.revokeAllSessions();
-                sessions.createSession(req, res, 'management');
+                sessions.replaceAllSessions(req, res);
                 return { username };
             });
         },
         listApiTokens(req, res) {
-            this.requireManagement(req, res);
+            requireManagement(req, res);
             return { tokens: store.listApiTokens(), scopes: API_TOKEN_SCOPES };
         },
         issueApiToken(req, res, input) {
             return serialize(async () => {
-                this.requireManagement(req, res);
+                requireManagement(req, res);
                 if (!validApiTokenInput(input) || input.instanceIds.some(id => !getInstances().some(instance => instance.id === id))) {
                     throw new AppError('VALIDATION_FAILED');
                 }
@@ -125,7 +120,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
         },
         revokeApiToken(req, res, id) {
             return serialize(async () => {
-                this.requireManagement(req, res);
+                requireManagement(req, res);
                 if (!await persist(() => store.revokeApiToken(id))) throw new AppError('NOT_FOUND');
                 logger.info('API token revoked', { tokenId: id });
             });
@@ -140,7 +135,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                 enrollmentAuthenticated: session?.permission === 'enrollment',
                 totpEnabled: store.isTotpEnabled(),
                 totpPending: totp.loginPending(req),
-                publicMetrics: env.CADDY_UI_PUBLIC_METRICS === 'true',
+                publicMetrics,
                 ...passkeys.state(),
             };
         },
@@ -172,8 +167,7 @@ export async function createAuthService({ store = createAuthStore(), env = proce
                 validate(username, password);
                 const recoveryKey = await persist(() => store.initializeAuth(username, password));
                 legacy = null;
-                sessions.revokeAllSessions();
-                sessions.createSession(req, res, 'management');
+                sessions.replaceAllSessions(req, res);
                 return recoveryKey;
             });
         },

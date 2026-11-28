@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer, request as httpRequest } from 'node:http';
 import test from 'node:test';
+import { caddyGet, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
 import { useTestStack } from './stack.mjs';
 
 const verified = { file: 'verified', live: 'verified' };
@@ -99,10 +100,7 @@ test('admin API route edits fail instead of overwriting a concurrent change in r
     const { adminUrl } = stack.instances.get('alpha').instance;
     const proxy = await adminProxy(t, adminUrl);
     assert.equal((await stack.api('/instances/default', { method: 'PUT', body: { adminUrl: proxy.url } })).status, 200);
-    const caddy = (path, init = {}) => fetch(adminUrl + path, {
-        ...init, headers: { 'Content-Type': 'application/json', Origin: 'http://0.0.0.0:2019' },
-    });
-    const route = async id => (await caddy(`/id/${id}`)).json();
+    const route = id => caddyGet(`/id/${id}`, adminUrl);
     const conditionalWrite = (method, pattern) => request => request.method === method && pattern.test(request.url) && Boolean(request.ifMatch);
     const expectConflict = async (response, label) => {
         assert.equal(response.status, 409, `${label}: ${JSON.stringify(response.data)}`);
@@ -118,7 +116,7 @@ test('admin API route edits fail instead of overwriting a concurrent change in r
     // Another client changes the route between the backend's read and its write
     const external = { ...await route(id), terminal: false };
     proxy.beforeNext(conditionalWrite('PATCH', new RegExp(`^/id/${id}$`)), async () => {
-        assert.equal((await caddy(`/id/${id}`, { method: 'PATCH', body: JSON.stringify(external) })).status, 200);
+        await caddyPatch(`/id/${id}`, external, adminUrl);
     });
     const patches = () => proxy.requests.filter(request => request.method === 'PATCH').length;
     const patchesBefore = patches();
@@ -128,7 +126,7 @@ test('admin API route edits fail instead of overwriting a concurrent change in r
     assert.equal((await stack.api('/caddyfile')).data, file, 'the Caddyfile is restored');
 
     proxy.beforeNext(conditionalWrite('DELETE', new RegExp(`^/id/${id}$`)), async () => {
-        assert.equal((await caddy(`/id/${id}`, { method: 'PATCH', body: JSON.stringify({ ...external, terminal: true }) })).status, 200);
+        await caddyPatch(`/id/${id}`, { ...external, terminal: true }, adminUrl);
     });
     await expectConflict(await stack.api(`/routes/${id}`, { method: 'DELETE' }), 'stale delete');
     assert.equal((await route(id)).terminal, true, 'the route survives a refused delete');
@@ -136,11 +134,11 @@ test('admin API route edits fail instead of overwriting a concurrent change in r
 
     proxy.beforeNext(conditionalWrite('POST', /\/routes$/), async () => {
         const unrelated = { '@id': 'external-route', match: [{ host: ['external.test'] }], handle: [{ handler: 'static_response', body: 'external' }] };
-        assert.equal((await caddy('/config/apps/http/servers/srv0/routes', { method: 'POST', body: JSON.stringify(unrelated) })).status, 200);
+        await caddyPost('/config/apps/http/servers/srv0/routes', unrelated, adminUrl);
     });
     await expectConflict(await stack.api('/routes', { method: 'POST', body: { domain: 'late.test', upstream: '127.0.0.1:9' } }), 'stale add');
     assert.equal((await stack.api('/caddyfile')).data, file);
-    const routes = JSON.stringify(await (await caddy('/config/apps/http/servers')).json());
+    const routes = JSON.stringify(await caddyGet('/config/apps/http/servers', adminUrl));
     assert.ok(!routes.includes('late.test') && routes.includes('external.test'), 'the refused route is absent and the concurrent one kept');
 
     // Unchanged since the read, the same conditional writes succeed
@@ -162,7 +160,7 @@ test('editor saves refuse to overwrite a Caddyfile changed since it was loaded',
     const save = (content, ifMatch) => stack.api('/caddyfile?fmt=false&sort=false', {
         method: 'PUT', body: content, plain: true, headers: ifMatch ? { 'If-Match': ifMatch } : {},
     });
-    const live = async () => (await fetch(instance.adminUrl + '/config/')).json();
+    const live = () => caddyGet('/config/', instance.adminUrl);
     const versions = async () => (await stack.api('/caddyfile/history')).data;
     // Establish a tracked baseline before an external edit, independently of
     // the monitor's startup scheduling.
@@ -170,7 +168,7 @@ test('editor saves refuse to overwrite a Caddyfile changed since it was loaded',
 
     // Someone edits the file on the host after the editor loaded it
     const external = loaded.data.replace('Caddy UI test instance:', 'external-edit:');
-    await stack.harness.run(['exec', instance.containerName, 'sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', external, instance.configPath]);
+    await stack.harness.writeConfig('alpha', external);
     const [running, saved] = [await live(), await versions()];
     const refused = await save(loaded.data.replace('Caddy UI test instance:', 'editor-edit:'), etag);
     assert.equal(refused.status, 409, JSON.stringify(refused.data));

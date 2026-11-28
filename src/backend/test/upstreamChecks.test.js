@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest';
-import { extractUpstreamTargets, extractUpstreams, getHost, isUpstreamOnline, resultsByUpstream } from '../src/upstreamChecks.js';
+import { describe, expect, it, vi } from 'vitest';
+import logger from '../src/logger.js';
+import { checkInstanceUpstreams, extractUpstreamTargets, getHost, isUpstreamOnline, resultsByUpstream } from '../src/upstreamChecks.js';
 
-describe('extractUpstreams', () => {
+const { caddyUpstreamPool } = vi.hoisted(() => ({ caddyUpstreamPool: vi.fn() }));
+vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyUpstreamPool }));
+
+// The addresses a route proxies to
+const dials = route => extractUpstreamTargets(route).map(target => target.dial);
+
+describe('extractUpstreamTargets dials', () => {
     it('extracts dial addresses from reverse_proxy handlers', () => {
         const route = {
             handle: [{
@@ -9,7 +16,7 @@ describe('extractUpstreams', () => {
                 upstreams: [{ dial: 'localhost:8080' }],
             }],
         };
-        expect(extractUpstreams(route)).toEqual(['localhost:8080']);
+        expect(dials(route)).toEqual(['localhost:8080']);
     });
 
     it('extracts from nested subroute handlers', () => {
@@ -24,7 +31,7 @@ describe('extractUpstreams', () => {
                 }],
             }],
         };
-        expect(extractUpstreams(route)).toEqual(['app:3000']);
+        expect(dials(route)).toEqual(['app:3000']);
     });
 
     it('extracts multiple upstreams', () => {
@@ -37,18 +44,18 @@ describe('extractUpstreams', () => {
                 ],
             }],
         };
-        expect(extractUpstreams(route)).toEqual(['app1:3000', 'app2:3001']);
+        expect(dials(route)).toEqual(['app1:3000', 'app2:3001']);
     });
 
     it('returns empty array for non-proxy handlers', () => {
         const route = {
             handle: [{ handler: 'file_server' }],
         };
-        expect(extractUpstreams(route)).toEqual([]);
+        expect(dials(route)).toEqual([]);
     });
 
     it('returns empty array for missing handle', () => {
-        expect(extractUpstreams({})).toEqual([]);
+        expect(dials({})).toEqual([]);
     });
 
     it('skips upstreams without dial', () => {
@@ -58,7 +65,7 @@ describe('extractUpstreams', () => {
                 upstreams: [{ dial: 'app:3000' }, {}],
             }],
         };
-        expect(extractUpstreams(route)).toEqual(['app:3000']);
+        expect(dials(route)).toEqual(['app:3000']);
     });
 });
 
@@ -172,5 +179,30 @@ describe('resultsByUpstream', () => {
 
     it('returns nothing for no checks', () => {
         expect(resultsByUpstream([])).toEqual([]);
+    });
+});
+
+describe('checkInstanceUpstreams', () => {
+    // Passive health checks make the pool worth reading; nothing listens on port 1
+    const servers = { srv0: { routes: [{ match: [{ host: ['app.example.com'] }], handle: [{
+        handler: 'reverse_proxy', upstreams: [{ dial: '127.0.0.1:1' }], health_checks: { passive: { fail_duration: '30s' } },
+    }] }] } };
+
+    it('logs an unreadable upstream pool once per outage', async () => {
+        const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+        const info = vi.spyOn(logger, 'info').mockImplementation(() => {});
+        const outage = () => warn.mock.calls.filter(([text]) => text.includes('upstream pool unavailable')).length;
+        caddyUpstreamPool.mockRejectedValue(new Error('connect ECONNREFUSED'));
+        await checkInstanceUpstreams('http://pool-outage:2019', servers);
+        await checkInstanceUpstreams('http://pool-outage:2019', servers);
+        expect(outage()).toBe(1);
+        caddyUpstreamPool.mockResolvedValue([]);
+        await checkInstanceUpstreams('http://pool-outage:2019', servers);
+        expect(info).toHaveBeenCalledWith('Caddy upstream pool readable again', { adminUrl: 'http://pool-outage:2019' });
+        caddyUpstreamPool.mockRejectedValue(new Error('connect ECONNREFUSED'));
+        await checkInstanceUpstreams('http://pool-outage:2019', servers);
+        expect(outage()).toBe(2);
+        warn.mockRestore();
+        info.mockRestore();
     });
 });

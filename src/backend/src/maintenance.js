@@ -1,6 +1,10 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { caddyfileChildren } from './caddyfileBlocks.js';
+import { readSites } from './caddyfileChange.js';
+import { createClaimReads } from './claimReads.js';
+import { extractSiteBlock } from './caddyfileSites.js';
+import { getInstances, instancesComplete } from './instances.js';
 import { createJsonStore } from './jsonFile.js';
 import logger from './logger.js';
 
@@ -132,10 +136,12 @@ export async function claimUnassignedMaintenance(instances, servesMaintenance) {
     }
     if (!claims.length) return;
     await store.update(state => {
+        // An owner removed since it was read had its state released
+        const current = new Set(getInstances().map(inst => inst.id));
         let claimed = false;
         for (const { domain, owner } of claims) {
             const index = state.unassigned.findIndex(e => e.domain === domain);
-            if (index === -1 || state.instances[owner.id]?.[domain]) continue;
+            if (index === -1 || !current.has(owner.id) || state.instances[owner.id]?.[domain]) continue;
             const [{ originalContent, enabledAt }] = state.unassigned.splice(index, 1);
             state.instances[owner.id] = { ...(state.instances[owner.id] || {}), [domain]: { originalContent, enabledAt } };
             claimed = true;
@@ -149,11 +155,59 @@ export function hasUnassignedMaintenance() {
     return store.get().unassigned.length > 0;
 }
 
+// Each instance's Caddyfile and the env its sites resolve from; null when they
+// can't be read. Whether a site serves the maintenance page is the only
+// evidence used to assign saved state whose owner isn't recorded.
+const reads = createClaimReads(async instance => {
+    try {
+        return await readSites(instance);
+    } catch {
+        return null;
+    }
+});
+let claimsRunning = 0;
+
+// Run at startup and whenever an instance is saved, since either can make an
+// owner provable. Nothing is assigned on behalf of an instance that couldn't
+// be read: retrySavedMaintenanceClaim tries again on its next monitor round.
+// Entries that were read and match nothing aren't retried.
+export async function claimSavedMaintenance({ onlyFailed = false } = {}) {
+    claimsRunning++;
+    try {
+        // An ignored instances entry could be the owner
+        if (!hasUnassignedMaintenance() || !instancesComplete()) {
+            reads.clear();
+            return;
+        }
+        const instances = getInstances();
+        const sites = await reads.readAll(instances, { onlyFailed });
+        await claimUnassignedMaintenance(instances, async (instance, domain) => {
+            const read = sites[instances.indexOf(instance)];
+            return read ? isMaintenanceBlock(extractSiteBlock(read.caddyfile, domain, read.env)) : null;
+        });
+    } catch (err) {
+        logger.warn('Could not assign saved maintenance state', { error: err.message });
+    } finally {
+        claimsRunning--;
+    }
+}
+
+// Called after an instance's monitor round: repeats the claim if that
+// instance couldn't be read last time, re-reading only the ones that failed.
+export function retrySavedMaintenanceClaim(instanceId) {
+    if (reads.failed(instanceId) && !claimsRunning) {
+        return claimSavedMaintenance({ onlyFailed: true });
+    }
+}
+
 export async function getMaintenancePage() {
     const filePath = join(WWW_PATH, MAINTENANCE_HTML);
     try {
         return await readFile(filePath, 'utf8');
-    } catch {
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            throw err;
+        }
         await mkdir(WWW_PATH, { recursive: true });
         await writeFile(filePath, DEFAULT_PAGE, 'utf8');
         logger.info('Created default maintenance page', { path: filePath });

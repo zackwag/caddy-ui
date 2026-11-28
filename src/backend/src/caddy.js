@@ -1,12 +1,9 @@
 import { createHash } from 'node:crypto';
 import logger from './logger.js';
 
-export const CADDY_ADMIN_URL = (process.env.CADDY_ADMIN_URL || 'http://caddy:2019').replace(/\/+$/, '');
-
-const HEADERS = {
-    'Content-Type': 'application/json',
-    'Origin': 'http://0.0.0.0:2019',
-};
+// Caddy's admin API checks the Origin of every request
+const ORIGIN = { 'Origin': 'http://0.0.0.0:2019' };
+const HEADERS = { 'Content-Type': 'application/json', ...ORIGIN };
 
 let timeoutMs = 10000;
 // How long a write that already timed out may keep running before caddy-ui
@@ -35,12 +32,11 @@ export class CaddyTimeoutError extends Error {
 const configGenerations = new Map();
 
 export function configGeneration(adminUrl) {
-    return configGenerations.get(adminUrl || CADDY_ADMIN_URL) || 0;
+    return configGenerations.get(adminUrl) || 0;
 }
 
 export function markConfigChanged(adminUrl) {
-    const base = adminUrl || CADDY_ADMIN_URL;
-    configGenerations.set(base, configGeneration(base) + 1);
+    configGenerations.set(adminUrl, configGeneration(adminUrl) + 1);
 }
 
 // Writes per admin API whose requests haven't settled, including ones that
@@ -48,30 +44,30 @@ export function markConfigChanged(adminUrl) {
 const unsettledWrites = new Map();
 
 export function hasUnsettledWrites(adminUrl) {
-    return unsettledWrites.has(adminUrl || CADDY_ADMIN_URL);
+    return unsettledWrites.has(adminUrl);
 }
 
 // A configuration write as a fetch whose settlement, however late, invalidates
 // observations again. A write that timed out can still complete in Caddy, and
 // reads made in between would otherwise keep the old config until they expire.
-function configWrite(base, label, url, options) {
+function configWrite(adminUrl, label, url, options) {
     const request = fetch(url, { ...options, signal: AbortSignal.timeout(LATE_SETTLEMENT_LIMIT_MS) });
     const tracked = { timedOut: false };
-    unsettledWrites.set(base, (unsettledWrites.get(base) || 0) + 1);
+    unsettledWrites.set(adminUrl, (unsettledWrites.get(adminUrl) || 0) + 1);
     const settled = () => {
-        const remaining = unsettledWrites.get(base) - 1;
-        if (remaining) unsettledWrites.set(base, remaining);
-        else unsettledWrites.delete(base);
+        const remaining = unsettledWrites.get(adminUrl) - 1;
+        if (remaining) unsettledWrites.set(adminUrl, remaining);
+        else unsettledWrites.delete(adminUrl);
     };
     request.finally(settled).catch(() => {});
     request.then(
         response => {
-            markConfigChanged(base);
-            if (tracked.timedOut) logger.warn('Caddy write completed after its timeout', { label, adminUrl: base, status: response.status });
+            markConfigChanged(adminUrl);
+            if (tracked.timedOut) logger.warn('Caddy write completed after its timeout', { label, adminUrl, status: response.status });
         },
         error => {
-            markConfigChanged(base);
-            if (tracked.timedOut) logger.warn('Caddy write failed after its timeout', { label, adminUrl: base, error: error.name });
+            markConfigChanged(adminUrl);
+            if (tracked.timedOut) logger.warn('Caddy write failed after its timeout', { label, adminUrl, error: error.name });
         },
     );
     return withTimeout(request, timeoutMs, label).catch(error => {
@@ -88,7 +84,7 @@ function configWrite(base, label, url, options) {
 // change applied. A request that doesn't change Caddy's state is sent once
 // more on a fresh connection. A write is never resent: Caddy may already have
 // applied it (see CaddyTimeoutError).
-export function isClosedConnection(error) {
+function isClosedConnection(error) {
     return ['UND_ERR_SOCKET', 'ECONNRESET'].includes(error?.cause?.code);
 }
 
@@ -104,7 +100,7 @@ async function fetchIdempotent(url, options) {
     }
 }
 
-export function withTimeout(promise, ms, label) {
+function withTimeout(promise, ms, label) {
     return Promise.race([
         promise,
         new Promise((_, reject) =>
@@ -118,10 +114,9 @@ export function withTimeout(promise, ms, label) {
 // changed. Caddy releases without ETags send no ETag, and an absent one sends
 // no condition.
 async function caddyRequest(method, path, body, adminUrl, { ifMatch } = {}) {
-    const base = adminUrl || CADDY_ADMIN_URL;
-    const url = `${base}${path}`;
+    const url = `${adminUrl}${path}`;
     const start = Date.now();
-    logger.debug(`Caddy API request`, { method, path, adminUrl: base });
+    logger.debug(`Caddy API request`, { method, path, adminUrl });
 
     try {
         const headers = ifMatch ? { ...HEADERS, 'If-Match': ifMatch } : HEADERS;
@@ -129,7 +124,7 @@ async function caddyRequest(method, path, body, adminUrl, { ifMatch } = {}) {
         const label = `${method} ${path}`;
         const res = method === 'GET'
             ? await withTimeout(fetchIdempotent(url, options), timeoutMs, label)
-            : await configWrite(base, label, url, options);
+            : await configWrite(adminUrl, label, url, options);
 
         const elapsed = Date.now() - start;
 
@@ -154,8 +149,6 @@ async function caddyRequest(method, path, body, adminUrl, { ifMatch } = {}) {
             logger.error(`Caddy API failed`, { method, path, elapsed, error: err.message });
         }
         throw err;
-    } finally {
-        if (method !== 'GET') markConfigChanged(base);
     }
 }
 
@@ -170,42 +163,77 @@ export const caddyPost = (path, body, adminUrl, options) => caddyRequest('POST',
 export const caddyPatch = (path, body, adminUrl, options) => caddyRequest('PATCH', path, body, adminUrl, options).then(valueOf);
 export const caddyDelete = (path, adminUrl, options) => caddyRequest('DELETE', path, undefined, adminUrl, options).then(valueOf);
 
-// A read for configuration readback. Unlike caddyGet, its deadline covers the
-// body as well as the headers, a body that isn't a JSON object or null is
-// rejected rather than returned as text, and an error response's body is
-// discarded unread, since it can quote configuration. Rejections carry the
-// HTTP status when there was one.
-export async function caddyReadJson(path, adminUrl) {
-    const base = adminUrl || CADDY_ADMIN_URL;
-    const res = await fetchIdempotent(`${base}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(timeoutMs) });
+// A read outside the logged JSON calls above. Resolves to an OK response whose
+// headers and body are both covered by the deadline. An error response's body
+// is discarded unread, since it can quote configuration, and the rejection
+// carries its HTTP status.
+async function caddyRead(path, adminUrl, deadlineMs = timeoutMs) {
+    const res = await fetchIdempotent(`${adminUrl}${path}`, { headers: HEADERS, signal: AbortSignal.timeout(deadlineMs) });
     if (!res.ok) {
         await res.body?.cancel();
-        throw Object.assign(new Error(`Caddy readback failed: ${res.status}`), { status: res.status });
+        throw Object.assign(new Error(`Caddy API error: ${res.status}`), { status: res.status });
     }
-    const value = await res.json();
+    return res;
+}
+
+// A read for configuration readback. Unlike caddyGet, a body that isn't a JSON
+// object or null is rejected rather than returned as text.
+export async function caddyReadJson(path, adminUrl) {
+    const value = await (await caddyRead(path, adminUrl)).json();
     if (value !== null && (typeof value !== 'object' || Array.isArray(value))) {
         throw new TypeError('Caddy readback must be a JSON object or null');
     }
     return value;
 }
 
+// A fingerprint of text: of the running config when Caddy sends no ETag, and of
+// a Caddyfile, where it's also the editor's ETag, so both name a file the same way.
+export const fingerprintText = text => `sha256:${createHash('sha256').update(text).digest('hex')}`;
+
 // The whole running config with a fingerprint of it: Caddy's ETag when it sends
 // one (Caddy 2.6+), otherwise a hash of the response body. Equal fingerprints
-// mean the same config. The signal covers both headers and body so a stalled
-// response can't hold the instance queue beyond the deadline.
+// mean the same config. The deadline keeps a stalled response from holding the
+// instance queue.
 export async function caddyGetConfig(adminUrl) {
-    const base = adminUrl || CADDY_ADMIN_URL;
-    const signal = AbortSignal.timeout(timeoutMs);
-    const res = await fetchIdempotent(`${base}/config/`, { headers: HEADERS, signal });
+    const res = await caddyRead('/config/', adminUrl);
     const text = await res.text();
-    if (!res.ok) {
-        throw Object.assign(new Error(`Caddy API error: ${res.status}`), { status: res.status });
-    }
     const etag = res.headers.get('etag');
     return {
         config: text ? JSON.parse(text) : null,
-        fingerprint: etag ? `etag:${etag}` : `sha256:${createHash('sha256').update(text).digest('hex')}`,
+        fingerprint: etag ? `etag:${etag}` : fingerprintText(text),
     };
+}
+
+// Optional extras a page or check can do without get a shorter deadline
+const OPTIONAL_READ_MS = 3000;
+
+export async function isCaddyOnline(adminUrl) {
+    try {
+        const res = await caddyRead('/config/', adminUrl, OPTIONAL_READ_MS);
+        await res.body?.cancel();
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// Prometheus text exposition. Rejects when Caddy's metrics are off.
+export async function caddyMetrics(adminUrl) {
+    return (await caddyRead('/metrics', adminUrl)).text();
+}
+
+// The PEM root certificate of Caddy's local CA. Rejects when there is none.
+export async function caddyLocalRootCertificate(adminUrl) {
+    const { root_certificate: root } = await (await caddyRead('/pki/ca/local', adminUrl, OPTIONAL_READ_MS)).json();
+    if (!root) {
+        throw new Error('No root certificate in response');
+    }
+    return root;
+}
+
+// Caddy's reverse proxy pool: [{ address, num_requests, fails }]
+export async function caddyUpstreamPool(adminUrl) {
+    return (await caddyRead('/reverse_proxy/upstreams', adminUrl, OPTIONAL_READ_MS)).json();
 }
 
 // Adapts Caddyfile text to JSON the same way POST /load does, without
@@ -213,12 +241,11 @@ export async function caddyGetConfig(adminUrl) {
 // so validation can report it like `caddy adapt` output. The signal keeps the
 // deadline in force while the body is read.
 export async function caddyAdapt(caddyfileContent, adminUrl) {
-    const base = adminUrl || CADDY_ADMIN_URL;
     const res = await withTimeout(
         // Adapting doesn't change the running config, so it's retried like a read
-        fetchIdempotent(`${base}/adapt?adapter=caddyfile`, {
+        fetchIdempotent(`${adminUrl}/adapt?adapter=caddyfile`, {
             method: 'POST',
-            headers: { ...HEADERS, 'Content-Type': 'text/caddyfile' },
+            headers: { 'Content-Type': 'text/caddyfile', ...ORIGIN },
             body: caddyfileContent,
             signal: AbortSignal.timeout(timeoutMs),
         }),
@@ -233,15 +260,14 @@ export async function caddyAdapt(caddyfileContent, adminUrl) {
 }
 
 export async function caddyLoad(caddyfileContent, adminUrl) {
-    const base = adminUrl || CADDY_ADMIN_URL;
-    const url = `${base}/load`;
+    const url = `${adminUrl}/load`;
     const start = Date.now();
-    logger.info(`Caddy reload initiated`, { adminUrl: base });
+    logger.info(`Caddy reload initiated`, { adminUrl });
 
     try {
-        const res = await configWrite(base, 'POST /load', url, {
+        const res = await configWrite(adminUrl, 'POST /load', url, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/caddyfile', 'Origin': 'http://0.0.0.0:2019' },
+            headers: { 'Content-Type': 'text/caddyfile', ...ORIGIN },
             body: caddyfileContent,
         });
 
@@ -260,7 +286,5 @@ export async function caddyLoad(caddyfileContent, adminUrl) {
             logger.error(`Caddy reload error`, { elapsed, error: err.message });
         }
         throw err;
-    } finally {
-        markConfigChanged(base);
     }
 }

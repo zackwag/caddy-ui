@@ -9,7 +9,7 @@ export const EXAMPLE_SITES = [
     { domain: 'api.internal', title: 'Internal API', port: 8080, service: 'api' },
 ];
 
-export const EXAMPLE_UPSTREAM = 'example-upstream';
+const EXAMPLE_UPSTREAM = 'example-upstream';
 
 // Development adds the plain-HTTP /health and /error responses that readiness
 // checks rely on, and keeps Caddy's own logs on stderr for `docker logs`.
@@ -71,7 +71,7 @@ export async function containerAddress(harness, containerName) {
 }
 
 // Example upstream addresses in a Caddyfile that no longer match the upstream.
-export function staleExampleAddresses(caddyfile, address) {
+function staleExampleAddresses(caddyfile, address) {
     const ports = EXAMPLE_SITES.map(site => site.port).join('|');
     const found = [...caddyfile.matchAll(new RegExp(`reverse_proxy\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+):(?:${ports})\\b`, 'g'))].map(match => match[1]);
     return [...new Set(found)].filter(previous => previous !== address);

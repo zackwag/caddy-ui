@@ -1,8 +1,6 @@
 import { spawn } from 'child_process';
 import logger from './logger.js';
 
-export const CADDY_CONTAINER = process.env.CADDY_CONTAINER_NAME || 'caddy';
-
 const _envCaches = new Map();
 const ENV_CACHE_TTL = 5 * 60 * 1000;
 
@@ -35,66 +33,51 @@ function assertSafePathArg(pathArg) {
     }
 }
 
+// Rejects when the container's environment can't be read, so {$VAR} site
+// addresses never silently resolve to nothing.
 export async function getCaddyEnv(containerName) {
+    // Local mode: caddy-ui's own environment, the closest available to Caddy's.
     if (!containerName) return { ...process.env };
-    const container = containerName;
-    const cached = _envCaches.get(container);
+    const cached = _envCaches.get(containerName);
     if (cached && Date.now() - cached.ts < ENV_CACHE_TTL) return cached.env;
-    try {
-        const { stdout } = await dockerExec(['env'], undefined, container);
-        const env = {};
-        for (const line of stdout.split('\n')) {
-            const eq = line.indexOf('=');
-            if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
-        }
-        _envCaches.set(container, { env, ts: Date.now() });
-        logger.debug('Cached Caddy container env vars', { container, count: Object.keys(env).length });
-        return env;
-    } catch {
-        return {};
+    const { stdout } = await dockerExec(containerName, ['env']);
+    const env = {};
+    for (const line of stdout.split('\n')) {
+        const eq = line.indexOf('=');
+        if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1);
     }
+    _envCaches.set(containerName, { env, ts: Date.now() });
+    logger.debug('Cached Caddy container env vars', { container: containerName, count: Object.keys(env).length });
+    return env;
 }
 
-// Substitutes Caddy-style {$VAR} placeholders with values from the container's environment
-export function resolveEnvVars(str, env) {
-    return str.replace(/\{\$([A-Z_][A-Z0-9_]*)\}/g, (_, name) => env[name] || '');
-}
+const PATH_COMMANDS = new Set(['cat', 'tee', 'ls', 'rm']);
 
-export function dockerExec(args, input, containerName) {
-    const container = containerName || CADDY_CONTAINER;
-    assertSafeCommand(container);
+export function dockerExec(containerName, args, input) {
+    assertSafeCommand(containerName);
     assertSafeArgs(args);
     if (args.length === 0) {
         throw new Error('Missing docker exec command');
     }
     assertSafeCommand(args[0]);
 
-    const pathArgIndexesByCmd = {
-        cat: [1],
-        tee: [1],
-        ls: [2],
-        rm: [2],
-        test: [2],
-    };
-    const pathIndexes = pathArgIndexesByCmd[args[0]] || [];
-    for (const idx of pathIndexes) {
-        if (idx < args.length) assertSafePathArg(args[idx]);
+    // File commands take their paths after `--`, so a path can't be read as an option.
+    if (PATH_COMMANDS.has(args[0])) {
+        const separator = args.indexOf('--');
+        if (separator === -1 || separator === args.length - 1) {
+            throw new Error('Missing path argument');
+        }
+        args.slice(separator + 1).forEach(assertSafePathArg);
     }
 
-    return execAndCollect('docker', ['exec', '-i', container, ...args], input);
-}
-
-// Runs a command directly on the host (local filesystem mode, no Docker), collecting
-// output the same way dockerExec does so both branches behave identically on failure.
-export function execLocal(cmd, args, input) {
-    return execAndCollect(cmd, args, input);
+    return execAndCollect('docker', ['exec', '-i', containerName, ...args], input);
 }
 
 // Picks Docker-exec vs local-spawn based on whether an instance has a container name,
 // mirroring the same dispatch containerFs.js already uses for file I/O.
 export function execInInstance(containerName, cmd, args, input) {
-    if (containerName) return dockerExec([cmd, ...args], input, containerName);
-    return execLocal(cmd, args, input);
+    if (containerName) return dockerExec(containerName, [cmd, ...args], input);
+    return execAndCollect(cmd, args, input);
 }
 
 // Returns the raw spawned process (for streaming use cases like `tail -f`) rather
@@ -104,6 +87,28 @@ export function spawnInInstance(containerName, cmd, args) {
     assertSafeArgs(args);
     if (containerName) return spawn('docker', ['exec', containerName, cmd, ...args], { shell: false });
     return spawn(cmd, args, { shell: false });
+}
+
+// The instance's Caddy version, or 'unknown' when its binary can't say, which
+// /api/status/process reports as is.
+export async function getCaddyVersion(containerName) {
+    try {
+        const { stdout } = await execInInstance(containerName, 'caddy', ['version']);
+        const version = stdout.trim().split(' ')[0] || 'unknown';
+        logger.debug(`Caddy version detected`, { version });
+        return version;
+    } catch (err) {
+        logger.warn(`Could not detect Caddy version`, { error: err.message });
+        return 'unknown';
+    }
+}
+
+// Docker couldn't reach the instance's container at all. A command missing
+// inside a running container is a different failure.
+const CONTAINER_UNREACHABLE = /cannot connect to the docker daemon|is the docker daemon running|no such container|is not running|permission denied while trying to connect|^spawn docker ENOENT$/im;
+
+export function isContainerUnreachable(err) {
+    return CONTAINER_UNREACHABLE.test(`${err?.stderr || ''}\n${err?.message || ''}`);
 }
 
 function execAndCollect(cmd, args, input) {

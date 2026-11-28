@@ -3,7 +3,7 @@ import { Secret, TOTP } from 'otpauth';
 export const TOTP_CHALLENGE_MS = 5 * 60 * 1000;
 export const TOTP_ATTEMPTS = 5;
 export const TOTP_COOLDOWN_MS = 5 * 60 * 1000;
-export const TOTP_PERIOD_MS = 30000;
+const TOTP_PERIOD_MS = 30000;
 
 export class TotpCooldownError extends Error {
     constructor(remainingMs) {
@@ -28,7 +28,7 @@ export function validTotpRecord(record) {
 }
 
 function authenticator(secret, label = '') {
-    return new TOTP({ issuer: 'Caddy UI', label, algorithm: 'SHA1', digits: 6, period: 30, secret: Secret.fromBase32(secret) });
+    return new TOTP({ issuer: 'Caddy UI', label, algorithm: 'SHA1', digits: 6, period: TOTP_PERIOD_MS / 1000, secret: Secret.fromBase32(secret) });
 }
 
 export function createTotpEnrollment(username) {

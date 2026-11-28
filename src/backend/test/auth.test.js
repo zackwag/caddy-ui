@@ -148,13 +148,9 @@ describe('browser authentication HTTP contracts', () => {
         });
 
         expect(navigation.status).toBe(403);
-        expect(navigation.data.code).toBe('CSRF_NAVIGATION');
+        expect(navigation.data.code).toBe('FORBIDDEN');
         expect(navigation.setCookie).toBeUndefined();
-
-        // The authenticated session is still intact
         expect((await fetch(url + '/api/protected', { headers: { cookie: oldCookie } })).status).toBe(200);
-
-        // A same-origin fetch (no navigate mode) still works
         const normal = await fetch(url + '/api/auth/csrf');
         expect(normal.status).toBe(200);
         expect((await normal.json()).csrfToken).toBeTruthy();

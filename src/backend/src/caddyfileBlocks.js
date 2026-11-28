@@ -128,11 +128,17 @@ export function trailingComments(source, entries) {
     return source.slice(entries.at(-1)?.lineEnd ?? 0).split('\n').filter(line => line.trim().startsWith('#'));
 }
 
-// Site addresses may be written with an http:// or https:// scheme and
-// {$VAR} placeholders; `resolve` substitutes the instance environment.
-export function matchesSiteAddress(entry, domain, resolve = address => address) {
-    if (!entry.block || !entry.name || entry.args.length) return false;
-    return resolve(entry.name).replace(/^https?:\/\//, '') === domain;
+// Substitutes {$VAR} placeholders with values from the instance's environment
+function resolveEnvVars(str, env) {
+    return str.replace(/\{\$([A-Z_][A-Z0-9_]*)\}/g, (_, name) => env[name] || '');
+}
+
+// The domain a site block serves, or null for any other entry. The address may
+// be written with an http:// or https:// scheme and {$VAR} placeholders.
+export function siteDomain(entry, env) {
+    if (!entry.block || !entry.name || entry.args.length) return null;
+    const address = env ? resolveEnvVars(entry.name, env) : entry.name;
+    return address.replace(/^https?:\/\//, '');
 }
 
 export function extractGlobalBlock(source) {

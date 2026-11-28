@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { inspect, promisify } from 'node:util';
 import { hostname } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 export const LABEL = 'io.caddy-ui.dev';
 export const IMAGE = 'caddy:2.10.2-alpine';
@@ -15,9 +16,40 @@ export function devFrontendHost(value = '127.0.0.1') {
     return value;
 }
 
-export async function docker(args) {
+export async function docker(args, { trim = true } = {}) {
     const { stdout } = await exec('docker', args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 });
-    return stdout.trim();
+    return trim ? stdout.trim() : stdout;
+}
+
+// Calls `read(remainingMs)` until `done(value)` holds, every `intervalMs` for at
+// most `timeoutMs`. A thrown error ends the wait unless `retry(error)` allows
+// another attempt. A timeout names the last value or error it observed.
+export async function until(read, done = Boolean, { signal, timeoutMs = 15000, intervalMs = 100, retry = () => false, message = 'Condition not met' } = {}) {
+    const deadline = Date.now() + timeoutMs;
+    let last;
+    while (true) {
+        signal?.throwIfAborted();
+        try {
+            const value = await read(Math.max(1, deadline - Date.now()));
+            if (await done(value)) {
+                signal?.throwIfAborted();
+                return value;
+            }
+            last = { value };
+        } catch (error) {
+            // An abort, such as a process exiting, explains the failure better than its symptom.
+            signal?.throwIfAborted();
+            if (!retry(error)) {
+                throw error;
+            }
+            last = { error };
+        }
+        if (Date.now() >= deadline) {
+            const observed = last.error ? `error: ${last.error.message}` : `value: ${inspect(last.value, { depth: 2, breakLength: Infinity, maxStringLength: 500 })}`;
+            throw new Error(`${typeof message === 'function' ? message() : message} (after ${timeoutMs} ms; last ${observed})`, { cause: last.error });
+        }
+        await delay(intervalMs, undefined, { signal }).catch(() => signal.throwIfAborted());
+    }
 }
 
 export async function checkDocker(run = docker) {
@@ -174,6 +206,15 @@ export class Harness {
         return names;
     }
 
+    // Replaces an instance's Caddyfile in place, as an external editor would.
+    writeConfig(name, content) {
+        return this.run(['exec', this.resource(name), 'sh', '-c', 'printf "%s" "$1" > /data/dev-caddy/Caddyfile', 'sh', content]);
+    }
+
+    readConfig(name) {
+        return this.run(['exec', this.resource(name), 'cat', '/data/dev-caddy/Caddyfile'], { trim: false });
+    }
+
     async stop(name) {
         const detail = await this.inspect('container', this.resource(name));
         if (detail?.State.Running) await this.run(['stop', detail.Id]);
@@ -194,16 +235,31 @@ export class Harness {
     }
 }
 
-export function backendEnvironment(directory, instance) {
-    const env = { ...process.env, NODE_ENV: 'development', PORT: '3001', APP_VERSION: 'dev-caddy',
-        CADDY_UI_UPDATE_CHECK: 'false', CADDY_UI_TRUSTED_PROXIES: '',
-        CADDY_ADMIN_URL: instance.adminUrl, CADDY_CONTAINER_NAME: instance.containerName,
-        CADDY_CONFIG_PATH: instance.configPath, CADDY_LOG_PATH: instance.logPath, CADDY_DATA_PATH: instance.dataPath };
-    for (const [key, file] of Object.entries({ AUTH_PATH: 'auth.json', INSTANCES_PATH: 'instances.json', SETTINGS_PATH: 'settings.json',
+// What a development backend gets instead of production values: its own state
+// files under `directory`, one instance and no calls home.
+function ownedEnvironment(directory, instance) {
+    const state = { AUTH_PATH: 'auth.json', INSTANCES_PATH: 'instances.json', SETTINGS_PATH: 'settings.json',
         SERVER_NAMES_PATH: 'server-names.json', UPTIME_HISTORY_PATH: 'uptime-history.json',
         NOTIFICATIONS_CONFIG_PATH: 'notifications.json', ROUTE_NOTES_PATH: 'route-notes.json',
-        HISTORY_PATH: 'history', AUDIT_LOG_PATH: 'audit-log.json', MAINTENANCE_PATH: 'maintenance.json', WWW_PATH: 'www', THEMES_PATH: 'themes' })) {
-        env[key] = resolve(directory, 'backend', file);
-    }
-    return env;
+        HISTORY_PATH: 'history', AUDIT_LOG_PATH: 'audit-log.json', MAINTENANCE_PATH: 'maintenance.json', WWW_PATH: 'www', THEMES_PATH: 'themes' };
+    return {
+        NODE_ENV: 'development', CADDY_UI_UPDATE_CHECK: 'false', CADDY_UI_TRUSTED_PROXIES: '',
+        CADDY_ADMIN_URL: instance.adminUrl, CADDY_CONTAINER_NAME: instance.containerName,
+        CADDY_CONFIG_PATH: instance.configPath, CADDY_LOG_PATH: instance.logPath, CADDY_DATA_PATH: instance.dataPath,
+        ...Object.fromEntries(Object.entries(state).map(([key, file]) => [key, resolve(directory, 'backend', file)])),
+    };
+}
+
+// For running the app by hand: settings from the developer's shell still apply.
+export function backendEnvironment(directory, instance) {
+    return { ...process.env, PORT: '3001', APP_VERSION: 'dev-caddy', ...ownedEnvironment(directory, instance) };
+}
+
+const APP_SETTING = /^(CADDY|UPTIME_HISTORY_|MAX_HISTORY)|^(JWT_SECRET|LOG_LEVEL|APP_VERSION|PORT)$/;
+
+// For tests and captures: whatever the shell sets for the app is left out, so a
+// run depends only on its own overrides. Listens on a port the OS picks.
+export function isolatedBackendEnvironment(directory, instance = {}, overrides = {}) {
+    const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !APP_SETTING.test(key)));
+    return { ...inherited, PORT: '0', APP_VERSION: 'dev-caddy', ...ownedEnvironment(directory, instance), ...overrides };
 }

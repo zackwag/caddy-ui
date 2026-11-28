@@ -1,9 +1,10 @@
-import { isPasswordMethod, onAuthenticationEvent } from './authEvents.js';
+import { isPasswordFallback, onAuthenticationEvent } from './authEvents.js';
 import { certificateName, listCertificates } from './certificates.js';
 import { getInstances } from './instances.js';
 import logger from './logger.js';
 import { debounceMs, getNotificationConfig, loadNotificationConfig, onNotificationConfigChange } from './notificationConfig.js';
 import { sendNotification } from './notificationDelivery.js';
+import { createDigest } from './notificationDigest.js';
 import { getUpdateNotification } from './updateCheck.js';
 
 // Certificates, releases and tokens change over days, not seconds.
@@ -12,22 +13,30 @@ const DAY_MS = 86_400_000;
 
 let reminderTimer = null;
 let listApiTokens = () => [];
-const debounced = new Map(); // key -> when it was last delivered
+// instance id -> alert -> when it was last delivered
+const debounced = new Map();
+
+const cooldownMs = () => debounceMs(getNotificationConfig());
 
 const enabled = trigger => {
     const config = getNotificationConfig();
     return config.enabled && config.triggers[trigger];
 };
 
-function isDebounced(key) {
-    const last = debounced.get(key);
-    return last !== undefined && Date.now() - last < debounceMs(getNotificationConfig());
+function isDebounced(instanceId, alert) {
+    const last = debounced.get(instanceId)?.get(alert);
+    return last !== undefined && Date.now() - last < cooldownMs();
+}
+
+function debounce(instanceId, alert) {
+    if (!debounced.has(instanceId)) debounced.set(instanceId, new Map());
+    debounced.get(instanceId).set(alert, Date.now());
 }
 
 function forgetExpiredDebounces() {
-    const windowMs = debounceMs(getNotificationConfig());
-    for (const [key, at] of debounced) {
-        if (Date.now() - at >= windowMs) debounced.delete(key);
+    for (const [instanceId, alerts] of debounced) {
+        for (const alert of alerts.keys()) if (!isDebounced(instanceId, alert)) alerts.delete(alert);
+        if (!alerts.size) debounced.delete(instanceId);
     }
 }
 
@@ -40,27 +49,18 @@ function instanceLabel(inst) {
 // Three failure buckets (password, passkey, recovery), independent of client IP.
 // Successes are never debounced. Delivery is best effort, with bounded concurrency.
 const MAX_AUTHENTICATION_DELIVERIES = 8;
-const authenticationFailures = new Map();
 let authenticationDeliveries = 0;
 let authenticationBusyReported = false;
 
-function clearAuthenticationFailures() {
-    for (const batch of authenticationFailures.values()) clearTimeout(batch.timer);
-    authenticationFailures.clear();
+const AUTHENTICATION_NAMES = { recovery: 'Account recovery', totp: 'Authenticator sign-in', 'password-totp': 'Password and authenticator sign-in', password: 'Password sign-in', passkey: 'Passkey sign-in' };
+
+function authenticationTitle(event) {
+    if (isPasswordFallback(event)) return 'Password sign-in while passkeys are configured';
+    return `${AUTHENTICATION_NAMES[event.method]} ${event.outcome === 'success' ? 'succeeded' : 'failed'}`;
 }
 
-function authenticationTitle({ method, outcome, passkeysConfigured }) {
-    if (isPasswordMethod(method) && outcome === 'success' && passkeysConfigured) {
-        return 'Password sign-in while passkeys are configured';
-    }
-    const name = method === 'recovery' ? 'Account recovery' : method === 'totp' ? 'Authenticator sign-in'
-        : method === 'password-totp' ? 'Password and authenticator sign-in' : isPasswordMethod(method) ? 'Password sign-in' : 'Passkey sign-in';
-    return `${name} ${outcome === 'success' ? 'succeeded' : 'failed'}`;
-}
-
-function authenticationPriority({ method, outcome, passkeysConfigured }) {
-    const fallback = isPasswordMethod(method) && outcome === 'success' && passkeysConfigured;
-    return method === 'recovery' || fallback ? 'high' : 'default';
+function authenticationPriority(event) {
+    return event.method === 'recovery' || isPasswordFallback(event) ? 'high' : 'default';
 }
 
 async function deliverAuthentication(event, additional = 0) {
@@ -84,38 +84,20 @@ async function deliverAuthentication(event, additional = 0) {
     }
 }
 
+const authenticationFailures = createDigest({
+    cooldownMs,
+    deliver: deliverAuthentication,
+    onSummaryFailed: event => logger.warn('Authentication notification summary delivery failed', { method: event.method }),
+});
+
 function notifyAuthenticationEvent(event) {
     if (!enabled('authentication')) return;
-    if (event.outcome !== 'failure') return deliverAuthentication(event);
-    const pending = authenticationFailures.get(event.method);
-    if (pending) {
-        pending.count++;
-        pending.latest = event;
-        return;
-    }
-    const batch = { count: 0, latest: event, timer: null };
-    batch.timer = setTimeout(() => {
-        authenticationFailures.delete(event.method);
-        if (batch.count) void deliverAuthentication(batch.latest, batch.count).catch(() => {
-            logger.warn('Authentication notification summary delivery failed', { method: event.method });
-        });
-    }, debounceMs(getNotificationConfig()));
-    batch.timer.unref?.();
-    authenticationFailures.set(event.method, batch);
-    return deliverAuthentication(event);
+    return event.outcome === 'failure' ? authenticationFailures.add(event.method, event) : deliverAuthentication(event);
 }
 
 // --- External configuration changes ---------------------------------------
 
-// The first unexplained change per instance is sent immediately; later ones
-// during the cooldown are summarized once it ends, so bursts stay bounded.
-const configurationBatches = new Map();
 const REPRESENTATIONS = { file: 'Caddyfile', live: 'live configuration' };
-
-function clearConfigurationBatches() {
-    for (const batch of configurationBatches.values()) clearTimeout(batch.timer);
-    configurationBatches.clear();
-}
 
 async function deliverConfigurationChange(change, additional = 0) {
     if (!enabled('configurationChange')) return;
@@ -133,24 +115,14 @@ async function deliverConfigurationChange(change, additional = 0) {
     await sendNotification(getNotificationConfig(), { title: 'Configuration changed outside caddy/ui', message, priority: 'high' });
 }
 
+const configurationChanges = createDigest({
+    cooldownMs,
+    deliver: deliverConfigurationChange,
+    onSummaryFailed: (change, err) => logger.warn('Configuration change notification summary delivery failed', { instanceId: change.instanceId, error: err.message }),
+});
+
 export function notifyConfigurationChange(change) {
-    if (!enabled('configurationChange')) return;
-    const pending = configurationBatches.get(change.instanceId);
-    if (pending) {
-        pending.count++;
-        pending.latest = change;
-        return;
-    }
-    const batch = { count: 0, latest: change, timer: null };
-    batch.timer = setTimeout(() => {
-        configurationBatches.delete(change.instanceId);
-        if (batch.count) void deliverConfigurationChange(batch.latest, batch.count).catch(err => {
-            logger.warn('Configuration change notification summary delivery failed', { instanceId: change.instanceId, error: err.message });
-        });
-    }, debounceMs(getNotificationConfig()));
-    batch.timer.unref?.();
-    configurationBatches.set(change.instanceId, batch);
-    return deliverConfigurationChange(change);
+    if (enabled('configurationChange')) return configurationChanges.add(change.instanceId, change);
 }
 
 // --- Online/offline transitions -------------------------------------------
@@ -174,7 +146,7 @@ const RETRY_DELAYS_MS = [30_000, 60_000];
 // flight. Replacing `pending` invalidates the attempts of the one it replaces.
 const targets = new Map();
 const targetKey = (kind, instanceId, target) => JSON.stringify([kind, instanceId, target]);
-const debounceKey = (type, key) => `${type}:${key}`;
+const transitionAlert = (type, { kind, target }) => `${type} ${kind} ${target}`;
 
 function cancelPending(record) {
     if (record.pending) clearTimeout(record.pending.timer);
@@ -192,8 +164,7 @@ function forgetTarget(key) {
     if (!record) return;
     cancelPending(record);
     targets.delete(key);
-    debounced.delete(debounceKey('offline', key));
-    debounced.delete(debounceKey('online', key));
+    for (const type of ['offline', 'online']) debounced.get(record.instanceId)?.delete(transitionAlert(type, record));
 }
 
 async function attempt(record, pending) {
@@ -210,7 +181,7 @@ async function attempt(record, pending) {
         if (record.pending !== pending) return;
         record.pending = null;
         record.deliveredOffline = type === 'offline';
-        debounced.set(debounceKey(type, record.key), Date.now());
+        debounce(record.instanceId, transitionAlert(type, record));
     } catch (err) {
         if (record.pending !== pending) return;
         const delay = RETRY_DELAYS_MS[attemptNumber - 1];
@@ -237,7 +208,7 @@ export async function notifyCheckResults(kind, inst, results) {
     for (const result of results) {
         const key = targetKey(kind, inst.id, result.target);
         seen.add(key);
-        const record = targets.get(key) || { key, kind, instanceId: inst.id, target: result.target, online: undefined, deliveredOffline: false, pending: null };
+        const record = targets.get(key) || { kind, instanceId: inst.id, target: result.target, online: undefined, deliveredOffline: false, pending: null };
         targets.set(key, record);
         if (record.online !== undefined && record.online !== result.online) {
             cancelPending(record);
@@ -252,7 +223,7 @@ export async function notifyCheckResults(kind, inst, results) {
     for (const { record, result } of changed) {
         const type = result.online ? 'online' : 'offline';
         const transition = TRANSITIONS[kind][type];
-        if (!enabled(transition.trigger) || isDebounced(debounceKey(type, record.key))) continue;
+        if (!enabled(transition.trigger) || isDebounced(inst.id, transitionAlert(type, record))) continue;
         if (type === 'online' && !record.deliveredOffline) continue;
         const pending = { type, attemptNumber: 1, timer: null, alert: transition.alert(instanceLabel(inst) + result.label, result.failure) };
         record.pending = pending;
@@ -280,8 +251,8 @@ async function remindExpiringCertificates(inst) {
     }
     for (const cert of certificates) {
         if (cert.status !== 'expiring') continue;
-        const key = debounceKey('expiring', targetKey('certificate', inst.id, cert.domain));
-        if (isDebounced(key)) continue;
+        const alert = `expiring ${cert.domain}`;
+        if (isDebounced(inst.id, alert)) continue;
         const days = cert.daysRemaining;
         try {
             await sendNotification(getNotificationConfig(), {
@@ -289,7 +260,7 @@ async function remindExpiringCertificates(inst) {
                 message: `${instanceLabel(inst)}${certificateName(cert.domain)} expires in ${days} day${days !== 1 ? 's' : ''}`,
                 priority: 'high',
             });
-            debounced.set(key, Date.now());
+            debounce(inst.id, alert);
         } catch (err) {
             logger.warn('Certificate expiry notification failed', { instance: inst.name, domain: cert.domain, error: err.message });
         }
@@ -366,8 +337,8 @@ async function remind() {
 
 function applyConfig(config) {
     // Configuration changes must not deliver summaries accumulated for an old destination.
-    clearAuthenticationFailures();
-    clearConfigurationBatches();
+    authenticationFailures.clear();
+    configurationChanges.clear();
     cancelPendingWhere(record => !config.enabled || !config.triggers[TRANSITIONS[record.kind][record.pending.type].trigger]);
     if (config.enabled && !reminderTimer) {
         logger.info('Notification reminders started');
@@ -387,12 +358,8 @@ export function forgetInstanceNotifications(instanceId) {
         if (record.instanceId === instanceId) forgetTarget(key);
     }
     certReadFailures.delete(instanceId);
-    clearTimeout(configurationBatches.get(instanceId)?.timer);
-    configurationBatches.delete(instanceId);
-    for (const key of debounced.keys()) {
-        const [, owner] = JSON.parse(key.slice(key.indexOf(':') + 1));
-        if (owner === instanceId) debounced.delete(key);
-    }
+    configurationChanges.forget(instanceId);
+    debounced.delete(instanceId);
 }
 
 // apiTokens lists token metadata (no secrets) for expiry reminders.

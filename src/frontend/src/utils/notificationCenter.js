@@ -1,13 +1,10 @@
 // Notification policy is intentionally separate from diagnostics:
 // recording an error never implies showing a toast.
 export const MAX_VISIBLE_TOASTS = 4;
-export const TOAST_DURATION_MS = 6000;
+const TOAST_DURATION_MS = 6000;
 
 // A state error represents a continuing incident; an event represents one
 // user action. Correlation IDs are intentionally NOT part of deduplication.
-export function stateNotificationKey(scope, instanceId = '') {
-    return `${scope}:${instanceId}`;
-}
 
 // Framework-independent store so duplicate suppression, recovery and timer
 // behavior can be tested without rendering React.
@@ -71,7 +68,7 @@ export function createNotificationCenter({
 
     // Recovery rearms a state incident for future failures. No success toast
     // is emitted by default; the page's own status indicator remains authoritative.
-    function recover(key, message = null) {
+    function recover(key) {
         if (!incidents.delete(key)) return false;
         const removed = toasts.filter(t => t.incidentKey === key);
         if (removed.length) {
@@ -79,7 +76,6 @@ export function createNotificationCenter({
             for (const toast of removed) cancelToastTimer(toast.id);
             publish();
         }
-        if (message) notify(message, 'success');
         return true;
     }
 

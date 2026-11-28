@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -104,14 +104,13 @@ describe('failed instance changes', () => {
         await expectPersisted();
         const before = structuredClone(instances.getInstances());
         const persisted = await readFile(file, 'utf8');
-        await chmod(directory, 0o555);
-        try {
-            await expect(changes[operation]()).rejects.toMatchObject({ code: 'EACCES' });
-            expect(instances.getInstances()).toEqual(before);
-            expect(await readFile(file, 'utf8')).toBe(persisted);
-        } finally {
-            await chmod(directory, 0o700);
-        }
+        // A directory in place of the file fails the write for any user, root included.
+        await rm(file);
+        await mkdir(file);
+        await expect(changes[operation]()).rejects.toMatchObject({ code: 'EISDIR' });
+        expect(instances.getInstances()).toEqual(before);
+        await rm(file, { recursive: true });
+        await writeFile(file, persisted);
 
         // Reloading data must not hide a poisoned write queue. Retrying the
         // operation needs to reach the now-writable file and update both views.
@@ -129,6 +128,92 @@ describe('failed instance changes', () => {
     ])('rejects a %s without preventing the next valid change', async (_, change, code) => {
         await expect(change()).rejects.toMatchObject({ code });
         await instances.addInstance(instance('gamma'));
+        expect(instances.getInstance('gamma')).toEqual(instance('gamma'));
+        await expectPersisted();
+    });
+});
+
+describe('stored instances', () => {
+    const reload = async contents => {
+        await writeFile(file, JSON.stringify(contents));
+        return instances.loadInstances();
+    };
+
+    it('normalizes a hand-edited file into the form requests use', async () => {
+        const { instances: [loaded] } = await reload([{ id: 'alpha', adminUrl: 'http://Caddy:2019/', configPath: '/etc/caddy/../caddy/Caddyfile' }]);
+        expect(loaded).toEqual({
+            id: 'alpha', name: 'alpha', adminUrl: 'http://caddy:2019', configPath: '/etc/caddy/Caddyfile',
+            logPath: '/var/log/caddy/access.log', dataPath: '/data/caddy', containerName: 'caddy', serverName: 'srv0',
+        });
+        expect(instances.getInstance('alpha')).toBe(loaded);
+    });
+
+    it('fills a missing container name from the defaults and keeps an empty one as local mode', async () => {
+        const { containerName, ...unnamed } = instance('alpha');
+        expect(containerName).toBe('');
+        await reload([unnamed, instance('beta')]);
+        expect(instances.getInstance('alpha').containerName).toBe('caddy');
+        expect(instances.getInstance('beta').containerName).toBe('');
+        const { containerName: omitted, ...added } = instance('gamma');
+        expect(omitted).toBe('');
+        expect((await instances.addInstance(added)).containerName).toBe('caddy');
+    });
+
+    it.each([
+        ['an admin URL that is not http', { adminUrl: 'ftp://caddy:2019' }],
+        ['a path outside the allowed directories', { configPath: '/root/Caddyfile' }],
+        ['a container name that would need changing', { containerName: 'cad dy' }],
+        ['no id', { id: undefined }],
+    ])('ignores an entry with %s but keeps it in the file', async (_, override) => {
+        const bad = { ...instance('alpha'), ...override };
+        await reload([instance('beta'), bad, instance('delta')]);
+        expect(instances.getInstances().map(value => value.id)).toEqual(['beta', 'delta']);
+        expect(instances.getInstance('alpha')).toBeNull();
+        expect(instances.instancesComplete()).toBe(false);
+        expect((await readdir(directory)).some(name => name.startsWith('instances.json.corrupt-'))).toBe(false);
+
+        await instances.updateInstance('beta', { name: 'Beta updated' });
+        await instances.addInstance(instance('gamma'));
+        expect(JSON.parse(await readFile(file, 'utf8'))).toEqual([
+            { ...instance('beta'), name: 'Beta updated' }, instance('delta'), instance('gamma'), JSON.parse(JSON.stringify(bad)),
+        ]);
+    });
+
+    it("won't add an instance with an ignored entry's id", async () => {
+        await reload([{ ...instance('alpha'), configPath: '/root/Caddyfile' }]);
+        await expect(instances.addInstance(instance('alpha'))).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(instances.generateId('alpha')).toBe('alpha-2');
+    });
+
+    it('sets aside a file that is not a list of instances', async () => {
+        expect((await reload({ alpha: instance('alpha') })).instances).toEqual([]);
+        expect((await readdir(directory)).some(name => name.startsWith('instances.json.corrupt-'))).toBe(true);
+        expect(instances.instancesComplete()).toBe(false);
+    });
+
+    it.each([
+        ['containerName', 'caddy;rm'],
+        ['serverName', 'srv 0'],
+        ['adminUrl', 'file:///etc/passwd'],
+        ['logPath', '/root/access.log'],
+    ])('rejects an added or updated %s that is not safe', async (field, value) => {
+        await expect(instances.addInstance({ ...instance('gamma'), [field]: value }))
+            .rejects.toMatchObject({ code: 'VALIDATION_FAILED', context: { field } });
+        await expect(instances.updateInstance('alpha', { [field]: value }))
+            .rejects.toMatchObject({ code: 'VALIDATION_FAILED', context: { field } });
+        expect(instances.getInstance('gamma')).toBeNull();
+        expect(instances.getInstance('alpha')).toEqual(instance('alpha'));
+        await expectPersisted();
+    });
+});
+
+describe('instance listeners', () => {
+    it('tells listeners about each saved instance, without failing the save when one fails', async () => {
+        const saved = vi.fn().mockRejectedValueOnce(new Error('listener failed'));
+        instances.onInstanceSaved(saved);
+        await instances.addInstance(instance('gamma'));
+        await instances.updateInstance('alpha', { name: 'Alpha updated' });
+        expect(saved.mock.calls).toEqual([['gamma'], ['alpha']]);
         expect(instances.getInstance('gamma')).toEqual(instance('gamma'));
         await expectPersisted();
     });

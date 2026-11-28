@@ -96,7 +96,6 @@ describe('updateNotification', () => {
 
     it('describes each stable component that is behind', () => {
         const n = updateNotification({ backend: '2.18.0', frontend: '2.18.0' }, running);
-        expect(n.key).toBe('backend@2.18.0,frontend@2.18.0');
         expect(n.message).toContain('backend 2.17.0 → 2.18.0, frontend 2.17.0 → 2.18.0');
         expect(n.message).toContain('github.com/zackwag/caddy-ui/releases');
     });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiFetch, apiRequest, authRequest, fetchAuthStatus, getInstanceId, onInstanceSelectionReset, resetAuthContext, setInstanceId } from '../src/utils/api.js';
+import { apiFetch, apiRequest, authRequest, fetchAuthStatus, getInstanceId, instanceUrl, onInstanceSelectionReset, onUnauthorized, resetAuthContext, setInstanceId } from '../src/utils/api.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const storage = new Map();
@@ -23,6 +23,24 @@ describe('cookie authentication client', () => {
         expect(body).toBe('example.com {\n}\n');
         expect(headers.get('ETag')).toBe('W/"sha256:abc"');
     });
+    it('sends JSON bodies with their content type', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(json({ csrfToken: 'context' })).mockResolvedValueOnce(json({ ok: true })));
+        await apiFetch('/settings', { method: 'PUT', json: { theme: 'light' } });
+        const [, options] = fetch.mock.calls[1];
+        expect(options).toMatchObject({ method: 'PUT', body: '{"theme":"light"}', headers: { 'Content-Type': 'application/json' } });
+        expect(options).not.toHaveProperty('json');
+    });
+    it('passes an aborted request on as its abort, not a connection failure', async () => {
+        const controller = new AbortController();
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(() => { controller.abort(); return Promise.reject(controller.signal.reason); }));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        await expect(apiFetch('/logs/config', { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+        expect(fetch.mock.calls[0][1].signal).toBe(controller.signal);
+        expect(console.error).not.toHaveBeenCalled();
+        vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => { const response = json({ enabled: true }); controller.abort(); return response; }));
+        await expect(apiFetch('/logs/config', { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+        console.error.mockRestore();
+    });
     it('reports network loss while establishing CSRF context without sending a mutation', async () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
         await expect(apiFetch('/settings', { method: 'PUT' })).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
@@ -30,10 +48,12 @@ describe('cookie authentication client', () => {
         expect(fetch.mock.calls[0][0]).toBe('/api/auth/csrf');
     });
     it.each([[401, 'UNAUTHORIZED', true], [403, 'FORBIDDEN', false]])('distinguishes HTTP %s from permission failures', async (status, code, signedOut) => {
-        const onUnauth = vi.fn();
+        const onSignedOut = vi.fn();
+        const unsubscribe = onUnauthorized(onSignedOut);
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ code, error: 'Operation failed', requestId: 'request-diagnostic' }, status)));
-        await expect(apiFetch('/settings', {}, onUnauth)).rejects.toMatchObject({ code, status, requestId: 'request-diagnostic' });
-        expect(onUnauth).toHaveBeenCalledTimes(signedOut ? 1 : 0);
+        await expect(apiFetch('/settings')).rejects.toMatchObject({ code, status, requestId: 'request-diagnostic' });
+        unsubscribe();
+        expect(onSignedOut).toHaveBeenCalledTimes(signedOut ? 1 : 0);
         expect(fetch.mock.calls[0][1].credentials).toBe('same-origin');
         expect(fetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
     });
@@ -64,19 +84,25 @@ describe('cookie authentication client', () => {
     });
 
     it('refreshes CSRF after credential updates and forwards session expiry to the app', async () => {
-        const onUnauth = vi.fn();
+        const onSignedOut = vi.fn();
+        const unsubscribe = onUnauthorized(onSignedOut);
         vi.stubGlobal('fetch', vi.fn()
             .mockResolvedValueOnce(json({ csrfToken: 'old-session' }))
             .mockResolvedValueOnce(json({ username: 'renamed' }))
             .mockResolvedValueOnce(json({ csrfToken: 'renewed-session' }))
             .mockResolvedValueOnce(json({ ok: true }))
             .mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401)));
-        await authRequest('/credentials', { method: 'PATCH' }, onUnauth);
+        await authRequest('/credentials', { method: 'PATCH' });
         await apiFetch('/settings', { method: 'PUT' });
         expect(fetch.mock.calls[3][1].headers['X-CSRF-Token']).toBe('renewed-session');
-        expect(onUnauth).not.toHaveBeenCalled();
-        await expect(authRequest('/credentials', { method: 'PATCH' }, onUnauth)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
-        expect(onUnauth).toHaveBeenCalledOnce();
+        expect(onSignedOut).not.toHaveBeenCalled();
+        await expect(authRequest('/credentials', { method: 'PATCH' })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+        expect(onSignedOut).toHaveBeenCalledOnce();
+        // Signing in again is refused the same way, but nobody is listening
+        unsubscribe();
+        fetch.mockResolvedValueOnce(json({ csrfToken: 'anonymous' })).mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401));
+        await expect(authRequest('/sessions', { method: 'POST' })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+        expect(onSignedOut).toHaveBeenCalledOnce();
     });
 
     it('rejects malformed authentication status instead of trusting cached local state', async () => {
@@ -86,6 +112,14 @@ describe('cookie authentication client', () => {
         expect(storage.size).toBe(0);
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ authEnabled: false })));
         await expect(fetchAuthStatus()).rejects.toMatchObject({ code: 'INVALID_LOCAL_STATE' });
+    });
+});
+
+describe('instance selection', () => {
+    it('reaches the selected instance from requests that cannot send headers', () => {
+        setInstanceId('home lab');
+        expect(instanceUrl('/tls/ca')).toBe('/api/tls/ca?instance=home%20lab');
+        expect(instanceUrl('/caddyfile?download=true')).toBe('/api/caddyfile?download=true&instance=home%20lab');
     });
 });
 

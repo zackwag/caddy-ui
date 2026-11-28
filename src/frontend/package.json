@@ -11,12 +11,7 @@
         "lint": "eslint .",
         "test": "vitest run && node scripts/localization.mjs check",
         "i18n:check": "node scripts/localization.mjs check",
-        "i18n:coverage": "node scripts/localization.mjs coverage",
-        "i18n:preview": "npm run i18n:preview --prefix ../../dev --",
-        "i18n:preview:build": "npm run i18n:preview:build --prefix ../../dev --",
-        "i18n:preview:capture": "npm run i18n:preview:capture --prefix ../../dev --",
-        "i18n:preview:check-capture": "npm run i18n:preview:check-capture --prefix ../../dev --",
-        "i18n:preview:check-browser": "npm run i18n:preview:check-browser --prefix ../../dev --"
+        "i18n:coverage": "node scripts/localization.mjs coverage"
     },
     "dependencies": {
         "@codemirror/autocomplete": "^6.20.4",
@@ -24,7 +19,6 @@
         "@codemirror/language": "^6.13.1",
         "@codemirror/search": "^6.7.2",
         "@codemirror/state": "^6.7.6",
-        "@codemirror/theme-one-dark": "^6.0.0",
         "@codemirror/view": "^6.43.15",
         "@fontsource-variable/noto-sans-arabic": "5.3.0",
         "@fontsource/ibm-plex-mono": "5.3.0",

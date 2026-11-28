@@ -1,23 +1,17 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { before, test } from 'node:test';
-import { prepareBrowserTests, useAuthBrowserFixture } from './fixture.mjs';
+import { test } from 'node:test';
+import { apiSignIn, useAuthBrowserFixture } from './fixture.mjs';
 
-before(prepareBrowserTests, { timeout: 35000 });
 const options = { timeout: 120000 };
 const docsOrigin = 'https://zackwag.github.io';
 const resolverPath = '/caddy-ui/resolve.html';
 
 async function fixture(t, frontend) {
-    const f = await useAuthBrowserFixture(t, false, { frontendVersion: frontend });
+    const f = await useAuthBrowserFixture(t, { frontendVersion: frontend });
     const { page, context, origin } = f;
-    const csrf = await context.request.get(origin + '/api/auth/csrf');
-    const setup = await context.request.post(origin + '/api/auth/setup', {
-        headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken },
-        data: { username: 'documentation-administrator', password: randomBytes(24).toString('base64url') },
-    });
-    assert.equal(setup.status(), 200);
+    await apiSignIn(context, origin, { username: 'documentation-administrator', password: randomBytes(24).toString('base64url') }, { enroll: true });
 
     // Exercise the real documentation resolver and its policy in a local
     // network fixture, independently of the deployed site's current releases.
@@ -109,7 +103,6 @@ test('sidebar Documentation uses independent versions, opens a new tab and remai
             await link.hover();
             await page.waitForFunction(color => getComputedStyle(document.querySelector('.sidebar-documentation')).color === color, accent);
             assert.equal(await link.evaluate(node => getComputedStyle(node).backgroundColor), background, 'hover changes text, not the background');
-            await page.locator('.nav-footer').screenshot({ path: '/tmp/caddy-ui-documentation-footer.png' });
             await page.getByRole('button', { name: 'Sign out', exact: true }).focus();
             await page.keyboard.press('Tab');
             assert(await link.evaluate(node => node === document.activeElement && node.matches(':focus-visible')));
@@ -138,7 +131,6 @@ test('sidebar Documentation uses independent versions, opens a new tab and remai
     await link.scrollIntoViewIfNeeded();
     const bounds = await link.boundingBox();
     assert(bounds.x >= 0 && bounds.x + bounds.width <= 390 && bounds.y >= 0 && bounds.y + bounds.height <= 844);
-    await page.screenshot({ path: '/tmp/caddy-ui-documentation-mobile.png' });
     const popup = await open();
     await popup.getByRole('heading', { name: 'Release v3.7.4', exact: true }).waitFor();
     await popup.close();

@@ -1,169 +1,96 @@
-import { describe, expect, it } from 'vitest';
-import { formatDuration, getHistory, getStatsForInstance, getUptimeStats, recordCheck } from '../src/uptimeHistory.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgetInstanceHistory, getHistory, getStatsForInstance, recordCheck } from '../src/uptimeHistory.js';
 
+const START = Date.UTC(2026, 0, 1, 12, 0, 0);
+const DAY_MS = 24 * 60 * 60 * 1000;
 const INSTANCE = 'test-instance';
+const at = seconds => START + seconds * 1000;
 
-describe('formatDuration', () => {
-    it('formats seconds only', () => {
-        expect(formatDuration(30)).toBe('30s');
+// Checks every 30 seconds from START; leaves the clock at the last one.
+function record(target, results, { instance = INSTANCE, kind } = {}) {
+    results.forEach((online, i) => {
+        vi.setSystemTime(at(i * 30));
+        recordCheck(instance, target, online, kind);
+    });
+}
+const stats = (target, kind, instance = INSTANCE) => getStatsForInstance(instance, kind)[target];
+
+beforeEach(() => vi.useFakeTimers({ now: START }));
+afterEach(() => {
+    for (const id of [INSTANCE, 'other']) forgetInstanceHistory(id);
+    vi.useRealTimers();
+});
+
+describe('uptime statistics', () => {
+    it('are missing for a target never checked', () => {
+        expect(stats('never:1')).toBeUndefined();
     });
 
-    it('formats minutes', () => {
-        expect(formatDuration(120)).toBe('2m');
+    it('summarize every check', () => {
+        record('app:80', [true, false, false]);
+        expect(stats('app:80')).toMatchObject({
+            pct: 33.3, total: 3, online: 1, currentlyOnline: false,
+            firstSeen: new Date(START), lastCheckAt: new Date(at(60)),
+        });
     });
 
-    it('formats hours and minutes', () => {
-        expect(formatDuration(3660)).toBe('1h 1m');
+    it('measure the current state from the first check that showed it', () => {
+        record('app:80', [true, false, true, true, true]);
+        expect(stats('app:80')).toMatchObject({ currentlyOnline: true, streakSeconds: 60 });
+        vi.setSystemTime(at(150));
+        expect(stats('app:80').streakSeconds).toBe(90);
     });
 
-    it('formats days and hours', () => {
-        expect(formatDuration(90000)).toBe('1d 1h');
+    it('measure a state that never changed from the first check', () => {
+        record('app:80', [true, true, true]);
+        expect(stats('app:80').streakSeconds).toBe(60);
     });
 
-    it('formats zero', () => {
-        expect(formatDuration(0)).toBe('0s');
+    it('drop checks past the retention period but remember when a target was first seen', () => {
+        record('app:80', [false]);
+        vi.setSystemTime(START + 8 * DAY_MS);
+        recordCheck(INSTANCE, 'app:80', true);
+        expect(stats('app:80')).toMatchObject({ total: 1, pct: 100, firstSeen: new Date(START) });
+    });
+
+    it('keep instances and kinds of check apart', () => {
+        record('app.example', [true]);
+        record('app.example', [false], { instance: 'other' });
+        record('app.example', [false], { kind: 'route' });
+        record('files.example', [true], { kind: 'route' });
+        expect(stats('app.example').currentlyOnline).toBe(true);
+        expect(stats('app.example', 'upstream', 'other').currentlyOnline).toBe(false);
+        expect(Object.keys(getStatsForInstance(INSTANCE))).toEqual(['app.example']);
+        expect(Object.keys(getStatsForInstance(INSTANCE, 'route')).sort()).toEqual(['app.example', 'files.example']);
+    });
+
+    it('are forgotten with their instance', () => {
+        record('app.example', [true]);
+        record('app.example', [true], { kind: 'route' });
+        record('app.example', [true], { instance: 'other' });
+        forgetInstanceHistory(INSTANCE);
+        expect(getStatsForInstance(INSTANCE)).toEqual({});
+        expect(getStatsForInstance(INSTANCE, 'route')).toEqual({});
+        expect(Object.keys(getStatsForInstance('other'))).toEqual(['app.example']);
     });
 });
 
-describe('recordCheck / getUptimeStats', () => {
-    it('returns null for an unknown upstream', () => {
-        expect(getUptimeStats(INSTANCE, 'never-seen:1234')).toBeNull();
+describe('check history', () => {
+    it('is empty for a target never checked', () => {
+        expect(getHistory(INSTANCE, 'never:1')).toEqual({ entries: [], firstSeen: null });
     });
 
-    it('tracks online checks correctly', () => {
-        const key = `test-online-${Date.now()}`;
-        recordCheck(INSTANCE, key, true);
-        recordCheck(INSTANCE, key, true);
-        recordCheck(INSTANCE, key, true);
-        const stats = getUptimeStats(INSTANCE, key);
-        expect(stats.pct).toBe(100);
-        expect(stats.total).toBe(3);
-        expect(stats.online).toBe(3);
-        expect(stats.currentlyOnline).toBe(true);
-        expect(stats.streak).toBe(3);
+    it('lists checks of one kind, oldest first', () => {
+        record('app.example', [true, false]);
+        record('app.example', [true], { kind: 'route' });
+        expect(getHistory(INSTANCE, 'app.example')).toEqual({
+            entries: [{ online: true, at: START }, { online: false, at: at(30) }], firstSeen: START,
+        });
+        expect(getHistory(INSTANCE, 'app.example', { kind: 'route' }).entries).toHaveLength(1);
     });
 
-    it('tracks mixed checks correctly', () => {
-        const key = `test-mixed-${Date.now()}`;
-        recordCheck(INSTANCE, key, true);
-        recordCheck(INSTANCE, key, false);
-        recordCheck(INSTANCE, key, false);
-        const stats = getUptimeStats(INSTANCE, key);
-        expect(stats.pct).toBeCloseTo(33.3, 0);
-        expect(stats.total).toBe(3);
-        expect(stats.online).toBe(1);
-        expect(stats.currentlyOnline).toBe(false);
-        expect(stats.streak).toBe(2);
-    });
-
-    it('computes streak from end of results', () => {
-        const key = `test-streak-${Date.now()}`;
-        recordCheck(INSTANCE, key, false);
-        recordCheck(INSTANCE, key, false);
-        recordCheck(INSTANCE, key, true);
-        recordCheck(INSTANCE, key, true);
-        recordCheck(INSTANCE, key, true);
-        const stats = getUptimeStats(INSTANCE, key);
-        expect(stats.streak).toBe(3);
-        expect(stats.currentlyOnline).toBe(true);
-    });
-
-    it('includes a streakLabel derived from real elapsed time', () => {
-        const key = `test-label-${Date.now()}`;
-        recordCheck(INSTANCE, key, true);
-        const stats = getUptimeStats(INSTANCE, key);
-        expect(stats.streakLabel).toBe('0s');
-        expect(stats.streakSeconds).toBeGreaterThanOrEqual(0);
-    });
-
-    it('includes firstSeen date', () => {
-        const key = `test-firstseen-${Date.now()}`;
-        recordCheck(INSTANCE, key, true);
-        const stats = getUptimeStats(INSTANCE, key);
-        expect(stats.firstSeen).toBeInstanceOf(Date);
-    });
-
-    it('includes lastCheckAt as the most recent check time', () => {
-        const key = `test-lastcheck-${Date.now()}`;
-        const before = Date.now();
-        recordCheck(INSTANCE, key, true);
-        recordCheck(INSTANCE, key, false);
-        const stats = getUptimeStats(INSTANCE, key);
-        expect(stats.lastCheckAt).toBeInstanceOf(Date);
-        expect(stats.lastCheckAt.getTime()).toBeGreaterThanOrEqual(before);
-    });
-
-    it('keeps the same upstream separate across instances', () => {
-        const upstream = `shared-upstream-${Date.now()}`;
-        recordCheck('instance-a', upstream, true);
-        recordCheck('instance-b', upstream, false);
-        expect(getUptimeStats('instance-a', upstream).currentlyOnline).toBe(true);
-        expect(getUptimeStats('instance-b', upstream).currentlyOnline).toBe(false);
-    });
-});
-
-describe('getStatsForInstance', () => {
-    it('returns stats for every upstream on that instance, keyed by bare upstream', () => {
-        const instance = `scoped-${Date.now()}`;
-        recordCheck(instance, 'app1:3000', true);
-        recordCheck(instance, 'app2:3001', false);
-        recordCheck('other-instance', 'app3:3002', true);
-
-        const stats = getStatsForInstance(instance);
-        expect(Object.keys(stats).sort()).toEqual(['app1:3000', 'app2:3001']);
-        expect(stats['app1:3000'].currentlyOnline).toBe(true);
-        expect(stats['app2:3001'].currentlyOnline).toBe(false);
-    });
-});
-
-describe('getHistory', () => {
-    it('returns raw timestamped entries for an upstream', () => {
-        const key = `test-history-${Date.now()}`;
-        recordCheck(INSTANCE, key, true);
-        recordCheck(INSTANCE, key, false);
-        const { entries, firstSeen } = getHistory(INSTANCE, key);
-        expect(entries).toHaveLength(2);
-        expect(entries[0]).toHaveProperty('online', true);
-        expect(entries[0]).toHaveProperty('at');
-        expect(entries[1]).toHaveProperty('online', false);
-        expect(typeof firstSeen).toBe('number');
-    });
-
-    it('returns an empty timeline for an unknown upstream', () => {
-        expect(getHistory(INSTANCE, 'never-seen:5678')).toEqual({ entries: [], firstSeen: null });
-    });
-
-    it('filters entries to those at or after sinceMs', () => {
-        const key = `test-since-${Date.now()}`;
-        recordCheck(INSTANCE, key, true);
-        recordCheck(INSTANCE, key, false);
-
-        expect(getHistory(INSTANCE, key, { sinceMs: 0 }).entries).toHaveLength(2);
-        expect(getHistory(INSTANCE, key, { sinceMs: Date.now() + 60_000 }).entries).toHaveLength(0);
-    });
-});
-
-describe('route checks', () => {
-    it('keeps route and upstream history separate', () => {
-        const instance = `kinds-${Date.now()}`;
-        recordCheck(instance, 'shared.example.com', true);
-        recordCheck(instance, 'shared.example.com', false, 'route');
-        expect(getUptimeStats(instance, 'shared.example.com').currentlyOnline).toBe(true);
-        expect(getUptimeStats(instance, 'shared.example.com', 'route').currentlyOnline).toBe(false);
-    });
-
-    it('lists only the requested kind per instance', () => {
-        const instance = `kinds-list-${Date.now()}`;
-        recordCheck(instance, 'app:3000', true);
-        recordCheck(instance, 'app.example.com', true, 'route');
-        expect(Object.keys(getStatsForInstance(instance))).toEqual(['app:3000']);
-        expect(Object.keys(getStatsForInstance(instance, 'route'))).toEqual(['app.example.com']);
-    });
-
-    it('returns route history by kind', () => {
-        const instance = `kinds-history-${Date.now()}`;
-        recordCheck(instance, 'app.example.com', true, 'route');
-        expect(getHistory(instance, 'app.example.com', { kind: 'route' }).entries).toHaveLength(1);
-        expect(getHistory(instance, 'app.example.com').entries).toHaveLength(0);
+    it('starts at the requested time, inclusive', () => {
+        record('app:80', [true, true, false]);
+        expect(getHistory(INSTANCE, 'app:80', { sinceMs: at(30) }).entries.map(entry => entry.at)).toEqual([at(30), at(60)]);
     });
 });

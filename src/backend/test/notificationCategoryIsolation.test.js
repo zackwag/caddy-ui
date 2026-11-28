@@ -41,7 +41,6 @@ describe('notification category isolation', () => {
 
     afterEach(() => notifications.close());
 
-    // Enabling notifications starts a round right away; runReminders joins it.
     async function remind() {
         notifications = await notificationsFixture({ config, apiTokens: () => [expiringToken()] });
         await notifications.runReminders();

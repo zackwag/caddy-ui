@@ -5,6 +5,7 @@ import { UtilityIcon } from "./components/Icons.jsx";
 import { ConfirmDialog, useConfirm } from "./components/Confirm.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import Login from "./components/Login.jsx";
+import LoginCard, { LoginLogo } from "./components/LoginCard.jsx";
 import SecuritySettings from './components/SecuritySettings.jsx';
 import Logs from "./components/Logs.jsx";
 import Metrics from "./components/Metrics.jsx";
@@ -18,33 +19,13 @@ import { fetchEnabledLanguages, loadLocale, resolveLocale } from "./i18n/index.j
 import ThemeWelcome from "./components/ThemeWelcome.jsx";
 import TLS from "./components/TLS.jsx";
 import { Toasts, useToast } from "./components/Toasts.jsx";
-import { css, THEME_LIST, THEME_VAR_KEYS } from "./styles.js";
-import { apiFetch, authRequest, fetchAuthStatus, fetchCustomThemes, fetchSettings, getInstanceId, onInstanceSelectionReset, resetAuthContext, saveSettings } from "./utils/api.js";
+import { STATUS_INTERVAL_MS, usePoll } from "./hooks/usePoll.js";
+import { css, DEFAULT_PALETTES, THEME_LIST, THEME_VAR_KEYS } from "./styles.js";
+import { apiFetch, authRequest, fetchAuthStatus, getInstanceId, onInstanceSelectionReset, onUnauthorized, resetAuthContext, setInstanceId } from "./utils/api.js";
+import { viewAt } from "./views.js";
+import { DEFAULT_SETTINGS } from "./settings.js";
 import { useTranslation } from 'react-i18next';
-import { localizeError } from './utils/errorMessages.js';
 
-const DEFAULTS = {
-    firstTimeRun: true,
-    theme: 'dark',
-    language: null,
-    editorVim: false,
-    darkPalette: 'vt2026',
-    lightPalette: 'coarse-everywhere',
-    routeColumns: { status: true, title: true, upstream: true, server: true, id: true },
-    routeChecks: false,
-    routeCheckExcludes: [],
-};
-
-const TITLE_KEYS = {
-    '/dashboard': 'pages.dashboard',
-    '/caddyfile': 'pages.caddyfile',
-    '/routes': 'pages.routes',
-    '/tls': 'pages.tls',
-    '/logs': 'pages.logs',
-    '/metrics': 'pages.metrics',
-    '/notifications': 'pages.notifications',
-    '/instances': 'pages.instances',
-};
 
 export default function App() {
     const { t } = useTranslation();
@@ -54,37 +35,34 @@ export default function App() {
     const [noInstances, setNoInstances] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [instanceKey, setInstanceKey] = useState(getInstanceId);
-    const [instanceListVersion, setInstanceListVersion] = useState(0);
+    // The configured instances, null until loaded; the error is kept until a load succeeds
+    const [instances, setInstances] = useState(null);
+    const [instancesError, setInstancesError] = useState(null);
     const [authState, setAuthState] = useState(null);
     const [authError, setAuthError] = useState(false);
     const [showSecurity, setShowSecurity] = useState(false);
-    const authEnabled = authState?.authEnabled ?? true;
-    const authed = Boolean(authState && (!authEnabled || authState.authenticated));
+    const authed = Boolean(authState?.authenticated);
     const [sessionExpired, setSessionExpired] = useState(false);
-    const [language, setLanguage] = useState(DEFAULTS.language);
+    const [language, setLanguage] = useState(null);
     const [enabledLanguages, setEnabledLanguages] = useState(['en']);
     const [languageReady, setLanguageReady] = useState(false);
-    const [theme, setTheme] = useState(DEFAULTS.theme);
-    const [editorVim, setEditorVim] = useState(DEFAULTS.editorVim);
-    const [darkPalette, setDarkPalette] = useState(DEFAULTS.darkPalette);
-    const [lightPalette, setLightPalette] = useState(DEFAULTS.lightPalette);
-    const [routeColumns, setRouteColumns] = useState(DEFAULTS.routeColumns);
-    const [routeChecks, setRouteChecks] = useState(DEFAULTS.routeChecks);
-    const [routeCheckExcludes, setRouteCheckExcludes] = useState(DEFAULTS.routeCheckExcludes);
+    const [settings, setSettings] = useState(DEFAULT_SETTINGS);
     const [customThemes, setCustomThemes] = useState([]);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const [showThemeWelcome, setShowThemeWelcome] = useState(false);
-    const toast = useToast();
-    const { clearStates } = toast;
+    const { toast, toasts } = useToast();
     const { dialog: confirmDialog, confirm, resolve: resolveConfirm } = useConfirm();
 
-    const onUnauth = useCallback(() => {
+    const signedOut = useCallback(() => {
         setShowSecurity(false);
         resetAuthContext();
         setAuthState(previous => previous ? { ...previous, authenticated: false } : null);
         setSettingsLoaded(false);
         setSessionExpired(true);
     }, []);
+
+    // Only while signed in: a refused sign-in is not an expired session
+    useEffect(() => authed ? onUnauthorized(signedOut) : undefined, [authed, signedOut]);
 
     const refreshAuth = useCallback(async () => {
         setAuthError(false);
@@ -101,9 +79,9 @@ export default function App() {
     const logout = async () => {
         try {
             await authRequest('/sessions/current', { method: 'DELETE' });
-            onUnauth();
+            signedOut();
             await refreshAuth();
-        } catch (error) { toast.error(localizeError(error, t), error); }
+        } catch (error) { toast.error(error); }
     };
 
     useEffect(() => {
@@ -142,20 +120,13 @@ export default function App() {
     useEffect(() => {
         if (!authed || !languageReady || settingsLoaded) return;
         Promise.all([
-            fetchSettings(onUnauth),
-            fetchCustomThemes(onUnauth).catch(() => []),
+            apiFetch('/settings'),
+            apiFetch('/custom-themes').catch(() => []),
         ]).then(([s, custom]) => {
             setCustomThemes(custom);
             const validIds = new Set([...THEME_LIST, ...custom].map(t => t.id));
-            const dk = validIds.has(s.darkPalette) ? s.darkPalette : DEFAULTS.darkPalette;
-            const lt = validIds.has(s.lightPalette) ? s.lightPalette : DEFAULTS.lightPalette;
-            setTheme(s.theme === 'light' ? 'light' : 'dark');
-            setEditorVim(s.editorVim === true);
-            setDarkPalette(dk);
-            setLightPalette(lt);
-            setRouteColumns({ ...DEFAULTS.routeColumns, ...s.routeColumns });
-            setRouteChecks(s.routeChecks === true);
-            setRouteCheckExcludes(Array.isArray(s.routeCheckExcludes) ? s.routeCheckExcludes : []);
+            const palette = (id, fallback) => validIds.has(id) ? id : fallback;
+            setSettings({ ...DEFAULT_SETTINGS, ...s, darkPalette: palette(s.darkPalette, DEFAULT_PALETTES.dark), lightPalette: palette(s.lightPalette, DEFAULT_PALETTES.light) });
             setSettingsLoaded(true);
             if (s.firstTimeRun) setShowThemeWelcome(true);
 
@@ -164,16 +135,17 @@ export default function App() {
             // instead of discarding the rest of the settings.
             const resolvedLanguage = resolveLocale(enabledLanguages, s.language ?? null);
             loadLocale(resolvedLanguage).then(() => setLanguage(resolvedLanguage)).catch(() => {});
-        }).catch(() => {
+        }).catch(error => {
+            toast.error(error);
             setSettingsLoaded(true);
         });
-    }, [authed, languageReady, settingsLoaded, enabledLanguages, onUnauth]);
+    }, [authed, languageReady, settingsLoaded, enabledLanguages, toast]);
 
+    const { theme, darkPalette, lightPalette } = settings;
     const allThemes = [...THEME_LIST, ...customThemes];
 
     useEffect(() => {
-        if (theme === 'light') document.documentElement.classList.add('light');
-        else document.documentElement.classList.remove('light');
+        document.documentElement.classList.toggle('light', theme === 'light');
         const activeId = theme === 'dark' ? darkPalette : lightPalette;
         document.documentElement.setAttribute('data-palette', activeId);
 
@@ -188,9 +160,11 @@ export default function App() {
         }
     }, [theme, darkPalette, lightPalette, customThemes]);
 
-    const persistSettings = useCallback((updates) => {
-        saveSettings(updates, onUnauth).catch(() => {});
-    }, [onUnauth]);
+    // Shown right away and then saved; the saved value wins on the next load.
+    const updateSettings = (updates) => {
+        setSettings(previous => ({ ...previous, ...updates }));
+        apiFetch('/settings', { method: 'PUT', json: updates }).catch(toast.error);
+    };
 
     const changeLanguage = async (lang) => {
         if (!enabledLanguages.includes(lang)) return;
@@ -198,33 +172,16 @@ export default function App() {
         try {
             await loadLocale(lang);
         } catch {
-            toast.error(t('errors.languageLoadFailed'));
+            toast.failure(t('errors.languageLoadFailed'));
             return;
         }
         setLanguage(lang);
-        persistSettings({ language: lang });
+        updateSettings({ language: lang });
     };
 
-    const changeDarkPalette = (id) => { setDarkPalette(id); persistSettings({ darkPalette: id }); };
-    const changeEditorVim = (enabled) => { setEditorVim(enabled); persistSettings({ editorVim: enabled }); };
-    const changeLightPalette = (id) => { setLightPalette(id); persistSettings({ lightPalette: id }); };
-    const changeRouteColumns = (cols) => { setRouteColumns(cols); persistSettings({ routeColumns: cols }); };
-    const changeRouteChecks = (enabled) => { setRouteChecks(enabled); persistSettings({ routeChecks: enabled }); };
-    const changeRouteCheckExcludes = (hosts) => { setRouteCheckExcludes(hosts); persistSettings({ routeCheckExcludes: hosts }); };
-
-    const handleThemeWelcome = (dark, light) => {
-        setDarkPalette(dark);
-        setLightPalette(light);
+    const completeWelcome = ({ dark, light }) => {
         setShowThemeWelcome(false);
-        persistSettings({ firstTimeRun: false, darkPalette: dark, lightPalette: light });
-    };
-
-    const toggleTheme = () => {
-        setTheme(t => {
-            const next = t === 'dark' ? 'light' : 'dark';
-            persistSettings({ theme: next });
-            return next;
-        });
+        updateSettings({ firstTimeRun: false, darkPalette: dark, lightPalette: light });
     };
 
     useEffect(() => {
@@ -233,7 +190,7 @@ export default function App() {
     }, [refreshAuth]);
 
     const fetchStatus = useCallback(() => {
-        apiFetch("/status", {}, onUnauth).then((s) => {
+        apiFetch("/status").then((s) => {
             setStatus(s);
             setNoInstances(false);
         }).catch((err) => {
@@ -241,57 +198,62 @@ export default function App() {
                 setNoInstances(true);
                 setStatus(null);
             } else {
-                // Translated at render time so switching languages doesn't
-                // recreate this callback and re-poll /status.
-                setStatus({ online: false, errorKey: 'errors.backendUnreachable' });
+                setStatus({ online: false, code: err.code });
             }
         });
-    }, [onUnauth]);
+    }, []);
 
-    // caddy/ui logs and notification settings don't depend on an instance, so they stay reachable alongside Instances.
-    useEffect(() => {
-        const path = '/' + location.pathname.split('/')[1];
-        if (noInstances && !['/logs', '/notifications', '/instances'].includes(path)) navigate('/instances', { replace: true });
-    }, [noInstances, location.pathname, navigate]);
+    const view = viewAt(location.pathname);
 
     useEffect(() => {
-        if (!authed) return;
-        fetchStatus();
-        const t = setInterval(fetchStatus, 15000);
-        return () => clearInterval(t);
-    }, [authed, fetchStatus, instanceKey]);
+        if (noInstances && view.needsInstance) navigate('/instances', { replace: true });
+    }, [noInstances, view, navigate]);
 
-    const handleInstanceChange = useCallback((id) => {
-        clearStates();
-        if (id) {
-            setInstanceKey(id);
-            navigate('/dashboard', { replace: true });
+    usePoll(authed ? fetchStatus : null, STATUS_INTERVAL_MS);
+
+    const loadInstances = useCallback(() => {
+        apiFetch("/instances")
+            .then(list => { setInstancesError(null); setInstances(list); })
+            .catch(setInstancesError);
+    }, []);
+
+    useEffect(() => {
+        if (authed) {
+            loadInstances();
         }
-        setInstanceListVersion(v => v + 1);
+    }, [authed, loadInstances]);
+
+    const refreshInstances = useCallback(() => {
+        toast.clearStates();
+        loadInstances();
         setNoInstances(false);
         setStatus(null);
         fetchStatus();
-    }, [fetchStatus, navigate, clearStates]);
+    }, [fetchStatus, loadInstances, toast]);
+
+    const switchInstance = (id) => {
+        setInstanceId(id);
+        setInstanceKey(id);
+        navigate('/dashboard', { replace: true });
+        refreshInstances();
+    };
 
     // The stored selection was dropped (instance deleted or unknown); remount
     // views on the fallback instance without leaving the current page.
     useEffect(() => onInstanceSelectionReset(() => {
         setInstanceKey(getInstanceId());
-        handleInstanceChange();
-    }), [handleInstanceChange]);
-
-    const basePath = '/' + location.pathname.split('/')[1];
-    const title = t(TITLE_KEYS[basePath] || 'pages.dashboard');
+        refreshInstances();
+    }), [refreshInstances]);
 
     return (
         <>
             <style>{css}</style>
             {!languageReady ? null : authError ? (
-                <div className="login-shell"><div className="login-card">
-                    <div className="login-logo">caddy/ui</div>
+                <LoginCard>
+                    <LoginLogo />
                     <p className="login-error" role="alert">{t('login.serverUnreachable')}</p>
                     <button className="btn btn-primary btn--full" onClick={refreshAuth}>{t('login.retry')}</button>
-                </div></div>
+                </LoginCard>
             ) : !authState ? null : !authed ? (
                 <Login authState={authState} onLogin={refreshAuth} sessionExpired={sessionExpired} />
             ) : (
@@ -299,25 +261,23 @@ export default function App() {
                     <div className={`sidebar-overlay ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} />
 
                     <Sidebar
-                        currentPath={basePath}
+                        currentPath={view.path}
                         status={status}
                         onRefreshStatus={fetchStatus}
-                        authEnabled={authEnabled}
-                        onUnauth={onUnauth}
                         onLogout={logout}
-                        onSecurity={() => { setSidebarOpen(false); setShowSecurity(true); }}
+                        onSecurity={() => { setSidebarOpen(false); loadInstances(); setShowSecurity(true); }}
                         sidebarOpen={sidebarOpen}
                         setSidebarOpen={setSidebarOpen}
                         selectedInstanceId={instanceKey}
-                        onInstanceChange={handleInstanceChange}
-                        instanceListVersion={instanceListVersion}
+                        onSwitchInstance={switchInstance}
+                        instances={instances}
                     />
 
                     <div className="main">
                         <div className="topbar">
                             <div className="topbar-left">
                                 <button className="hamburger" onClick={() => setSidebarOpen(o => !o)} aria-label={t("sidebar.toggleNavigation")} aria-expanded={sidebarOpen}><UtilityIcon name="menu" size={18} /></button>
-                                <span className="page-title">{title}</span>
+                                <span className="page-title">{t(view.titleKey)}</span>
                             </div>
                             <div className="btn-row">
                                 {language && enabledLanguages.length > 1 && (
@@ -330,33 +290,33 @@ export default function App() {
                                 <ThemePicker
                                     themes={allThemes}
                                     mode={theme}
-                                    onToggleMode={toggleTheme}
+                                    onToggleMode={() => updateSettings({ theme: theme === 'dark' ? 'light' : 'dark' })}
                                     darkPalette={darkPalette}
                                     lightPalette={lightPalette}
-                                    onDarkPaletteChange={changeDarkPalette}
-                                    onLightPaletteChange={changeLightPalette}
+                                    onDarkPaletteChange={id => updateSettings({ darkPalette: id })}
+                                    onLightPaletteChange={id => updateSettings({ lightPalette: id })}
                                 />
                             </div>
                         </div>
                         <div className="content" key={instanceKey}>
                             <Routes>
                                 <Route path="/" element={<Navigate to={noInstances ? "/instances" : "/dashboard"} replace />} />
-                                <Route path="/dashboard" element={<Dashboard status={status} toast={toast} onUnauth={onUnauth} />} />
-                                <Route path="/caddyfile" element={<CaddyFile toast={toast} onUnauth={onUnauth} theme={theme} confirm={confirm} editorVim={editorVim} onEditorVimChange={changeEditorVim} />} />
-                                <Route path="/routes" element={<RoutesPage toast={toast} onUnauth={onUnauth} confirm={confirm} theme={theme} routeColumns={routeColumns} onRouteColumnsChange={changeRouteColumns} routeChecks={routeChecks} routeCheckExcludes={routeCheckExcludes} editorVim={editorVim} />} />
-                                <Route path="/tls" element={<TLS toast={toast} onUnauth={onUnauth} confirm={confirm} />} />
-                                <Route path="/logs" element={<Logs toast={toast} onUnauth={onUnauth} noInstances={noInstances} />} />
-                                <Route path="/metrics" element={<Metrics toast={toast} onUnauth={onUnauth} routeChecks={routeChecks} onRouteChecksChange={changeRouteChecks} routeCheckExcludes={routeCheckExcludes} onRouteCheckExcludesChange={changeRouteCheckExcludes} />} />
-                                <Route path="/notifications" element={<Notifications toast={toast} onUnauth={onUnauth} />} />
-                                <Route path="/instances" element={<Instances toast={toast} onUnauth={onUnauth} confirm={confirm} onInstanceChange={handleInstanceChange} />} />
+                                <Route path="/dashboard" element={<Dashboard status={status} toast={toast} />} />
+                                <Route path="/caddyfile" element={<CaddyFile toast={toast} theme={theme} confirm={confirm} editorVim={settings.editorVim} onEditorVimChange={editorVim => updateSettings({ editorVim })} />} />
+                                <Route path="/routes" element={<RoutesPage toast={toast} confirm={confirm} theme={theme} routeColumns={settings.routeColumns} onRouteColumnsChange={routeColumns => updateSettings({ routeColumns })} routeChecks={settings.routeChecks} routeCheckExcludes={settings.routeCheckExcludes} editorVim={settings.editorVim} />} />
+                                <Route path="/tls" element={<TLS toast={toast} confirm={confirm} />} />
+                                <Route path="/logs" element={<Logs toast={toast} noInstances={noInstances} />} />
+                                <Route path="/metrics" element={<Metrics toast={toast} publicMetrics={authState.publicMetrics} routeChecks={settings.routeChecks} onRouteChecksChange={routeChecks => updateSettings({ routeChecks })} routeCheckExcludes={settings.routeCheckExcludes} onRouteCheckExcludesChange={routeCheckExcludes => updateSettings({ routeCheckExcludes })} />} />
+                                <Route path="/notifications" element={<Notifications toast={toast} />} />
+                                <Route path="/instances" element={<Instances toast={toast} confirm={confirm} onInstancesChange={refreshInstances} />} />
                                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
                             </Routes>
                         </div>
                     </div>
-                    <Toasts toasts={toast.toasts} />
+                    <Toasts toasts={toasts} />
                     <ConfirmDialog dialog={confirmDialog} resolve={resolveConfirm} />
-                    {showSecurity && <SecuritySettings onClose={() => setShowSecurity(false)} onUnauth={onUnauth} />}
-                    {showThemeWelcome && <ThemeWelcome themes={allThemes} languages={enabledLanguages} language={language} onLanguageChange={changeLanguage} onComplete={handleThemeWelcome} />}
+                    {showSecurity && <SecuritySettings instances={instances} instancesError={instancesError} onClose={() => setShowSecurity(false)} />}
+                    {showThemeWelcome && <ThemeWelcome themes={allThemes} languages={enabledLanguages} language={language} onLanguageChange={changeLanguage} onComplete={completeWelcome} />}
                 </div>
             )}
         </>

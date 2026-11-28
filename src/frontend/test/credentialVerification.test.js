@@ -1,15 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const { passkeySupport, reauthenticateWithPasskey } = vi.hoisted(() => ({ passkeySupport: vi.fn(), reauthenticateWithPasskey: vi.fn() }));
-vi.mock('../src/utils/passkeys.js', () => ({ passkeySupport, reauthenticateWithPasskey }));
-import { canVerifyWithPasskey, credentialProof, verificationMethod, verificationReady } from '../src/utils/credentialVerification.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+const { passkeyProblem, reauthenticateWithPasskey } = vi.hoisted(() => ({ passkeyProblem: vi.fn(), reauthenticateWithPasskey: vi.fn() }));
+vi.mock('../src/utils/passkeys.js', () => ({ passkeyProblem, reauthenticateWithPasskey }));
+import { credentialProof, requireMatchingPasswords, verificationMethod, verificationReady } from '../src/utils/credentialVerification.js';
 
 const state = { totpEnabled: true, passkeyLoginAvailable: true, passkeyOrigin: 'https://ui.example.com' };
 beforeEach(() => {
     vi.resetAllMocks();
-    vi.stubGlobal('window', { location: { origin: state.passkeyOrigin } });
-    passkeySupport.mockReturnValue({ secure: true, supported: true });
+    passkeyProblem.mockReturnValue(null);
 });
-afterEach(() => vi.unstubAllGlobals());
 
 describe('credential verification choices', () => {
     it('prefers a compatible passkey, but permits the password and TOTP fallback', () => {
@@ -20,19 +18,23 @@ describe('credential verification choices', () => {
         expect(verificationReady({ ...password, totpCode: '123456' }, state)).toBe(true);
         expect(verificationReady({ ...password, totpCode: '12345' }, state)).toBe(false);
     });
-    it('requires actual secure browser support and matching origin to offer a passkey', () => {
-        expect(canVerifyWithPasskey({ ...state, passkeyOrigin: 'https://elsewhere.example.com' })).toBe(false);
-        passkeySupport.mockReturnValue({ secure: false, supported: true });
+    it('takes the password when a passkey is missing or cannot be used here', () => {
+        expect(verificationMethod({}, { ...state, passkeyLoginAvailable: false })).toBe('password');
+        passkeyProblem.mockReturnValue({ key: 'passkeys.httpsRequired' });
         expect(verificationMethod({}, state)).toBe('password');
-        passkeySupport.mockReturnValue({ secure: true, supported: false });
-        expect(canVerifyWithPasskey(state)).toBe(false);
+        expect(passkeyProblem).toHaveBeenCalledWith({ origin: state.passkeyOrigin });
         expect(verificationReady({}, null)).toBe(false);
     });
+    it('requires a new password to be entered the same way twice', () => {
+        expect(() => requireMatchingPasswords({ password: 'one', confirmation: 'two' })).toThrow(expect.objectContaining({ code: 'PASSWORD_MISMATCH' }));
+        expect(() => requireMatchingPasswords({ password: 'one' })).toThrow();
+        requireMatchingPasswords({ password: 'one', confirmation: 'one' });
+        requireMatchingPasswords({});
+    });
     it('sends a fresh action-bound passkey proof without retained password/code fields', async () => {
-        const onUnauth = vi.fn();
         reauthenticateWithPasskey.mockResolvedValue({ reauthToken: 'grant' });
-        expect(await credentialProof({ currentPassword: 'unused', totpCode: '123456' }, state, 'totp.disable', onUnauth)).toEqual({ reauthToken: 'grant' });
-        expect(reauthenticateWithPasskey).toHaveBeenCalledWith('totp.disable', onUnauth);
+        expect(await credentialProof({ currentPassword: 'unused', totpCode: '123456' }, state, 'totp.disable')).toEqual({ reauthToken: 'grant' });
+        expect(reauthenticateWithPasskey).toHaveBeenCalledWith('totp.disable');
     });
     it('does not invoke WebAuthn when the password fallback was chosen', async () => {
         const value = { method: 'password', currentPassword: 'unused', totpCode: '123456' };

@@ -3,58 +3,59 @@ import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Trans, useTranslation } from "react-i18next";
+import { REFRESH_INTERVAL_MS, usePoll } from "../hooks/usePoll.js";
+import ErrorNote from "./ErrorNote.jsx";
+import Modal from "./Modal.jsx";
 import { apiFetch } from "../utils/api.js";
-import { currentLocale, formatNumber } from "../utils/format.js";
+import { formatDuration, formatNumber, formatRecentTs } from "../utils/format.js";
 
-export default function Dashboard({ status, toast, onUnauth }) {
+export default function Dashboard({ status, toast }) {
     const { t } = useTranslation();
     const [names, setNames] = useState({});
     const [editingServer, setEditingServer] = useState(null);
     const [editName, setEditName] = useState("");
-    const [health, setHealth] = useState(null);
     const [process, setProcess] = useState(null);
+    const [processError, setProcessError] = useState(null);
 
     const navigate = useNavigate();
 
     const loadProcess = useCallback(() => {
-        apiFetch("/status/process", {}, onUnauth).then(setProcess).catch(() => { });
-    }, [onUnauth]);
+        apiFetch("/status/process").then(setProcess).catch(setProcessError);
+    }, []);
 
     useEffect(() => {
-        apiFetch("/server-names", {}, onUnauth).then(setNames).catch(() => { });
-        apiFetch("/health", {}, onUnauth).then(results => {
-            const total = results.length;
-            const online = results.filter(r => r.online).length;
-            setHealth({ total, online, offline: total - online });
-        }).catch(() => { });
-        loadProcess();
-        const t = setInterval(loadProcess, 30000);
-        return () => clearInterval(t);
-    }, [loadProcess, onUnauth]);
+        apiFetch("/server-names").then(setNames).catch(() => { });
+    }, []);
+
+    usePoll(loadProcess, REFRESH_INTERVAL_MS);
 
     const openEdit = (server) => { setEditingServer(server); setEditName(names[server.name] || ""); };
 
     const saveName = async () => {
         try {
             if (editName.trim()) {
-                await apiFetch(`/server-names/${editingServer.name}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editName }) }, onUnauth);
+                await apiFetch(`/server-names/${encodeURIComponent(editingServer.name)}`, { method: "PUT", json: { name: editName } });
                 setNames(n => ({ ...n, [editingServer.name]: editName.trim() }));
                 toast.success(t("dashboard.labelSaved"));
             } else {
-                await apiFetch(`/server-names/${editingServer.name}`, { method: "DELETE" }, onUnauth);
+                await apiFetch(`/server-names/${encodeURIComponent(editingServer.name)}`, { method: "DELETE" });
                 setNames(n => { const x = { ...n }; delete x[editingServer.name]; return x; });
                 toast.success(t("dashboard.labelRemoved"));
             }
             setEditingServer(null);
-        } catch (e) { toast.error(localizeError(e, t), e); }
+        } catch (e) { toast.error(e); }
     };
 
-    const formatLastReload = (iso) => {
-        if (!iso) return "—";
-        return new Date(iso).toLocaleString(currentLocale(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-    };
+    const upstreamsKnown = status?.upstreamsTotal != null;
+    const upstreamsOffline = upstreamsKnown ? status.upstreamsTotal - status.upstreamsOnline : 0;
 
     if (!status) return <div className="loading">{t("common.loading")}</div>;
+
+    const instanceLabel = status.instance && (
+        <span className="mono inline-muted" title={status.instance.id}>
+            <UtilityIcon name="dot" size={6} />{" "}{status.instance.name || status.instance.id}
+        </span>
+    );
 
     return (
         <>
@@ -73,23 +74,23 @@ export default function Dashboard({ status, toast, onUnauth }) {
                     <div className="card card-clickable" onClick={() => navigate("/tls")}>
                         <div className="card-title">{t("dashboard.tls")}</div>
                         <div className="stat-val" style={{ fontSize: 20, paddingTop: 6 }}>
-                            {status.online ? <span className={`badge ${status.tlsEnabled ? "badge-green" : "badge-red"}`}>{status.tlsEnabled ? t("dashboard.enabled") : t("dashboard.disabled")}</span> : "—"}
+                            {status.online ? <span className="badge badge-green">{t("dashboard.enabled")}</span> : "—"}
                         </div>
                         <div className="stat-label">{t("dashboard.certificateManagement")}</div>
                     </div>
                     <div className="card card-clickable" onClick={() => navigate("/routes")}>
                         <div className="card-title">{t("dashboard.upstreams")}</div>
-                        <div className="stat-val" style={{ color: !health ? "var(--text)" : health.offline > 0 ? "var(--danger)" : "var(--accent)" }}>
-                            {health ? `${health.online}/${health.total}` : "—"}
+                        <div className="stat-val" style={{ color: !upstreamsKnown ? "var(--text)" : upstreamsOffline > 0 ? "var(--danger)" : "var(--accent)" }}>
+                            {upstreamsKnown ? `${status.upstreamsOnline}/${status.upstreamsTotal}` : "—"}
                         </div>
-                        <div className="stat-label">{!health ? "—" : health.offline > 0 ? t("dashboard.offlineCount", { count: health.offline }) : t("dashboard.allOnline")}</div>
+                        <div className="stat-label">{!upstreamsKnown ? "—" : upstreamsOffline > 0 ? t("dashboard.offlineCount", { count: upstreamsOffline }) : t("dashboard.allOnline")}</div>
                     </div>
                 </div>
 
                 <div className="card">
                     <div className="card-title">{t("dashboard.process")}</div>
                     {!process ? (
-                        <div className="loading">{t("common.loading")}</div>
+                        processError ? <ErrorNote error={processError} /> : <div className="loading">{t("common.loading")}</div>
                     ) : !process.ok ? (
                         <div className="flex-between">
                             <span className="loading">{t("dashboard.metricsNotEnabled")}</span>
@@ -105,7 +106,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                             )}
                             <div>
                                 <span className="field-label">{t("dashboard.uptime")}</span>
-                                <div className="data-val data-val--accent">{process.uptime || "—"}</div>
+                                <div className="data-val data-val--accent">{process.uptimeSeconds !== null ? formatDuration(process.uptimeSeconds * 1000) : "—"}</div>
                             </div>
                             <div>
                                 <span className="field-label">{t("dashboard.heap")}</span>
@@ -117,7 +118,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                             <div>
                                 <span className="field-label">{t("dashboard.lastReload")}</span>
                                 <div className="data-val" style={{ color: process.lastReloadSuccess ? "var(--text)" : "var(--danger)" }}>
-                                    {formatLastReload(process.lastReload)}
+                                    {process.lastReload ? formatRecentTs(process.lastReload) : "—"}
                                 </div>
                             </div>
                         </div>
@@ -145,9 +146,7 @@ export default function Dashboard({ status, toast, onUnauth }) {
                                             <td>{names[s.name] || <span className="cell-muted">—</span>}</td>
                                             <td>
                                                 <span className="mono">{s.name}</span>
-                                                {status.instance && <span className="mono inline-muted" title={status.instance.id}>
-                                                    <UtilityIcon name="dot" size={6} />{" "}{status.instance.name || status.instance.id}
-                                                </span>}
+                                                {instanceLabel}
                                             </td>
                                             <td className="mono cell-muted">{s.listen?.join(", ") || t("dashboard.noListeners")}</td>
                                             <td><span className="badge badge-blue">{s.routeCount}</span></td>
@@ -170,47 +169,42 @@ export default function Dashboard({ status, toast, onUnauth }) {
                 {!status.online && (
                     <div className="card card-danger">
                         <div className="card-title">{t("dashboard.connectionError")}</div>
-                        <div className="loading">{status.errorKey ? t(status.errorKey) : status.error}</div>
+                        <div className="loading">{localizeError(status, t)}</div>
                     </div>
                 )}
             </div>
 
             {editingServer && (
-                <div className="modal-overlay" onClick={() => setEditingServer(null)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
-                        <div className="modal-title">{t("dashboard.editLabel")}</div>
-                        <div className="server-facts">
-                            <div>
-                                <span className="field-label">{t("dashboard.serverId")}</span>
-                                <div className="data-val">
-                                    <span className="mono">{editingServer.name}</span>
-                                    {status.instance && <span className="mono inline-muted" title={status.instance.id}>
-                                        <UtilityIcon name="dot" size={6} />{" "}{status.instance.name || status.instance.id}
-                                    </span>}
-                                </div>
-                            </div>
-                            <div>
-                                <span className="field-label">{t("dashboard.listensOn")}</span>
-                                <div className="data-val mono">{editingServer.listen?.join(", ") || t("dashboard.noListeners")}</div>
-                            </div>
-                            <div>
-                                <span className="field-label">{t("dashboard.routes")}</span>
-                                <div className="data-val mono">{editingServer.routeCount}</div>
+                <Modal title={t("dashboard.editLabel")} onClose={() => setEditingServer(null)} dirty={editName !== (names[editingServer.name] || "")}>
+                    <div className="server-facts">
+                        <div>
+                            <span className="field-label">{t("dashboard.serverId")}</span>
+                            <div className="data-val">
+                                <span className="mono">{editingServer.name}</span>
+                                {instanceLabel}
                             </div>
                         </div>
-                        <div className="field">
-                            <label>{t("dashboard.label")}</label>
-                            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={t("dashboard.labelPlaceholder")} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
+                        <div>
+                            <span className="field-label">{t("dashboard.listensOn")}</span>
+                            <div className="data-val mono">{editingServer.listen?.join(", ") || t("dashboard.noListeners")}</div>
                         </div>
-                        <div className="modal-hint">
-                            <Trans i18nKey="dashboard.labelHint" components={{ code: <code /> }} />
-                        </div>
-                        <div className="btn-row flex-end">
-                            <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>{t("common.cancel")}</button>
-                            <button className="btn btn-primary" onClick={saveName}>{t("common.save")}</button>
+                        <div>
+                            <span className="field-label">{t("dashboard.routes")}</span>
+                            <div className="data-val mono">{editingServer.routeCount}</div>
                         </div>
                     </div>
-                </div>
+                    <div className="field">
+                        <label>{t("dashboard.label")}</label>
+                        <input value={editName} onChange={e => setEditName(e.target.value)} placeholder={t("dashboard.labelPlaceholder")} autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
+                    </div>
+                    <div className="modal-hint">
+                        <Trans i18nKey="dashboard.labelHint" components={{ code: <code /> }} />
+                    </div>
+                    <div className="btn-row flex-end">
+                        <button className="btn btn-ghost" onClick={() => setEditingServer(null)}>{t("common.cancel")}</button>
+                        <button className="btn btn-primary" onClick={saveName}>{t("common.save")}</button>
+                    </div>
+                </Modal>
             )}
         </>
     );

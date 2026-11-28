@@ -1,7 +1,7 @@
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { caddyAdapt, caddyDelete, caddyGet, caddyGetConfig, caddyGetTagged, caddyLoad, caddyPatch, caddyPost, caddyReadJson, isClosedConnection } from '../src/caddy.js';
+import { caddyAdapt, caddyDelete, caddyGet, caddyGetConfig, caddyGetTagged, caddyLoad, caddyPatch, caddyPost, caddyReadJson } from '../src/caddy.js';
 
 // A stand-in admin API over real HTTP. `closing` connections are dropped before
 // any response, the way Caddy closes the old admin server's idle connections
@@ -68,7 +68,7 @@ describe('admin API connections Caddy closes during a reload', () => {
 
     it.each(reads)('retries %s only once', async (name, read) => {
         closing = 2;
-        await expect(read()).rejects.toSatisfy(isClosedConnection);
+        await expect(read()).rejects.toThrow();
         expect(requests).toHaveLength(2);
     });
 

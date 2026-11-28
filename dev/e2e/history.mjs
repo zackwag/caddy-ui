@@ -1,60 +1,19 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { before, test } from 'node:test';
+import { chmod, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { test } from 'node:test';
 import { caddyGet, caddyPatch, caddyPost } from '../../src/backend/src/caddy.js';
-import { readContainerFile, writeContainerFile } from '../../src/backend/src/containerFs.js';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import { checkDrift, driftCheckingBackend } from '../integration/stack.mjs';
+import { useBrowserFixture } from './fixture.mjs';
 
 test('external file and admin API changes have independent Unknown-author diffs with protected access and retryable storage failures', { timeout: 120000 }, async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'caddy-ui-external-history-'));
-    t.after(() => rm(directory, { recursive: true, force: true }));
-    const entry = join(directory, 'backend.mjs');
-    const moduleUrl = file => pathToFileURL(resolve(import.meta.dirname, '../..', file)).href;
-    // Exercise the real monitor over the owned backend's IPC channel, without
-    // exposing a test endpoint or waiting a minute for each production poll.
-    await writeFile(entry, `
-        await import(${JSON.stringify(moduleUrl('src/backend/src/index.js'))});
-        const drift = await import(${JSON.stringify(moduleUrl('src/backend/src/configDrift.js'))});
-        const nativeFetch = globalThis.fetch;
-        let failRead = false;
-        globalThis.fetch = (url, options) => {
-            if (failRead && String(url).endsWith('/config/')) {
-                failRead = false;
-                return Promise.reject(new TypeError('Injected unavailable config read'));
-            }
-            return nativeFetch(url, options);
-        };
-        process.on('message', async message => {
-            if (message?.type !== 'test:history-check') return;
-            if (message.reset) drift.resetConfigDrift();
-            failRead = Boolean(message.failRead);
-            if (message.liveJson !== undefined) process.env.CADDY_UI_HISTORY_LIVE_JSON = String(message.liveJson);
-            await drift.checkAllInstances();
-            process.send({ type: 'test:history-result', state: drift.getConfigDriftState('default') });
-        });
-    `);
-    const { stack, page, origin } = await useBrowserFixture(t, { backendEntry: entry });
-    const check = (options = {}) => new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => finish(new Error('History IPC check timed out')), 15000);
-        const listener = message => { if (message?.type === 'test:history-result') finish(null, message.state); };
-        function finish(error, state) {
-            clearTimeout(timeout);
-            stack.backend.removeListener('message', listener);
-            if (error) reject(error); else resolve(state);
-        }
-        stack.backend.on('message', listener);
-        stack.backend.send({ type: 'test:history-check', ...options }, error => { if (error) finish(error); });
-    });
+    const { stack, page, origin } = await useBrowserFixture(t, { backendEntry: await driftCheckingBackend(t) });
+    const check = options => checkDrift(stack.backend, options);
     await check({ reset: true });
     const instance = stack.instances.get('alpha').instance;
     const initial = (await stack.api('/caddyfile')).data;
     const fileEdit = initial + '\n# external-file-history\n';
-    await writeContainerFile(instance.containerName, instance.configPath, fileEdit);
+    await stack.harness.writeConfig('alpha', fileEdit);
     await check();
     let entries = (await stack.api('/caddyfile/history')).data;
     assert.equal(entries.length, 1, 'Polling records the file without a later UI save');
@@ -73,7 +32,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     assert.equal(entries[0].action, 'route.add');
     assert.equal(entries[0].actor.name, stack.credentials.username);
 
-    const fileBeforeApi = await readContainerFile(instance.containerName, instance.configPath);
+    const fileBeforeApi = await stack.harness.readConfig('alpha');
     const liveBeforeApi = await caddyGet('/config/', instance.adminUrl);
     const injection = '<img src=x onerror="window.historyInjection=true">';
     const route = { '@id': 'external-history-route', match: [{ host: ['external-history.test'] }], handle: [{ handler: 'static_response', body: injection }] };
@@ -90,7 +49,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     assert.deepEqual(JSON.parse(changes.before.live), liveBeforeApi);
     assert.deepEqual(JSON.parse(changes.after.live), await caddyGet('/config/', instance.adminUrl));
     assert.equal((await stack.api(`/caddyfile/history/${apiEntry.filename}`)).status, 409, 'JSON is not downloadable as a Caddyfile');
-    assert.equal(await readContainerFile(instance.containerName, instance.configPath), fileBeforeApi);
+    assert.equal(await stack.harness.readConfig('alpha'), fileBeforeApi);
     assert.equal((await fetch(stack.url + `/api/caddyfile/history/${apiEntry.filename}/changes`)).status, 401);
     const token = await stack.api('/auth/tokens', { method: 'POST', body: { name: 'History access probe', scopes: ['status:read'], instanceIds: ['default'], expiresInDays: 1 } });
     assert.equal(token.status, 201);
@@ -113,7 +72,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     assert.equal(rawConfig.apps.http.servers[instance.serverName].routes.find(candidate => candidate['@id'] === route['@id']).handle[0].body, injection);
     assert.equal(await page.evaluate(() => window.historyInjection), undefined);
 
-    await writeContainerFile(instance.containerName, instance.configPath, fileBeforeApi + '# combined external change\n');
+    await stack.harness.writeConfig('alpha', fileBeforeApi + '# combined external change\n');
     await caddyPatch('/id/external-history-route', { ...route, handle: [{ handler: 'static_response', body: 'combined-live-secret' }] }, instance.adminUrl);
     // By default, live values stay out of history: only fingerprints and changed paths.
     await check({ liveJson: false });
@@ -131,7 +90,6 @@ test('external file and admin API changes have independent Unknown-author diffs 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('.history-external').scrollIntoViewIfNeeded();
     assert(await page.locator('.history-external').isVisible());
-    await page.screenshot({ path: '/tmp/caddy-ui-377-external-history.png' });
     await page.setViewportSize({ width: 1440, height: 900 });
 
     // Record missing baselines explicitly when a representation first becomes readable.
@@ -143,7 +101,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
     const historyPath = join(stack.directory, 'backend/history');
     const beforeFailure = (await stack.api('/caddyfile')).data;
     const externalAfterFailure = beforeFailure + '# preserve across history failure\n';
-    await writeContainerFile(instance.containerName, instance.configPath, externalAfterFailure);
+    await stack.harness.writeConfig('alpha', externalAfterFailure);
     const countBeforeFailure = (await stack.api('/caddyfile/history')).data.length;
     await chmod(historyPath, 0o500);
     try {
@@ -152,7 +110,7 @@ test('external file and admin API changes have independent Unknown-author diffs 
         const refused = await stack.api('/caddyfile?fmt=false&sort=false', { method: 'PUT', plain: true, body: initial });
         assert.equal(refused.status, 500);
         assert.equal(refused.data.code, 'CADDYFILE_HISTORY_WRITE_FAILED');
-        assert.equal(await readContainerFile(instance.containerName, instance.configPath), externalAfterFailure);
+        assert.equal(await stack.harness.readConfig('alpha'), externalAfterFailure);
     } finally { await chmod(historyPath, 0o700); }
     await check();
     await check();
@@ -220,9 +178,7 @@ test('saved versions show stable attribution, preserve unknown external edits an
     await page.getByText('User: ' + renamed, { exact: false }).first().waitFor();
 
     // Bypass the UI on this fixture's owned container, without claiming an actor.
-    const instance = stack.instances.get('alpha').instance;
-    await stack.harness.run(['exec', instance.containerName, 'sh', '-c',
-        'printf "\\n# external-history-edit\\n" >> "$1"', 'history-test', instance.configPath]);
+    await stack.harness.writeConfig('alpha', await stack.harness.readConfig('alpha') + '\n# external-history-edit\n');
     const external = (await stack.api('/caddyfile')).data;
     assert(external.includes('external-history-edit'));
     await edit(external.replace('first-attributed-save:', 'second-attributed-save:'));

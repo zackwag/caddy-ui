@@ -1,7 +1,8 @@
 import { AppError } from '../AppError.js';
 import { sendAppError } from '../errorReporting.js';
+import { parseExternalUrls } from '../externalUrls.js';
+import { isSafeMethod } from './safeMethods.js';
 
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 // Plausible misspellings of CADDY_UI_EXTERNAL_URL, which otherwise fail silently.
 const MISNAMED_EXTERNAL_URL_VARS = ['CADDY_EXTERNAL_URL', 'CADDY_UI_EXTERNAL_URLS'];
 
@@ -10,7 +11,7 @@ const MISNAMED_EXTERNAL_URL_VARS = ['CADDY_EXTERNAL_URL', 'CADDY_UI_EXTERNAL_URL
 // expected origin from Host or forwarded headers: proxies can change both.
 // expectedOrigins: null (unconfigured) or a Set of allowed origin strings.
 export function isCrossSiteWrite(method, headers, expectedOrigins) {
-    if (SAFE_METHODS.has(method)) return false;
+    if (isSafeMethod(method)) return false;
     const site = headers['sec-fetch-site'];
     if (site === 'cross-site' || site === 'same-site') return true;
 
@@ -55,23 +56,7 @@ export function misnamedExternalUrlVariables(env) {
 }
 
 export function createCrossSiteMiddleware(publicUrl) {
-    const expectedOrigins = new Set();
-    if (publicUrl !== undefined && publicUrl !== '') {
-        for (const entry of publicUrl.split(',')) {
-            const trimmed = entry.trim();
-            if (!trimmed) continue;
-            let configured;
-            try {
-                configured = new URL(trimmed);
-            } catch {
-                throw new TypeError('CADDY_UI_EXTERNAL_URL must be comma-separated HTTP(S) URLs without credentials');
-            }
-            if (!['http:', 'https:'].includes(configured.protocol) || configured.username || configured.password) {
-                throw new TypeError('CADDY_UI_EXTERNAL_URL must be comma-separated HTTP(S) URLs without credentials');
-            }
-            expectedOrigins.add(configured.origin);
-        }
-    }
+    const expectedOrigins = new Set(parseExternalUrls(publicUrl).map(url => url.origin));
     const hasExpected = expectedOrigins.size > 0;
 
     return (req, res, next) => {

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { backendEnvironment, checkDocker, defaultCaddyfile, devFrontendHost, Harness, LABEL, namespace, validateName, withLock } from './harness.mjs';
+import { join, resolve } from 'node:path';
+import { backendEnvironment, isolatedBackendEnvironment, checkDocker, defaultCaddyfile, devFrontendHost, Harness, LABEL, namespace, until, validateName, withLock } from './harness.mjs';
 
 const project = '0123456789abcdef';
 test('development UI stays loopback-bound unless wide binding is explicitly requested', () => {
@@ -138,16 +138,30 @@ test('namespace persists and lock rejects concurrent lifecycle mutation', async 
     } finally { await rm(directory, { recursive: true }); }
 });
 
-test('all backend state overrides are isolated even with inherited production paths', () => {
-    const env = backendEnvironment('/tmp/dev-sandbox', { adminUrl: 'http://127.0.0.1:9001', containerName: 'test' });
-    for (const [key, value] of Object.entries(env)) {
-        if (['AUTH_PATH', 'INSTANCES_PATH', 'SETTINGS_PATH', 'SERVER_NAMES_PATH', 'UPTIME_HISTORY_PATH', 'NOTIFICATIONS_CONFIG_PATH',
-            'ROUTE_NOTES_PATH', 'HISTORY_PATH', 'AUDIT_LOG_PATH', 'MAINTENANCE_PATH', 'WWW_PATH', 'THEMES_PATH'].includes(key)) {
-            assert.ok(value.startsWith('/tmp/dev-sandbox/backend/'), key);
-        }
+test('backends write only to their own state and never inherit the shell\'s app settings', async t => {
+    // Every path the backend reads from its environment, so a new one is covered.
+    const source = resolve(import.meta.dirname, '../../src/backend/src');
+    const files = (await readdir(source, { recursive: true })).filter(file => file.endsWith('.js'));
+    const text = (await Promise.all(files.map(file => readFile(resolve(source, file), 'utf8')))).join('\n');
+    const paths = new Set([...text.matchAll(/process\.env\.(\w+_PATH)\b/g)].map(match => match[1]));
+    for (const caddyPath of ['CADDY_CONFIG_PATH', 'CADDY_LOG_PATH', 'CADDY_DATA_PATH']) paths.delete(caddyPath);
+    assert.ok(paths.size > 10);
+    const settings = { ...Object.fromEntries([...paths].map(key => [key, '/etc/caddy-ui/production'])),
+        CADDY_UI_EXTERNAL_URL: 'https://production.example', CADDY_UI_PUBLIC_METRICS: 'true', CADDYFILE_TITLES: 'false',
+        JWT_SECRET: 'production', UPTIME_HISTORY_RETENTION_DAYS: '1' };
+    const previous = { ...process.env };
+    t.after(() => { process.env = previous; });
+    Object.assign(process.env, settings);
+    const instance = { adminUrl: 'http://127.0.0.1:9001', containerName: 'test' };
+    for (const env of [backendEnvironment('/tmp/dev-sandbox', instance), isolatedBackendEnvironment('/tmp/dev-sandbox', instance)]) {
+        for (const key of paths) assert.ok(env[key].startsWith('/tmp/dev-sandbox/backend/'), key);
+        assert.equal(env.CADDY_UI_UPDATE_CHECK, 'false');
+        assert.equal(env.CADDY_UI_TRUSTED_PROXIES, '');
     }
-    assert.equal(env.CADDY_UI_UPDATE_CHECK, 'false');
-    assert.equal(env.CADDY_UI_TRUSTED_PROXIES, '');
+    const isolated = isolatedBackendEnvironment('/tmp/dev-sandbox', instance, { CADDY_UI_EXTERNAL_URL: 'https://test.example' });
+    assert.equal(isolated.CADDY_UI_EXTERNAL_URL, 'https://test.example');
+    for (const key of ['CADDY_UI_PUBLIC_METRICS', 'CADDYFILE_TITLES', 'JWT_SECRET', 'UPTIME_HISTORY_RETENTION_DAYS']) assert.equal(isolated[key], undefined, key);
+    assert.equal(isolated.PATH, process.env.PATH);
 });
 
 test('Dev Container network selection is explicit and never mutates the Dev Container', async () => {
@@ -193,4 +207,16 @@ test('purge preflights a colliding foreign volume before removing the owned cont
     await assert.rejects(h.remove('alpha', true), /ownership/);
     assert.equal(e.containers.size, 1);
     assert.equal(e.volumes.size, 1);
+});
+
+test('until retries only what it is told to and names its last observation on timeout', async () => {
+    let reads = 0;
+    assert.equal(await until(async () => ++reads, value => value === 3, { intervalMs: 1 }), 3);
+    await assert.rejects(until(() => { throw Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }); }, Boolean, { intervalMs: 1 }), /refused/);
+    await assert.rejects(until(() => { throw new Error('starting'); }, Boolean, { timeoutMs: 20, intervalMs: 1, retry: () => true, message: 'Not ready' }),
+        error => /^Not ready \(after 20 ms; last error: starting\)$/.test(error.message) && error.cause.message === 'starting');
+    await assert.rejects(until(() => ({ status: 503 }), value => value.status === 200, { timeoutMs: 20, intervalMs: 1 }), /last value: \{ status: 503 \}/);
+    const stopped = new AbortController();
+    stopped.abort(new Error('interrupted'));
+    await assert.rejects(until(() => true, Boolean, { signal: stopped.signal }), /interrupted/);
 });

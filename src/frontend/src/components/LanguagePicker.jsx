@@ -1,6 +1,6 @@
 import { UtilityIcon } from "./Icons.jsx";
 import { useTranslation } from "react-i18next";
-import { languageName } from '../i18n/index.js';
+import { languageName, sortedLanguages } from '../i18n/index.js';
 
 export default function LanguagePicker({
     languages,
@@ -26,7 +26,7 @@ export default function LanguagePicker({
                 aria-label={t("languagePicker.chooseLanguage")}
                 title={t("languagePicker.chooseLanguage")}
             >
-                {[...languages].sort((a, b) => a === 'en' ? -1 : b === 'en' ? 1 : languageName(a).localeCompare(languageName(b))).map(lang => (
+                {sortedLanguages(languages).map(lang => (
                     <option key={lang} value={lang}>
                         {languageName(lang)}
                     </option>

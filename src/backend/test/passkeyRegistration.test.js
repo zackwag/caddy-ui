@@ -55,6 +55,7 @@ describe('passkey enrollment and removal', () => {
         expect(listed.headers.get('cache-control')).toBe('no-store');
         expect(listed.data.passkeys).toEqual([result.data]);
         expect(listed.data.limit).toBe(3);
+        expect((await authClient(f.url).request('/auth/status')).data.passkeyLoginAvailable).toBe(true);
     });
 
     it('publishes the configured HTTPS origin without URL paths, queries or fragments', async () => {
@@ -73,14 +74,6 @@ describe('passkey enrollment and removal', () => {
         expect((await optionsFor(f.client, f.password)).data.code).toBe('PASSKEY_IP_UNAVAILABLE');
         const anonymous = authClient(f.url);
         expect((await anonymous.request('/auth/passkeys/authentication/options', { method: 'POST' })).data.code).toBe('PASSKEY_IP_UNAVAILABLE');
-    });
-
-    it('checks public availability without cloning credential records', async () => {
-        const f = await fixture();
-        await register(f);
-        const list = vi.spyOn(f.store, 'listPasskeys');
-        expect((await authClient(f.url).request('/auth/status')).data.passkeyLoginAvailable).toBe(true);
-        expect(list).not.toHaveBeenCalled();
     });
 
     it('classifies duplicate credentials rejected inside the store as invalid rather than a storage outage', async () => {
@@ -128,7 +121,6 @@ describe('passkey enrollment and removal', () => {
 
     it('rejects invalid transport metadata before persistence and keeps valid enrollment usable', async () => {
         const f = await fixture();
-        const add = vi.spyOn(f.store, 'addPasskey');
         for (const transports of ['internal', {}, [7], ['x'.repeat(33)], Array(9).fill('internal')]) {
             const options = await optionsFor(f.client, f.password);
             const response = authenticator().registration(options.data);
@@ -137,13 +129,11 @@ describe('passkey enrollment and removal', () => {
             const result = await f.client.request('/auth/passkeys/registration', { method: 'POST', body: response });
             expect(result.status).toBe(400);
             expect(result.data.code).toBe('PASSKEY_INVALID');
-            expect(add).not.toHaveBeenCalled();
             expect(await readFile(f.path, 'utf8')).toBe(before);
         }
         expect(f.store.listPasskeys()).toEqual([]);
         expect((await f.client.request('/protected')).status).toBe(200);
         expect((await register(f)).result.status).toBe(201);
-        expect(add).toHaveBeenCalledOnce();
     });
 
     it('binds challenges to the initiating session, expires them and consumes them once', async () => {

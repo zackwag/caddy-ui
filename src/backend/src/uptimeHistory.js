@@ -1,5 +1,6 @@
-import { createSerialQueue, readJsonState, writeJsonFile } from './jsonFile.js';
+import { readJsonState, writeJsonFile } from './jsonFile.js';
 import logger from './logger.js';
+import { createSerialQueue } from './serialQueue.js';
 
 const HISTORY_PATH = process.env.UPTIME_HISTORY_PATH || '/etc/caddy-ui/uptime-history.json';
 const RETENTION_DAYS = Number(process.env.UPTIME_HISTORY_RETENTION_DAYS) || 7;
@@ -61,7 +62,7 @@ export function recordCheck(instanceId, target, online, kind = 'upstream') {
     dirty = true;
 }
 
-export function getUptimeStats(instanceId, target, kind = 'upstream') {
+function getUptimeStats(instanceId, target, kind = 'upstream') {
     const entry = history.get(historyKey(instanceId, target, kind));
     if (!entry || entry.entries.length === 0) return null;
 
@@ -71,16 +72,11 @@ export function getUptimeStats(instanceId, target, kind = 'upstream') {
     const last = entry.entries[entry.entries.length - 1];
     const currentlyOnline = last.online;
 
-    let streak = 0;
-    for (let i = entry.entries.length - 1; i >= 0; i--) {
-        if (entry.entries[i].online === currentlyOnline) streak++;
-        else break;
-    }
-    const streakStart = entry.entries[entry.entries.length - streak].at;
+    const lastOther = entry.entries.findLastIndex(e => e.online !== currentlyOnline);
+    const streakStart = entry.entries[lastOther + 1].at;
     const streakSeconds = Math.max(0, Math.round((Date.now() - streakStart) / 1000));
-    const streakLabel = formatDuration(streakSeconds);
 
-    return { pct, total, online, currentlyOnline, streak, streakSeconds, streakLabel, firstSeen: new Date(entry.firstSeen), lastCheckAt: new Date(last.at) };
+    return { pct, total, online, currentlyOnline, streakSeconds, firstSeen: new Date(entry.firstSeen), lastCheckAt: new Date(last.at) };
 }
 
 // Returns every upstream's (or route's) stats for one instance, keyed by bare
@@ -103,16 +99,6 @@ export function getHistory(instanceId, target, { sinceMs, kind = 'upstream' } = 
     if (!entry) return { entries: [], firstSeen: null };
     const entries = sinceMs ? entry.entries.filter(e => e.at >= sinceMs) : entry.entries;
     return { entries, firstSeen: entry.firstSeen };
-}
-
-export function formatDuration(seconds) {
-    const d = Math.floor(seconds / 86400);
-    const h = Math.floor((seconds % 86400) / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    if (d > 0) return `${d}d ${h}h`;
-    if (h > 0) return `${h}h ${m}m`;
-    if (m > 0) return `${m}m`;
-    return `${seconds}s`;
 }
 
 async function flushIfDirty() {

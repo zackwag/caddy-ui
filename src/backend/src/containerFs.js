@@ -1,29 +1,25 @@
 import { readFile, writeFile, readdir, rm, access } from 'fs/promises';
-import { dockerExec } from './docker.js';
-
-function useDocker(containerName) {
-    return !!containerName;
-}
+import { dockerExec, isContainerUnreachable } from './docker.js';
 
 export async function readContainerFile(containerName, filePath) {
-    if (useDocker(containerName)) {
-        const { stdout } = await dockerExec(['cat', '--', filePath], undefined, containerName);
+    if (containerName) {
+        const { stdout } = await dockerExec(containerName, ['cat', '--', filePath]);
         return stdout;
     }
     return readFile(filePath, 'utf8');
 }
 
 export async function writeContainerFile(containerName, filePath, content) {
-    if (useDocker(containerName)) {
-        await dockerExec(['tee', '--', filePath], content, containerName);
+    if (containerName) {
+        await dockerExec(containerName, ['tee', '--', filePath], content);
         return;
     }
     await writeFile(filePath, content, 'utf8');
 }
 
 export async function readContainerDir(containerName, dirPath) {
-    if (useDocker(containerName)) {
-        const { stdout } = await dockerExec(['ls', '-1', '--', dirPath], undefined, containerName);
+    if (containerName) {
+        const { stdout } = await dockerExec(containerName, ['ls', '-1', '--', dirPath]);
         return stdout.trim().split('\n').filter(Boolean);
     }
     return readdir(dirPath);
@@ -43,15 +39,15 @@ export async function listContainerDir(containerName, dirPath) {
 // and the stderr of commands run through docker exec.
 export function describeReadError(err) {
     const text = `${err?.code || ''} ${err?.stderr || ''} ${err?.message || ''}`;
-    if (/docker daemon|no such container/i.test(text)) return err.message;
+    if (isContainerUnreachable(err)) return err.message;
     if (/ENOENT|no such file/i.test(text)) return 'not found';
     if (/EACCES|EPERM|permission denied/i.test(text)) return 'permission denied';
     return err?.message || 'unknown error';
 }
 
 export async function removeContainerPath(containerName, targetPath) {
-    if (useDocker(containerName)) {
-        await dockerExec(['rm', '-rf', '--', targetPath], undefined, containerName);
+    if (containerName) {
+        await dockerExec(containerName, ['rm', '-rf', '--', targetPath]);
         return;
     }
     await rm(targetPath, { recursive: true, force: true });
@@ -59,8 +55,9 @@ export async function removeContainerPath(containerName, targetPath) {
 
 export async function containerPathExists(containerName, targetPath) {
     try {
-        if (useDocker(containerName)) {
-            await dockerExec(['test', '-e', '--', targetPath], undefined, containerName);
+        if (containerName) {
+            // `test -e -- path` is a syntax error in GNU, BSD and busybox test
+            await dockerExec(containerName, ['ls', '-d', '--', targetPath]);
             return true;
         }
         await access(targetPath);

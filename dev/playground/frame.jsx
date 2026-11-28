@@ -1,15 +1,15 @@
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { EditorView } from '@codemirror/view';
 import { MemoryRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../../src/frontend/src/i18n/index.js';
-import { css, THEME_LIST } from '../../src/frontend/src/styles.js';
+import { css, DEFAULT_PALETTES, THEME_LIST } from '../../src/frontend/src/styles.js';
 import FixtureView from './fixtures.jsx';
 import { capture, scenarios } from './registry.jsx';
 import { createReplayFetch } from './capture-format.js';
 import { markReferences } from './dom-context.js';
 import { placeholders, readValue } from './model.js';
+import { setups } from './setups.js';
 import '../../src/frontend/src/fonts.css';
 
 const modules = import.meta.glob('../../src/frontend/src/i18n/locales/*.js', { eager: true, import: 'default' });
@@ -84,109 +84,7 @@ function scheduleReport() {
         queued = false;
         if (!config || disposed) return;
         const scenario = scenarios.find(scenario => scenario.id === config.scenario);
-        if (!setupStep && ['edit-label', 'label-saved'].includes(scenario.setup)) {
-            const edit = element.querySelector('.server-edit-icon');
-            if (edit) { setupStep = 1; edit.click(); }
-        } else if (setupStep === 1 && scenario.setup === 'label-saved') {
-            const save = element.querySelector('.modal .btn-primary');
-            if (save) { setupStep = 2; save.click(); }
-        } else if (!setupStep && scenario.setup === 'route-add') {
-            const add = element.querySelector('.routes-toolbar-actions > .btn-primary');
-            if (add) { setupStep = 1; add.click(); }
-        } else if (!setupStep && scenario.setup === 'route-columns') {
-            const trigger = element.querySelector('.col-picker-trigger');
-            if (trigger) { setupStep = 1; trigger.click(); }
-        } else if (setupStep === 1 && scenario.setup === 'route-columns') {
-            const id = element.querySelector('.col-picker-item:last-of-type input');
-            if (id) { setupStep = 2; id.click(); }
-        } else if (!setupStep && scenario.setup === 'tls-filter') {
-            const card = element.querySelectorAll('.grid-4 .card-clickable')[scenario.filterIndex];
-            if (card) { setupStep = 1; card.click(); }
-        } else if (!setupStep && scenario.setup === 'welcome-light') {
-            const light = element.querySelector('.modal .btn-ghost');
-            if (light) { setupStep = 1; light.click(); }
-        } else if (!setupStep && scenario.setup === 'theme-menu') {
-            const trigger = element.querySelector('button.theme-picker-trigger');
-            if (trigger) { setupStep = 1; trigger.click(); }
-        } else if (!setupStep && ['observability-config', 'logs-enabled'].includes(scenario.setup)) {
-            const header = element.querySelector('.card-header--clickable');
-            if (header) { setupStep = 1; header.click(); }
-        } else if (setupStep === 1 && scenario.setup === 'logs-enabled') {
-            const toggle = element.querySelector('.log-enabled-btn');
-            if (toggle) { setupStep = 2; toggle.click(); }
-        } else if (!setupStep && scenario.kind === 'notification-settings') {
-            const provider = element.querySelector('select.config-select');
-            const toggle = element.querySelector('.notifications-enabled-btn');
-            if (provider && toggle) {
-                setupStep = 1;
-                // Prepare the production form through its real change handlers.
-                // The only recorded response is the untouched disabled default.
-                provider.value = scenario.provider;
-                provider.dispatchEvent(new Event('change', { bubbles: true }));
-                if (scenario.enabled) toggle.click();
-            }
-        }
-        if (!setupStep && scenario.setup === 'tls-orphaned') {
-            const orphaned = element.querySelector('.card-header .btn-row > .section-label');
-            if (orphaned) { setupStep = 1; orphaned.click(); }
-        }
-        if (scenario.kind === 'instances') {
-            if (!setupStep && ['instance-add', 'instance-invalid', 'instance-edit', 'instance-remove', 'instance-discover'].includes(scenario.setup)) {
-                const header = element.querySelector('.gap-16 > .card:first-child');
-                const instance = element.querySelector('.instance-details-grid')?.closest('.card');
-                const action = scenario.setup === 'instance-edit' ? instance?.querySelector('.btn-ghost')
-                    : scenario.setup === 'instance-remove' ? instance?.querySelector('.btn-danger')
-                        : scenario.setup === 'instance-discover' ? header?.querySelector('.btn-ghost') : header?.querySelector('.btn-primary');
-                if (action) { setupStep = 1; action.click(); }
-            } else if (setupStep === 1 && scenario.setup === 'instance-invalid') {
-                const save = element.querySelector('.modal .btn-primary');
-                if (save) { setupStep = 2; save.click(); }
-            }
-        }
-        if (!setupStep && scenario.setup === 'route-edit') {
-            const edit = element.querySelector('.col-actions button[title]:last-of-type');
-            if (edit) { setupStep = 1; edit.click(); }
-        }
-        if (scenario.kind === 'caddyfile') {
-            const buttons = [...element.querySelectorAll('.editor-toolbar-actions > button')];
-            const historySetups = ['caddyfile-history', 'caddyfile-list', 'caddyfile-diff', 'caddyfile-raw', 'caddyfile-restore', 'caddyfile-delete'];
-            if (!setupStep && historySetups.includes(scenario.setup) && buttons[1]) { setupStep = 1; buttons[1].click(); }
-            else if (setupStep === 1 && ['caddyfile-list', 'caddyfile-diff'].includes(scenario.setup)) {
-                const list = element.querySelector('[aria-controls="history-version-list"]');
-                if (list) { setupStep = 2; list.click(); }
-            } else if (setupStep === 2 && scenario.setup === 'caddyfile-diff') {
-                const entries = element.querySelectorAll('.history-entry');
-                if (entries.length >= 2) { setupStep = 3; entries[entries.length - 1].click(); }
-            } else if (setupStep === 1 && scenario.setup === 'caddyfile-raw') {
-                const raw = element.querySelector('.history-range-picker button:last-child');
-                if (raw) { setupStep = 2; raw.click(); }
-            } else if (setupStep === 1 && ['caddyfile-restore', 'caddyfile-delete'].includes(scenario.setup)) {
-                const action = element.querySelectorAll('.history-version-actions button')[scenario.setup === 'caddyfile-restore' ? 0 : 1];
-                if (action && !action.disabled) { setupStep = 2; action.click(); }
-            } else if (!setupStep && scenario.setup === 'caddyfile-force') {
-                const editor = element.querySelector('.cm-content');
-                if (editor) {
-                    setupStep = 1;
-                    // Use the production editor's transaction/update listener;
-                    // leave focus in the contributor's translation input.
-                    const view = EditorView.findFromDOM(editor);
-                    view.dispatch({ changes: { from: view.state.doc.length, insert: '\n# Local playground edit\n' } });
-                }
-            } else if (setupStep === 1 && scenario.setup === 'caddyfile-force' && buttons[5] && !buttons[5].disabled) {
-                setupStep = 2; buttons[5].click();
-            } else if (!setupStep && scenario.setup === 'caddyfile-import') {
-                const input = element.querySelector('input[type="file"]');
-                if (input) {
-                    setupStep = 1;
-                    const data = new DataTransfer();
-                    data.items.add(new File(['# Local playground import\n'], 'Caddyfile', { type: 'text/plain' }));
-                    input.files = data.files;
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            } else if (!setupStep && scenario.setup === 'caddyfile-valid' && buttons[0]) {
-                setupStep = 1; buttons[0].click();
-            }
-        }
+        if (setups[scenario.setup]?.[setupStep]?.(element, scenario)) setupStep++;
         const records = [...observations.values()];
         const references = markReferences(element, config.selected, records);
         // Login fills the viewport. Measuring its shell and then adding padding
@@ -233,7 +131,7 @@ async function configurePreview(event) {
         window.fetch = createReplayFetch(records, miss, location.origin);
         configuredState = stateKey;
     }
-    const palette = THEME_LIST.find(theme => theme.id === (next.light ? 'coarse-everywhere' : 'vt2026'));
+    const palette = THEME_LIST.find(theme => theme.id === (next.light ? DEFAULT_PALETTES.light : DEFAULT_PALETTES.dark));
     for (const [key, value] of Object.entries(palette.vars)) document.documentElement.style.setProperty(key, value);
     for (const [locale, catalog] of Object.entries(catalogs)) {
         i18n.removeResourceBundle(locale, 'translation');

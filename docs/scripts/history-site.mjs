@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, r
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SAXParser } from 'parse5-sax-parser';
-import { bookFiles, groupBooks, validateBookAssets, validateBookResults } from './history-books.mjs';
+import { bookFiles, groupBooks, readArchiveManifest, validateBookAssets, validateBookResults } from './history-books.mjs';
 import { validateInventory } from './history-backfill.mjs';
 import { compareVersions, git, options, repository } from './history-inventory.mjs';
 
@@ -17,7 +17,7 @@ export function siteBase(value) {
     return value;
 }
 
-export function legacyReleases(root, inventory) {
+function legacyReleases(root, inventory) {
     validateInventory(inventory);
     return git(root, ['tag', '--merged', inventory.throughCommit]).split('\n')
         .filter(tag => legacyTag.test(tag) && compareVersions(sortableVersion(tag), inventory.from) < 0)
@@ -68,8 +68,7 @@ function resolverPage(assets, tag = '') {
 export function publishSite({ root, archive, developmentBook, output, base = '/caddy-ui/', developmentCommit, grouping, older = [], inventory, requireCollected = false }) {
     siteBase(base);
     if (!/^[a-f0-9]{40}$/.test(developmentCommit)) throw new Error('Development source must be a commit ID');
-    const manifest = JSON.parse(readFileSync(join(archive, 'backfill.json'), 'utf8'));
-    if (manifest.schema !== 1) throw new Error('Unsupported archive manifest');
+    const manifest = readArchiveManifest(archive);
     validateInventory(manifest.inventory);
     validateBookResults(archive, manifest.inventory, manifest.results);
     validateBookAssets(developmentBook);
@@ -167,7 +166,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         }
         const root = resolve(args.repo || fileURLToPath(new URL('../..', import.meta.url)));
         const archive = resolve(args.archive || root + '/.docs-history');
-        const manifest = JSON.parse(readFileSync(join(archive, 'backfill.json'), 'utf8'));
+        const manifest = readArchiveManifest(archive);
         const inventory = args.inventory ? JSON.parse(readFileSync(resolve(args.inventory), 'utf8')) : manifest.inventory;
         const catalog = publishSite({ root, archive, developmentBook: resolve(args.development || root + '/docs/book'),
             output: resolve(args.output || root + '/.docs-site'), base: args.base || '/caddy-ui/', developmentCommit: git(root, ['rev-parse', 'HEAD']),

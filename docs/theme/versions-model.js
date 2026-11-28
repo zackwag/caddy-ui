@@ -1,7 +1,7 @@
 const stable = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/;
 const development = /^(dev|edge|beta)(?:-[a-f0-9]+)?$/;
 
-export function releaseNotes(catalog, tag) {
+function releaseNotes(catalog, tag) {
     return `https://github.com/${catalog.repository}/releases/tag/${encodeURIComponent(tag)}`;
 }
 
@@ -59,4 +59,13 @@ export function resolveDocumentation(catalog, parameters, hash = '') {
         return { kind: 'redirect', target: choices[0].target };
     }
     return { kind: 'choose', choices };
+}
+
+// The published catalogue of every book, from the site's root.
+export async function fetchCatalog(site) {
+    const response = await fetch(new URL('documentation.json', site), { cache: 'no-cache' });
+    if (!response.ok) throw new Error('Catalogue unavailable');
+    const catalog = await response.json();
+    if (catalog.schema !== 1) throw new Error('Unsupported catalogue');
+    return catalog;
 }

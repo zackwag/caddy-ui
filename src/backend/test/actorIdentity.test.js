@@ -15,6 +15,7 @@ it('derives the account identity from a management session and resolves its curr
     const actor = fixture.service.getActor(req);
     expect(actor).toEqual({ type: 'user', id: fixture.store.getAccountId(), name: 'administrator' });
     expect(fixture.service.getActor({ headers: {} })).toBeNull();
+    expect((await client.request('/actor')).data).toEqual({ actor });
     await fixture.store.updateCredentials('renamed');
     expect(fixture.service.resolveActor({ type: 'user', id: actor.id })).toEqual({ ...actor, name: 'renamed' });
 });

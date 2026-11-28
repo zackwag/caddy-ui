@@ -1,37 +1,41 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { loadCustomThemes } from './customThemes.js';
-import { getInstances, loadInstances, onInstanceRemoved } from './instances.js';
+import { getInstances, loadInstances, onInstanceRemoved, onInstanceSaved, storedInstanceIds } from './instances.js';
 import logger from './logger.js';
-import { diagnosticMiddleware } from './errorReporting.js';
-import { authMiddleware, initializeAuthentication, publicMetrics } from './middleware/auth.js';
+import { diagnosticMiddleware, errorHandler } from './errorReporting.js';
+import { parseExternalUrls } from './externalUrls.js';
+import { authMiddleware, initializeAuthentication } from './middleware/auth.js';
 import { createCrossSiteMiddleware, misnamedExternalUrlVariables } from './middleware/crossSite.js';
 import { createCsrfMiddleware } from './middleware/csrf.js';
 import { createApiTokenMiddleware } from './middleware/apiToken.js';
 import { instanceMiddleware } from './middleware/instance.js';
+import { isSafeMethod } from './middleware/safeMethods.js';
 import { forgetInstanceNotifications, initNotifications, notifyCheckResults, notifyConfigurationChange } from './notifications.js';
 import authRouter from './routes/auth.js';
 import pagesRouter from './routes/pages.js';
-import caddyfileRouter, { migrateLegacyHistory } from './routes/caddyfile.js';
+import caddyfileRouter from './routes/caddyfile.js';
 import customThemesRouter from './routes/customThemes.js';
 import healthRouter from './routes/health.js';
 import instancesRouter from './routes/instances.js';
 import logsRouter, { appLogsRouter } from './routes/logs.js';
-import metricsRouter, { rawMetrics } from './routes/metrics.js';
+import metricsRouter, { metricsSummary, rawMetrics } from './routes/metrics.js';
 import notificationsRouter from './routes/notifications.js';
 import auditRouter from './routes/audit.js';
 import { loadAuditLog } from './auditLog.js';
 import settingsRouter from './routes/settings.js';
 import { initCaddyfileTitles } from './caddyfileTitles.js';
-import routenotesRouter, { cleanupOrphanedNotes } from './routes/routenotes.js';
+import routenotesRouter from './routes/routenotes.js';
 import routesRouter from './routes/routes.js';
 import servernamesRouter from './routes/servernames.js';
 import statusRouter from './routes/status.js';
 import tlsRouter from './routes/tls.js';
-import { detectBackendIdentity } from './dockerDiscovery.js';
-import { loadMaintenance, releaseInstanceMaintenance } from './maintenance.js';
+import { migrateLegacyHistory } from './configurationHistory.js';
+import { BACKEND_PORT } from './dockerDiscovery.js';
+import { claimSavedMaintenance, loadMaintenance, releaseInstanceMaintenance, retrySavedMaintenanceClaim } from './maintenance.js';
 import { forgetInstanceChecks, onCheckResults, startMonitoring } from './monitoring.js';
-import { releaseInstanceNotes } from './routeNotes.js';
+import { claimNotes, cleanupOrphanedNotes, retryNoteClaims } from './noteOwners.js';
+import { loadRouteNotes, releaseInstanceNotes } from './routeNotes.js';
 import { loadServerNames, removeInstanceServerNames } from './serverNames.js';
 import { loadSettings } from './settings.js';
 import { initUptimeHistory } from './uptimeHistory.js';
@@ -40,11 +44,12 @@ import { forgetConfigDrift, onExternalConfigurationChange, startConfigDriftMonit
 import { createProxyTrust } from './trustedProxies.js';
 import { getAvailableFonts, getEnabledLanguages } from './languages.js';
 
-const authentication = await initializeAuthentication();
+// Read once here and passed to what depends on them
+const externalUrl = process.env.CADDY_UI_EXTERNAL_URL;
+const publicMetrics = process.env.CADDY_UI_PUBLIC_METRICS === 'true';
+const authentication = await initializeAuthentication({ externalUrls: parseExternalUrls(externalUrl), publicMetrics });
 const app = express();
-const PORT = process.env.PORT || 3001;
 const APP_VERSION = process.env.APP_VERSION || 'dev';
-
 const proxyTrust = await createProxyTrust(process.env.CADDY_UI_TRUSTED_PROXIES);
 app.set('trust proxy', proxyTrust.trust);
 app.use(express.json());
@@ -83,7 +88,7 @@ const apiLimiter = rateLimit({
 const authLimiter = rateLimit({
     ...rateLimitOptions,
     limit: 15,
-    skip: req => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
+    skip: req => isSafeMethod(req.method),
     message: { error: 'Too many login attempts, please try again later' },
 });
 
@@ -101,11 +106,10 @@ app.use('/api', apiLimiter);
 for (const name of misnamedExternalUrlVariables(process.env)) {
     logger.warn(`${name} is set but ignored. Rename it to CADDY_UI_EXTERNAL_URL; until then, browser sign-in over plain HTTP is rejected.`);
 }
-app.use('/api', createCrossSiteMiddleware(process.env.CADDY_UI_EXTERNAL_URL));
+app.use('/api', createCrossSiteMiddleware(externalUrl));
 app.use('/api', createApiTokenMiddleware(authentication));
 app.use('/api', createCsrfMiddleware(authentication.sessions));
 
-// Auth routes are always public
 app.use('/api/auth', authLimiter, authRouter);
 
 // GET /api/version -- always public, non-sensitive. ?frontend=<version> lets
@@ -134,9 +138,11 @@ app.get('/api/languages', (req, res) => res.json({
 // there is no valid Caddy instance to attach to the request.
 app.use('/api/logs/app', authMiddleware, appLogsRouter);
 
-// GET /api/metrics/raw -- Prometheus scrape endpoint
-// Public if CADDY_UI_PUBLIC_METRICS=true, otherwise requires auth
-app.get('/api/metrics/raw', publicMetrics ? (req, res, next) => next() : authMiddleware, instanceMiddleware, rawMetrics);
+// Metrics reads are public if CADDY_UI_PUBLIC_METRICS=true, otherwise they
+// require auth. Configuring metrics always does.
+const metricsAuth = publicMetrics ? [] : [authMiddleware];
+app.get('/api/metrics/raw', metricsAuth, instanceMiddleware, rawMetrics);
+app.get('/api/metrics', metricsAuth, instanceMiddleware, metricsSummary);
 
 // All other /api/* routes require a session, then a valid instance.
 // Auth runs first so unauthenticated callers can't probe which instance ids exist.
@@ -152,31 +158,44 @@ app.use('/api/tls', tlsRouter);
 app.use('/api/health', healthRouter);
 app.use('/api/route-notes', routenotesRouter);
 
-app.use((err, req, res, next) => {
-    logger.error(`Unhandled error`, { requestId: req.diagnosticId, method: req.method, path: req.diagnosticPath || req.path, error: err.message, stack: err.stack });
-    res.status(500).json({ error: err.message || 'Internal server error' });
-});
+app.use(errorHandler);
 
-await detectBackendIdentity();
 await loadInstances();
 await migrateLegacyHistory();
-await loadServerNames(getInstances().map(i => i.id));
+await loadServerNames(storedInstanceIds());
 await loadSettings();
 await loadAuditLog();
 await loadMaintenance();
+await loadRouteNotes();
+await initCaddyfileTitles();
 await loadCustomThemes();
 await initUptimeHistory();
 for (const release of [forgetInstanceNotifications, forgetInstanceChecks, forgetConfigDrift, removeInstanceServerNames, releaseInstanceMaintenance, releaseInstanceNotes]) {
     onInstanceRemoved(release);
 }
+// Saving an instance can make the owner of saved legacy state provable. Not
+// awaited: the save doesn't wait on reading every instance's config.
+onInstanceSaved(() => {
+    claimSavedMaintenance();
+    claimNotes();
+});
 await initNotifications({ apiTokens: () => authentication.apiTokenMetadata() });
 onCheckResults(notifyCheckResults);
+// An instance whose check succeeded can be read again, so a claim that
+// couldn't read it is retried. Upstream rounds run every 30s whatever the settings.
+onCheckResults((kind, instance) => {
+    if (kind !== 'upstream') {
+        return;
+    }
+    retrySavedMaintenanceClaim(instance.id);
+    retryNoteClaims(instance.id);
+});
 onExternalConfigurationChange(notifyConfigurationChange);
 startMonitoring();
 startConfigDriftMonitor();
 startUpdateCheck();
 
-const server = app.listen(PORT, error => {
+const server = app.listen(BACKEND_PORT, error => {
     // Express wraps this callback with `once`, which fires it for whichever
     // server event comes first — 'listening' or 'error'. Keep bind failures
     // fatal so startup cannot report success without a bound HTTP server.
@@ -189,5 +208,6 @@ const server = app.listen(PORT, error => {
     logger.info(`Available UI fonts`, { languages: getAvailableFonts() });
     // Launchers using IPC can discover an OS-assigned port after it is bound.
     if (process.connected) process.send({ type: 'caddy-ui:listening', port });
-    initCaddyfileTitles().then(() => cleanupOrphanedNotes());
+    cleanupOrphanedNotes();
+    claimSavedMaintenance();
 });

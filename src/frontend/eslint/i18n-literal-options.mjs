@@ -26,6 +26,9 @@ export default {
             // Credential verification takes a DOM ID and a catalog key.
             '^passwordId$',
             '^passwordLabel$',
+            // CSS for a component's own wrapper.
+            '^wrapClassName$',
+            '^padding$',
         ],
     },
 
@@ -34,8 +37,12 @@ export default {
             '^navigate$',
             '^t$',
             '^i18n\\.t$',
-            // Incident key constructors take internal identifiers, not UI text.
-            '^stateNotificationKey$',
+            // Incident scopes are internal identifiers, not UI text.
+            '^toast\\.(track|incident)$',
+            // Settings are patched by their name, security sections by their ID.
+            '^(updateConfig|updateSection|securitySection|routeField)$',
+            // Sortable columns are named, not labeled.
+            '^sort\\.(header|icon)$',
             '^document\\.createElement$',
             '^window\\.open$',
         ],
@@ -43,8 +50,8 @@ export default {
 
     'object-properties': {
         exclude: [
-            // Catalog key stored in state and translated at render time.
-            '^errorKey$',
+            // Catalog keys translated at render time.
+            '^(titleKey|navKey)$',
             // The notification policy 'mode' is an internal enum.
             '^mode$',
             // CSS-in-JS / inline-style properties.

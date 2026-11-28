@@ -1,14 +1,16 @@
-import { notifyConfigurationSave } from '../utils/caddyfileHistory.js';
 import { UtilityIcon } from "./Icons.jsx";
 import { localizeError } from "../utils/errorMessages.js";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { API, apiFetch, getInstanceId } from "../utils/api.js";
-import { stateNotificationKey } from "../utils/notificationCenter.js";
-import { readLogResponse, resolveLogSource } from "../utils/logSource.js";
+import ConfigCard from "./ConfigCard.jsx";
+import SearchInput from "./SearchInput.jsx";
+import Select from "./Select.jsx";
+import { apiFetch, instanceUrl } from "../utils/api.js";
+import { downloadText } from "../utils/download.js";
+import { LEVEL_CLASSES, lineLevel, readLogResponse, resolveLogSource, SOURCES } from "../utils/logSource.js";
 
-export default function Logs({ toast, onUnauth,  noInstances }) {
+export default function Logs({ toast, noInstances }) {
     const { t } = useTranslation();
     const location = useLocation();
     const [lines, setLines] = useState([]);
@@ -17,7 +19,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     // must apply its destination even when the component is already mounted.
     const [selection, setSelection] = useState(null);
     const source = noInstances ? "app" : selection?.key === location.key
-        ? selection.source : resolveLogSource(location.search, noInstances);
+        ? selection.source : resolveLogSource(location.search);
     const setSource = source => setSelection({ key: location.key, source });
     const [live, setLive] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
@@ -33,49 +35,48 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     const [refreshing, setRefreshing] = useState(false);
     const bottomRef = useRef(null);
     const esRef = useRef(null);
-    const loadIdRef = useRef(0);
+    // The latest load's, aborted by the next load, so a response for another
+    // source or an older load is ignored
+    const loadRef = useRef(null);
+
+    const loadLines = useCallback(async () => {
+        loadRef.current?.abort();
+        loadRef.current = new AbortController();
+        const { signal } = loadRef.current;
+        setRefreshing(true);
+        try {
+            const lines = await toast.track('logs.load.' + source, apiFetch(SOURCES[source].path, { signal }).then(data => readLogResponse(data, source)), { signal });
+            setLoadError(null);
+            setLines(lines);
+        } catch (error) {
+            setLoadError(error);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [source, toast]);
 
     useEffect(() => {
-        let ignore = false;
-        loadIdRef.current += 1;
         setLines([]);
         setLoadError(null);
-        setRefreshing(false);
-        const path = source === "caddy" ? "/logs" : "/logs/app";
-        // App's first /status response can arrive after the initial log request.
-        const loadKey = stateNotificationKey('logs.load.' + source, getInstanceId());
-        const configKey = stateNotificationKey('logs.config', getInstanceId());
-        const reportError = (e, key) => {
-            if (!ignore && e.code !== 'NO_INSTANCES') {
-                if (key === loadKey) setLoadError(e);
-                if (key === configKey) setConfigError(e);
-                toast.error(localizeError(e, t), e, { mode: 'state', key });
-            }
+        loadLines();
+        return () => {
+            loadRef.current?.abort();
+            esRef.current?.close();
+            esRef.current = null;
+            setLive(false);
         };
-        apiFetch(path, {}, onUnauth)
-            .then(data => {
-                if (!ignore) {
-                    const entries = readLogResponse(data, source);
-                    toast.recover(loadKey);
-                    setLoadError(null);
-                    setLines(entries);
-                }
-            })
-            .catch(e => reportError(e, loadKey));
+    }, [loadLines]);
 
-        if (source === "caddy" && !logConfig) {
-            setConfigError(null);
-            apiFetch("/logs/config", {}, onUnauth)
-                .then(data => { if (!ignore) { toast.recover(configKey); setConfigError(null); setLogConfig(data); } })
-                .catch(e => reportError(e, configKey));
-        }
-
-        esRef.current?.close();
-        esRef.current = null;
-        setLive(false);
-        return () => { ignore = true; loadIdRef.current += 1; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when source changes; toast isn't stable across renders
-    }, [onUnauth, source]);
+    const needsConfig = source === "caddy" && !logConfig;
+    useEffect(() => {
+        if (!needsConfig) return;
+        const controller = new AbortController();
+        const { signal } = controller;
+        setConfigError(null);
+        toast.track('logs.config', apiFetch("/logs/config", { signal }), { signal })
+            .then(setLogConfig, setConfigError);
+        return () => controller.abort();
+    }, [needsConfig, toast]);
 
     useEffect(() => {
         if (!logSearch && levelFilter === "all") {
@@ -86,14 +87,12 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
 
     const toggleLive = () => {
         if (live) { esRef.current?.close(); esRef.current = null; setLive(false); return; }
-        const streamPath = source === "caddy" ? "/logs/stream" : "/logs/app/stream";
-        const url = `${API}${streamPath}`;
-        const es = new EventSource(url);
-        const streamKey = stateNotificationKey('logs.stream.' + source, getInstanceId());
-        const loadKey = stateNotificationKey('logs.load.' + source, getInstanceId());
+        const es = new EventSource(instanceUrl(`${SOURCES[source].path}/stream`));
+        const stream = toast.incident('logs.stream.' + source);
+        const load = toast.incident('logs.load.' + source);
         const failStream = error => {
             setLoadError(error);
-            toast.error(localizeError(error, t), error, { mode: 'state', key: streamKey });
+            stream.fail(error);
             es.close();
             esRef.current = null;
             setLive(false);
@@ -114,8 +113,8 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
             }
             const line = data.line || (data.entry ? JSON.stringify(data.entry) : null);
             if (line) {
-                toast.recover(streamKey);
-                toast.recover(loadKey);
+                stream.recover();
+                load.recover();
                 setLoadError(null);
                 setLines(l => [...l.slice(-500), line]);
             }
@@ -131,25 +130,8 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
         setLive(true);
     };
 
-    useEffect(() => () => esRef.current?.close(), []);
-
-    const classify = (line) => {
-        const l = line.toLowerCase();
-        if (l.includes('"level":"error"') || l.includes('error')) return 'err';
-        if (l.includes('"level":"warn"') || l.includes('warn')) return 'warn';
-        if (l.includes('"level":"info"')) return 'info';
-        return '';
-    };
-
-    const matchesLevel = (line) => {
-        if (levelFilter === "all") return true;
-        if (levelFilter === "error") return line.toLowerCase().includes('"level":"error"');
-        if (levelFilter === "warn") return line.toLowerCase().includes('"level":"warn"');
-        if (levelFilter === "info") return line.toLowerCase().includes('"level":"info"');
-        return true;
-    };
-
-    const filteredLines = lines.filter(line => (!logSearch || line.toLowerCase().includes(logSearch.toLowerCase())) && matchesLevel(line));
+    const matchesSearch = line => line.toLowerCase().includes(logSearch.toLowerCase());
+    const filteredLines = lines.filter(line => matchesSearch(line) && (levelFilter === "all" || lineLevel(line) === levelFilter));
 
     const lineCountText = loadError && lines.length === 0 ? t("logs.unavailable") : logSearch || levelFilter !== "all"
         ? t("logs.lineCountFiltered", { filtered: filteredLines.length, total: lines.length })
@@ -157,36 +139,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
 
     const exportLogs = () => {
         const linesToExport = (logSearch || levelFilter !== "all") && filteredLines.length > 0 ? filteredLines : lines;
-        const blob = new Blob([linesToExport.join('\n')], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${source === "caddy" ? "caddy-access" : "caddy-ui"}-${new Date().toISOString().slice(0, 10)}.log`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    const refreshLogs = () => {
-        setRefreshing(true);
-        const loadId = loadIdRef.current;
-        const loadKey = stateNotificationKey('logs.load.' + source, getInstanceId());
-        const path = source === "caddy" ? "/logs" : "/logs/app";
-        apiFetch(path, {}, onUnauth)
-            .then(d => {
-                if (loadId === loadIdRef.current) {
-                    const entries = readLogResponse(d, source);
-                    toast.recover(loadKey);
-                    setLoadError(null);
-                    setLines(entries);
-                }
-            })
-            .catch(e => {
-                if (loadId === loadIdRef.current && e.code !== 'NO_INSTANCES') {
-                    setLoadError(e);
-                    toast.error(localizeError(e, t), e, { mode: 'state', key: loadKey });
-                }
-            })
-            .finally(() => { if (loadId === loadIdRef.current) setRefreshing(false); });
+        downloadText(`${SOURCES[source].filename}-${new Date().toISOString().slice(0, 10)}.log`, linesToExport.join('\n'));
     };
 
     const updateConfig = (key, value) => { setLogConfig(c => ({ ...c, [key]: value })); setConfigDirty(true); };
@@ -194,10 +147,10 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
     const saveConfig = async () => {
         setSavingConfig(true);
         try {
-            const result = await apiFetch("/logs/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(logConfig) }, onUnauth);
-            notifyConfigurationSave(toast, t, result, t("logs.configSaved"));
+            const result = await apiFetch("/logs/config", { method: "PUT", json: logConfig });
+            toast.saved(result, t("logs.configSaved"));
             setConfigDirty(false);
-        } catch (e) { toast.error(localizeError(e, t), e); }
+        } catch (e) { toast.error(e); }
         finally { setSavingConfig(false); }
     };
 
@@ -219,19 +172,12 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
             </div>
 
             {source === "caddy" && (
-            <div className="card card-flush">
-                <div className={`card-header--clickable ${configOpen ? "is-open" : ""}`} onClick={() => setConfigOpen(o => !o)}>
-                    <span className="section-label">{t("logs.configuration")}</span>
-                    <div className="flex-center">
-                        {logConfig && <span className={`badge ${logConfig.enabled ? "badge-green" : "badge-muted"}`}>{logConfig.enabled ? t("common.enabledUpper") : t("common.disabledUpper")}</span>}
-                        <span className="chevron"><UtilityIcon name={configOpen ? "caretUp" : "caretDown"} /></span>
-                    </div>
-                </div>
-                {configOpen && !logConfig && (
+            <ConfigCard title={t("logs.configuration")} enabled={logConfig?.enabled} open={configOpen} onToggle={() => setConfigOpen(o => !o)}>
+                {!logConfig && (
                     configError ? <div className="card-body" role="alert">{localizeError(configError, t)}</div>
                         : <div className="card-body loading">{t("common.loading")}</div>
                 )}
-                {configOpen && logConfig && (
+                {logConfig && (
                     <div className="card-body">
                         <div className="config-grid">
                             <div className="log-config-enabled">
@@ -246,25 +192,19 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                             </div>
                             <div>
                                 <span className="field-label">{t("logs.format")}</span>
-                                <div className="select-wrap">
-                                    <select className="config-select" value={logConfig.format} onChange={e => updateConfig("format", e.target.value)} disabled={!logConfig.enabled}>
-                                        <option value="json">json</option>
-                                        <option value="console">console</option>
-                                    </select>
-                                    <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
-                                </div>
+                                <Select value={logConfig.format} onChange={e => updateConfig("format", e.target.value)} disabled={!logConfig.enabled}>
+                                    <option value="json">json</option>
+                                    <option value="console">console</option>
+                                </Select>
                             </div>
                             <div>
                                 <span className="field-label">{t("logs.level")}</span>
-                                <div className="select-wrap">
-                                    <select className="config-select" value={logConfig.level} onChange={e => updateConfig("level", e.target.value)} disabled={!logConfig.enabled}>
-                                        <option value="DEBUG">DEBUG</option>
-                                        <option value="INFO">INFO</option>
-                                        <option value="WARN">WARN</option>
-                                        <option value="ERROR">ERROR</option>
-                                    </select>
-                                    <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
-                                </div>
+                                <Select value={logConfig.level} onChange={e => updateConfig("level", e.target.value)} disabled={!logConfig.enabled}>
+                                    <option value="DEBUG">DEBUG</option>
+                                    <option value="INFO">INFO</option>
+                                    <option value="WARN">WARN</option>
+                                    <option value="ERROR">ERROR</option>
+                                </Select>
                             </div>
                             <div className="config-grid-full">
                                 <span className="field-label">{t("logs.logFilePath")}</span>
@@ -284,15 +224,12 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                         </div>
                     </div>
                 )}
-            </div>
+            </ConfigCard>
             )}
 
             <div className="log-toolbar">
                 <div className="btn-row">
-                    <div className="search-wrap">
-                        <input className="search-input search-input--clearable" placeholder={t("logs.searchPlaceholder")} value={logSearch} onChange={e => setLogSearch(e.target.value)} />
-                        {logSearch && <button className="search-clear" onClick={() => setLogSearch("")} title={t("common.clearSearch")}><UtilityIcon name="close" /></button>}
-                    </div>
+                    <SearchInput value={logSearch} onChange={setLogSearch} placeholder={t("logs.searchPlaceholder")} clearLabel={t("common.clearSearch")} />
                     {levelBtn("error", "ERROR")}
                     {levelBtn("warn", "WARN")}
                     {levelBtn("info", "INFO")}
@@ -302,7 +239,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                     <span className="log-line-count log-line-count--desktop">{lineCountText}</span>
                     {live && <div className="live-dot" />}
                     <button className={`btn ${live ? "btn-danger" : "btn-ghost"}`} onClick={toggleLive}><UtilityIcon name={live ? "stop" : "play"} /> {t(live ? "logs.stop" : "logs.live")}</button>
-                    <button className="btn btn-ghost" onClick={refreshLogs} disabled={refreshing}><UtilityIcon name="refresh" /> {refreshing ? t("common.refreshing") : t("common.refresh")}</button>
+                    <button className="btn btn-ghost" onClick={loadLines} disabled={refreshing}><UtilityIcon name="refresh" /> {refreshing ? t("common.refreshing") : t("common.refresh")}</button>
                     <button className="btn btn-ghost" onClick={exportLogs}><UtilityIcon name="arrowDown" /> {t("common.export")}</button>
                 </div>
             </div>
@@ -312,7 +249,7 @@ export default function Logs({ toast, onUnauth,  noInstances }) {
                     !loadError && <div className="log-empty">{logSearch || levelFilter !== "all" ? t("logs.noMatchingLines") : t("logs.noLinesLoaded")}</div>
                 ) : (
                     filteredLines.map((line, i) => (
-                        <div key={i} className={`log-line ${classify(line)} ${logSearch && line.toLowerCase().includes(logSearch.toLowerCase()) ? "highlight" : ""}`}>{line}</div>
+                        <div key={i} className={`log-line ${LEVEL_CLASSES[lineLevel(line)] || ""} ${logSearch && matchesSearch(line) ? "highlight" : ""}`}>{line}</div>
                     ))
                 )}
                 <div ref={bottomRef} />

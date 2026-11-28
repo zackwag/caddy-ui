@@ -9,8 +9,9 @@ export function createAuthRouter(getService = getAuthentication) {
     router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
     router.get('/status', (req, res) => res.json(getService().getAuthState(req)));
     router.get('/csrf', (req, res) => {
+        // A navigation can't read the token, only leave it in history
         if (req.headers['sec-fetch-mode'] === 'navigate') {
-            return res.status(403).json({ code: 'CSRF_NAVIGATION', error: 'This endpoint does not accept navigations' });
+            throw new AppError('FORBIDDEN', { context: { reason: 'navigation' } });
         }
         res.json({ csrfToken: getService().sessions.issueCsrfToken(req, res) });
     });

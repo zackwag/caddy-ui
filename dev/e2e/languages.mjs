@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
-import { before, test } from 'node:test';
+import { test } from 'node:test';
 import ar from '../../src/frontend/src/i18n/locales/ar.js';
 import de from '../../src/frontend/src/i18n/locales/de.js';
 import en from '../../src/frontend/src/i18n/locales/en.js';
-import { prepareBrowserTests, useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
+import { useAuthBrowserFixture, useBrowserFixture } from './fixture.mjs';
 
-before(prepareBrowserTests, { timeout: 35000 });
 const options = { timeout: 120000 };
 const isArabicFont = url => url.includes('noto-sans-arabic') && url.includes('.woff2');
 

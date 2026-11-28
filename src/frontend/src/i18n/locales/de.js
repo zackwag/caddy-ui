@@ -6,7 +6,6 @@ export default {
     common: {
         save: 'Speichern',
         cancel: 'Abbruch',
-        confirm: 'Bestätigen',
         loading: 'Wird geladen...',
         saving: 'Wird gespeichert...',
         refresh: 'Aktualisieren',
@@ -39,7 +38,6 @@ export default {
     },
 
     errors: {
-        backendUnreachable: 'Backend nicht erreichbar',
         languageLoadFailed: 'Sprache konnte nicht geladen werden. Versuche, die Seite neu zu laden.',
         generic: 'Vorgang ist fehlgeschlagen. Weitere Informationen im Protokoll.',
         network: 'Server ist nicht erreichbar. Prüfe deine Verbindung.',
@@ -57,7 +55,6 @@ export default {
         conflict: 'Der Vorgang steht im Konflikt mit der aktuellen Konfiguration.',
         upstreamUnavailable: 'Caddy-Server nicht verfügbar.',
         metricsUnavailable: 'Metriken sind vorübergehend nicht verfügbar.',
-        validationWarning: 'Die Validierung wurde mit Warnungen abgeschlossen. Sieh im Protokoll nach.',
         operationWarning: 'Der Vorgang wurde mit Warnungen abgeschlossen. Sieh im Protokoll nach.',
         viewLogs: 'Protokolle anzeigen',
         caddyfileReadFailed: 'Caddyfile konnte nicht gelesen werden.',
@@ -65,7 +62,6 @@ export default {
         caddyfileChangeRejected: 'Caddy hat die Änderung abgelehnt. Vorheriger Caddyfile wurde wiederhergestellt.',
         caddyfileRollbackFailed: 'Caddy hat die Änderung abgelehnt und der vorherige Caddyfile konnte nicht wiederhergestellt werden. Die lokale Datei stimmt nicht mehr mit der aktiven Caddy-Konfiguration überein.',
         caddyfileHistoryReadFailed: 'Der Caddyfile-Verlauf konnte nicht gelesen werden.',
-        routeNotesReadFailed: 'Routen-Notizen konnten nicht gelesen werden. Gespeicherte Notizen wurden nicht verändert.',
         routeNotesSaveFailed: 'Routen-Notiz konnte nicht gespeichert werden.',
         caddyReloadFailed: 'Caddy konnte nicht neu geladen werden.',
         instanceNotFound: 'Die Instanz wurde nicht gefunden.',
@@ -188,8 +184,6 @@ export default {
         light: 'Hell',
         darkTheme: 'Dunkles Farbschema',
         lightTheme: 'Helles Farbschema',
-        builtIn: 'Integriert',
-        custom: 'Benutzerdefiniert',
         preview: 'Vorschau',
         accent: 'Akzent',
         info: 'Information',
@@ -211,7 +205,6 @@ export default {
         activeHttpServers: 'Aktive HTTP-Server',
         tls: 'TLS',
         enabled: 'AKTIVIERT',
-        disabled: 'DEAKTIVIERT',
         certificateManagement: 'Zertifikatsverwaltung',
         upstreams: 'Upstreams',
         offlineCount_one: '{{count}} offline',
@@ -352,7 +345,6 @@ export default {
     },
 
     metrics: {
-        fetchFailed: 'Metriken konnten nicht abgerufen werden',
         enabledToast: 'Metriken aktiviert',
         disabledToast: 'Metriken deaktiviert',
         configuration: 'Metrikkonfiguration',
@@ -415,9 +407,6 @@ export default {
     },
 
     uptime: {
-        online: 'Online',
-        partial: 'Teilweise erreichbar',
-        offline: 'Offline',
         noData: 'Keine Daten',
         offlineCount_one: '{{count}} offline',
         offlineCount_other: '{{count}} offline',
@@ -535,7 +524,6 @@ export default {
         valid: 'Das Caddyfile ist gültig',
         forceSaveConfirm: 'Erzwungenes Speichern überspringt die Validierung und schreibt das Caddyfile auf die Festplatte, auch wenn Caddy es nicht laden kann. Fortfahren?',
         forceSave: 'Speichern erzwingen',
-        reloadFailed: 'Caddyfile auf Festplatte gespeichert. Caddy konnte nicht neu geladen werden',
         savedReloaded: 'Caddyfile gespeichert und neu geladen',
         reloadedFromDisk: 'Caddy von Festplatte neu geladen',
         importConfirm: 'Dieses Caddyfile importieren? Dadurch wird es validiert, Caddy neu geladen und die aktuelle Datei überschrieben.',

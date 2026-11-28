@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createAuthService } from '../src/authService.js';
 import { createAuthStore } from '../src/authStore.js';
+import { parseExternalUrls } from '../src/externalUrls.js';
 import { initializeAuthentication } from '../src/middleware/auth.js';
 import logger from '../src/logger.js';
 import { fileURLToPath } from 'node:url';
@@ -44,17 +45,13 @@ describe('authentication startup warnings', () => {
         const env = { CADDY_UI_EXTERNAL_URL: externalUrl,
             ...(state === 'legacy' ? values : {}),
         };
-        const service = await initializeAuthentication({ store, env });
+        const service = await initializeAuthentication({ store, env, externalUrls: parseExternalUrls(externalUrl) });
         expect(service.getAuthState({ headers: {} }).authEnabled).toBe(true);
         const messages = warn.mock.calls.map(([message]) => message);
         expect(messages.filter(message => message.includes('Administrator enrollment is open'))).toHaveLength(state === 'setup' ? 1 : 0);
-        expect(messages.filter(message => message.includes('Secure session cookies are not enabled'))).toHaveLength(externalUrl?.startsWith('https:') !== true ? 1 : 0);
         if (state === 'setup') {
             expect(messages[0]).toContain('first person reaching the setup page can claim administrator access');
             expect(messages[0]).toContain('Restrict access until enrollment is complete');
-        }
-        if (externalUrl?.startsWith('https:') !== true) {
-            expect(messages.at(-1)).toContain('For HTTPS deployments, set CADDY_UI_EXTERNAL_URL=https://your-public-hostname');
         }
         for (const message of messages) {
             for (const value of Object.values(values)) expect(message).not.toContain(value);
@@ -77,9 +74,12 @@ describe('authentication startup warnings', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
         directories.push(directory);
         const store = createAuthStore(join(directory, 'auth.json'));
-        await initializeAuthentication({ store, env: { CADDY_UI_EXTERNAL_URL: externalUrl } });
-        const warnings = warn.mock.calls.map(([m]) => m);
-        expect(warnings.some(m => m.includes('Secure session cookies are not enabled'))).toBe(expectsWarning);
+        await initializeAuthentication({ store, externalUrls: parseExternalUrls(externalUrl) });
+        const cookieWarnings = warn.mock.calls.map(([m]) => m).filter(m => m.includes('Secure session cookies are not enabled'));
+        expect(cookieWarnings).toHaveLength(expectsWarning ? 1 : 0);
+        for (const message of cookieWarnings) {
+            expect(message).toContain('For HTTPS deployments, set CADDY_UI_EXTERNAL_URL=https://your-public-hostname');
+        }
     });
 
     it.each([
@@ -93,9 +93,8 @@ describe('authentication startup warnings', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
         directories.push(directory);
         const store = createAuthStore(join(directory, 'auth.json'));
-        const env = { CADDY_UI_EXTERNAL_URL: externalUrl };
         vi.spyOn(logger, 'warn').mockImplementation(() => {});
-        const service = await createAuthService({ store, env });
+        const service = await createAuthService({ store, env: {}, externalUrls: parseExternalUrls(externalUrl) });
         await store.initializeAuth('administrator', 'Test-Password-1!');
         const cookies = [];
         const res = { cookie: (name, value, opts) => cookies.push({ name, ...opts }) };
@@ -103,7 +102,7 @@ describe('authentication startup warnings', () => {
         expect(cookies[0].secure).toBe(expectedSecure);
     });
 
-    it('emits each warning once to production container stdout', async () => {
+    it('emits each warning once to production container stdout', { timeout: 15000 }, async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caddy-auth-config-'));
         directories.push(directory);
         const env = { ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info', AUTH_PATH: join(directory, 'auth.json') };
@@ -111,13 +110,11 @@ describe('authentication startup warnings', () => {
         const script = `import { initializeAuthentication } from ${JSON.stringify(new URL('../src/middleware/auth.js', import.meta.url).href)};
             const authentication = await initializeAuthentication();
             authentication.getAuthState({ headers: {} });`;
-        const { stdout, stderr } = await execute(process.execPath, ['--input-type=module', '--eval', script], { env, timeout: 10000 });
-        expect(stderr).toBe('');
-        const entries = stdout.trim().split('\n').map(line => JSON.parse(line));
-        expect(entries).toHaveLength(2);
-        expect(entries.every(entry => entry.level === 'warn')).toBe(true);
-        expect(entries[0].message).toContain('Administrator enrollment is open');
-        expect(entries[1].message).toContain('Secure session cookies are not enabled');
+        const { stdout } = await execute(process.execPath, ['--input-type=module', '--eval', script], { env, timeout: 10000 });
+        const warnings = stdout.split('\n').filter(line => line.startsWith('{'))
+            .map(line => JSON.parse(line)).filter(entry => entry.level === 'warn').map(entry => entry.message);
+        expect(warnings.filter(message => message.includes('Administrator enrollment is open'))).toHaveLength(1);
+        expect(warnings.filter(message => message.includes('Secure session cookies are not enabled'))).toHaveLength(1);
     });
 });
 

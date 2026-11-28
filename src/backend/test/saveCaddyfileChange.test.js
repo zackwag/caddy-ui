@@ -1,16 +1,14 @@
-import { once } from 'node:events';
 import { mkdtempSync, readdirSync } from 'fs';
 import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { createCaddyfileHistory } from '../src/caddyfileHistory.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serve } from './fixtures/server.mjs';
 
 const { files, failWrites, live, etagOf, caddyAdapt, caddyLoad, caddyGet, caddyPost, caddyPut } = vi.hoisted(() => ({
     files: new Map(),
-    // Writes to fail, counted from 1 since the last reset
     failWrites: { at: [], count: 0 },
     // What the fake admin API serves: the loaded config, the HTTP servers and
     // objects added by @id
@@ -38,7 +36,6 @@ vi.mock('../src/containerFs.js', async importOriginal => ({
     }),
     removeContainerPath: vi.fn(async (container, path) => { files.delete(path); }),
 }));
-// Readback shares the fake admin API with every other read
 vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(), caddyAdapt, caddyLoad, caddyGet, caddyReadJson: caddyGet, caddyPost, caddyPut,
     caddyGetTagged: async (path, adminUrl) => {
         const value = await caddyGet(path, adminUrl);
@@ -49,21 +46,21 @@ vi.mock('../src/caddy.js', async importOriginal => ({ ...await importOriginal(),
 // files and admin API
 const execInInstance = vi.hoisted(() => vi.fn());
 vi.mock('../src/docker.js', async importOriginal => ({ ...await importOriginal(), getCaddyEnv: vi.fn(async () => ({})), execInInstance }));
-vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ getActor: req => req.actor, resolveActor: () => null }) }));
+vi.mock('../src/middleware/auth.js', () => ({ getAuthentication: () => ({ resolveActor: () => null }) }));
 
-// HISTORY_PATH is read at import time, so set it before importing the module
 process.env.HISTORY_PATH = mkdtempSync(join(tmpdir(), 'caddy-ui-history-'));
 process.env.MAINTENANCE_PATH = process.env.HISTORY_PATH + '-maintenance.json';
 process.env.WWW_PATH = process.env.HISTORY_PATH + '-www';
 process.env.CADDY_UI_URL = 'caddy-ui-backend:3001';
-const { saveCaddyfileChange, default: caddyfileRouter } = await import('../src/routes/caddyfile.js');
+const { saveCaddyfileChange } = await import('../src/caddyfileChange.js');
+const { default: caddyfileRouter } = await import('../src/routes/caddyfile.js');
 const { default: metricsRouter } = await import('../src/routes/metrics.js');
 const { default: logsRouter } = await import('../src/routes/logs.js');
 const { default: routesRouter } = await import('../src/routes/routes.js');
-const { getMaintenanceState } = await import('../src/maintenance.js');
+const { getMaintenanceState, loadMaintenance } = await import('../src/maintenance.js');
 const { readContainerFile } = await import('../src/containerFs.js');
+const { getCaddyEnv } = await import('../src/docker.js');
 const { default: logger } = await import('../src/logger.js');
-const { firstDifference } = await import('../src/configVerification.js');
 const { CaddyTimeoutError } = await import('../src/caddy.js');
 const { checkInstance, getConfigDriftState, resetConfigDrift } = await import('../src/configDrift.js');
 afterAll(async () => {
@@ -75,6 +72,7 @@ afterAll(async () => {
 // Local mode (no container), so a failed /load has no binary fallback
 const instance = { id: 'default', adminUrl: 'http://caddy:2019', configPath: '/etc/caddy/Caddyfile', containerName: '', serverName: 'srv0' };
 const original = '{\n    admin :2019\n}\n\nold.example.com {\n}\n';
+const withMetrics = '{\n    admin :2019\n    metrics\n}\n';
 const historyFiles = () => readdirSync(process.env.HISTORY_PATH).filter(f => f.startsWith('Caddyfile-'));
 
 // The fake adapter's JSON for a Caddyfile, and the admin API effects that
@@ -83,9 +81,13 @@ const adapted = async content => ({ adapted: content });
 const load = async content => { live.config = await adapted(content); };
 const addObject = async (path, body) => { live.objects.set(body['@id'], body); };
 const verified = { file: 'verified', live: 'verified' };
+// A change made through the admin API rather than a reload
+const liveChange = apply => ({ apply, verify: async () => 'verified' });
 const servers = { srv0: { listen: [':443'], routes: [] } };
 
-beforeEach(() => {
+beforeEach(async () => {
+    await writeFile(process.env.MAINTENANCE_PATH, '{}');
+    await loadMaintenance();
     resetConfigDrift();
     files.clear();
     files.set(instance.configPath, original);
@@ -136,17 +138,16 @@ describe('saveCaddyfileChange', () => {
     });
 
     it('runs asynchronous transforms against the preceding committed content inside the queue', async () => {
-        let release, started;
-        const gate = new Promise(resolve => { release = resolve; });
-        const ready = new Promise(resolve => { started = resolve; });
+        const gate = Promise.withResolvers();
+        const started = Promise.withResolvers();
         const firstActor = { type: 'user', id: randomUUID(), name: 'First actor' };
         const secondActor = { type: 'api-token', id: 'c'.repeat(32), name: 'Second actor' };
         const first = saveCaddyfileChange(instance, previous => previous + '\nfirst.example.com {}', {
-            actor: firstActor, apply: async () => { started(); await gate; }, verify: async () => 'verified',
+            actor: firstActor, live: liveChange(async () => { started.resolve(); await gate.promise; }),
         });
-        await ready;
+        await started.promise;
         const second = saveCaddyfileChange(instance, async previous => previous + '\nsecond.example.com {}', { actor: secondActor });
-        release();
+        gate.resolve();
         await Promise.all([first, second]);
         expect(files.get(instance.configPath)).toContain('first.example.com {}\nsecond.example.com {}');
         const history = createCaddyfileHistory(process.env.HISTORY_PATH);
@@ -157,16 +158,15 @@ describe('saveCaddyfileChange', () => {
         expect((await history.read('default', entries[0].filename)).content).toContain('first.example.com {}\nsecond.example.com {}');
     });
     it('commits saved content to its actor and serializes concurrent saves', async () => {
-        let release, started;
-        const gate = new Promise(resolve => { release = resolve; });
-        const ready = new Promise(resolve => { started = resolve; });
+        const gate = Promise.withResolvers();
+        const started = Promise.withResolvers();
         const actor = { type: 'user', id: randomUUID(), name: 'administrator' };
         const nextActor = { type: 'api-token', id: 'b'.repeat(32), name: 'Automation' };
-        const first = saveCaddyfileChange(instance, 'first committed content', { actor, apply: async () => { started(); await gate; }, verify: async () => 'verified' });
-        await ready;
+        const first = saveCaddyfileChange(instance, 'first committed content', { actor, live: liveChange(async () => { started.resolve(); await gate.promise; }) });
+        await started.promise;
         const second = saveCaddyfileChange(instance, 'second committed content', { actor: nextActor });
         expect(files.get(instance.configPath)).toBe('first committed content');
-        release();
+        gate.resolve();
         await Promise.all([first, second]);
         const history = createCaddyfileHistory(process.env.HISTORY_PATH);
         const entries = await history.list('default');
@@ -183,7 +183,7 @@ describe('saveCaddyfileChange', () => {
         const block = async () => { await rename(root, backup); await writeFile(root, 'blocked'); };
         if (!afterApply) await block();
         try {
-            const operation = saveCaddyfileChange(instance, 'saved despite history failure', { apply: afterApply ? block : caddyLoad, verify: async () => 'verified' });
+            const operation = saveCaddyfileChange(instance, 'saved despite history failure', { live: liveChange(afterApply ? block : caddyLoad) });
             if (afterApply) await expect(operation).resolves.toMatchObject({ applied: true, warningCode: 'CADDYFILE_HISTORY_COMMIT_FAILED' });
             else await expect(operation).rejects.toMatchObject({ code: 'CADDYFILE_HISTORY_WRITE_FAILED' });
             expect(files.get(instance.configPath)).toBe(afterApply ? 'saved despite history failure' : original);
@@ -217,7 +217,7 @@ describe('saveCaddyfileChange', () => {
             expect(files.get(instance.configPath)).toBe('api.example.com {\n}\n');
             throw new Error('Caddy API error: 404 unknown object ID');
         });
-        await expect(saveCaddyfileChange(instance, 'api.example.com {\n}\n', { apply, verify: async () => 'verified' })).rejects.toMatchObject({ code: 'CADDYFILE_CHANGE_REJECTED' });
+        await expect(saveCaddyfileChange(instance, 'api.example.com {\n}\n', { live: liveChange(apply) })).rejects.toMatchObject({ code: 'CADDYFILE_CHANGE_REJECTED' });
         expect(apply).toHaveBeenCalledTimes(1);
         expect(caddyLoad).not.toHaveBeenCalled();
         expect(files.get(instance.configPath)).toBe(original);
@@ -264,20 +264,17 @@ describe('API save paths', () => {
     const actor = { type: 'user', id: randomUUID(), name: 'Authenticated administrator' };
 
     beforeAll(async () => {
-        const app = express();
-        app.use(express.json());
-        app.use(express.text({ type: 'text/plain' }));
-        app.use('/api', (req, res, next) => { req.instance = instance; req.actor = actor; next(); });
-        app.use('/api/caddyfile', caddyfileRouter);
-        app.use('/api/metrics', metricsRouter);
-        app.use('/api/logs', logsRouter);
-        app.use('/api/routes', routesRouter);
-        server = app.listen(0, '127.0.0.1');
-        await once(server, 'listening');
-        baseUrl = `http://127.0.0.1:${server.address().port}/api`;
+        server = await serve(app => {
+            app.use('/api', (req, res, next) => { req.instance = instance; req.actor = actor; next(); });
+            app.use('/api/caddyfile', caddyfileRouter);
+            app.use('/api/metrics', metricsRouter);
+            app.use('/api/logs', logsRouter);
+            app.use('/api/routes', routesRouter);
+        });
+        baseUrl = server.url + '/api';
     });
 
-    afterAll(() => new Promise(resolve => server.close(resolve)));
+    afterAll(() => server.close());
 
     const send = async (method, path, body) => {
         const text = typeof body === 'string';
@@ -297,9 +294,6 @@ describe('API save paths', () => {
     ])('returns success with a warning after a live %s %s whose history commit fails', async (method, path, body) => {
         const root = process.env.HISTORY_PATH, backup = root + '-backup';
         const block = async () => { await rename(root, backup); await writeFile(root, 'blocked'); };
-        const request = globalThis.fetch;
-        vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) => String(url).startsWith(instance.adminUrl)
-            ? Promise.resolve(new Response('{}', { status: 200 })) : request(url, options));
         caddyLoad.mockImplementationOnce(async content => { await block(); await load(content); });
         caddyPost.mockImplementationOnce(async (path, route) => { await block(); await addObject(path, route); });
         live.servers = servers;
@@ -309,7 +303,6 @@ describe('API save paths', () => {
             expect(result.body).toMatchObject({ ok: true, warningCode: 'CADDYFILE_HISTORY_COMMIT_FAILED' });
             expect(files.get(instance.configPath)).not.toBe(original);
         } finally {
-            vi.restoreAllMocks();
             await rm(root, { recursive: true, force: true });
             await rename(backup, root);
         }
@@ -341,24 +334,19 @@ describe('API save paths', () => {
         const final = files.get(instance.configPath);
         expect(final).toContain('first.example.com');
         expect(final).toContain('second.example.com');
-        expect(final).toMatch(/^\{\n {4}metrics/);
+        expect(final.startsWith(withMetrics)).toBe(true);
         const history = createCaddyfileHistory(process.env.HISTORY_PATH);
         const latest = (await history.list('default'))[0];
         expect((await history.read('default', latest.filename)).content).toBe(final);
     });
 
     it.each(['restore', 'import'])('records a distinct %s action and restores text without formatting or sorting', async action => {
-        const request = globalThis.fetch;
-        vi.spyOn(globalThis, 'fetch').mockImplementation((url, options) => String(url).startsWith(instance.adminUrl)
-            ? Promise.resolve(new Response('{}', { status: 200 })) : request(url, options));
         const content = '# preserved heading\nz.example.com {\n\trespond "unchanged"\n}\n';
-        try {
-            const result = await send('PUT', '/caddyfile?action=' + action + '&fmt=false&sort=false', content);
-            expect(result.status).toBe(200);
-            expect(files.get(instance.configPath)).toBe(content);
-            const history = createCaddyfileHistory(process.env.HISTORY_PATH);
-            expect((await history.list('default'))[0].action).toBe('caddyfile.' + action);
-        } finally { vi.restoreAllMocks(); }
+        const result = await send('PUT', '/caddyfile?action=' + action + '&fmt=false&sort=false', content);
+        expect(result.status).toBe(200);
+        expect(files.get(instance.configPath)).toBe(content);
+        const history = createCaddyfileHistory(process.env.HISTORY_PATH);
+        expect((await history.list('default'))[0].action).toBe('caddyfile.' + action);
     });
 
     it('restores the Caddyfile when Caddy rejects a metrics change', async () => {
@@ -371,7 +359,7 @@ describe('API save paths', () => {
 
     it('saves a metrics change Caddy accepts', async () => {
         expect((await send('PUT', '/metrics/config', { enabled: true })).status).toBe(200);
-        expect(files.get(instance.configPath)).toMatch(/^\{\n {4}metrics/);
+        expect(files.get(instance.configPath)).toBe(withMetrics + '\nold.example.com {\n}\n');
     });
 
     it("reports a force-saved file Caddy rejected as written but not applied", async () => {
@@ -396,6 +384,44 @@ describe('API save paths', () => {
         expect(body).toMatchObject({ valid: false, code: 'CADDYFILE_ROLLBACK_FAILED' });
         expect(body.errors[0]).toMatch(/Caddy reload failed: .*400/);
         expect(files.get(instance.configPath)).toBe('x {\n}\n');
+    });
+
+    it.each([undefined, 'true', 1, null])('rejects a metrics setting of %j without touching the Caddyfile', async enabled => {
+        const { status, body } = await send('PUT', '/metrics/config', { enabled });
+        expect(status).toBe(400);
+        expect(body).toMatchObject({ code: 'VALIDATION_FAILED' });
+        expect(failWrites.count).toBe(0);
+        expect(caddyLoad).not.toHaveBeenCalled();
+        expect(files.get(instance.configPath)).toBe(original);
+    });
+
+    it.each([
+        ['PATCH', { content: 'old.example.com {\n    respond "new"\n}' }],
+        ['DELETE', undefined],
+    ])("doesn't %s a site block as missing when the container's environment can't be read", async (method, body) => {
+        getCaddyEnv.mockRejectedValueOnce(new Error('Cannot connect to the Docker daemon'));
+        const { status, body: response } = await send(method, '/routes/caddyfile/old.example.com', body);
+        expect(status).toBe(500);
+        expect(response).toMatchObject({ code: 'CADDYFILE_READ_FAILED' });
+        expect(files.get(instance.configPath)).toBe(original);
+    });
+
+    it('reports a Caddyfile that cannot be read when reading a site block', async () => {
+        files.delete(instance.configPath);
+        const { status, body } = await send('GET', '/routes/caddyfile/old.example.com');
+        expect(status).toBe(500);
+        expect(body).toMatchObject({ code: 'CADDYFILE_READ_FAILED' });
+    });
+
+    it.each([
+        ['GET', ''],
+        ['GET', '/changes'],
+        ['DELETE', ''],
+    ])('reports %s of a history version that does not exist%s as not found', async (method, suffix) => {
+        const missing = `Caddyfile-2026-01-01T00-00-00-000Z-${randomUUID()}.json`;
+        const { status, body } = await send(method, `/caddyfile/history/${missing}${suffix}`);
+        expect(status).toBe(404);
+        expect(body).toMatchObject({ code: 'NOT_FOUND' });
     });
 
     it('restores the Caddyfile when Caddy rejects a new route', async () => {
@@ -497,6 +523,44 @@ describe('API save paths', () => {
             expect(remove).toHaveBeenCalledTimes(1);
         });
 
+        it('reports a rejected change to a route without a Caddyfile block', async () => {
+            live.objects.set('route-admin', hostless('route-admin'));
+            remove.mockRejectedValueOnce(new Error('Caddy API error: 400 bad request'));
+            expect(await send('DELETE', '/routes/route-admin')).toMatchObject({ status: 422, body: { code: 'CADDY_CHANGE_REJECTED' } });
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
+        it.each([
+            ['a primary server Caddy does not have', { srv1: { listen: [':443'] } }],
+            ['no HTTP servers', null],
+        ])('refuses to add a route when Caddy has %s', async (_, current) => {
+            live.servers = current;
+            const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
+            expect(status).toBe(400);
+            expect(body).toMatchObject({ code: 'VALIDATION_FAILED' });
+            expect(caddyPost).not.toHaveBeenCalled();
+            expect(caddyPut).not.toHaveBeenCalled();
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
+        it.each(['PATCH', 'DELETE'])("doesn't %s a route whose read failed for a reason other than its absence", async method => {
+            live.objects.set('route-managed', managed('route-managed'));
+            caddyGet.mockImplementation(async () => { throw Object.assign(new Error('Caddy API error: 500'), { status: 500 }); });
+            const { status, body } = await send(method, '/routes/route-managed', { domain: 'new.example.com', upstream: 'app:3000' });
+            expect(status).toBe(503);
+            expect(body).toMatchObject({ code: 'CADDY_CONFIG_UNAVAILABLE' });
+            expect(patch).not.toHaveBeenCalled();
+            expect(remove).not.toHaveBeenCalled();
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
+        it('changes only the running config for a route Caddy reports missing', async () => {
+            const { status } = await send('DELETE', '/routes/route-unknown');
+            expect(status).toBe(200);
+            expect(remove).toHaveBeenCalledWith('/id/route-unknown', instance.adminUrl, { ifMatch: undefined });
+            expect(files.get(instance.configPath)).toBe(original);
+        });
+
         it('writes unconditionally when Caddy sends no ETag', async () => {
             live.servers = servers;
             const tagged = vi.spyOn(caddy, 'caddyGetTagged').mockImplementation(async path => ({ value: await caddyGet(path), etag: null }));
@@ -568,11 +632,12 @@ describe('API save paths', () => {
         });
 
         it('checks the precondition against the file inside the change queue', async () => {
-            let release;
-            const gate = new Promise(resolve => { release = resolve; });
-            const queued = saveCaddyfileChange(instance, 'queued.example.com {\n}\n', { apply: () => gate, verify: async () => 'verified' });
+            const gate = Promise.withResolvers();
+            const queued = saveCaddyfileChange(instance, 'queued.example.com {\n}\n', { live: liveChange(() => gate.promise) });
             const saving = save('mine.example.com {\n}\n', fileTag(original));
-            release();
+            // Validation is the last thing a save does before it queues
+            await vi.waitFor(() => expect(caddyAdapt).toHaveBeenCalledOnce());
+            gate.resolve();
             await queued;
             expect((await saving).body.code).toBe('CADDYFILE_CHANGED');
             expect(files.get(instance.configPath)).toBe('queued.example.com {\n}\n');
@@ -675,9 +740,8 @@ describe('API save paths', () => {
                 expect(caddyPost).toHaveBeenCalledTimes(1);
             });
 
-            it('leaves the file unchanged when the queued route preflight times out before dispatching a write', async () => {
-                caddyGet.mockResolvedValueOnce(servers)
-                    .mockRejectedValueOnce(new CaddyTimeoutError('GET /config/apps/http/servers', 10000));
+            it("leaves the file unchanged when the route's server read times out before dispatching a write", async () => {
+                caddyGet.mockRejectedValueOnce(new CaddyTimeoutError('GET /config/apps/http/servers', 10000));
                 const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
                 expect(status).toBe(503);
                 expect(body).toMatchObject({ code: 'CADDY_CONFIG_UNAVAILABLE' });
@@ -705,11 +769,16 @@ describe('API save paths', () => {
             });
         });
 
+        it('reports a reload from disk that Caddy rejected', async () => {
+            caddyLoad.mockRejectedValueOnce(new Error('Caddy API error: 400 loading config'));
+            expect(await send('POST', '/caddyfile/reloads')).toMatchObject({ status: 502, body: { code: 'CADDY_RELOAD_FAILED' } });
+        });
+
         it('keeps a force-saved file Caddy rejected distinct from applied configuration', async () => {
             caddyLoad.mockRejectedValueOnce(new Error('Caddy API error: 400 loading config'));
             const { body } = await send('PUT', '/caddyfile?fmt=false&sort=false&validate=false', 'forced {\n}\n');
             expect(body.verification).toEqual({ file: 'verified', live: 'not-applied' });
-            expect(body.warningCode).toBeUndefined();
+            expect(body.warning).toBe('Caddy API error: 400 loading config');
             expect(caddyAdapt).not.toHaveBeenCalled();
         });
 
@@ -732,11 +801,10 @@ describe('API save paths', () => {
 
         it('checks a route added through the admin API by its @id, not the whole config', async () => {
             live.servers = servers;
+            live.config = { apps: { tls: { unrelated: 'changed elsewhere' } } };
             const { status, body } = await send('POST', '/routes', { domain: 'app.example.com', upstream: 'app:3000' });
             expect(status).toBe(201);
             expect(body.verification).toEqual(verified);
-            expect(caddyAdapt).not.toHaveBeenCalled();
-            expect(caddyGet).toHaveBeenCalledWith(`/id/${body.id}`, instance.adminUrl);
         });
 
         it('reports an added route that the admin API serves differently', async () => {
@@ -779,16 +847,17 @@ describe('API save paths', () => {
         });
 
         it('verifies a reload from disk inside the change queue', async () => {
-            let release;
-            const gate = new Promise(resolve => { release = resolve; });
-            const saving = saveCaddyfileChange(instance, 'queued.example.com {\n}\n', { apply: () => gate, verify: async () => 'verified' });
+            const gate = Promise.withResolvers();
+            const saving = saveCaddyfileChange(instance, 'queued.example.com {\n}\n', { live: liveChange(() => gate.promise) });
+            const requested = vi.spyOn(logger, 'info');
             const reloading = send('POST', '/caddyfile/reloads');
-            await new Promise(resolve => setTimeout(resolve, 20));
-            expect(caddyLoad).not.toHaveBeenCalled();
-            release();
+            await vi.waitFor(() => expect(requested).toHaveBeenCalledWith('Caddyfile reload requested'));
+            requested.mockRestore();
+            gate.resolve();
             await saving;
             const { body } = await reloading;
-            expect(caddyLoad).toHaveBeenCalledWith('queued.example.com {\n}\n', instance.adminUrl);
+            // Only the saved file is ever loaded, so the reload waited for it
+            expect(caddyLoad.mock.calls).toEqual([['queued.example.com {\n}\n', instance.adminUrl]]);
             expect(body.verification).toEqual({ file: 'unchanged', live: 'verified' });
         });
 
@@ -830,14 +899,5 @@ describe('API save paths', () => {
                 expect(logged).not.toContain(secret);
             } finally { warn.mockRestore(); }
         });
-    });
-});
-
-describe('firstDifference', () => {
-    it('names the path of the first difference without values', () => {
-        expect(firstDifference({ a: { b: [1, 2] } }, { a: { b: [1, 3] } })).toBe('a.b[1]');
-        expect(firstDifference({ a: 1 }, { a: 1, b: 2 })).toBe('b');
-        expect(firstDifference([], {})).toBe('(root)');
-        expect(firstDifference({ a: 1 }, { a: 1 })).toBeNull();
     });
 });

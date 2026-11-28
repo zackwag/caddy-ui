@@ -1,5 +1,4 @@
-import { caddyfileEntries } from './caddyfileBlocks.js';
-import { getCaddyEnv, resolveEnvVars } from './docker.js';
+import { caddyfileEntries, siteDomain } from './caddyfileBlocks.js';
 import logger from './logger.js';
 import { hasStoredNotes } from './routeNotes.js';
 
@@ -13,7 +12,7 @@ export async function initCaddyfileTitles() {
         return;
     }
 
-    if (await hasStoredNotes()) {
+    if (hasStoredNotes()) {
         _enabled = false;
         logger.info('Caddyfile titles', { enabled: false, source: 'auto', reason: 'existing route-notes.json entries found' });
         return;
@@ -66,15 +65,15 @@ export function injectTitleComment(blockContent, title) {
     return lines.join('\n');
 }
 
-export async function parseCaddyfileTitles(caddyfileContent, containerName) {
-    const env = await getCaddyEnv(containerName);
+// Each site's title, by domain. `env` resolves {$VAR} site addresses.
+export function parseCaddyfileTitles(caddyfileContent, env) {
     const titles = {};
 
     for (const entry of caddyfileEntries(caddyfileContent)) {
-        if (!entry.block || !entry.name || entry.args.length) continue;
-        const domain = resolveEnvVars(entry.name, env).replace(/^https?:\/\//, '');
+        const domain = siteDomain(entry, env);
+        if (domain === null) continue;
         // The title is the first comment before the block's first directive.
-        // Skip the remainder of the opening `{` line, as the header did before.
+        // Skip the remainder of the opening `{` line.
         for (const line of entry.block.inner.split('\n').slice(1)) {
             const trimmed = line.trim();
             if (trimmed.startsWith('#')) {

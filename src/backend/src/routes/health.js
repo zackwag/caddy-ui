@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import { AppError } from '../AppError.js';
 import { getUpstreamChecks } from '../observations.js';
-import { latestFailures, PROBES } from '../monitoring.js';
-import { getHistory, getStatsForInstance } from '../uptimeHistory.js';
+import { instanceUptime, PROBES } from '../monitoring.js';
+import { getHistory } from '../uptimeHistory.js';
 
 const router = Router();
 
@@ -10,32 +11,14 @@ const router = Router();
 // history is sampled only by the monitor at a fixed cadence, so how often
 // browsers poll this can't skew the uptime percentages.
 router.get('/', async (req, res) => {
-    const { adminUrl } = req.instance;
-    try {
-        const observed = await getUpstreamChecks(adminUrl);
-        const checks = observed.checks;
-        const checkedAt = observed.checkedAt.toISOString();
-        res.json(checks.map((check) => ({
-            domain: check.domain,
-            upstream: check.upstream,
-            server: check.server,
-            online: check.online,
-            checkedAt,
-        })));
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    const { checks, checkedAt } = await getUpstreamChecks(req.instance.adminUrl);
+    res.json(checks.map(({ domain, upstream, server, online }) => ({ domain, upstream, server, online, checkedAt: checkedAt.toISOString() })));
 });
 
 // GET /api/health/uptime[?kind=route] -- uptime stats per upstream, or per
 // route host when route checks are on
 router.get('/uptime', async (req, res) => {
-    if (req.query.kind !== 'route') return res.json(getStatsForInstance(req.instance.id));
-    // Route stats also carry why the latest check failed, when it did
-    const stats = getStatsForInstance(req.instance.id, 'route');
-    const failures = latestFailures('route', req.instance.id);
-    for (const [host, s] of Object.entries(stats)) if (s && failures[host]) s.lastFailure = failures[host];
-    res.json(stats);
+    res.json(instanceUptime(req.instance.id, req.query.kind === 'route' ? 'route' : 'upstream'));
 });
 
 // GET /api/health/history?upstream=<upstream>|route=<host>&since=<epochMs> --
@@ -43,7 +26,9 @@ router.get('/uptime', async (req, res) => {
 // they're taken so the timeline can tell a gap from normal spacing
 router.get('/history', async (req, res) => {
     const { upstream, route, since } = req.query;
-    if (!upstream && !route) return res.status(400).json({ error: 'upstream or route is required' });
+    if (!upstream && !route) {
+        throw new AppError('VALIDATION_FAILED', { context: { field: 'upstream' } });
+    }
     const sinceMs = since ? Number(since) : undefined;
     const kind = route ? 'route' : 'upstream';
     res.json({ ...getHistory(req.instance.id, route || upstream, { sinceMs, kind }), intervalMs: PROBES[kind].intervalMs });

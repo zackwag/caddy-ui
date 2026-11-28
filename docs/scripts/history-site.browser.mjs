@@ -1,36 +1,21 @@
+import { launchChromium } from '../../dev/browser.mjs';
 import assert from 'node:assert/strict';
-import { readFile, stat } from 'node:fs/promises';
-import { createServer } from 'node:http';
-import { createRequire } from 'node:module';
-import { extname, join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { options } from './history-inventory.mjs';
 import { siteBase } from './history-site.mjs';
+import { serveDirectory } from './static-server.mjs';
 
-const require = createRequire(new URL('../../dev/package.json', import.meta.url));
-const { chromium } = require('playwright');
-const args = options(process.argv.slice(2), ['site', 'base', 'screenshot', 'mobile-screenshot', 'footer-screenshot']);
+const args = options(process.argv.slice(2), ['site', 'base']);
 const directory = resolve(args.site || new URL('../../.docs-site', import.meta.url).pathname);
 const base = siteBase(args.base || '/caddy-ui/');
 const catalog = JSON.parse(await readFile(join(directory, 'documentation.json'), 'utf8'));
 const missing = [], errors = [], notes = [];
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css',
-    '.png': 'image/png', '.svg': 'image/svg+xml', '.woff': 'font/woff', '.woff2': 'font/woff2' };
-const server = createServer(async (req, res) => {
-    const path = new URL(req.url, 'http://docs.invalid').pathname;
-    if (path === '/favicon.ico') { res.writeHead(204).end(); return; }
-    if (!path.startsWith(base)) { missing.push(path); res.writeHead(404).end(); return; }
-    try {
-        let file = resolve(directory, decodeURIComponent(path.slice(base.length)) || 'index.html');
-        if (!file.startsWith(directory + '/') && file !== directory) { res.writeHead(403).end(); return; }
-        if ((await stat(file)).isDirectory()) file = join(file, 'index.html');
-        res.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream' }).end(await readFile(file));
-    } catch { missing.push(path); res.writeHead(404).end(); }
-});
-await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const server = await serveDirectory(directory, { base, onMissing: path => missing.push(path) });
 const origin = `http://127.0.0.1:${server.address().port}`;
 let browser;
 try {
-    browser = await chromium.launch({ ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
+    browser = await launchChromium();
     const context = await browser.newContext({ colorScheme: 'dark' });
     await context.route('**/*', route => {
         const url = route.request().url();
@@ -132,8 +117,6 @@ try {
     console.log('Independent component versions, edge builds, unavailable books and invalid input pass');
     await visit('index.html');
     await page.waitForFunction(tag => document.getElementById('docs-version')?.value === tag, newest.tag);
-    if (args.screenshot) await page.screenshot({ path: args.screenshot, fullPage: false });
-    if (args['footer-screenshot']) await page.locator('.docs-sidebar-footer').screenshot({ path: args['footer-screenshot'] });
     // A mobile page load initializes mdBook's sidebar for the small viewport.
     // Resizing an existing desktop page retains its open, sliding sidebar.
     const mobile = await context.newPage();
@@ -147,7 +130,6 @@ try {
     await mobile.waitForFunction(() => document.getElementById('mdbook-sidebar').getBoundingClientRect().x >= 0);
     const mobileFooter = await mobile.locator('.docs-sidebar-footer').boundingBox();
     assert(mobileFooter.x >= 0 && mobileFooter.x + mobileFooter.width <= 390, 'the version/license row fits the mobile sidebar');
-    if (args['mobile-screenshot']) await mobile.screenshot({ path: args['mobile-screenshot'], fullPage: false });
     await mobile.getByLabel('Documentation version').selectOption(oldest.tag);
     await mobile.waitForFunction(tag => document.getElementById('docs-version')?.value === tag, oldest.tag);
     assert(new URL(mobile.url()).pathname.includes(`/books/${oldest.snapshot}/`));

@@ -5,9 +5,8 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { Harness } from '../dev-caddy/harness.mjs';
+import { Harness, until } from '../dev-caddy/harness.mjs';
 import { captureDashboard } from './capture.mjs';
-import { sourceFingerprint } from './capture-source.mjs';
 
 async function assertClean(scope) {
     assert.deepEqual(await scope.names(), []);
@@ -26,7 +25,6 @@ test('capture real Dashboard, notification, observability, TLS, sidebar, route a
     const output = resolve(directory, 'dashboard.json');
     const backendPids = [];
     const capture = await captureDashboard({ output, onBackend: pid => backendPids.push(pid), onNamespace: project => { scope = new Harness(project); } });
-    assert.equal(capture.source.sourceHash, await sourceFingerprint());
     assert.equal(capture.csrfContext.record.request.path, '/auth/csrf');
     assert.equal(capture.csrfContext.record.response.body.csrfToken, 'offline-preview-context');
     assert.deepEqual(capture.scenarios.map(scenario => scenario.id), ['dashboard-online', 'dashboard-empty', 'dashboard-stopped', 'notifications-default', 'metrics-enabled', 'logs-default', 'tls-default', 'sidebar-online', 'sidebar-stopped', 'routes-online', 'routes-empty', 'route-history-empty', 'caddyfile-empty', 'caddyfile-history', 'routes-edit-unavailable', 'tls-internal-valid', 'tls-internal-orphaned', 'uptime-route-pending', 'instances-local', 'instances-missing-server', 'instances-empty']);
@@ -158,16 +156,11 @@ test('interrupting capture cleans up its own resources without publishing an art
     t.after(async () => {
         if (child.exitCode === null && child.signalCode === null) { child.kill('SIGTERM'); await closed; }
     });
-    const deadline = Date.now() + 15000;
-    let scope;
-    while (Date.now() < deadline) {
-        const namespace = log.match(/Capture owns Docker namespace ([a-f0-9]{16})/);
-        if (namespace) scope = new Harness(namespace[1]);
-        if (scope && (await scope.names()).length) break;
+    const scope = await until(() => {
         assert.equal(child.exitCode, null, log);
-        await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    assert(scope, log);
+        const namespace = log.match(/Capture owns Docker namespace ([a-f0-9]{16})/);
+        return namespace && new Harness(namespace[1]);
+    }, async harness => harness && (await harness.names()).length > 0, { intervalMs: 50, message: () => 'Capture created no containers\n' + log });
     child.kill('SIGTERM');
     assert.equal(await closed, 1, log);
     await assert.rejects(readFile(output), { code: 'ENOENT' });

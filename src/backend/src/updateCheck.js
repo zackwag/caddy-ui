@@ -6,7 +6,7 @@ import logger from './logger.js';
 // Fetching that one small file avoids paging through Docker Hub tags, and
 // knows about edge/beta builds, which have no comparable version number.
 const DEFAULT_URL = 'https://raw.githubusercontent.com/zackwag/caddy-ui/versions/versions.json';
-export const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 10_000;
 
 const ENABLED = process.env.CADDY_UI_UPDATE_CHECK !== 'false';
@@ -74,10 +74,6 @@ export function noteFrontendVersion(version) {
     if (channelOf(version)) lastFrontendVersion = version;
 }
 
-export function getRunningUpdateInfo() {
-    return getUpdateInfo({ backend: APP_VERSION, frontend: lastFrontendVersion });
-}
-
 const RELEASES_URL = 'https://github.com/zackwag/caddy-ui/releases';
 
 // Notification for stable updates only -- edge/beta builds land several
@@ -96,7 +92,8 @@ export function updateNotification(info, running) {
 }
 
 export function getUpdateNotification() {
-    return updateNotification(getRunningUpdateInfo(), { backend: APP_VERSION, frontend: lastFrontendVersion });
+    const running = { backend: APP_VERSION, frontend: lastFrontendVersion };
+    return updateNotification(getUpdateInfo(running), running);
 }
 
 async function refresh() {

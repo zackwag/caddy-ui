@@ -1,31 +1,28 @@
-import { UtilityIcon } from "./Icons.jsx";
-import { localizeError } from "../utils/errorMessages.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInstanceStatus } from "../hooks/useInstanceStatus.js";
+import { REFRESH_INTERVAL_MS, useLoad } from "../hooks/usePoll.js";
+import { INSTANCE_DEFAULTS } from "../settings.js";
 import { apiFetch, clearInstanceId, getInstanceId } from "../utils/api.js";
-import { stateNotificationKey } from "../utils/notificationCenter.js";
+import Modal from "./Modal.jsx";
+import Select from "./Select.jsx";
+import StatusDot from "./StatusDot.jsx";
 
 // eslint-disable-next-line i18next/no-literal-string -- Example Caddy admin endpoint
 const ADMIN_URL_PLACEHOLDER = "http://caddy:2019";
 
-const EMPTY_FORM = {
-    name: "",
-    adminUrl: "",
-    configPath: "/etc/caddy/Caddyfile",
-    logPath: "/var/log/caddy/access.log",
-    dataPath: "/data/caddy",
-    containerName: "",
-    serverName: "srv0",
-};
+// A blank container name means local mode
+const EMPTY_FORM = { name: "", adminUrl: "", containerName: "", ...INSTANCE_DEFAULTS };
 
-export default function Instances({ toast, onUnauth, confirm, onInstanceChange }) {
+export default function Instances({ toast, confirm, onInstancesChange }) {
     const { t } = useTranslation();
     const [instances, setInstances] = useState([]);
-    const instanceStatus = useInstanceStatus(onUnauth);
+    const instanceStatus = useInstanceStatus();
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
+    // What the form opened with, so Escape keeps changes made since
+    const [openedForm, setOpenedForm] = useState(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [discovered, setDiscovered] = useState(null);
     const [discovering, setDiscovering] = useState(false);
@@ -37,46 +34,48 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     // Live server IDs per instance, to flag a "new routes go to" server Caddy doesn't have
     const [liveServerIds, setLiveServerIds] = useState({});
 
-    const toastRef = useRef(toast);
-    toastRef.current = toast;
-
-    const load = useCallback(() => {
-        const key = stateNotificationKey('instances.load', getInstanceId());
-        apiFetch("/instances", {}, onUnauth)
-            .then(data => { toastRef.current.recover(key); setInstances(data); })
-            .catch(e => toastRef.current.error(localizeError(e, t), e, { mode: 'state', key }))
+    const load = useCallback(signal => {
+        toast.track('instances.load', apiFetch("/instances", { signal }), { signal })
+            .then(setInstances)
+            .catch(() => { })
             .finally(() => setLoading(false));
-    }, [onUnauth, t]);
+    }, [toast]);
+
+    // Set once discovery fails, which stops the background scan until
+    // discovery is asked for again: each scan would fail and be logged
+    const [discoveryFailed, setDiscoveryFailed] = useState(false);
 
     const discover = useCallback(async () => {
         setDiscovering(true);
         try {
-            const containers = await apiFetch("/instances/discover", {}, onUnauth);
+            const containers = await apiFetch("/instances/discover");
             setDiscovered(containers);
-            if (containers.length === 0) toastRef.current.success(t("instances.noNewContainers"));
+            setDiscoveryFailed(false);
+            if (containers.length === 0) toast.success(t("instances.noNewContainers"));
         } catch (e) {
-            toastRef.current.error(localizeError(e, t), e);
+            toast.error(e);
             setDiscovered(null);
+            setDiscoveryFailed(true);
         } finally {
             setDiscovering(false);
         }
-    }, [onUnauth, t]);
+    }, [t, toast]);
 
     const didAutoDiscover = useRef(false);
 
-    useEffect(() => { load(); }, [load]);
+    useLoad(load);
 
     useEffect(() => {
-        apiFetch("/server-names/all", {}, onUnauth).then(setServerLabels).catch(() => { });
-    }, [onUnauth]);
+        apiFetch("/server-names/all").then(setServerLabels).catch(() => { });
+    }, []);
 
     useEffect(() => {
         for (const inst of instances) {
-            apiFetch(`/instances/servers?adminUrl=${encodeURIComponent(inst.adminUrl)}`, {}, onUnauth)
+            apiFetch(`/instances/servers?adminUrl=${encodeURIComponent(inst.adminUrl)}`)
                 .then(ids => setLiveServerIds(m => ({ ...m, [inst.id]: ids })))
                 .catch(() => { });
         }
-    }, [instances, onUnauth]);
+    }, [instances]);
 
     const serverLabel = (instanceId, id) => {
         const label = serverLabels[instanceId]?.[id];
@@ -91,85 +90,66 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     }, [loading, instances.length, discover]);
 
     useEffect(() => {
+        if (discoveryFailed) {
+            return;
+        }
         const poll = () =>
-            apiFetch("/instances/discover", {}, onUnauth)
+            apiFetch("/instances/discover")
                 .then(setDiscovered)
-                .catch(() => { });
-        const t = setInterval(poll, 30000);
+                .catch(() => setDiscoveryFailed(true));
+        const t = setInterval(poll, REFRESH_INTERVAL_MS);
         return () => clearInterval(t);
-    }, [onUnauth]);
+    }, [discoveryFailed]);
 
     useEffect(() => {
         setServerIds(null);
         if (!editing || !form.adminUrl.trim()) return;
         let cancelled = false;
         const t = setTimeout(() => {
-            apiFetch(`/instances/servers?adminUrl=${encodeURIComponent(form.adminUrl.trim())}`, {}, onUnauth)
+            apiFetch(`/instances/servers?adminUrl=${encodeURIComponent(form.adminUrl.trim())}`)
                 .then(ids => { if (!cancelled) setServerIds(ids); })
                 .catch(() => { });
         }, 400);
         return () => { cancelled = true; clearTimeout(t); };
-    }, [editing, form.adminUrl, onUnauth]);
+    }, [editing, form.adminUrl]);
+
+    const openForm = (id, values) => {
+        setEditing(id);
+        setForm(values);
+        setOpenedForm(values);
+    };
 
     const addDiscovered = (container) => {
-        setEditing("new");
-        setForm({
-            name: container.containerName.charAt(0).toUpperCase() + container.containerName.slice(1),
-            adminUrl: container.adminUrl,
-            configPath: container.configPath,
-            logPath: container.logPath,
-            dataPath: container.dataPath,
-            containerName: container.containerName,
-            serverName: container.serverName,
-        });
+        const { containerName, adminUrl, configPath, logPath, dataPath, serverName } = container;
+        openForm("new", { name: containerName.charAt(0).toUpperCase() + containerName.slice(1), adminUrl, configPath, logPath, dataPath, containerName, serverName });
     };
 
-    const openAdd = () => {
-        setEditing("new");
-        setForm(EMPTY_FORM);
-    };
+    const openAdd = () => openForm("new", EMPTY_FORM);
 
-    const openEdit = (inst) => {
-        setEditing(inst.id);
-        setForm({
-            name: inst.name,
-            adminUrl: inst.adminUrl,
-            configPath: inst.configPath || "/etc/caddy/Caddyfile",
-            logPath: inst.logPath || "/var/log/caddy/access.log",
-            dataPath: inst.dataPath || "/data/caddy",
-            containerName: inst.containerName || "",
-            serverName: inst.serverName || "srv0",
-        });
-    };
+    // A blank field shows its default, except the container name, where
+    // blank means local mode
+    const openEdit = (inst) => openForm(inst.id, Object.fromEntries(Object.entries(EMPTY_FORM).map(([key, fallback]) => [key, inst[key] || fallback])));
 
     const save = async () => {
         if (!form.name.trim() || !form.adminUrl.trim()) {
-            toast.error(t("instances.nameAndAdminRequired"));
+            toast.failure(t("instances.nameAndAdminRequired"));
             return;
         }
         setSaving(true);
         try {
             if (editing === "new") {
-                await apiFetch("/instances", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(form),
-                }, onUnauth);
+                await apiFetch("/instances", { method: "POST", json: form });
                 toast.success(t("instances.added"));
             } else {
-                await apiFetch(`/instances/${editing}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(form),
-                }, onUnauth);
+                await apiFetch(`/instances/${editing}`, { method: "PUT", json: form });
                 toast.success(t("instances.updated"));
             }
             setEditing(null);
             setDiscovered(null);
             load();
-            if (onInstanceChange) onInstanceChange();
+            onInstancesChange();
         } catch (e) {
-            toast.error(localizeError(e, t), e);
+            toast.error(e);
         } finally {
             setSaving(false);
         }
@@ -178,13 +158,13 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
     const remove = async (inst) => {
         if (!await confirm(t("instances.removeConfirm", { name: inst.name }), { confirmLabel: t("instances.remove"), danger: true })) return;
         try {
-            await apiFetch(`/instances/${inst.id}`, { method: "DELETE" }, onUnauth);
+            await apiFetch(`/instances/${inst.id}`, { method: "DELETE" });
             toast.success(t("instances.removed"));
             load();
             if (inst.id === getInstanceId()) clearInstanceId();
-            else if (onInstanceChange) onInstanceChange();
+            else onInstancesChange();
         } catch (e) {
-            toast.error(localizeError(e, t), e);
+            toast.error(e);
         }
     };
 
@@ -232,7 +212,7 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                     <div key={inst.id} className="card">
                         <div className="flex-between" style={{ marginBottom: 12 }}>
                             <div className="flex-center" style={{ gap: 10 }}>
-                                <div className={`status-dot ${instanceStatus[inst.id] === true ? "online" : instanceStatus[inst.id] === false ? "offline" : ""}`} />
+                                <StatusDot online={instanceStatus[inst.id]} />
                                 <span style={{ fontFamily: "var(--mono)", fontWeight: 500, fontSize: 14 }}>{inst.name}</span>
                                 <span className="badge badge-muted">{inst.id}</span>
                             </div>
@@ -257,8 +237,8 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
                             <div>
                                 <span className="field-label">{t("instances.newRoutesGoTo")}</span>
                                 <div className="data-val mono">
-                                    {serverLabel(inst.id, inst.serverName || "srv0")}
-                                    {liveServerIds[inst.id] && !liveServerIds[inst.id].includes(inst.serverName || "srv0") && (
+                                    {serverLabel(inst.id, inst.serverName || EMPTY_FORM.serverName)}
+                                    {liveServerIds[inst.id] && !liveServerIds[inst.id].includes(inst.serverName || EMPTY_FORM.serverName) && (
                                         <span className="badge badge-red" style={{ marginLeft: 8 }} title={t("instances.notInCaddyHint")}>{t("instances.notInCaddy")}</span>
                                     )}
                                 </div>
@@ -292,105 +272,96 @@ export default function Instances({ toast, onUnauth, confirm, onInstanceChange }
             </div>
 
             {editing && (
-                <div className="modal-overlay" onClick={() => setEditing(null)}>
-                    <div className="modal" style={{ width: 520 }} onClick={e => e.stopPropagation()}>
-                        <div className="modal-title">{editing === "new" ? t("instances.addInstance") : t("instances.editInstance")}</div>
+                <Modal title={editing === "new" ? t("instances.addInstance") : t("instances.editInstance")} style={{ width: 520 }} onClose={() => setEditing(null)}
+                    dirty={Object.keys(form).some(key => form[key] !== openedForm[key])}>
 
+                    <div className="field">
+                        <label>{t("instances.name")}</label>
+                        <input
+                            value={form.name}
+                            onChange={e => update({ name: e.target.value })}
+                            placeholder={t("instances.namePlaceholder")}
+                            autoFocus
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label>{t("instances.adminUrl")}</label>
+                        <input
+                            value={form.adminUrl}
+                            onChange={e => update({ adminUrl: e.target.value })}
+                            placeholder={ADMIN_URL_PLACEHOLDER}
+                        />
+                    </div>
+
+                    <div className="modal-section-divider" />
+
+                    <div className="instance-form-grid">
                         <div className="field">
-                            <label>{t("instances.name")}</label>
+                            <label>{t("instances.containerName")}</label>
                             <input
-                                value={form.name}
-                                onChange={e => update({ name: e.target.value })}
-                                placeholder={t("instances.namePlaceholder")}
-                                autoFocus
+                                value={form.containerName}
+                                onChange={e => update({ containerName: e.target.value })}
+                                placeholder={t("instances.localModePlaceholder")}
                             />
+                            <div className="hint" style={{ marginTop: 4 }}>{t("instances.localModeHint")}</div>
                         </div>
-
                         <div className="field">
-                            <label>{t("instances.adminUrl")}</label>
-                            <input
-                                value={form.adminUrl}
-                                onChange={e => update({ adminUrl: e.target.value })}
-                                placeholder={ADMIN_URL_PLACEHOLDER}
-                            />
-                        </div>
-
-                        <div className="modal-section-divider" />
-
-                        <div className="instance-form-grid">
-                            <div className="field">
-                                <label>{t("instances.containerName")}</label>
+                            <label>{t("instances.newRoutesGoTo")}</label>
+                            {serverIds?.length ? (
+                                <Select value={form.serverName} onChange={e => update({ serverName: e.target.value })}>
+                                    {!serverIds.includes(form.serverName) && (
+                                        <option value={form.serverName}>{form.serverName || t("instances.none")} ({t("instances.notInCaddy")})</option>
+                                    )}
+                                    {serverIds.map(id => <option key={id} value={id}>{serverLabel(editing, id)}</option>)}
+                                </Select>
+                            ) : (
                                 <input
-                                    value={form.containerName}
-                                    onChange={e => update({ containerName: e.target.value })}
-                                    placeholder={t("instances.localModePlaceholder")}
+                                    value={form.serverName}
+                                    onChange={e => update({ serverName: e.target.value })}
+                                    placeholder={EMPTY_FORM.serverName}
                                 />
-                                <div className="hint" style={{ marginTop: 4 }}>{t("instances.localModeHint")}</div>
+                            )}
+                            <div className="hint" style={{ marginTop: 4 }}>
+                                {t("instances.serverHint")}
                             </div>
-                            <div className="field">
-                                <label>{t("instances.newRoutesGoTo")}</label>
-                                {serverIds?.length ? (
-                                    <div className="select-wrap">
-                                        <select
-                                            className="config-select"
-                                            value={form.serverName}
-                                            onChange={e => update({ serverName: e.target.value })}
-                                        >
-                                            {!serverIds.includes(form.serverName) && (
-                                                <option value={form.serverName}>{form.serverName || t("instances.none")} ({t("instances.notInCaddy")})</option>
-                                            )}
-                                            {serverIds.map(id => <option key={id} value={id}>{serverLabel(editing, id)}</option>)}
-                                        </select>
-                                        <span className="select-arrow"><UtilityIcon name="caretDown" size={10} /></span>
-                                    </div>
-                                ) : (
-                                    <input
-                                        value={form.serverName}
-                                        onChange={e => update({ serverName: e.target.value })}
-                                        placeholder="srv0"
-                                    />
-                                )}
-                                <div className="hint" style={{ marginTop: 4 }}>
-                                    {t("instances.serverHint")}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="field">
-                            <label>{t("instances.caddyfilePath")}</label>
-                            <input
-                                value={form.configPath}
-                                onChange={e => update({ configPath: e.target.value })}
-                                placeholder="/etc/caddy/Caddyfile"
-                            />
-                        </div>
-
-                        <div className="field">
-                            <label>{t("instances.logPath")}</label>
-                            <input
-                                value={form.logPath}
-                                onChange={e => update({ logPath: e.target.value })}
-                                placeholder="/var/log/caddy/access.log"
-                            />
-                        </div>
-
-                        <div className="field">
-                            <label>{t("instances.dataPath")}</label>
-                            <input
-                                value={form.dataPath}
-                                onChange={e => update({ dataPath: e.target.value })}
-                                placeholder="/data/caddy"
-                            />
-                        </div>
-
-                        <div className="btn-row flex-end">
-                            <button className="btn btn-ghost" onClick={() => setEditing(null)}>{t("common.cancel")}</button>
-                            <button className="btn btn-primary" onClick={save} disabled={saving}>
-                                {saving ? t("common.saving") : editing === "new" ? t("instances.add") : t("common.save")}
-                            </button>
                         </div>
                     </div>
-                </div>
+
+                    <div className="field">
+                        <label>{t("instances.caddyfilePath")}</label>
+                        <input
+                            value={form.configPath}
+                            onChange={e => update({ configPath: e.target.value })}
+                            placeholder={EMPTY_FORM.configPath}
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label>{t("instances.logPath")}</label>
+                        <input
+                            value={form.logPath}
+                            onChange={e => update({ logPath: e.target.value })}
+                            placeholder={EMPTY_FORM.logPath}
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label>{t("instances.dataPath")}</label>
+                        <input
+                            value={form.dataPath}
+                            onChange={e => update({ dataPath: e.target.value })}
+                            placeholder={EMPTY_FORM.dataPath}
+                        />
+                    </div>
+
+                    <div className="btn-row flex-end">
+                        <button className="btn btn-ghost" onClick={() => setEditing(null)}>{t("common.cancel")}</button>
+                        <button className="btn btn-primary" onClick={save} disabled={saving}>
+                            {saving ? t("common.saving") : editing === "new" ? t("instances.add") : t("common.save")}
+                        </button>
+                    </div>
+                </Modal>
             )}
         </>
     );

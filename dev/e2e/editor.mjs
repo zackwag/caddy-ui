@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { before, test } from 'node:test';
+import { test } from 'node:test';
 import en from '../../src/frontend/src/i18n/locales/en.js';
-import { prepareBrowserTests, useBrowserFixture } from './fixture.mjs';
-
-before(prepareBrowserTests, { timeout: 35000 });
+import { apiSignIn, useBrowserFixture } from './fixture.mjs';
 
 // CodeMirror's tab focus mode toggle from the default keymap.
 const TOGGLE_TAB_FOCUS = process.platform === 'darwin' ? 'Shift+Alt+m' : 'Control+m';
@@ -461,11 +459,7 @@ test('vim mode is a server preference, and :w saves from both editors', { timeou
     // A separate browser session loads the server setting without local state.
     const otherContext = await context.browser().newContext();
     try {
-        const csrf = await otherContext.request.get(origin + '/api/auth/csrf');
-        const login = await otherContext.request.post(origin + '/api/auth/sessions', {
-            headers: { 'X-CSRF-Token': (await csrf.json()).csrfToken }, data: stack.credentials,
-        });
-        assert.equal(login.status(), 200, 'Second browser session login');
+        await apiSignIn(otherContext, origin, stack.credentials);
         const otherPage = await otherContext.newPage();
         otherPage.setDefaultTimeout(10000);
         await otherPage.goto(origin + '/caddyfile', { waitUntil: 'domcontentloaded' });

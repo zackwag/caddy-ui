@@ -7,13 +7,11 @@ function dashboardKeys(profile) {
     const body = path => profile.requests.find(record => record.request.path === path)?.response.body;
     const status = body('/status');
     const process = body('/status/process');
-    const health = body('/health');
     const keys = ['dashboard.status', 'dashboard.caddyServer', 'dashboard.servers', 'dashboard.activeHttpServers',
         'dashboard.tls', 'dashboard.certificateManagement', 'dashboard.upstreams', 'dashboard.process'];
     keys.push(status.online ? 'dashboard.online' : 'dashboard.offline');
-    if (status.online) keys.push(status.tlsEnabled ? 'dashboard.enabled' : 'dashboard.disabled');
-    else keys.push('dashboard.connectionError');
-    if (Array.isArray(health)) keys.push('dashboard.allOnline');
+    keys.push(status.online ? 'dashboard.enabled' : 'dashboard.connectionError');
+    if (status.upstreamsTotal != null) keys.push(status.upstreamsOnline < status.upstreamsTotal ? 'dashboard.offlineCount' : 'dashboard.allOnline');
     keys.push(...(process.ok
         ? ['dashboard.version', 'dashboard.uptime', 'dashboard.heap', 'dashboard.systemMemory', 'dashboard.lastReload']
         : ['dashboard.metricsNotEnabled', 'dashboard.enableInMetrics']));
@@ -67,7 +65,7 @@ const sidebarKeys = ['sidebar.serverManager', 'sidebar.refreshStatus', 'sidebar.
 
 const routeControls = ['routes.filterPlaceholder', 'routes.onlineSummary', 'routes.columns', 'routes.addRoute', 'common.refresh'];
 const routeTable = ['routes.status', 'routes.domain', 'routes.title', 'routes.upstream', 'routes.server',
-    'routes.id', 'routes.serverFilterTitle', 'routes.noUpstream', 'routes.enableMaintenance', 'routes.editRoute'];
+    'routes.id', 'routes.serverFilterTitle', 'routes.noUpstream'];
 const historyKeys = ['routeHistory.noDataYet', 'routeHistory.autoRefresh', 'routeHistory.noData',
     'routeHistory.online', 'routeHistory.offline', 'routeHistory.segmentTitle', 'routeHistory.now',
     'routeHistory.successfulChecks', 'routeHistory.outages', 'routeHistory.estimatedDowntime',
@@ -114,9 +112,9 @@ export const scenarios = [
             'instances.discoverContainers', 'instances.addManually'] },
     { id: 'instances-missing-server', title: 'Instances: selected HTTP server is missing', kind: 'instances',
         profile: 'instances-missing-server', keys: ['instances.notInCaddyHint', 'instances.notInCaddy'] },
-    { id: 'tls-internal-valid', title: 'TLS: certificate issued by the fixture internal CA', kind: 'tls-certificates',
+    { id: 'tls-internal-valid', title: 'TLS: certificate issued by the fixture internal CA', kind: 'tls',
         profile: 'tls-internal-valid', keys: [...certificateRows, 'tls.validUpper'] },
-    { id: 'tls-internal-orphaned', title: 'TLS: internal certificate after its host is removed', kind: 'tls-certificates',
+    { id: 'tls-internal-orphaned', title: 'TLS: internal certificate after its host is removed', kind: 'tls',
         profile: 'tls-internal-orphaned', setup: 'tls-orphaned',
         keys: [...certificateRows, 'tls.orphanedUpper', 'tls.orphanedCount_one'] },
     { id: 'uptime-route-pending', title: 'Uptime: captured named route awaiting checks', kind: 'uptime-populated',
@@ -135,7 +133,7 @@ export const scenarios = [
     { id: 'caddyfile-raw', title: 'Caddyfile: raw snapshot', kind: 'caddyfile',
         profile: 'caddyfile-history', setup: 'caddyfile-raw', keys: ['caddyfile.raw', 'caddyfile.versionPreview'] },
     { id: 'caddyfile-no-differences', title: 'Caddyfile: latest snapshot matches saved file', kind: 'caddyfile',
-        profile: 'caddyfile-history', setup: 'caddyfile-history', keys: ['caddyfile.noDifferences'] },
+        profile: 'caddyfile-history', setup: 'caddyfile-current', keys: ['caddyfile.noDifferences'] },
     { id: 'caddyfile-list', title: 'Caddyfile: saved version list', kind: 'caddyfile',
         profile: 'caddyfile-history', setup: 'caddyfile-list', keys: ['caddyfile.latest', 'caddyfile.savedVersions'] },
     { id: 'caddyfile-force-confirm', title: 'Caddyfile: force-save confirmation', kind: 'caddyfile',
@@ -149,8 +147,8 @@ export const scenarios = [
         profile: 'caddyfile-history', setup: 'caddyfile-import', remountOnTranslation: true, keys: ['caddyfile.importConfirm'] },
     { id: 'caddyfile-valid', title: 'Caddyfile: successful recorded validation', kind: 'caddyfile',
         profile: 'caddyfile-history', setup: 'caddyfile-valid', remountOnTranslation: true, keys: ['caddyfile.valid'] },
-    { id: 'route-edit-unavailable', title: 'Route edit: Caddyfile block unavailable', kind: 'route-edit',
-        profile: 'routes-edit-unavailable', setup: 'route-edit', keys: ['routes.titlePlaceholder',
+    { id: 'route-edit-unavailable', title: 'Route edit: Caddyfile block unavailable', kind: 'routes',
+        profile: 'routes-edit-unavailable', setup: 'route-edit', keys: ['routes.enableMaintenance', 'routes.editRoute', 'routes.titlePlaceholder',
             'routes.titleClearHint', 'routes.caddyfileLoadFailed'] },
     { id: 'routes-overview', title: 'Routes: captured Caddy routes', kind: 'routes',
         profile: 'routes-online', keys: [...routeControls, ...routeTable] },
@@ -193,10 +191,11 @@ export const scenarios = [
         keys: [...logKeys.filter(key => !['common.enabledUpper', 'common.disable'].includes(key)),
             'common.disabledUpper', 'common.enable'] },
     ...notificationProviders.map(({ provider, title, keys }) => ({ id: `notifications-${provider}`,
-        title: `Notification settings: ${title}`, kind: 'notification-settings', profile: 'notifications-default', provider,
+        title: `Notification settings: ${title}`, kind: 'notification-settings', profile: 'notifications-default',
+        setup: 'notification-provider', provider,
         keys: [...notificationKeys, 'notifications.enable', ...keys] })),
     { id: 'notifications-enabled', title: 'Notification settings: enabled (local only)', kind: 'notification-settings',
-        profile: 'notifications-default', provider: 'ntfy', enabled: true,
+        profile: 'notifications-default', setup: 'notification-provider', provider: 'ntfy', enabled: true,
         keys: [...notificationKeys, 'notifications.disable', 'notifications.ntfyTopicUrl'] },
     { id: 'login', title: 'Sign-in form', kind: 'login', keys: loginKeys },
     { id: 'login-session-expired', title: 'Sign-in: expired session', kind: 'login', sessionExpired: true,
@@ -217,7 +216,7 @@ export const scenarios = [
     ...capture.scenarios.filter(profile => Object.hasOwn(titles, profile.id)).map(profile => ({ id: profile.id, title: titles[profile.id], kind: 'dashboard',
         profile: profile.id, keys: dashboardKeys(profile) })),
     { id: 'dashboard-edit-label', title: 'Dashboard: edit server label', kind: 'dashboard', profile: 'dashboard-online',
-        setup: 'edit-label', keys: [...dashboardKeys(capture.scenarios[0]), 'dashboard.labelPlaceholder',
+        setup: 'edit-label', keys: [...dashboardKeys(capture.scenarios.find(profile => profile.id === 'dashboard-online')), 'dashboard.labelPlaceholder',
             'dashboard.labelHint', 'common.cancel', 'common.save'] },
     { id: 'dashboard-label-saved', title: 'Dashboard: server label saved', kind: 'dashboard', profile: 'dashboard-online',
         setup: 'label-saved', keys: ['dashboard.labelSaved'] },

@@ -3,26 +3,46 @@ import logger from './logger.js';
 import { AppError, errorChain, publicError } from './AppError.js';
 import { ERROR_REGISTRY, errorDefinition } from './errorRegistry.js';
 
-export function errorCode(path, status) {
+// The code for a failure whose handler didn't name one.
+function codeForStatus(status) {
     if (status === 429) return 'RATE_LIMITED';
     if (status === 401) return 'UNAUTHORIZED';
     if (status === 403) return 'FORBIDDEN';
-    if (path.startsWith('/api/caddyfile') && status === 422) return 'CADDYFILE_VALIDATION_FAILED';
     if (status === 400 || status === 422) return 'VALIDATION_FAILED';
     if (status === 404) return 'NOT_FOUND';
     if (status === 409) return 'CONFLICT';
     if (status === 502 || status === 503 || status === 504) return 'UPSTREAM_UNAVAILABLE';
-    if (path.startsWith('/api/metrics') || path === '/api/status/process') return 'METRICS_UNAVAILABLE';
-    if (path.startsWith('/api/status')) return 'CADDY_STATUS_UNAVAILABLE';
     return 'REQUEST_FAILED';
 }
 
-export function sendAppError(res, error) {
-    if (!(error instanceof AppError)) throw new TypeError('sendAppError expects AppError');
-    const definition = errorDefinition(error.code);
+// Attaches the failure behind a response, so it's logged with its causes and
+// counts as a failure whatever the HTTP status.
+function attachError(res, error) {
+    if (!(error instanceof AppError)) throw new TypeError('Expected an AppError');
     res.locals ??= {};
     res.locals.appError = error;
-    return res.status(definition.status).json(publicError(error));
+}
+
+export function sendAppError(res, error) {
+    attachError(res, error);
+    return res.status(error.status).json(publicError(error));
+}
+
+// A failure with response fields of its own. `status` defaults to the error's;
+// a few endpoints report a failure in a 200 response.
+export function sendFailure(res, error, body, status = error.status) {
+    attachError(res, error);
+    return res.status(status).json({ code: error.code, ...body });
+}
+
+// Last in the app: what a route throws becomes its response, so routes only
+// catch errors they translate. An AppError carries its own status and code.
+export function errorHandler(err, req, res, next) {
+    if (res.headersSent) return next(err);
+    if (err instanceof AppError) return sendAppError(res, err);
+    logger.error('Unhandled error', { requestId: req.diagnosticId, method: req.method, path: req.diagnosticPath || req.path, error: err.message, stack: err.stack });
+    // The message can quote paths or configuration, so it stays in the log.
+    res.status(500).json({ error: 'Internal server error' });
 }
 
 function details(body) {
@@ -43,15 +63,12 @@ export function diagnosticMiddleware(req, res, next) {
     const originalJson = res.json.bind(res);
     res.json = function diagnosticJson(body) {
         if (!body || typeof body !== 'object' || Array.isArray(body)) return originalJson(body);
-        // A few endpoints intentionally return HTTP 200 with ok:false / online:false.
-        const softFailure = (body.ok === false && Boolean(body.error))
-            || (path.replace(/\/$/, '') === '/api/status' && body.online === false && Boolean(body.error));
-        const failed = res.statusCode >= 400 || softFailure;
+        const appError = res.locals?.appError;
+        const failed = res.statusCode >= 400 || Boolean(appError);
         const hasWarning = !failed && Boolean(body.warning || (Array.isArray(body.warnings) && body.warnings.length));
         if (!failed && !hasWarning) return originalJson(body);
-        const code = body.code || body.warningCode || errorCode(path, res.statusCode);
+        const code = body.code || body.warningCode || codeForStatus(res.statusCode);
         const detail = details(body);
-        const appError = res.locals?.appError;
         const log = {
             requestId, code, method: req.method, path,
             status: res.statusCode, detail,
@@ -60,7 +77,7 @@ export function diagnosticMiddleware(req, res, next) {
         if (failed) {
             const level = appError ? errorDefinition(appError.code).level
                 : Object.hasOwn(ERROR_REGISTRY, code) ? errorDefinition(code).level
-                : res.statusCode >= 500 || softFailure ? 'error' : 'warn';
+                : res.statusCode >= 500 ? 'error' : 'warn';
             logger[level]('API request failed', log);
         }
         else logger.warn('API returned a warning', log);

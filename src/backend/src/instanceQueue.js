@@ -1,16 +1,12 @@
+import { createSerialQueue } from './serialQueue.js';
+
 // Runs operations on one instance's configuration one at a time, in order.
 // Saves and drift checks share it, so neither observes the other mid-change.
-// A failed operation doesn't stop the ones queued after it.
-const pending = new Map();
+const queues = new Map();
 
 export function runExclusive(instanceId, operation) {
-    const queued = (pending.get(instanceId) || Promise.resolve()).catch(() => {}).then(operation);
-    pending.set(instanceId, queued);
-    const cleanup = () => {
-        if (pending.get(instanceId) === queued) {
-            pending.delete(instanceId);
-        }
-    };
-    void queued.then(cleanup, cleanup);
-    return queued;
+    if (!queues.has(instanceId)) {
+        queues.set(instanceId, createSerialQueue());
+    }
+    return queues.get(instanceId)(operation);
 }

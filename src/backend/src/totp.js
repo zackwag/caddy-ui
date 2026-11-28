@@ -52,7 +52,7 @@ export function createTotpService({ store, sessions, serialize, persist, require
         },
         confirm(req, res, input) {
             return serialize(async () => {
-                const unwatch = requireManagement(req, res);
+                requireManagement(req, res);
                 const value = pending(req, 'totpSetup');
                 if (!value) {
                     delete sessions.readSession(req).totpSetup;
@@ -68,9 +68,7 @@ export function createTotpService({ store, sessions, serialize, persist, require
                     throw new AppError('TOTP_INVALID');
                 }
                 await persist(() => store.setTotp({ secret: value.secret, lastAcceptedStep: step, createdAt: new Date(now()).toISOString() }));
-                unwatch();
-                sessions.revokeAllSessions();
-                sessions.createSession(req, res, 'management');
+                sessions.replaceAllSessions(req, res);
             });
         },
         cancel(req, res) {
@@ -81,13 +79,11 @@ export function createTotpService({ store, sessions, serialize, persist, require
         },
         disable(req, res, input) {
             return serialize(async () => {
-                const unwatch = requireManagement(req, res);
+                requireManagement(req, res);
                 if (!store.isTotpEnabled()) throw new AppError('CONFLICT');
                 await authorizeChange(req, input, 'totp.disable');
                 await persist(() => store.setTotp(null));
-                unwatch();
-                sessions.revokeAllSessions();
-                sessions.createSession(req, res, 'management');
+                sessions.replaceAllSessions(req, res);
             });
         },
     };

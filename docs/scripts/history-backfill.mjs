@@ -5,13 +5,15 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { fingerprintBook, validateBookAssets, validateBookResults, writeBookReport } from './history-books.mjs';
+import { fingerprintBook, readArchiveManifest, validateBookAssets, validateBookResults, writeBookReport } from './history-books.mjs';
 import { git, options, repository } from './history-inventory.mjs';
 
 const exec = promisify(execFile);
 const digest = value => createHash('sha256').update(value).digest('hex');
 const releaseTag = /^v\d+\.\d+\.\d+$/;
 const commitId = /^[a-f0-9]{40}$/;
+// The documentation workflows install this release, and their checksum pins it.
+export const MDBOOK_VERSION = '0.5.4';
 
 export const requiresBuild = (previous, { reuse = false, retryFailed = false } = {}) =>
     !reuse || !previous || (previous.status !== 'built' && retryFailed);
@@ -44,7 +46,9 @@ export async function backfill({ root, inventory, output, mdbook = 'mdbook', sel
         throw new Error('--releases must contain distinct inventory tags separated by commas');
     }
     const { stdout } = await exec(mdbook, ['--version'], { timeout: 10000, signal });
-    if (stdout.trim() !== 'mdbook v0.5.4') throw new Error('Backfill requires mdBook 0.5.4, matching the historical documentation workflow');
+    if (stdout.trim() !== `mdbook v${MDBOOK_VERSION}`) {
+        throw new Error(`Backfill requires mdBook ${MDBOOK_VERSION}, matching the historical documentation workflow`);
+    }
     const tools = `${stdout.trim()}, Node ${process.version}, npm ${(await exec('npm', ['--version'], { timeout: 10000, signal })).stdout.trim()}`;
     mkdirSync(output, { recursive: true });
     const lock = join(output, '.lock');
@@ -54,10 +58,7 @@ export async function backfill({ root, inventory, output, mdbook = 'mdbook', sel
     let results = [];
     try {
         if (existsSync(manifestPath)) {
-            const previous = JSON.parse(readFileSync(manifestPath, 'utf8'));
-            if (previous.schema !== 1 || !previous.inventory || previous.inventoryFingerprint !== digest(JSON.stringify(previous.inventory))) {
-                throw new Error('Invalid historical archive manifest');
-            }
+            const previous = readArchiveManifest(output);
             if (previous.inventoryFingerprint !== inventoryFingerprint && !reuse) {
                 throw new Error('Output belongs to a different inventory; choose another --output directory');
             }

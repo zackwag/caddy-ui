@@ -217,7 +217,7 @@ settled result is reused for up to `OBSERVATION_MAX_AGE_MS` (5 seconds).
 
 Writes through caddy-ui invalidate those results. `caddy.js` bumps a
 per-instance generation (`markConfigChanged`) when a non-GET admin request or
-`caddyLoad` settles, and `routes/caddyfile.js` does the same after its
+`caddyLoad` settles, and `caddyfileRuntime.js` does the same after its
 `caddy reload` fallback. The bump happens whether the write succeeds or fails,
 because a failed write may have applied partially.
 
