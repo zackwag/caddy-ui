@@ -1,5 +1,32 @@
 # Changelog
 
+## [3.10.0](https://github.com/zackwag/caddy-ui/compare/v3.9.1...v3.10.0) (2026-11-28)
+
+
+### Features
+
+* **history:** preserve external configuration changes as inspectable diffs  ([#532](https://github.com/zackwag/caddy-ui/issues/532)) ([454b8e8](https://github.com/zackwag/caddy-ui/commit/454b8e86859719e16e951ce12c12109cd7c46d7f))
+* **notifications:** notify on unexpected Caddy configuration changes ([#574](https://github.com/zackwag/caddy-ui/issues/574)) ([1ed117e](https://github.com/zackwag/caddy-ui/commit/1ed117e5ed556a152eebbf1652c6199d5e4f70ef))
+* **security:** record administrative actions outside Caddyfile history ([#575](https://github.com/zackwag/caddy-ui/issues/575)) ([d838498](https://github.com/zackwag/caddy-ui/commit/d83849865e59e016b71752d0f6f0d21c45b0f8a9))
+
+
+### Bug Fixes
+
+* untangle the codebase so changes land in one place, and fix the bugs it exposed ([#590](https://github.com/zackwag/caddy-ui/issues/590)) ([fe01566](https://github.com/zackwag/caddy-ui/commit/fe015661f053b6619d025198025a635b75c6af54))
+
+
+### Documentation
+
+* **dockerhub:** link to the authentication guide instead of inlining it ([#576](https://github.com/zackwag/caddy-ui/issues/576)) ([27b8005](https://github.com/zackwag/caddy-ui/commit/27b80056e2984906d5bbd7f34cfa36e105d4a78e))
+
+
+### Miscellaneous Chores
+
+* **deps:** bump express-rate-limit from 8.7.4 to 8.7.5 in /src/backend ([#583](https://github.com/zackwag/caddy-ui/issues/583)) ([eeed31f](https://github.com/zackwag/caddy-ui/commit/eeed31fd76b95dc47bd5c43efeed36ff37a3ac58))
+* **deps:** bump i18next from 27.1.2 to 27.2.3 in /src/frontend ([#587](https://github.com/zackwag/caddy-ui/issues/587)) ([a9694e6](https://github.com/zackwag/caddy-ui/commit/a9694e61a95820b0942a1c1ae5e946b7e5618af2))
+* **deps:** bump react-i18next from 18.0.1 to 18.0.3 in /src/frontend ([#586](https://github.com/zackwag/caddy-ui/issues/586)) ([950adb3](https://github.com/zackwag/caddy-ui/commit/950adb353d83ad166b81842188fc35581e229423))
+* **deps:** bump react-router-dom from 7.18.5 to 7.18.6 in /src/frontend ([#585](https://github.com/zackwag/caddy-ui/issues/585)) ([0c73f5f](https://github.com/zackwag/caddy-ui/commit/0c73f5f42a2143701ac340e4fd20f3998ba8c535))
+
 ## [3.9.1](https://github.com/zackwag/caddy-ui/compare/v3.9.0...v3.9.1) (2026-11-18)
 
 
